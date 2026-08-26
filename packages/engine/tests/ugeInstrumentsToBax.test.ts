@@ -142,6 +142,21 @@ describe('ugeInstrumentsToBax', () => {
       expect(demo).toContain(`:inst(${inst.name})`);
     }
   });
+
+  test('kinds option omits other types and kitFileName rewrites the demo import', () => {
+    const song = parseUGE(buildUgeFixture({ version: 6 }));
+    const { result, kit, demo } = extractUgeInstrumentLibrary(
+      [{ label: 't.uge', song }],
+      { kinds: ['noise'], kitFileName: 'kit.ins' },
+    );
+    expect(result.pulse).toEqual([]);
+    expect(result.wave).toEqual([]);
+    expect(result.noise.length).toBeGreaterThan(0);
+    expect(kit).not.toContain('type=pulse');
+    expect(kit).toContain('import "local:kit.ins"');
+    expect(demo).toContain('import "local:kit.ins"');
+    expect(demo).not.toContain('import "local:gameboy.ins"');
+  });
 });
 
 describe('committed Game Boy instrument kit', () => {

@@ -17,6 +17,13 @@ import {
   type WaveInstrument,
 } from './uge.reader.js';
 
+/** Browser-safe basename (no Node `path` — this module is re-exported from the engine root). */
+function fileBasename(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/');
+  const slash = normalized.lastIndexOf('/');
+  return slash >= 0 ? normalized.slice(slash + 1) : normalized;
+}
+
 export type InstrumentKind = 'pulse' | 'wave' | 'noise';
 
 export interface ExtractedInstrument {
@@ -40,6 +47,13 @@ export interface ExtractionResult {
   wave: ExtractedInstrument[];
   noise: ExtractedInstrument[];
   renames: RenameRecord[];
+}
+
+export interface ExtractUgeLibraryOptions {
+  /** When set, only these channel classes are extracted (name allocator skips the rest). */
+  kinds?: InstrumentKind[];
+  /** Basename used in kit comments and the demo `import "local:…"` line. Default: `gameboy.ins`. */
+  kitFileName?: string;
 }
 
 export interface NameAllocator {
@@ -288,11 +302,21 @@ function maybeSubpat(
   return { subpatName, subpatBlock };
 }
 
+function kindEnabled(kind: InstrumentKind, kinds?: InstrumentKind[]): boolean {
+  return !kinds || kinds.length === 0 || kinds.includes(kind);
+}
+
+function kitImportFileName(kitFileName?: string): string {
+  const base = fileBasename(kitFileName || 'gameboy.ins').trim();
+  return base || 'gameboy.ins';
+}
+
 export function extractInstrumentsFromUGE(
   song: UGESong,
   sourceLabel: string,
   names: NameAllocator,
   result: ExtractionResult,
+  kinds?: InstrumentKind[],
 ): void {
   const usedDuty = new Set([
     ...collectUsedSlots(song, song.orders.duty1),
@@ -301,56 +325,62 @@ export function extractInstrumentsFromUGE(
   const usedWave = collectUsedSlots(song, song.orders.wave);
   const usedNoise = collectUsedSlots(song, song.orders.noise);
 
-  song.dutyInstruments.forEach((inst, slot) => {
-    if (!shouldInclude(inst.name, usedDuty.has(slot), !!inst.subpatternEnabled, inst.rows)) return;
-    const fallback = `pulse_${result.pulse.length + 1}`;
-    const base = sanitizeIdent(inst.name, fallback);
-    const name = names.allocate(base, sourceLabel, inst.name, result.renames);
-    const sub = maybeSubpat(name, inst.subpatternEnabled, inst.rows, names, sourceLabel, result.renames);
-    result.pulse.push({
-      kind: 'pulse',
-      name,
-      source: sourceLabel,
-      originalName: inst.name,
-      instLine: formatDutyLine(name, inst, sub.subpatName),
-      subpatName: sub.subpatName,
-      subpatBlock: sub.subpatBlock,
+  if (kindEnabled('pulse', kinds)) {
+    song.dutyInstruments.forEach((inst, slot) => {
+      if (!shouldInclude(inst.name, usedDuty.has(slot), !!inst.subpatternEnabled, inst.rows)) return;
+      const fallback = `pulse_${result.pulse.length + 1}`;
+      const base = sanitizeIdent(inst.name, fallback);
+      const name = names.allocate(base, sourceLabel, inst.name, result.renames);
+      const sub = maybeSubpat(name, inst.subpatternEnabled, inst.rows, names, sourceLabel, result.renames);
+      result.pulse.push({
+        kind: 'pulse',
+        name,
+        source: sourceLabel,
+        originalName: inst.name,
+        instLine: formatDutyLine(name, inst, sub.subpatName),
+        subpatName: sub.subpatName,
+        subpatBlock: sub.subpatBlock,
+      });
     });
-  });
+  }
 
-  song.waveInstruments.forEach((inst, slot) => {
-    if (!shouldInclude(inst.name, usedWave.has(slot), !!inst.subpatternEnabled, inst.rows)) return;
-    const fallback = `wave_${result.wave.length + 1}`;
-    const base = sanitizeIdent(inst.name, fallback);
-    const name = names.allocate(base, sourceLabel, inst.name, result.renames);
-    const sub = maybeSubpat(name, inst.subpatternEnabled, inst.rows, names, sourceLabel, result.renames);
-    result.wave.push({
-      kind: 'wave',
-      name,
-      source: sourceLabel,
-      originalName: inst.name,
-      instLine: formatWaveLine(name, inst, song, sub.subpatName),
-      subpatName: sub.subpatName,
-      subpatBlock: sub.subpatBlock,
+  if (kindEnabled('wave', kinds)) {
+    song.waveInstruments.forEach((inst, slot) => {
+      if (!shouldInclude(inst.name, usedWave.has(slot), !!inst.subpatternEnabled, inst.rows)) return;
+      const fallback = `wave_${result.wave.length + 1}`;
+      const base = sanitizeIdent(inst.name, fallback);
+      const name = names.allocate(base, sourceLabel, inst.name, result.renames);
+      const sub = maybeSubpat(name, inst.subpatternEnabled, inst.rows, names, sourceLabel, result.renames);
+      result.wave.push({
+        kind: 'wave',
+        name,
+        source: sourceLabel,
+        originalName: inst.name,
+        instLine: formatWaveLine(name, inst, song, sub.subpatName),
+        subpatName: sub.subpatName,
+        subpatBlock: sub.subpatBlock,
+      });
     });
-  });
+  }
 
-  song.noiseInstruments.forEach((inst, slot) => {
-    if (!shouldInclude(inst.name, usedNoise.has(slot), !!inst.subpatternEnabled, inst.rows)) return;
-    const fallback = `noise_${result.noise.length + 1}`;
-    const base = sanitizeIdent(inst.name, fallback);
-    const name = names.allocate(base, sourceLabel, inst.name, result.renames);
-    const sub = maybeSubpat(name, inst.subpatternEnabled, inst.rows, names, sourceLabel, result.renames);
-    result.noise.push({
-      kind: 'noise',
-      name,
-      source: sourceLabel,
-      originalName: inst.name,
-      instLine: formatNoiseLine(name, inst, firstNoiseNote(song, slot), sub.subpatName),
-      subpatName: sub.subpatName,
-      subpatBlock: sub.subpatBlock,
+  if (kindEnabled('noise', kinds)) {
+    song.noiseInstruments.forEach((inst, slot) => {
+      if (!shouldInclude(inst.name, usedNoise.has(slot), !!inst.subpatternEnabled, inst.rows)) return;
+      const fallback = `noise_${result.noise.length + 1}`;
+      const base = sanitizeIdent(inst.name, fallback);
+      const name = names.allocate(base, sourceLabel, inst.name, result.renames);
+      const sub = maybeSubpat(name, inst.subpatternEnabled, inst.rows, names, sourceLabel, result.renames);
+      result.noise.push({
+        kind: 'noise',
+        name,
+        source: sourceLabel,
+        originalName: inst.name,
+        instLine: formatNoiseLine(name, inst, firstNoiseNote(song, slot), sub.subpatName),
+        subpatName: sub.subpatName,
+        subpatBlock: sub.subpatBlock,
+      });
     });
-  });
+  }
 }
 
 export function emptyExtractionResult(): ExtractionResult {
@@ -379,17 +409,18 @@ function emitSection(title: string, items: ExtractedInstrument[]): string[] {
   return lines;
 }
 
-export function formatGameBoyIns(result: ExtractionResult): string {
+export function formatGameBoyIns(result: ExtractionResult, kitFileName?: string): string {
+  const importName = kitImportFileName(kitFileName);
   const header = [
     '# Game Boy instrument library extracted from hUGETracker .uge files.',
-    '# Import with: import "local:gameboy.ins"',
+    `# Import with: import "local:${importName}"`,
     '# Grouped by type (pulse, wave, noise). Duplicate names were renamed _2, _3, …',
   ];
   return [
     ...header,
-    ...emitSection('Pulse', result.pulse),
-    ...emitSection('Wave', result.wave),
-    ...emitSection('Noise', result.noise),
+    ...(result.pulse.length ? emitSection('Pulse', result.pulse) : []),
+    ...(result.wave.length ? emitSection('Wave', result.wave) : []),
+    ...(result.noise.length ? emitSection('Noise', result.noise) : []),
     '',
   ].join('\n');
 }
@@ -413,7 +444,8 @@ function chunkTourSeqs(
   return { seqNames, lines };
 }
 
-export function formatGameBoyInstrumentsDemo(result: ExtractionResult): string {
+export function formatGameBoyInstrumentsDemo(result: ExtractionResult, kitFileName?: string): string {
+  const importName = kitImportFileName(kitFileName);
   const pulseNames = result.pulse.map((i) => i.name);
   const waveNames = result.wave.map((i) => i.name);
   const noiseNames = result.noise.map((i) => i.name);
@@ -435,16 +467,16 @@ export function formatGameBoyInstrumentsDemo(result: ExtractionResult): string {
 
   return [
     '# Game Boy instrument library tour — not a musical arrangement.',
-    '# Imports every extracted patch from gameboy.ins and plays each once.',
+    `# Imports every extracted patch from ${importName} and plays each once.`,
     '# UGE export cannot fit this kit (15 slots per type); use BeatBax playback.',
     '',
     'song name "Game Boy Instrument Library Demo"',
     'song artist "BeatBax"',
-    'song description """Audition tour of instruments extracted from hUGETracker .uge files in songs/instruments/gameboy/uge."""',
+    'song description """Audition tour of instruments extracted from hUGETracker .uge files."""',
     'song tags "instruments,gameboy,library,demo"',
     '',
     'chip gameboy',
-    'import "local:gameboy.ins"',
+    `import "local:${importName}"`,
     'bpm 128',
     'stepsPerBar 4',
     '',
@@ -465,15 +497,17 @@ export function formatGameBoyInstrumentsDemo(result: ExtractionResult): string {
 
 export function extractUgeInstrumentLibrary(
   files: { label: string; song: UGESong }[],
+  options?: ExtractUgeLibraryOptions,
 ): { result: ExtractionResult; kit: string; demo: string } {
   const names = createNameAllocator();
   const result = emptyExtractionResult();
   for (const file of files) {
-    extractInstrumentsFromUGE(file.song, file.label, names, result);
+    extractInstrumentsFromUGE(file.song, file.label, names, result, options?.kinds);
   }
+  const kitFileName = options?.kitFileName;
   return {
     result,
-    kit: formatGameBoyIns(result),
-    demo: formatGameBoyInstrumentsDemo(result),
+    kit: formatGameBoyIns(result, kitFileName),
+    demo: formatGameBoyInstrumentsDemo(result, kitFileName),
   };
 }
