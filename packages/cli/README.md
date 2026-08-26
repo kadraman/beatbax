@@ -118,8 +118,8 @@ Useful options:
 - Trailing `kit.ins` argument, or `--out <path>` — where to write the kit (default for a single file: `{basename}.ins` next to the source)
 - `--from uge` — force UGE parsing when the file is not named `.uge`
 - `--stdout` — print the kit; do not write a file
-- `--summary` — counts and renames only
-- `--demo [path]` — write a tour `.bax` that `import "local:…"`s the kit and plays every name once
+- `--summary` — counts and renames only (cannot combine with `--demo`)
+- `--demo [path]` — write a tour `.bax` that `import "local:…"`s the kit and plays every name once (requires writing a kit file)
 - `--type pulse,wave,noise` — extract a subset of channel classes
 - `--strict` — fail if any input is missing, unknown, or fails to parse
 

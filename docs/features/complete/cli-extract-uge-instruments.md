@@ -203,8 +203,8 @@ Alias: `instruments`.
 | `--out <path>` | Kit path (same as the optional positional output) |
 | `--from <format>` | Source format (`uge` in v1). Default: infer from extension |
 | `--stdout` | Print kit to stdout; do not write a file |
-| `--summary` | Print counts / renames only; do not write kit |
-| `--demo [path]` | Write a tour `.bax` (default: `{kitStem}-demo.bax` next to the kit) |
+| `--summary` | Print counts / renames only; do not write kit (incompatible with `--demo`) |
+| `--demo [path]` | Write a tour `.bax` (default: `{kitStem}-demo.bax` next to the kit). Requires writing a kit file — cannot combine with `--summary` or `--stdout` |
 | `--type <list>` | Comma-separated `pulse`, `wave`, `noise` (default: all) |
 | `--strict` | Non-zero exit if any input file fails to parse or is an unknown type |
 

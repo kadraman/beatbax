@@ -102,6 +102,23 @@ describe('CLI extract instrument', () => {
     expect(result.stdout).not.toContain('[OK] Wrote');
   });
 
+  it('rejects --demo with --summary (no kit is written)', () => {
+    writeFixture(fixture);
+    const result = run(['extract', 'instrument', fixture, '--out', outIns, '--summary', '--demo', demoBax]);
+    expect(result.status).toBe(1);
+    expect(`${result.stderr}${result.stdout}`).toMatch(/--demo requires writing a kit/);
+    expect(existsSync(outIns)).toBe(false);
+    expect(existsSync(demoBax)).toBe(false);
+  });
+
+  it('rejects --demo with --stdout (no kit file is written)', () => {
+    writeFixture(fixture);
+    const result = run(['extract', 'instrument', fixture, '--out', outIns, '--stdout', '--demo', demoBax]);
+    expect(result.status).toBe(1);
+    expect(`${result.stderr}${result.stdout}`).toMatch(/--demo requires writing a kit/);
+    expect(existsSync(demoBax)).toBe(false);
+  });
+
   it('rejects a non-.uge name without --from', () => {
     writeFixture(fixture);
     writeFileSync(dumpedBin, readFileSync(fixture));

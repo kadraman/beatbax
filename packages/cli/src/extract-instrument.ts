@@ -41,10 +41,10 @@ export function parseInstrumentKinds(list?: string): InstrumentKind[] | undefine
 }
 
 export function peelKitOutputArgument(args: string[], outOption?: string): { inputs: string[]; kitOut?: string } {
-  if (outOption) return { inputs: args, kitOut: outOption };
-  if (args.length >= 2 && extname(args[args.length - 1]).toLowerCase() === '.ins') {
-    return { inputs: args.slice(0, -1), kitOut: args[args.length - 1] };
-  }
+  const trailingIns = args.length >= 2 && extname(args[args.length - 1]).toLowerCase() === '.ins';
+  const inputs = trailingIns ? args.slice(0, -1) : args;
+  if (outOption) return { inputs, kitOut: outOption };
+  if (trailingIns) return { inputs, kitOut: args[args.length - 1] };
   return { inputs: args };
 }
 

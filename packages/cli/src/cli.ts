@@ -711,8 +711,8 @@ extractCmd
   .option('-o, --out <path>', 'Write the .ins kit to this path (overrides a trailing .ins argument)')
   .option('--from <format>', 'Source format (v1: uge). Default: infer from extension')
   .option('--stdout', 'Print kit to stdout; do not write a kit file')
-  .option('--summary', 'Print counts and renames only; do not write a kit')
-  .option('--demo [path]', 'Write a tour .bax that imports the kit (default: {kitStem}-demo.bax)')
+  .option('--summary', 'Print counts and renames only; do not write a kit (incompatible with --demo)')
+  .option('--demo [path]', 'Write a tour .bax that imports the kit (requires writing a kit file; default: {kitStem}-demo.bax)')
   .option('--type <list>', 'Comma-separated kinds: pulse,wave,noise (default: all)')
   .option('--strict', 'Exit non-zero if any input fails to parse or is an unknown type')
   .action((rawInputs: string[], options) => {
@@ -773,6 +773,9 @@ extractCmd
     const writeKit = !toStdout && !summaryOnly;
     const demoOpt = options.demo;
     const wantDemo = demoOpt !== undefined && demoOpt !== false;
+    if (wantDemo && !writeKit) {
+      failCommand('Error: --demo requires writing a kit file (cannot combine with --summary or --stdout)');
+    }
     if (writeKit && !kitPath) {
       failCommand('Error: several files or a directory require --out (or a trailing .ins path)');
     }

@@ -44,9 +44,9 @@ describe('parseInstrumentKinds', () => {
 });
 
 describe('peelKitOutputArgument', () => {
-  it('uses --out when present', () => {
+  it('uses --out and still peels a trailing .ins so it is not treated as an input', () => {
     expect(peelKitOutputArgument(['a.uge', 'b.ins'], 'kit.ins')).toEqual({
-      inputs: ['a.uge', 'b.ins'],
+      inputs: ['a.uge'],
       kitOut: 'kit.ins',
     });
   });
@@ -54,6 +54,13 @@ describe('peelKitOutputArgument', () => {
   it('peels a trailing .ins argument', () => {
     expect(peelKitOutputArgument(['a.uge', 'out.ins'])).toEqual({
       inputs: ['a.uge'],
+      kitOut: 'out.ins',
+    });
+  });
+
+  it('keeps a lone .ins path as an input when --out is set (not a trailing output)', () => {
+    expect(peelKitOutputArgument(['kit.ins'], 'out.ins')).toEqual({
+      inputs: ['kit.ins'],
       kitOut: 'out.ins',
     });
   });
