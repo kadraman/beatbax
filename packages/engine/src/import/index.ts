@@ -33,6 +33,7 @@ export {
   formatSubpatternBlock,
   type ExtractedInstrument,
   type ExtractionResult,
+  type ExtractUgeLibraryOptions,
   type InstrumentKind,
 } from './uge/ugeInstrumentsToBax.js';
 
