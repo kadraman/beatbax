@@ -13,6 +13,7 @@ BeatBax CLI provides command-line tools for working with BeatBax chiptune files:
 - Verify syntax
 - Export to JSON, MIDI, WAV, and UGE (hUGETracker) formats
 - Convert WAV files to raw NES DMC samples
+- Extract instruments from hUGETracker `.uge` files into a `.ins` kit
 - Inspect UGE files
 
 Runtime note: Node playback internals are provided by `@beatbax/engine/node`, and the CLI consumes that API.
@@ -102,6 +103,40 @@ beatbax inspect file.uge
 
 Shows metadata, instruments, patterns, and effects from UGE files.
 
+### Extract instruments from UGE files
+
+```bash
+beatbax extract instrument song.uge
+beatbax extract instrument song.uge kit.ins
+beatbax extract instrument path/to/uges --out gameboy.ins --demo gameboy-instruments-demo.bax
+```
+
+Pulls duty / wave / noise instruments (plus `subpat` programs) from hUGETracker `.uge` files into a BeatBax `.ins` kit. This is **not** full-song import — patterns and orders stay on the proposed `beatbax convert uge` command.
+
+Useful options:
+
+- Trailing `kit.ins` argument, or `--out <path>` — where to write the kit (default for a single file: `{basename}.ins` next to the source)
+- `--from uge` — force UGE parsing when the file is not named `.uge`
+- `--stdout` — print the kit; do not write a file
+- `--summary` — counts and renames only
+- `--demo [path]` — write a tour `.bax` that `import "local:…"`s the kit and plays every name once
+- `--type pulse,wave,noise` — extract a subset of channel classes
+- `--strict` — fail if any input is missing, unknown, or fails to parse
+
+A song then uses the kit:
+
+```bax
+chip gameboy
+import "local:kit.ins"
+bpm 128
+channel 1 => inst Lead pat hook
+```
+
+```text
+Usage: beatbax extract instrument [options] <inputs...> [output.ins]
+```
+
+For a single `.uge`, omit the output path to write `{basename}.ins` beside the source.
 ### Convert WAV to NES DMC
 
 ```bash
@@ -167,6 +202,7 @@ Get help for any command:
 beatbax --help
 beatbax play --help
 beatbax export --help
+beatbax extract instrument --help
 beatbax convert wav2dmc --help
 ```
 
