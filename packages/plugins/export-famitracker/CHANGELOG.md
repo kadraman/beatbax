@@ -1,5 +1,11 @@
 # @beatbax/plugin-exporter-famitracker
 
+## 0.2.4
+
+### Patch Changes
+
+- bd3aeb2: Sync `src/version.ts` with `package.json` so FamiTracker exporter version metadata remains accurate in CLI/Web UI plugin listings.
+
 ## 0.2.3
 
 ### Patch Changes

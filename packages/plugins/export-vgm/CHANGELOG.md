@@ -1,5 +1,11 @@
 # @beatbax/plugin-exporter-vgm
 
+## 0.1.5
+
+### Patch Changes
+
+- bd3aeb2: Sync `src/version.ts` with `package.json` so exporter version metadata stays accurate, including GD3 `creator` stamping in VGM output.
+
 ## 0.1.4
 
 ### Patch Changes

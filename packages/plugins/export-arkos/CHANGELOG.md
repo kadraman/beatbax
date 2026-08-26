@@ -1,5 +1,11 @@
 # @beatbax/plugin-exporter-arkos
 
+## 0.2.1
+
+### Patch Changes
+
+- bd3aeb2: Sync `src/version.ts` with `package.json` so Arkos exporter version metadata reported by plugin registries and listing commands stays accurate.
+
 ## 0.2.0
 
 ### Minor Changes
