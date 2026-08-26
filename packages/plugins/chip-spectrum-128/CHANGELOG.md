@@ -1,5 +1,11 @@
 # @beatbax/plugin-chip-spectrum-128
 
+## 0.2.5
+
+### Patch Changes
+
+- bd3aeb2: Sync `src/version.ts` with `package.json` so Spectrum plugin version metadata shown in CLI/Web UI stays accurate after releases.
+
 ## 0.2.4
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@beatbax/plugin-exporter-famitracker",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "FamiTracker text exporter plugin for BeatBax (.txt format).",
   "private": false,
   "type": "module",
