@@ -99,6 +99,7 @@ import { LoadingOverlay } from './ui/loading-overlay';
 import { ThemeManager } from './ui/theme-manager';
 import { TransportBar } from './ui/transport-bar';
 import { PatternGrid } from './ui/pattern-grid';
+import { buildArrangementSliceSource } from '@beatbax/app-core/editor/arrangement-slice';
 import { HelpPanel } from './panels/help-panel';
 import { SongVisualizer } from './panels/song-visualizer';
 import { ChannelMixer } from './panels/channel-mixer';
@@ -622,6 +623,7 @@ if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
 
 // ─── Pattern Grid (sequence overview, sits below TransportBar) ───────────────
 let patternGrid: PatternGrid | null = null;
+let lastSongContext: { song: unknown; ast?: unknown } | null = null;
 if (capabilities.patternGrid) {
   patternGrid = new PatternGrid();
   patternGridContainer.appendChild(patternGrid.el);
@@ -645,8 +647,9 @@ let _loopUserOverride = false;
 let _bpmUserOverride = false;
 
 // Update transport display from parser / playback events
-eventBus.on('parse:success', ({ ast, sourceBpm: evtSourceBpm }) => {
+eventBus.on('parse:success', ({ ast, sourceBpm: evtSourceBpm, ephemeral }: any) => {
   try {
+    if (ephemeral) return;
     // Use sourceBpm from the event when available (emitted by PlaybackManager
     // *before* any BPM override is applied). Fall back to ast.bpm for events
     // emitted by emitParse(), which always reflects the raw source value.
@@ -699,15 +702,21 @@ eventBus.on('parse:success', ({ ast, sourceBpm: evtSourceBpm }) => {
 });
 
 // Update pattern grid on each successful parse
-eventBus.on('parse:success', ({ ast, song, valid }: any) => {
+eventBus.on('parse:success', ({ ast, song, valid, ephemeral }: any) => {
   try {
+    if (ephemeral) return;
     // Ensure the channel store has entries for every channel in this song
     // so mute/solo work for all channels (e.g. NES channel 5 DMC).
     if (ast?.channels?.length) {
       ensureChannels((ast.channels as any[]).map((c: any) => c.id as number));
     }
     if (!isParseSuccessValid({ valid })) return;
-    if (song) patternGrid?.setSong(song, ast);
+    if (song) {
+      lastSongContext = { song, ast };
+      patternGrid?.setSong(song, ast);
+    } else {
+      lastSongContext = null;
+    }
   } catch (_e) {}
 });
 
@@ -724,6 +733,27 @@ patternGrid.onNavigate = (patName: string) => {
         break;
       }
     }
+  } catch (_e) {}
+};
+patternGrid.onPlaySlice = (request) => {
+  try {
+    if (!lastSongContext?.song) return;
+    const result = buildArrangementSliceSource(
+      getSource(),
+      lastSongContext.song,
+      lastSongContext.ast,
+      {
+        channelId: request.channelId,
+        startStep: request.startStep,
+        endStep: request.endStep,
+        seqName: request.seqName,
+        patName: request.patName,
+      },
+      { loop: !!request.loop },
+    );
+    if (!result) return;
+    bottomTabs.show('output');
+    void playbackManager.play(result.source, { ephemeral: true });
   } catch (_e) {}
 };
 }
@@ -1796,8 +1826,9 @@ setupCommandPalette({
       eventBus.emit('preview:chunkInfo', { chunkInfo });
     }
     bottomTabs.show('output');
-    playbackManager.play(src);
+    void playbackManager.play(src, { ephemeral: true });
   },
+  getSongContext: () => lastSongContext,
   onExportData: handleExportData,
 });
 }

@@ -174,10 +174,29 @@ const HELP_SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'pattern-grid',
+    title: 'Pattern Grid & Section Focus',
+    content: [
+      {
+        kind: 'text',
+        text: 'The Pattern Grid shows arrangement sections (Seq row) and per-channel pattern blocks. Click a section name to focus; ▶ plays that section. Click a pattern block to jump to its pat definition in the editor.',
+      },
+      {
+        kind: 'text',
+        text: 'Section focus highlights the section sequences in the editor, scopes F5 playback to that section, and shows a status indicator plus Exit focus in the editor. Stop (F8) halts playback but keeps focus.',
+      },
+      {
+        kind: 'text',
+        text: 'Desktop only: use F6 to focus the section under the cursor without playing. While focused, Alt+← and Alt+→ move to the previous or next section. Esc exits focus.',
+      },
+    ],
+  },
+  {
     id: 'shortcuts',
     title: 'Keyboard Shortcuts',
     content: [
       { kind: 'shortcut', keys: ['F5'], desc: 'Play / re-play (desktop)' },
+      { kind: 'shortcut', keys: ['F6'], desc: 'Focus section at cursor (desktop)' },
       { kind: 'shortcut', keys: ['F8'], desc: 'Stop playback (desktop)' },
       { kind: 'shortcut', keys: ['Ctrl', 'Enter'], desc: 'Apply & re-play' },
       { kind: 'shortcut', keys: ['Ctrl', 'S'], desc: 'Save' },

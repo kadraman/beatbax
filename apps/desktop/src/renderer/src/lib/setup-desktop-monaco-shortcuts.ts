@@ -1,3 +1,4 @@
+import type { BeatBaxEditor } from '@beatbax/app-core/editor';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { registerMonacoShortcuts } from '@beatbax/app-core/shortcuts/monaco';
@@ -10,6 +11,8 @@ import type { DesktopSettingsModalHandle } from '../components/panels/DesktopSet
 import type { DesktopChannelMixerHandle } from '../components/panels/DesktopChannelMixer';
 import type { DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
+import type { SectionFocusController } from './section-focus-controller';
+import { createPatternGridShortcutHandlers, bindPatternGridEditorKeys } from './pattern-grid-shortcuts';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 
 export interface SetupDesktopMonacoShortcutsOptions {
@@ -25,6 +28,9 @@ export interface SetupDesktopMonacoShortcutsOptions {
   copilot: DesktopCopilotHandle | null;
   eventBus: EventBus;
   onVerify: () => void;
+  getEditor: () => BeatBaxEditor | null;
+  getSectionFocusController?: () => SectionFocusController | null;
+  onStatus?: (message: string) => void;
 }
 
 const DESKTOP_CAPABILITIES = {
@@ -60,9 +66,20 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
     copilot,
     eventBus,
     onVerify,
+    getEditor,
+    getSectionFocusController,
+    onStatus,
   } = options;
 
   const disposables: IDisposable[] = [];
+
+  const patternGridHandlers = getSectionFocusController
+    ? createPatternGridShortcutHandlers({
+        getSectionFocusController,
+        getEditor,
+        onStatus,
+      })
+    : null;
 
   registerMonacoShortcuts(editor, 'desktop-full', [
     { commandId: 'transport.play', handler: () => { transportBar.playButton.click(); } },
@@ -100,6 +117,28 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
     }, requiresCapability: 'patternGrid' },
   ], DESKTOP_CAPABILITIES);
 
+  if (patternGridHandlers) {
+    registerMonacoShortcuts(editor, 'desktop-full', [
+      {
+        commandId: 'patternGrid.focusSectionAtCursor',
+        handler: patternGridHandlers['patternGrid.focusSectionAtCursor']!,
+        requiresCapability: 'patternGrid',
+      },
+      {
+        commandId: 'patternGrid.previousSection',
+        handler: patternGridHandlers['patternGrid.previousSection']!,
+        requiresCapability: 'patternGrid',
+      },
+      {
+        commandId: 'patternGrid.nextSection',
+        handler: patternGridHandlers['patternGrid.nextSection']!,
+        requiresCapability: 'patternGrid',
+      },
+    ], DESKTOP_CAPABILITIES);
+
+    disposables.push({ dispose: bindPatternGridEditorKeys(editor, patternGridHandlers) });
+  }
+
   if (copilot) {
     registerMonacoShortcuts(editor, 'desktop-full', [
       { commandId: 'tools.toggleCopilot', handler: () => {
@@ -111,6 +150,12 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
 
   disposables.push(editor.onKeyDown((e: IKeyboardEvent) => {
     if (e.keyCode === KeyCode.Escape && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      if (getSectionFocusController?.()?.isActive()) {
+        e.preventDefault();
+        e.stopPropagation();
+        getSectionFocusController()?.exit();
+        return;
+      }
       if (rightTabs.activeTab === 'help') rightTabs.switch('channels');
     }
   }));

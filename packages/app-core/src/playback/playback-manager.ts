@@ -44,6 +44,13 @@ export interface PlaybackState {
 
 export interface PlaybackOptions {
   onWarn?: (warning: any) => void;
+  /**
+   * When true, this play uses a temporary/synthetic source (Play Selection,
+   * arrangement slice, etc.). `parse:success` is still emitted for playback
+   * internals, but UI should not replace the Pattern Grid / song context with
+   * the ephemeral AST.
+   */
+  ephemeral?: boolean;
 }
 
 /**
@@ -326,7 +333,13 @@ export class PlaybackManager {
       parsedBpm.set((resolved as any).bpm || 120);
       parsedChip.set((resolved as any).chip || 'gameboy');
       playbackBpm.set((resolved as any).bpm || 120);
-      this.eventBus.emit('parse:success', { ast: resolved, song: resolved, sourceBpm, valid: true });
+      this.eventBus.emit('parse:success', {
+        ast: resolved,
+        song: resolved,
+        sourceBpm,
+        valid: true,
+        ephemeral: options.ephemeral === true,
+      });
 
       // Create player if needed
       if (!this.player) {
@@ -645,6 +658,10 @@ export class PlaybackManager {
    * Enable or disable loop mode. When enabled, the song restarts from
    * the resolved AST at the end of each playback iteration without re-parsing.
    */
+  getLoop(): boolean {
+    return this._loop;
+  }
+
   setLoop(enabled: boolean): void {
     this._loop = enabled;
   }

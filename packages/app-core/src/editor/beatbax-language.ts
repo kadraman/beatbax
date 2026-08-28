@@ -660,6 +660,7 @@ export function registerBeatBaxLanguage(): void {
       { open: '{', close: '}' },
       { open: '"', close: '"' },
     ],
+    wordPattern: /(-?\d*\.\d\w*)|([A-Za-z_][A-Za-z0-9_]*)/g,
   });
 
   // Set syntax highlighting (Monarch tokenizer)

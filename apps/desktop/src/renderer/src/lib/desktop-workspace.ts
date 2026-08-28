@@ -47,7 +47,11 @@ import { blurChromeFocus, focusWorkspaceEditor, suppressChromeTabFocus } from '.
 import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
 import { createDesktopHelpPanel, type DesktopHelpPanelHandle } from '../components/panels/HelpPanel';
 import { createDesktopSettingsModal, noopDesktopSettingsModal, type DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
-import { createDesktopPatternGrid, type DesktopPatternGridHandle } from '../components/panels/DesktopPatternGrid';
+import { createDesktopPatternGrid, type DesktopPatternGridHandle, type ArrangementSlicePlayRequest } from '../components/panels/DesktopPatternGrid';
+import { createSectionFocusController, type SectionFocusController } from './section-focus-controller';
+import { setupSectionFocusEditor } from './section-focus-editor';
+import { setupSectionFocusOverlay } from './section-focus-overlay';
+import { setupPatternNavFlash } from './pattern-nav-flash';
 import { createDesktopSongVisualizer, type DesktopSongVisualizerHandle } from '../components/panels/DesktopSongVisualizer';
 import { createDesktopChannelMixer, type DesktopChannelMixerHandle } from '../components/panels/DesktopChannelMixer';
 import { createDesktopToolbar, type DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
@@ -168,23 +172,37 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   suppressChromeTabFocus(transportBar.el);
 
   let patternGrid: DesktopPatternGridHandle | null = null;
+  let lastSongContext: { song: unknown; ast?: unknown } | null = null;
+  const sectionFocusEditor = setupSectionFocusEditor(getEditor);
+  const sectionFocusOverlay = setupSectionFocusOverlay(editorPane, {
+    onExit: () => sectionFocusController?.exit(),
+  });
+  cleanups.push(() => sectionFocusOverlay.dispose());
+  const patternNavFlash = setupPatternNavFlash(getEditor, () => getEditor()?.getValue() ?? '');
+  let sectionFocusController: SectionFocusController | null = null;
+
+  const enterSectionSlice = (request: ArrangementSlicePlayRequest) => {
+    if (!sectionFocusController) {
+      statusBar?.setStatus('Parse the song first to focus a section');
+      return;
+    }
+    bottomTabs.show('output');
+    sectionFocusController.enter(request, {
+      play: request.autoPlay === true,
+      loop: request.loop,
+    });
+  };
+
   if (capabilities.patternGrid) {
     const showGrid = shouldShowPatternGrid(capabilities);
     patternGridContainer.style.display = showGrid ? '' : 'none';
     settingShowPatternGrid.set(showGrid);
-    patternGrid = createDesktopPatternGrid(patternGridContainer, { onNavigate: (patName: string) => {
-      const monacoEditor = getEditor()?.editor;
-      const source = getEditor()?.getValue() ?? '';
-      const lines = source.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const m = lines[i].match(/^\s*pat\s+(\S+)/);
-        if (m && m[1] === patName) {
-          monacoEditor?.setPosition({ lineNumber: i + 1, column: 1 });
-          monacoEditor?.revealLineInCenter(i + 1);
-          break;
-        }
-      }
-    } });
+    patternGrid = createDesktopPatternGrid(patternGridContainer, {
+      onNavigate: (patName: string) => {
+        patternNavFlash.flashPat(patName);
+      },
+      onPlaySlice: enterSectionSlice,
+    });
   }
 
   const bottomTabs = buildBottomTabs(outputPane, layout, {
@@ -375,6 +393,24 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   }
 
   const getSource = () => getEditor()?.getValue() ?? '';
+
+  let loadDocument = options.onLoadDocument;
+  let createFromWizard = options.onCreateFromWizard;
+
+  const clearSectionFocus = (): void => {
+    sectionFocusController?.exit();
+  };
+
+  loadDocument = (name: string, content: string): void => {
+    clearSectionFocus();
+    options.onLoadDocument(name, content);
+  };
+
+  createFromWizard = (source: string, songName: string): void => {
+    clearSectionFocus();
+    options.onCreateFromWizard(source, songName);
+  };
+
   let parseTimeout: number | null = null;
   let verifyPending = false;
   const runParse = (content: string) => {
@@ -465,7 +501,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
           source: 'app',
           timestamp: new Date(),
         });
-        options.onCreateFromWizard(source, songName);
+        createFromWizard(source, songName);
       },
     });
 
@@ -480,7 +516,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
 
   const openNewSongWizard = () => {
     if (newSongWizard) newSongWizard.open();
-    else options.onCreateFromWizard('', 'untitled');
+    else createFromWizard('', 'untitled');
   };
 
   let viewPrefsHandlers: ReturnType<typeof createEditorViewPrefsHandlers> | null = null;
@@ -494,7 +530,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     initialVisible: settingShowToolbar.get(),
     eventBus,
     onBeforeOpenFile: () => playbackManager.stop(),
-    onLoad: (filename, content) => options.onLoadDocument(filename, content),
+    onLoad: (filename, content) => loadDocument(filename, content),
     onOpen: options.onOpen,
     onExport: (format: ExportFormat) => { void handleExport(format); },
     onVerify: runVerify,
@@ -577,7 +613,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         void window.electronAPI?.clearRecentFiles().then(refreshRecentFiles);
       },
       onSave: options.onSave,
-      onLoadDocument: options.onLoadDocument,
+      onLoadDocument: loadDocument,
       viewPrefsHandlers,
     });
     if (menuSetup) {
@@ -601,6 +637,22 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     onShowProblems: () => panelMenuBridge.showProblems(),
   });
   suppressChromeTabFocus(statusBarHost);
+
+  if (capabilities.patternGrid && patternGrid) {
+    sectionFocusController = createSectionFocusController({
+      getSource,
+      getSongContext: () => lastSongContext,
+      getPatternGrid: () => patternGrid,
+      sectionFocusEditor,
+      playbackManager,
+      eventBus,
+      onStatus: (message) => statusBar?.setStatus(message),
+      onFocusChange: (info) => {
+        sectionFocusOverlay.setFocus(!!info);
+        statusBar?.setSectionFocus(info);
+      },
+    });
+  }
 
   panelMenuBridge.toggle = (id: PanelMenuId): void => {
     const s = panelMenuBridge.getState();
@@ -643,6 +695,11 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       stopButton: transportBar.stopButton,
       applyButton: transportBar.applyButton,
       enableKeyboardShortcuts: false,
+      tryPlayOverride: () => {
+        if (!sectionFocusController?.isActive()) return false;
+        sectionFocusController.playFocused();
+        return true;
+      },
     },
     playbackManager,
     eventBus,
@@ -666,8 +723,12 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   });
 
   cleanups.push(
-    eventBus.on('parse:success', ({ ast, song, valid }: { ast?: unknown; song?: unknown; valid?: boolean }) => {
+    eventBus.on('parse:success', ({ ast, song, valid, ephemeral }: { ast?: unknown; song?: unknown; valid?: boolean; ephemeral?: boolean }) => {
       try {
+        // Ephemeral plays (arrangement slice, Play Selection) must not replace
+        // the Pattern Grid / song context with the synthetic AST.
+        if (ephemeral) return;
+
         const channels = (ast as { channels?: Array<{ id: number }> })?.channels;
         if (channels?.length) ensureChannels(channels.map((c) => c.id));
         toolbar.setChip((ast as { chip?: string })?.chip || 'gameboy');
@@ -688,6 +749,11 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
           return;
         }
         if (song && patternGrid) patternGrid.setSong(song, ast);
+        if (song) lastSongContext = { song, ast };
+        else lastSongContext = null;
+        if (sectionFocusController?.isActive()) {
+          sectionFocusController.refresh();
+        }
         toolbar.setExportEnabled(true);
         if (verifyPending) {
           verifyPending = false;
@@ -759,6 +825,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     eventBus.on('playback:stopped', () => {
       transportBar.resetPosition();
       patternGrid?.clearPositions();
+      if (!sectionFocusController?.isActive()) {
+        patternGrid?.setSliceHighlight(null);
+      }
       lastBeat = -1;
     }),
     eventBus.on('playback:paused', () => patternGrid?.pausePositions()),
@@ -832,6 +901,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     themeManager,
     channelMixer,
     copilot,
+    getSectionFocusController: () => sectionFocusController,
+    onStatus: (message) => statusBar?.setStatus(message),
   });
   ks.mount();
 
@@ -889,6 +960,21 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       handleExport,
       onAstParsed: () => { /* scale context refreshed inside setup */ },
       toolbar: toolbarRef.current,
+      getSongContext: () => lastSongContext,
+      onSectionFocusEnter: (payload) => {
+        if (!sectionFocusController) return;
+        bottomTabs.show('output');
+        sectionFocusController.enter(
+          {
+            channelId: payload.channelId,
+            startStep: payload.startStep,
+            endStep: payload.endStep,
+            seqName: payload.seqName,
+            patName: payload.patName,
+          },
+          { play: payload.play === true, loop: !!payload.loop },
+        );
+      },
     });
     monacoShortcutsDispose = setupDesktopMonacoShortcuts({
       editor: editor.editor,
@@ -903,6 +989,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       copilot,
       eventBus,
       onVerify: runVerify,
+      getEditor,
+      getSectionFocusController: () => sectionFocusController,
+      onStatus: (message) => statusBar?.setStatus(message),
     });
     refreshEditorViewPrefs();
     focusWorkspaceEditor(editor);
@@ -919,6 +1008,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     copilot?.dispose();
     settingsModal.dispose();
     patternGrid?.dispose();
+    sectionFocusController?.dispose();
+    patternNavFlash.dispose();
     disposeMenuBar?.();
     problemsPanel.dispose();
     outputPanel.dispose();
@@ -964,14 +1055,14 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       playbackManager.stop();
       const cached = exampleCache.get(path);
       if (cached !== undefined) {
-        options.onLoadDocument(label, cached);
+        loadDocument(label, cached);
         runParse(cached);
         return;
       }
       void loadExampleSong(path, label).then((result) => {
         const filename = result.filename || label;
         exampleCache.set(path, result.content);
-        options.onLoadDocument(filename, result.content);
+        loadDocument(filename, result.content);
         runParse(result.content);
       }).catch((error) => {
         console.error('Failed to load example song', error);

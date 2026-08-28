@@ -3,6 +3,7 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -16,6 +17,7 @@ import {
   toggleChannelSoloed,
   type ChannelInfo,
 } from '@beatbax/app-core/stores/channel.store';
+import type { SectionFocusInfo } from '@beatbax/app-core/editor/arrangement-slice';
 import { getChannelColor } from '@beatbax/ui-tokens/channel-meta';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 
@@ -38,9 +40,21 @@ interface PatternGridRow {
   displayTotal: number;
 }
 
+export interface ArrangementSlicePlayRequest {
+  channelId: number;
+  startStep: number;
+  endStep: number;
+  seqName: string | null;
+  patName: string;
+  loop?: boolean;
+  /** When false, enter focus without starting playback (use transport Play). */
+  autoPlay?: boolean;
+}
+
 interface DesktopPatternGridProps {
   gridRef: RefCallback<DesktopPatternGridHandle>;
   onNavigate?: (patName: string) => void;
+  onPlaySlice?: (request: ArrangementSlicePlayRequest) => void;
 }
 
 export interface DesktopPatternGridHandle {
@@ -50,6 +64,10 @@ export interface DesktopPatternGridHandle {
   pausePositions: () => void;
   resumePositions: () => void;
   clearPositions: () => void;
+  /** Highlight the active arrangement-slice column (step window). */
+  setSliceHighlight: (window: { startStep: number; endStep: number } | null) => void;
+  /** Section focus banner + editor highlight metadata. */
+  setSectionFocus: (info: SectionFocusInfo | null) => void;
   dispose: () => void;
 }
 
@@ -73,6 +91,87 @@ function abbreviatePatternName(name: string, maxLen = 9): string {
   const keepHead = Math.max(3, Math.floor((maxLen - 1) / 2));
   const keepTail = Math.max(2, maxLen - keepHead - 1);
   return `${name.slice(0, keepHead)}…${name.slice(-keepTail)}`;
+}
+
+interface SectionBlock {
+  key: string;
+  seqName: string | null;
+  label: string;
+  startStep: number;
+  endStep: number;
+  channelId: number;
+  patName: string;
+}
+
+function sectionGroupKey(seg: Segment): string {
+  return seg.seqName ? `seq:${seg.seqName}` : `pat:${seg.patName}`;
+}
+
+/** Collapse channel segments into sequence-level blocks for the section strip. */
+function buildSectionBlocks(
+  row: PatternGridRow,
+  pats: Record<string, string[]>,
+  patternDurations: Record<string, number>,
+): SectionBlock[] {
+  const blocks: SectionBlock[] = [];
+  let stepCursor = 0;
+  let current: SectionBlock | null = null;
+
+  for (const seg of row.segs) {
+    const displayUnits = getSegmentDisplayUnits(seg, pats, patternDurations);
+    const startStep = stepCursor;
+    const endStep = stepCursor + Math.max(1, displayUnits);
+    stepCursor = endStep;
+
+    const key = sectionGroupKey(seg);
+    if (current && current.key === key) {
+      current.endStep = endStep;
+      continue;
+    }
+
+    if (current) blocks.push(current);
+    current = {
+      key,
+      seqName: seg.seqName,
+      label: seg.seqName ?? seg.patName,
+      startStep,
+      endStep,
+      channelId: row.channelId,
+      patName: seg.patName,
+    };
+  }
+
+  if (current) blocks.push(current);
+  return blocks;
+}
+
+/** Map 0–1 playback progress into a step window on the full-song grid. */
+function mapProgressIntoWindow(
+  progress: number,
+  window: { startStep: number; endStep: number } | null | undefined,
+  globalEventTotal: number,
+): number {
+  if (!window || globalEventTotal <= 0) return progress;
+  const sliceSteps = window.endStep - window.startStep;
+  if (sliceSteps <= 0) return progress;
+  const start = window.startStep / globalEventTotal;
+  const width = sliceSteps / globalEventTotal;
+  return start + progress * width;
+}
+
+function sectionWindowStartPct(
+  window: { startStep: number; endStep: number } | null | undefined,
+  globalEventTotal: number,
+): number | null {
+  if (!window || globalEventTotal <= 0) return null;
+  return Math.min(99.5, Math.max(0, (window.startStep / globalEventTotal) * 100));
+}
+
+function channelPositionsAtPct(
+  rows: PatternGridRow[],
+  pct: number,
+): Record<number, number> {
+  return Object.fromEntries(rows.map((row) => [row.channelId, pct]));
 }
 
 function parseRepeatSpec(token: string): { base: string; repeat: number } {
@@ -284,7 +383,17 @@ function buildRows(song: any, ast?: any): {
   };
 }
 
-function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): React.JSX.Element {
+interface ContextMenuState {
+  x: number;
+  y: number;
+  request: ArrangementSlicePlayRequest;
+}
+
+function DesktopPatternGrid({
+  gridRef,
+  onNavigate,
+  onPlaySlice,
+}: DesktopPatternGridProps): React.JSX.Element {
   const [rows, setRows] = useState<PatternGridRow[]>([]);
   const [pats, setPats] = useState<Record<string, string[]>>({});
   const [patternDurations, setPatternDurations] = useState<Record<string, number>>({});
@@ -294,17 +403,46 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
   const [globalLeft, setGlobalLeft] = useState<string>('0%');
   const [paused, setPaused] = useState(false);
   const [channelInfo, setChannelInfo] = useState<Record<number, ChannelInfo>>(channelStates.get());
+  const [sliceWindow, setSliceWindow] = useState<{ startStep: number; endStep: number } | null>(null);
+  const [sectionFocus, setSectionFocusState] = useState<SectionFocusInfo | null>(null);
+  const sectionFocusRef = useRef<SectionFocusInfo | null>(null);
+  const globalEventTotalRef = useRef(1);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const rowsWrapRef = useRef<HTMLDivElement | null>(null);
   const firstTrackRef = useRef<HTMLDivElement | null>(null);
   const rowsRef = useRef<PatternGridRow[]>([]);
+  const onPlaySliceRef = useRef(onPlaySlice);
+  onPlaySliceRef.current = onPlaySlice;
 
   useEffect(() => channelStates.subscribe((states) => {
     setChannelInfo({ ...states });
   }), []);
 
   useEffect(() => {
+    sectionFocusRef.current = sectionFocus;
+  }, [sectionFocus]);
+
+  useEffect(() => {
+    globalEventTotalRef.current = globalEventTotal;
+  }, [globalEventTotal]);
+
+  useEffect(() => {
     rowsRef.current = rows;
   }, [rows]);
+
+  useEffect(() => {
+    if (!contextMenu) return undefined;
+    const close = () => setContextMenu(null);
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [contextMenu]);
 
   const updateGlobalLeft = useCallback((pct: number | null): void => {
     if (pct === null) return;
@@ -350,39 +488,94 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
       setRows(next.rows);
       setPats(next.pats);
       setPatternDurations(next.patternDurations);
+      globalEventTotalRef.current = next.globalEventTotal;
       setGlobalEventTotal(next.globalEventTotal);
       setPositions({});
       setGlobalPct(null);
       setPaused(false);
+      setSliceWindow(null);
     },
     setPosition: (channelId, progress) => {
-      const pct = Math.min(99.5, Math.max(0, progress * 100));
+      const mapped = mapProgressIntoWindow(
+        progress,
+        sectionFocusRef.current?.window,
+        globalEventTotalRef.current,
+      );
+      const pct = Math.min(99.5, Math.max(0, mapped * 100));
       setPositions((current) => ({ ...current, [channelId]: pct }));
       setPaused(false);
     },
     setGlobalProgress: (progress) => {
-      const pct = Math.min(99.5, Math.max(0, progress * 100));
+      const mapped = mapProgressIntoWindow(
+        progress,
+        sectionFocusRef.current?.window,
+        globalEventTotalRef.current,
+      );
+      const pct = Math.min(99.5, Math.max(0, mapped * 100));
       setGlobalPct(pct);
       setPaused(false);
     },
     pausePositions: () => setPaused(true),
     resumePositions: () => setPaused(false),
     clearPositions: () => {
-      setPositions(Object.fromEntries(rowsRef.current.map((row) => [row.channelId, 0])));
-      setGlobalPct(0);
+      const startPct = sectionWindowStartPct(
+        sectionFocusRef.current?.window,
+        globalEventTotalRef.current,
+      ) ?? 0;
+      setPositions(channelPositionsAtPct(rowsRef.current, startPct));
+      setGlobalPct(startPct);
       setPaused(false);
+    },
+    setSliceHighlight: (window) => setSliceWindow(window),
+    setSectionFocus: (info) => {
+      const prevWindow = sectionFocusRef.current?.window;
+      sectionFocusRef.current = info;
+      setSectionFocusState(info);
+      const window = info?.window;
+      const windowChanged = !prevWindow || !window
+        || prevWindow.startStep !== window.startStep
+        || prevWindow.endStep !== window.endStep;
+      if (window && windowChanged) {
+        const startPct = sectionWindowStartPct(window, globalEventTotalRef.current);
+        if (startPct !== null) {
+          setGlobalPct(startPct);
+          setPositions(channelPositionsAtPct(rowsRef.current, startPct));
+          setPaused(false);
+        }
+      }
     },
     dispose: () => {
       setRows([]);
       setPositions({});
       setGlobalPct(null);
+      setSliceWindow(null);
+      setSectionFocusState(null);
+      setContextMenu(null);
     },
   }), []);
 
   const empty = rows.length === 0;
 
+  const sectionLane = useMemo(() => {
+    if (rows.length === 0) return { blocks: [] as SectionBlock[], tailEvents: 0, displayTotal: 0 };
+    const refRow = rows.find((row) => row.segs.some((seg) => seg.seqName)) ?? rows[0];
+    return {
+      blocks: buildSectionBlocks(refRow, pats, patternDurations),
+      tailEvents: globalEventTotal - refRow.displayTotal,
+      displayTotal: refRow.displayTotal,
+    };
+  }, [rows, pats, patternDurations, globalEventTotal]);
+
+  const showSectionLane = sectionLane.blocks.length > 0 && !!onPlaySlice;
+
   return (
-    <div className="bb-pgrid" role="region" aria-label="Pattern grid" data-empty={empty ? 'true' : undefined}>
+    <div
+      className="bb-pgrid"
+      role="region"
+      aria-label="Pattern grid"
+      data-empty={empty ? 'true' : undefined}
+      data-section-focus={sectionFocus ? 'true' : undefined}
+    >
       {empty ? null : (
         <div className="bb-pgrid__rows" ref={rowsWrapRef}>
           <div
@@ -390,12 +583,88 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
             className={`bb-pgrid__cursor bb-pgrid__cursor--global${paused ? ' bb-pgrid__cursor--paused' : ''}`}
             style={{ display: globalPct === null ? 'none' : 'block', left: globalLeft }}
           />
+          {showSectionLane ? (
+            <div className="bb-pgrid__row bb-pgrid__row--sections" role="group" aria-label="Sequence sections">
+              <div aria-hidden="true" className="bb-pgrid__controls bb-pgrid__controls--section">
+                <span className="bb-pgrid__section-heading">Seq</span>
+              </div>
+              <span aria-hidden="true" className="bb-pgrid__dot bb-pgrid__dot--spacer" />
+              <div className="bb-pgrid__track bb-pgrid__track--sections" ref={firstTrackRef}>
+                {sectionLane.blocks.map((block) => {
+                  const displayUnits = block.endStep - block.startStep;
+                  const flexBasis = `${(displayUnits / Math.max(1, globalEventTotal)) * 100}%`;
+                  const sliceRequest: ArrangementSlicePlayRequest = {
+                    channelId: block.channelId,
+                    startStep: block.startStep,
+                    endStep: block.endStep,
+                    seqName: block.seqName,
+                    patName: block.patName,
+                  };
+                  const inSlice = !!sliceWindow
+                    && block.startStep < sliceWindow.endStep
+                    && sliceWindow.startStep < block.endStep;
+                  const chipLabel = abbreviatePatternName(block.label, 11);
+                  return (
+                    <div
+                      key={block.key}
+                      className={[
+                        'bb-pgrid__section-block',
+                        inSlice ? 'bb-pgrid__section-block--focus' : '',
+                      ].filter(Boolean).join(' ')}
+                      style={{ flex: `0 0 ${flexBasis}` }}
+                      title={`${block.label}\nClick: focus section · ▶: play section`}
+                    >
+                      <button
+                        aria-label={`Play sequence section ${block.label}`}
+                        className="bb-pgrid__section-play"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onPlaySliceRef.current?.({ ...sliceRequest, autoPlay: true });
+                        }}
+                        title={`Play ${block.label}`}
+                        type="button"
+                      >
+                        ▶
+                      </button>
+                      <button
+                        aria-label={`Focus sequence section ${block.label}`}
+                        className="bb-pgrid__section-label"
+                        onClick={() => {
+                          onPlaySliceRef.current?.({ ...sliceRequest, autoPlay: false });
+                        }}
+                        onContextMenu={(event) => {
+                          if (!onPlaySliceRef.current) return;
+                          event.preventDefault();
+                          setContextMenu({
+                            x: event.clientX,
+                            y: event.clientY,
+                            request: sliceRequest,
+                          });
+                        }}
+                        title={`Focus ${block.label}`}
+                        type="button"
+                      >
+                        {chipLabel}
+                      </button>
+                    </div>
+                  );
+                })}
+                {sectionLane.tailEvents > 0 ? (
+                  <div
+                    className="bb-pgrid__block bb-pgrid__block--filler"
+                    style={{ flex: `0 0 ${(sectionLane.tailEvents / Math.max(1, globalEventTotal)) * 100}%` }}
+                  />
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           {rows.map((row, rowIndex) => {
             const info = channelInfo[row.channelId];
             const audible = isChannelAudible(channelInfo, row.channelId);
             const tailEvents = globalEventTotal - row.displayTotal;
             const patternToneByName = new Map<string, number>();
             const toneLevels = [0.80, 0.64, 0.48, 0.32];
+            let stepCursor = 0;
             return (
               <div className="bb-pgrid__row" role="group" aria-label={`Channel ${row.channelId}`} key={row.channelId}>
                 <div className="bb-pgrid__controls">
@@ -433,11 +702,14 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
                 />
                 <div
                   className="bb-pgrid__track"
-                  ref={rowIndex === 0 ? firstTrackRef : undefined}
+                  ref={rowIndex === 0 && !showSectionLane ? firstTrackRef : undefined}
                   style={{ opacity: audible ? '1' : '0.4' }}
                 >
                   {row.segs.map((seg, index) => {
                     const displayUnits = getSegmentDisplayUnits(seg, pats, patternDurations);
+                    const startStep = stepCursor;
+                    const endStep = stepCursor + Math.max(1, displayUnits);
+                    stepCursor = endStep;
                     const flexBasis = `${(displayUnits / Math.max(1, globalEventTotal)) * 100}%`;
                     let tone = patternToneByName.get(seg.patName);
                     if (tone === undefined) {
@@ -446,6 +718,9 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
                     }
                     const blockLabel = seg.seqName ? `${seg.seqName} › ${seg.patName}` : seg.patName;
                     const chipLabel = abbreviatePatternName(seg.patName);
+                    const inSlice = !!sliceWindow
+                      && startStep < sliceWindow.endStep
+                      && sliceWindow.startStep < endStep;
                     const navigate = () => onNavigate?.(seg.patName);
                     const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
                       if (event.key === 'Enter' || event.key === ' ') {
@@ -455,11 +730,21 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
                     };
                     return (
                       <div
-                        aria-label={`Navigate to pattern: ${blockLabel}`}
-                        className={`bb-pgrid__block${displayUnits <= 1 ? ' bb-pgrid__block--compact' : ''}`}
+                        aria-label={`Pattern block: ${blockLabel}. Click to go to pattern.`}
+                        className={[
+                          'bb-pgrid__block',
+                          displayUnits <= 1 ? 'bb-pgrid__block--compact' : '',
+                          inSlice ? 'bb-pgrid__block--slice' : '',
+                        ].filter(Boolean).join(' ')}
                         data-label={seg.patName}
+                        data-start-step={startStep}
+                        data-end-step={endStep}
                         key={`${row.channelId}-${seg.seqName ?? 'pat'}-${seg.patName}-${index}`}
-                        onClick={navigate}
+                        onClick={() => navigate()}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          onNavigate?.(seg.patName);
+                        }}
                         onKeyDown={onKeyDown}
                         role="button"
                         style={{
@@ -469,7 +754,7 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
                           flex: `0 0 ${flexBasis}`,
                         }}
                         tabIndex={0}
-                        title={blockLabel}
+                        title={`${blockLabel}\nClick: go to pattern`}
                       >
                         <span aria-hidden="true" className="bb-pgrid__block-label">{chipLabel}</span>
                       </div>
@@ -495,13 +780,45 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
           })}
         </div>
       )}
+      {contextMenu ? (
+        <div
+          className="bb-pgrid__menu"
+          role="menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              onPlaySliceRef.current?.({ ...contextMenu.request, autoPlay: false });
+              setContextMenu(null);
+            }}
+          >
+            Focus section
+          </button>
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              onPlaySliceRef.current?.({ ...contextMenu.request, autoPlay: true });
+              setContextMenu(null);
+            }}
+          >
+            Play section
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 export function createDesktopPatternGrid(
   container: HTMLElement,
-  options: { onNavigate?: (patName: string) => void } = {},
+  options: {
+    onNavigate?: (patName: string) => void;
+    onPlaySlice?: (request: ArrangementSlicePlayRequest) => void;
+  } = {},
 ): DesktopPatternGridHandle {
   const handleRef = { current: null as DesktopPatternGridHandle | null };
   const pendingCalls: Array<(handle: DesktopPatternGridHandle) => void> = [];
@@ -522,6 +839,7 @@ export function createDesktopPatternGrid(
     <DesktopPatternGrid
       gridRef={assignGridRef}
       onNavigate={options.onNavigate}
+      onPlaySlice={options.onPlaySlice}
     />,
   );
 
@@ -537,6 +855,8 @@ export function createDesktopPatternGrid(
     pausePositions: () => call((handle) => handle.pausePositions()),
     resumePositions: () => call((handle) => handle.resumePositions()),
     clearPositions: () => call((handle) => handle.clearPositions()),
+    setSliceHighlight: (window) => call((handle) => handle.setSliceHighlight(window)),
+    setSectionFocus: (info) => call((handle) => handle.setSectionFocus(info)),
     dispose: () => {
       handleRef.current?.dispose();
       unmountReactRoot(container, root);

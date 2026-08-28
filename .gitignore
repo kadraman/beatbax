@@ -142,7 +142,7 @@ vite.config.ts.timestamp-*
 # Temporary files
 tmp/**/*
 
-# Temporary test files
+# Temporary test files (repo root tests/ only)
 tests/*.js
 
 # web-ui generated / build artifacts
@@ -156,6 +156,20 @@ lib
 !songs/lib
 !apps/desktop/src/renderer/src/lib/
 !apps/desktop/src/renderer/src/lib/**
+
+# Desktop app: co-located TypeScript emit (tsc beside sources). Must follow lib/ un-ignore above.
+# Source of truth is *.ts / *.tsx; Vite prefers .ts over .js (see electron.vite.config.ts).
+apps/desktop/electron.vite.config.js
+apps/desktop/electron.vite.config.d.ts
+apps/desktop/src/**/*.js
+apps/desktop/src/**/*.jsx
+apps/desktop/src/**/*.d.ts
+!apps/desktop/src/preload/index.d.ts
+!apps/desktop/src/renderer/src/env.d.ts
+apps/desktop/tests/**/*.js
+!apps/desktop/tests/__mocks__/styleMock.js
+apps/desktop/tests/**/*.d.ts
+!apps/desktop/tests/test-types.d.ts
 
 # generate tools
 tools

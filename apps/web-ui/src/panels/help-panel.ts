@@ -216,11 +216,26 @@ seq arp_line = arp_source:arp(4,7)` },
     ],
   },
   {
+    id: 'pattern-grid',
+    title: 'Pattern Grid',
+    content: [
+      {
+        kind: 'text',
+        text: 'When the Pattern Grid panel is enabled (desktop), it shows arrangement sections and per-channel patterns. Toggle the panel with Ctrl+Shift+G on desktop.',
+      },
+      {
+        kind: 'text',
+        text: 'Section focus (desktop only) highlights a section in the editor and scopes playback to that region. See Keyboard Shortcuts for focus and navigation keys.',
+      },
+    ],
+  },
+  {
     id: 'shortcuts',
     title: 'Keyboard Shortcuts',
     // Static fallback used when getShortcuts is not provided.
     content: [
       { kind: 'shortcut', keys: ['F5'],                 desc: 'Play / re-play (desktop)' },
+      { kind: 'shortcut', keys: ['F6'],                 desc: 'Focus section at cursor (desktop)' },
       { kind: 'shortcut', keys: ['F8'],                 desc: 'Stop playback (desktop)' },
       { kind: 'shortcut', keys: ['Ctrl', 'Enter'],      desc: 'Apply & re-play' },
       { kind: 'shortcut', keys: ['Ctrl', 'S'],          desc: 'Save (download .bax)' },

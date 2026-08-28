@@ -16,6 +16,11 @@
 
 import * as monaco from 'monaco-editor';
 import { KeyCode, KeyMod } from 'monaco-editor';
+import {
+  buildArrangementSliceSource,
+  findArrangementSliceAnchorAtCursor,
+  SYNTHETIC_KEEP_LINES_RE,
+} from './arrangement-slice.js';
 import { findChannelForNamedItemInSource } from './preview-channel-resolve.js';
 
 // ---------------------------------------------------------------------------
@@ -73,6 +78,26 @@ export interface CommandPaletteOptions {
    * When omitted the context-menu action is not registered.
    */
   onAddSelectionToCopilot?: (payload: { text: string; startLine: number; endLine: number }) => void;
+
+  /**
+   * Optional: latest parsed song + AST for arrangement-slice playback.
+   * When omitted, `beatbax.playArrangementSlice` reports that a parse is needed.
+   */
+  getSongContext?: () => { song: unknown; ast?: unknown } | null;
+
+  /**
+   * Enter Pattern Grid section focus (highlight + optional play).
+   * When set, `beatbax.playArrangementSlice` uses this instead of raw play.
+   */
+  onSectionFocusEnter?: (payload: {
+    channelId: number;
+    startStep: number;
+    endStep: number;
+    seqName: string | null;
+    patName: string;
+    play?: boolean;
+    loop?: boolean;
+  }) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -298,7 +323,7 @@ let lastExportFormat: ExportFormat = 'json';
  * Includes `#` and `//` comment prefixes and blank lines so the generated
  * source is well-formed and human-readable when inspected.
  */
-const KEEP_LINES_RE = /^\s*(?:(?:inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume|import)\b|#|\/\/|$)/;
+const KEEP_LINES_RE = SYNTHETIC_KEEP_LINES_RE;
 
 // ---------------------------------------------------------------------------
 // Helper: toast notification
@@ -516,7 +541,19 @@ function escapeRegex(str: string): string {
  * Returns a disposable that removes all registered actions.
  */
 export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDisposable {
-  const { editor, getSource, onExport, onVerify, onToggleMute, onToggleSolo, onPlayRaw, onExportData, onAddSelectionToCopilot } = opts;
+  const {
+    editor,
+    getSource,
+    onExport,
+    onVerify,
+    onToggleMute,
+    onToggleSolo,
+    onPlayRaw,
+    onExportData,
+    onAddSelectionToCopilot,
+    getSongContext,
+    onSectionFocusEnter,
+  } = opts;
 
   const disposables: monaco.IDisposable[] = [];
 
@@ -705,6 +742,57 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         'play',
       ].join('\n');
       onPlayRaw?.(syntheticSource);
+    },
+  });
+
+  reg({
+    id: 'beatbax.playArrangementSlice',
+    label: 'BeatBax: Play Arrangement Slice at Cursor',
+    keybindings: [],
+    contextMenuGroupId: '9_beatbax',
+    contextMenuOrder: 1.5,
+    run: () => {
+      const model = editor.getModel();
+      const position = editor.getPosition();
+      if (!model || !position) {
+        showToast('No cursor position in editor');
+        return;
+      }
+      const ctx = getSongContext?.() ?? null;
+      if (!ctx?.song) {
+        showToast('Parse the song first, then play an arrangement slice');
+        return;
+      }
+      const source = getSource();
+      const anchor = findArrangementSliceAnchorAtCursor(
+        source,
+        ctx.song,
+        ctx.ast,
+        position.lineNumber,
+        position.column,
+      );
+      if (!anchor) {
+        showToast('No section found at cursor');
+        return;
+      }
+      if (onSectionFocusEnter) {
+        onSectionFocusEnter({
+          channelId: anchor.channelId,
+          startStep: anchor.startStep,
+          endStep: anchor.endStep,
+          seqName: anchor.seqName,
+          patName: anchor.patName,
+          play: true,
+        });
+        return;
+      }
+      const result = buildArrangementSliceSource(source, ctx.song, ctx.ast, anchor);
+      if (!result) {
+        showToast('Could not build arrangement slice');
+        return;
+      }
+      if (result.warning) showToast(result.warning);
+      onPlayRaw?.(result.source);
     },
   });
 
@@ -1986,11 +2074,22 @@ export function buildMultiPlaySource(
   const KEEP_RE = KEEP_LINES_RE;
   const baseLines = fullLines.filter(l => KEEP_RE.test(l));
 
-  // Build a map: seq-name → inst-name from the original channel assignments.
+  // Build a map: seq-or-pat name → inst-name from every token on channel lines.
+  // Multi-item channels (`channel 1 => inst lead seq intro theme bridge`) must
+  // map *all* tokens, not only the first seq name.
   const seqInstMap = new Map<string, string>();
   for (const l of fullLines) {
-    const m = l.match(/^\s*channel\s+\d+\s*=>\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)\s+seq\s+([A-Za-z_][A-Za-z0-9_]*)/);
-    if (m) seqInstMap.set(m[2], m[1]); // seq-name → inst-name
+    const m = l.match(/^\s*channel\s+\d+\s*=>\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?:seq|pat)\s+(.+)$/);
+    if (!m) continue;
+    const inst = m[1];
+    const tokens = m[2]
+      .trim()
+      .split(/[\s,]+/)
+      .filter((t) => t && /^[A-Za-z_]/.test(t) && !t.includes('='));
+    for (const token of tokens) {
+      const base = token.split(':')[0].trim().replace(/\*\d+$/, '');
+      if (base) seqInstMap.set(base, inst);
+    }
   }
 
   // Build a map: seq-name → raw pattern-list string (for chaining overflow).
@@ -2123,11 +2222,44 @@ export function buildMultiPlaySource(
     }
   }
 
-  // Chain all selected pats into a synthetic sequence on one remaining channel.
-  if (patItems.length > 0 && ch <= maxChannels) {
-    const chain = patItems.map(p => p.name).join(' ');
-    newLines.push(`seq __multi__ = ${chain}`);
-    if (fallbackInst) newLines.push(`channel ${ch++} => inst ${fallbackInst} seq __multi__`);
+  // Layer selected pats by resolved channel (same instrument / channel id),
+  // instead of chaining every pat onto one synthetic __multi__ sequence.
+  if (patItems.length > 0) {
+    const patsByChannel = new Map<number, { inst: string; names: string[] }>();
+    for (const { name } of patItems) {
+      const found = findChannelForNamedItemInSource(fullSource, name);
+      const channelId = found?.id ?? ch;
+      const inst = found?.inst ?? seqInstMap.get(name) ?? fallbackInst;
+      if (!inst) continue;
+      const slot = patsByChannel.get(channelId) ?? { inst, names: [] };
+      if (!patsByChannel.has(channelId)) patsByChannel.set(channelId, slot);
+      slot.names.push(name);
+    }
+
+    const usedChannels = new Set(
+      [...newLines]
+        .map((l) => l.match(/^\s*channel\s+(\d+)\s*=>/))
+        .filter(Boolean)
+        .map((m) => Number(m![1])),
+    );
+
+    for (const [channelId, { inst, names }] of [...patsByChannel.entries()].sort((a, b) => a[0] - b[0])) {
+      let targetCh = channelId;
+      if (usedChannels.has(targetCh)) {
+        // Avoid colliding with a seq already assigned to this channel id.
+        while (usedChannels.has(ch) && ch <= maxChannels) ch++;
+        if (ch > maxChannels) break;
+        targetCh = ch++;
+      }
+      usedChannels.add(targetCh);
+      if (names.length === 1) {
+        newLines.push(`channel ${targetCh} => inst ${inst} pat ${names[0]}`);
+      } else {
+        const synth = `__multi_ch${targetCh}__`;
+        newLines.push(`seq ${synth} = ${names.join(' ')}`);
+        newLines.push(`channel ${targetCh} => inst ${inst} seq ${synth}`);
+      }
+    }
   }
 
   newLines.push('play');

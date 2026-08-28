@@ -272,6 +272,18 @@ export class PatternGrid {
    */
   onNavigate?: (patName: string) => void;
 
+  /**
+   * Called for Shift+click / play affordance — arrangement slice across channels.
+   */
+  onPlaySlice?: (request: {
+    channelId: number;
+    startStep: number;
+    endStep: number;
+    seqName: string | null;
+    patName: string;
+    loop?: boolean;
+  }) => void;
+
   private _rows             = new Map<number, RowMeta>();
   /** Max total events (note + rest) across all channels — used as block-width denominator. */
   private _globalEventTotal = 1;
@@ -413,11 +425,15 @@ export class PatternGrid {
       const toneLevels = [0.80, 0.64, 0.48, 0.32];
 
       const channelTotal = rowInfo.displayTotal;
+      let stepCursor = 0;
 
       for (const seg of segs) {
         const block = document.createElement('div');
         block.className = 'bb-pgrid__block';
         const displayUnits = getSegmentDisplayUnits(seg, pats, patternDurations);
+        const startStep = stepCursor;
+        const endStep = stepCursor + Math.max(1, displayUnits);
+        stepCursor = endStep;
         if (displayUnits <= 1) block.classList.add('bb-pgrid__block--compact');
         block.style.flex = `0 0 ${(displayUnits / Math.max(1, this._globalEventTotal)) * 100}%`;
         let tone = patternToneByName.get(seg.patName);
@@ -429,10 +445,10 @@ export class PatternGrid {
         block.style.borderColor = hexToRgba(color, Math.min(0.95, tone + 0.18));
         const blockLabel = seg.seqName ? `${seg.seqName} › ${seg.patName}` : seg.patName;
         const chipLabel = abbreviatePatternName(seg.patName);
-        block.title = blockLabel;
+        block.title = `${blockLabel}\nClick: go to pattern · Shift+click: play section`;
         block.setAttribute('role', 'button');
         block.setAttribute('tabindex', '0');
-        block.setAttribute('aria-label', `Navigate to pattern: ${blockLabel}`);
+        block.setAttribute('aria-label', `Pattern block: ${blockLabel}. Click to navigate, Shift+click to play section.`);
         block.dataset['label'] = chipLabel;
 
         const labelEl = document.createElement('span');
@@ -441,13 +457,27 @@ export class PatternGrid {
         labelEl.setAttribute('aria-hidden', 'true');
         block.appendChild(labelEl);
 
-        // Click or Enter/Space → navigate editor to the pat definition
         const patName = seg.patName;
-        block.addEventListener('click', () => this.onNavigate?.(patName));
+        const sliceRequest = {
+          channelId,
+          startStep,
+          endStep,
+          seqName: seg.seqName,
+          patName,
+        };
+        block.addEventListener('click', (e) => {
+          if (e.shiftKey && this.onPlaySlice) {
+            e.preventDefault();
+            this.onPlaySlice(sliceRequest);
+            return;
+          }
+          this.onNavigate?.(patName);
+        });
         block.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            this.onNavigate?.(patName);
+            if (e.shiftKey && this.onPlaySlice) this.onPlaySlice(sliceRequest);
+            else this.onNavigate?.(patName);
           }
         });
         block.style.cursor = 'pointer';

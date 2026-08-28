@@ -37,6 +37,18 @@ export interface DesktopEditorSetupOptions {
   handleExport: (format: ExportFormat) => Promise<void>;
   onAstParsed: (ast: unknown) => void;
   toolbar?: DesktopToolbarHandle | null;
+  /** Latest resolved song + AST for arrangement-slice command. */
+  getSongContext?: () => { song: unknown; ast?: unknown } | null;
+  /** Enter Pattern Grid section focus from editor command palette. */
+  onSectionFocusEnter?: (payload: {
+    channelId: number;
+    startStep: number;
+    endStep: number;
+    seqName: string | null;
+    patName: string;
+    play?: boolean;
+    loop?: boolean;
+  }) => void;
 }
 
 export interface DesktopEditorSetupHandle {
@@ -57,6 +69,8 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
     handleExport,
     onAstParsed,
     toolbar,
+    getSongContext,
+    onSectionFocusEnter,
   } = options;
   const { eventBus, capabilities, playbackManager } = appContext;
   const monacoEditor = editor.editor;
@@ -142,7 +156,8 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
       monacoEditor.revealLineInCenter(line);
       monacoEditor.focus();
     }),
-    eventBus.on('parse:success', ({ ast }: { ast?: unknown }) => {
+    eventBus.on('parse:success', ({ ast, ephemeral }: { ast?: unknown; ephemeral?: boolean }) => {
+      if (ephemeral) return;
       lastParsedAst = ast ?? null;
       onAstParsed(lastParsedAst);
       refreshScaleContextStrip();
@@ -194,8 +209,10 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
           eventBus.emit('preview:chunkInfo', { chunkInfo });
         }
         bottomTabs.show('output');
-        playbackManager.play(src);
+        void playbackManager.play(src, { ephemeral: true });
       },
+      getSongContext,
+      onSectionFocusEnter,
       ...(capabilities.copilot ? {
         onAddSelectionToCopilot: (payload) => {
           eventBus.emit('copilot:add-selection', payload);

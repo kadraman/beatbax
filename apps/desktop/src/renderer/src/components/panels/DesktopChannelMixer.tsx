@@ -417,7 +417,8 @@ function DesktopChannelMixer({
 
   useEffect(() => {
     const cleanups = [
-      eventBus.on('parse:success', ({ ast: nextAst }) => {
+      eventBus.on('parse:success', ({ ast: nextAst, ephemeral }) => {
+        if (ephemeral) return;
         setAst((currentAst: any) => {
           if (!hasChannelStructureChanged(currentAst, nextAst)) return nextAst;
           vuStateRef.current.clear();
