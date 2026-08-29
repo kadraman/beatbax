@@ -53,8 +53,10 @@ export interface ShortcutDefinition {
   category: string;
   profiles: ClientProfile[];
   binding: ProfileBinding;
-  /** When true, fires even when focus is inside an editable surface. */
+  /** When true, fires even when focus is inside a plain text control (not Monaco). */
   allowInInput?: boolean;
+  /** When true, the global handler may fire while Monaco has focus (e.g. file save). */
+  allowInMonaco?: boolean;
   /** When true, listed in help but the global handler must not fire in the editor. */
   helpOnly?: boolean;
   /** Gate registration when a client capability is false. */

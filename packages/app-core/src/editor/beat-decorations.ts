@@ -32,7 +32,8 @@ export function setupBeatDecorations(
 
   let decorationIds: string[] = [];
 
-  const unsubParse = eventBus.on('parse:success', ({ ast }: { ast: any }) => {
+  const unsubParse = eventBus.on('parse:success', ({ ast, ephemeral }: { ast: any; ephemeral?: boolean }) => {
+    if (ephemeral) return;
     if (!ast || !ast.patternEvents) return;
 
     const decorations: monaco.editor.IModelDeltaDecoration[] = [];

@@ -8,9 +8,14 @@
 
 import { getIdentifierAtColumn } from './cursor-ident.js';
 
-/** Lines kept when building a synthetic preview source (strip channel/play). */
-export const SYNTHETIC_KEEP_LINES_RE =
-  /^\s*(?:(?:inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume|import)\b|#|\/\/|$)/;
+/** Channel/play directives removed when building synthetic playback source. */
+export const SYNTHETIC_STRIP_LINES_RE =
+  /^\s*(?:channel\s+\d+\s*=>|play(?:\s|$))/;
+
+/** Drop channel/play lines; keep everything else (subpat rows, metadata, comments, …). */
+export function stripChannelAndPlayLines(lines: string[]): string[] {
+  return lines.filter((line) => !SYNTHETIC_STRIP_LINES_RE.test(line));
+}
 
 export interface ArrangementSliceAnchor {
   channelId: number;
@@ -20,6 +25,8 @@ export interface ArrangementSliceAnchor {
   endStep: number;
   seqName: string | null;
   patName: string;
+  /** 0-based index of the top-level channel seq/pat item (e.g. second `lead_seq`). */
+  channelItemIndex?: number | null;
 }
 
 export interface ArrangementSliceOptions {
@@ -68,6 +75,8 @@ export interface TimedSegment {
   channelId: number;
   patName: string;
   seqName: string | null;
+  /** Top-level channel item index (`seq a a` → 0, 1). Null when unknown (event path). */
+  channelItemIndex: number | null;
   startStep: number;
   endStep: number;
 }
@@ -75,6 +84,7 @@ export interface TimedSegment {
 interface SliceSegment {
   patName: string;
   seqName: string | null;
+  channelItemIndex: number | null;
   count: number;
 }
 
@@ -154,7 +164,7 @@ function buildSegmentsFromEvents(events: any[]): SliceSegment[] {
     const pat: string = ev.sourcePattern ?? prevPat;
     const seq: string | null = ev.sourceSequence ?? prevSeq;
     if (!cur || pat !== cur.patName || seq !== cur.seqName) {
-      cur = { patName: pat, seqName: seq, count: 1 };
+      cur = { patName: pat, seqName: seq, channelItemIndex: null, count: 1 };
       segs.push(cur);
     } else {
       cur.count++;
@@ -177,22 +187,129 @@ function getAstChannelSpecTokens(astChannel: any): string[] {
   return [];
 }
 
+function splitTopLevel(s: string, sep = ':'): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let inS = false;
+  let inD = false;
+  let bracket = 0;
+  let paren = 0;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === "'" && !inD) { inS = !inS; cur += ch; continue; }
+    if (ch === '"' && !inS) { inD = !inD; cur += ch; continue; }
+    if (inS || inD) { cur += ch; continue; }
+    if (ch === '[') { bracket++; cur += ch; continue; }
+    if (ch === ']') { if (bracket > 0) bracket--; cur += ch; continue; }
+    if (ch === '(') { paren++; cur += ch; continue; }
+    if (ch === ')') { if (paren > 0) paren--; cur += ch; continue; }
+    if (ch === sep && bracket === 0 && paren === 0) {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map((x) => x.trim()).filter(Boolean);
+}
+
+function applyStepCountMods(steps: number, mods: string[]): number {
+  let count = steps;
+  for (const mod of mods) {
+    if (/^pal(?:indrome)?$/i.test(mod)) {
+      count = count <= 1 ? count : count * 2 - 1;
+      continue;
+    }
+    const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
+    if (mSlow) {
+      count *= mSlow[1] ? parseInt(mSlow[1], 10) : 2;
+      continue;
+    }
+    const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
+    if (mFast) {
+      const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
+      count = Math.max(1, Math.ceil(count / factor));
+    }
+  }
+  return Math.max(1, count);
+}
+
+function countRefItemSteps(
+  refToken: string,
+  astSeqs: Record<string, any>,
+  pats: Record<string, string[]>,
+  patternDurations: Record<string, number>,
+  visiting: Set<string>,
+): number {
+  const trimmed = refToken.trim();
+  if (!trimmed) return 0;
+
+  let repeat = 1;
+  let realItem = trimmed;
+  const mRep = realItem.match(/^(.+?)\s*\*\s*(\d+)$/);
+  if (mRep) {
+    realItem = mRep[1].trim();
+    repeat = Math.max(1, parseInt(mRep[2], 10) || 1);
+  }
+
+  const parts = splitTopLevel(realItem, ':');
+  const base = parts[0].trim();
+  const mods = parts.slice(1);
+  if (!base || visiting.has(base)) return 0;
+
+  let innerSteps = 0;
+  if (Array.isArray(pats[base])) {
+    innerSteps = getPatternDuration(base, patternDurations, pats);
+  } else if (Array.isArray(astSeqs?.[base])) {
+    visiting.add(base);
+    for (const item of astSeqs[base]) {
+      const inner = typeof item === 'string'
+        ? item
+        : String(item?.raw ?? item?.name ?? item?.pattern ?? item?.ref ?? '');
+      if (!inner.trim()) continue;
+      innerSteps += countRefItemSteps(inner, astSeqs, pats, patternDurations, visiting);
+    }
+    visiting.delete(base);
+  } else {
+    innerSteps = 1;
+  }
+
+  return repeat * applyStepCountMods(innerSteps, mods);
+}
+
+function refTokenHasTransforms(refToken: string): boolean {
+  const { base } = parseRepeatSpec(refToken.trim());
+  return splitTopLevel(base, ':').length > 1;
+}
+
+function countExpandedRefSteps(
+  refToken: string,
+  astSeqs: Record<string, any>,
+  pats: Record<string, string[]>,
+  patternDurations: Record<string, number>,
+): number {
+  return countRefItemSteps(refToken, astSeqs, pats, patternDurations, new Set<string>());
+}
+
 function expandRefToPatternSegments(
   refToken: string,
   astSeqs: Record<string, any>,
   pats: Record<string, string[]>,
+  patternDurations: Record<string, number>,
+  channelItemIndex: number | null,
   rootSeqName: string | null,
   out: SliceSegment[],
   visiting: Set<string>,
 ): void {
   const { base, repeat } = parseRepeatSpec(refToken);
-  const refName = tokenToPatternName(base);
-  if (!refName) return;
+  const baseName = splitTopLevel(base.trim(), ':')[0].trim();
+  if (!baseName) return;
 
-  const seqItems = astSeqs?.[refName];
-  if (Array.isArray(seqItems)) {
-    if (visiting.has(refName)) return;
-    visiting.add(refName);
+  const seqItems = astSeqs?.[baseName];
+  if (Array.isArray(seqItems) && !refTokenHasTransforms(refToken)) {
+    if (visiting.has(baseName)) return;
+    visiting.add(baseName);
     for (let r = 0; r < repeat; r++) {
       for (const item of seqItems) {
         const inner = typeof item === 'string'
@@ -203,30 +320,48 @@ function expandRefToPatternSegments(
           ? Math.max(1, Number(item.repeat) || 1)
           : 1;
         for (let ir = 0; ir < itemRepeat; ir++) {
-          expandRefToPatternSegments(inner, astSeqs, pats, rootSeqName ?? refName, out, visiting);
+          expandRefToPatternSegments(
+            inner, astSeqs, pats, patternDurations, channelItemIndex, rootSeqName ?? baseName, out, visiting,
+          );
         }
       }
     }
-    visiting.delete(refName);
+    visiting.delete(baseName);
     return;
   }
 
-  const patLen = Array.isArray(pats[refName]) ? pats[refName].length : 1;
+  const patName = tokenToPatternName(base);
+  const units = countExpandedRefSteps(refToken, astSeqs, pats, patternDurations);
   for (let r = 0; r < repeat; r++) {
-    out.push({ patName: refName, seqName: rootSeqName, count: Math.max(1, patLen) });
+    out.push({ patName, seqName: rootSeqName, channelItemIndex, count: units });
   }
 }
 
-function buildSegmentsFromAstChannel(astChannel: any, ast: any, pats: Record<string, string[]>): SliceSegment[] {
+function buildSegmentsFromAstChannel(
+  astChannel: any,
+  ast: any,
+  pats: Record<string, string[]>,
+  patternDurations: Record<string, number>,
+): SliceSegment[] {
   const tokens = getAstChannelSpecTokens(astChannel);
   if (tokens.length === 0) return [];
 
   const segs: SliceSegment[] = [];
   const astSeqs: Record<string, any> = ast?.seqs ?? {};
-  for (const token of tokens) {
+  for (let itemIndex = 0; itemIndex < tokens.length; itemIndex++) {
+    const token = tokens[itemIndex];
     const refName = tokenToPatternName(token);
     const rootSeqName = Array.isArray(astSeqs[refName]) ? refName : null;
-    expandRefToPatternSegments(token, astSeqs, pats, rootSeqName, segs, new Set<string>());
+    expandRefToPatternSegments(
+      token,
+      astSeqs,
+      pats,
+      patternDurations,
+      itemIndex,
+      rootSeqName,
+      segs,
+      new Set<string>(),
+    );
   }
   return segs;
 }
@@ -252,12 +387,8 @@ function splitRepeatedPatternRuns(
   return out;
 }
 
-function getSegmentDisplayUnits(
-  seg: SliceSegment,
-  pats: Record<string, string[]>,
-  patternDurations: Record<string, number>,
-): number {
-  return getPatternDuration(seg.patName, patternDurations, pats) || seg.count;
+function getSegmentDisplayUnits(seg: SliceSegment): number {
+  return Math.max(1, seg.count);
 }
 
 /** Parse `channel N => inst NAME …` lines → channel id → instrument. */
@@ -287,16 +418,14 @@ export function buildChannelTimelines(
     const channelId = Number(ch?.id ?? 0);
     const events: any[] = ch.events ?? [];
     const astChannel = (ast?.channels ?? []).find((c: any) => (c?.id ?? 0) === channelId);
-    const astSegs = astChannel ? buildSegmentsFromAstChannel(astChannel, ast, pats) : [];
-    const segs = splitRepeatedPatternRuns(
-      astSegs.length > 0 ? astSegs : buildSegmentsFromEvents(events),
-      pats,
-      patternDurations,
-    );
+    const astSegs = astChannel ? buildSegmentsFromAstChannel(astChannel, ast, pats, patternDurations) : [];
+    const segs = astSegs.length > 0
+      ? astSegs
+      : splitRepeatedPatternRuns(buildSegmentsFromEvents(events), pats, patternDurations);
 
     let cursor = 0;
     const timed: TimedSegment[] = segs.map((seg) => {
-      const units = getSegmentDisplayUnits(seg, pats, patternDurations);
+      const units = getSegmentDisplayUnits(seg);
       const startStep = cursor;
       const endStep = cursor + Math.max(1, units);
       cursor = endStep;
@@ -304,6 +433,7 @@ export function buildChannelTimelines(
         channelId,
         patName: seg.patName,
         seqName: seg.seqName,
+        channelItemIndex: seg.channelItemIndex,
         startStep,
         endStep,
       };
@@ -323,8 +453,20 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): b
   return aStart < bEnd && bStart < aEnd;
 }
 
+function spanForChannelItem(
+  segments: TimedSegment[],
+  channelItemIndex: number,
+): { startStep: number; endStep: number } | null {
+  const matching = segments.filter((s) => s.channelItemIndex === channelItemIndex);
+  if (matching.length === 0) return null;
+  return {
+    startStep: matching[0].startStep,
+    endStep: matching[matching.length - 1].endStep,
+  };
+}
+
 /**
- * Expand a clicked block to the containing sequence item's full span when
+ * Expand a clicked block to the containing top-level channel item's full span when
  * `seqName` is present; otherwise keep the single pattern block window.
  */
 export function resolveSliceWindow(
@@ -336,15 +478,28 @@ export function resolveSliceWindow(
     return { startStep: anchor.startStep, endStep: Math.max(anchor.startStep + 1, anchor.endStep) };
   }
 
+  if (anchor.channelItemIndex != null) {
+    const span = spanForChannelItem(row.segments, anchor.channelItemIndex);
+    if (span) return span;
+  }
+
   const mid = (anchor.startStep + anchor.endStep) / 2;
   const hit = row.segments.find(
-    (s) => s.seqName === anchor.seqName && s.startStep <= mid && mid < s.endStep,
+    (s) => s.startStep <= mid && mid < s.endStep
+      && (anchor.channelItemIndex != null
+        ? s.channelItemIndex === anchor.channelItemIndex
+        : s.seqName === anchor.seqName),
   );
   if (!hit) {
     return { startStep: anchor.startStep, endStep: Math.max(anchor.startStep + 1, anchor.endStep) };
   }
 
-  // Contiguous run of the same seqName containing the hit.
+  if (hit.channelItemIndex != null) {
+    const span = spanForChannelItem(row.segments, hit.channelItemIndex);
+    if (span) return span;
+  }
+
+  // Legacy fallback: contiguous run of the same seqName containing the hit.
   let startIdx = row.segments.indexOf(hit);
   let endIdx = startIdx;
   while (startIdx > 0 && row.segments[startIdx - 1].seqName === anchor.seqName) startIdx--;
@@ -356,6 +511,20 @@ export function resolveSliceWindow(
   };
 }
 
+function contiguousChannelItemSpan(
+  segments: TimedSegment[],
+  channelItemIndex: number,
+  pointStep: number,
+): { startStep: number; endStep: number } | null {
+  const hit = segments.find(
+    (s) => s.channelItemIndex === channelItemIndex
+      && s.startStep <= pointStep
+      && pointStep < s.endStep,
+  );
+  if (!hit) return spanForChannelItem(segments, channelItemIndex);
+  return spanForChannelItem(segments, channelItemIndex);
+}
+
 function contiguousSeqSpan(
   segments: TimedSegment[],
   seqName: string,
@@ -365,6 +534,9 @@ function contiguousSeqSpan(
     (s) => s.seqName === seqName && s.startStep <= pointStep && pointStep < s.endStep,
   );
   if (!hit) return null;
+  if (hit.channelItemIndex != null) {
+    return spanForChannelItem(segments, hit.channelItemIndex);
+  }
   let startIdx = segments.indexOf(hit);
   let endIdx = startIdx;
   while (startIdx > 0 && segments[startIdx - 1].seqName === seqName) startIdx--;
@@ -380,32 +552,14 @@ function pickChannelRef(
   overlapping: TimedSegment[],
   window: { startStep: number; endStep: number },
 ): { kind: 'seq' | 'pats'; refs: string[]; misaligned: boolean } {
-  const windowWidth = Math.max(1, window.endStep - window.startStep);
   const mid = (window.startStep + window.endStep) / 2;
 
-  // Prefer the sequence under the window midpoint — exact span equality is too
-  // brittle when channels have slight duration differences, and listing every
-  // overhanging pat looks like a "random" subset of the song.
-  const atMid = overlapping.find((s) => s.startStep <= mid && mid < s.endStep);
-  if (atMid?.seqName) {
-    const span = contiguousSeqSpan(segments, atMid.seqName, mid);
-    if (span) {
-      const overlapStart = Math.max(span.startStep, window.startStep);
-      const overlapEnd = Math.min(span.endStep, window.endStep);
-      const overlap = Math.max(0, overlapEnd - overlapStart);
-      if (overlap / windowWidth >= 0.5) {
-        const misaligned = span.startStep < window.startStep || span.endStep > window.endStep
-          || window.startStep < span.startStep || window.endStep > span.endStep;
-        return { kind: 'seq', refs: [atMid.seqName], misaligned };
-      }
-    }
-  }
-
-  // Exact full-window seq match (aligned multi-channel sections).
-  const seqNames = [...new Set(overlapping.map((s) => s.seqName).filter((n): n is string => !!n))];
-  if (seqNames.length === 1) {
-    const seqName = seqNames[0];
-    const span = contiguousSeqSpan(segments, seqName, window.startStep);
+  const tryExactChannelItem = (
+    channelItemIndex: number,
+    seqName: string,
+  ): { kind: 'seq'; refs: string[]; misaligned: false } | null => {
+    const span = contiguousChannelItemSpan(segments, channelItemIndex, window.startStep)
+      ?? spanForChannelItem(segments, channelItemIndex);
     if (
       span
       && span.startStep === window.startStep
@@ -413,6 +567,52 @@ function pickChannelRef(
     ) {
       return { kind: 'seq', refs: [seqName], misaligned: false };
     }
+    return null;
+  };
+
+  const tryExactSeq = (
+    seqName: string,
+    pointStep: number,
+  ): { kind: 'seq'; refs: string[]; misaligned: false } | null => {
+    const span = contiguousSeqSpan(segments, seqName, pointStep);
+    if (
+      span
+      && span.startStep === window.startStep
+      && span.endStep === window.endStep
+    ) {
+      return { kind: 'seq', refs: [seqName], misaligned: false };
+    }
+    return null;
+  };
+
+  // Reuse a whole seq only when its span exactly matches the slice window.
+  // Synthetic channels restart at t=0, so a longer seq would replay intro/tail.
+  const atMid = overlapping.find((s) => s.startStep <= mid && mid < s.endStep);
+  if (atMid?.seqName && atMid.channelItemIndex != null) {
+    const picked = tryExactChannelItem(atMid.channelItemIndex, atMid.seqName);
+    if (picked) return picked;
+  }
+  if (atMid?.seqName) {
+    const picked = tryExactSeq(atMid.seqName, mid);
+    if (picked) return picked;
+  }
+
+  const itemIndexes = [...new Set(
+    overlapping.map((s) => s.channelItemIndex).filter((idx): idx is number => idx != null),
+  )];
+  if (itemIndexes.length === 1) {
+    const itemIndex = itemIndexes[0];
+    const seg = overlapping.find((s) => s.channelItemIndex === itemIndex);
+    if (seg?.seqName) {
+      const picked = tryExactChannelItem(itemIndex, seg.seqName);
+      if (picked) return picked;
+    }
+  }
+
+  const seqNames = [...new Set(overlapping.map((s) => s.seqName).filter((n): n is string => !!n))];
+  if (seqNames.length === 1) {
+    const picked = tryExactSeq(seqNames[0], window.startStep);
+    if (picked) return picked;
   }
 
   // Pats whose center lies inside the window (ignore thin overhangs).
@@ -579,7 +779,7 @@ export function buildArrangementSliceSource(
   const window = resolveSliceWindow(timelines, anchor);
   if (window.endStep <= window.startStep) return null;
 
-  const baseLines = fullSource.split('\n').filter((l) => SYNTHETIC_KEEP_LINES_RE.test(l));
+  const baseLines = stripChannelAndPlayLines(fullSource.split('\n'));
   const fallbackInst = firstDeclaredInstrument(fullSource);
   const newLines = [...baseLines];
 
@@ -619,19 +819,25 @@ export function findArrangementSliceAnchorBySeqName(
   song: any,
   ast: any | undefined,
   seqName: string,
+  channelItemIndex?: number | null,
 ): ArrangementSliceAnchor | null {
   const timelines = buildChannelTimelines(fullSource, song, ast);
   for (const row of timelines) {
     for (const seg of row.segments) {
-      if (seg.seqName === seqName) {
-        return {
-          channelId: row.channelId,
-          startStep: seg.startStep,
-          endStep: seg.endStep,
-          seqName,
-          patName: seg.patName,
-        };
-      }
+      if (seg.seqName !== seqName) continue;
+      if (channelItemIndex != null && seg.channelItemIndex !== channelItemIndex) continue;
+      const span = seg.channelItemIndex != null
+        ? spanForChannelItem(row.segments, seg.channelItemIndex)
+        : { startStep: seg.startStep, endStep: seg.endStep };
+      if (!span) continue;
+      return {
+        channelId: row.channelId,
+        startStep: span.startStep,
+        endStep: span.endStep,
+        seqName,
+        patName: seg.patName,
+        channelItemIndex: seg.channelItemIndex,
+      };
     }
   }
   return null;
@@ -672,6 +878,65 @@ function seqNameNearCursorLine(lines: string[], lineNumber: number): string | nu
   return scanSeqNameFromLines(lines, index, -1) ?? scanSeqNameFromLines(lines, index, 1);
 }
 
+function channelSpecTokensFromLine(line: string): string[] | null {
+  const seqMatch = line.match(/^\s*channel\s+\d+\s*=>\s*inst\s+\S+\s+seq\s+(.+)$/i);
+  if (seqMatch) {
+    return seqMatch[1].split(/\s+/).map((s) => s.trim()).filter(Boolean);
+  }
+  const patMatch = line.match(/^\s*channel\s+\d+\s*=>\s*inst\s+\S+\s+pat\s+(.+)$/i);
+  if (patMatch) {
+    return patMatch[1].split(/\s+/).map((s) => s.trim()).filter(Boolean);
+  }
+  return null;
+}
+
+function channelIdFromLine(line: string): number | null {
+  const match = line.match(/^\s*channel\s+(\d+)\s*=>/i);
+  return match ? Number(match[1]) : null;
+}
+
+function channelItemIndexAtColumn(line: string, column: number): number | null {
+  const tokens = channelSpecTokensFromLine(line);
+  if (!tokens || tokens.length === 0) return null;
+
+  const keywordMatch = line.match(/\b(?:seq|pat)\s+/i);
+  if (!keywordMatch || keywordMatch.index == null) return null;
+  const refsStart = keywordMatch.index + keywordMatch[0].length;
+  if (column < refsStart) return null;
+
+  let searchFrom = refsStart;
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const tokenStart = line.indexOf(token, searchFrom);
+    if (tokenStart < 0) continue;
+    const tokenEnd = tokenStart + token.length;
+    if (column >= tokenStart && column <= tokenEnd) return i;
+    searchFrom = tokenEnd;
+  }
+  return null;
+}
+
+function findArrangementSliceAnchorByChannelItem(
+  timelines: ChannelTimeline[],
+  channelId: number,
+  channelItemIndex: number,
+): ArrangementSliceAnchor | null {
+  const row = timelines.find((t) => t.channelId === channelId);
+  if (!row) return null;
+  const hit = row.segments.find((s) => s.channelItemIndex === channelItemIndex);
+  if (!hit) return null;
+  const span = spanForChannelItem(row.segments, channelItemIndex);
+  if (!span) return null;
+  return {
+    channelId,
+    startStep: span.startStep,
+    endStep: span.endStep,
+    seqName: hit.seqName,
+    patName: hit.patName,
+    channelItemIndex,
+  };
+}
+
 function seqRefAtColumnOnChannelLine(line: string, column: number): string | null {
   const seqMatch = line.match(/\bseq\s+/i);
   if (!seqMatch || seqMatch.index == null) return null;
@@ -694,7 +959,7 @@ export function resolveArrangementHintAtCursor(
   fullSource: string,
   lineNumber: number,
   column: number,
-): { seqName?: string; fallbackName?: string } | null {
+): { seqName?: string; fallbackName?: string; channelItemIndex?: number } | null {
   const lines = fullSource.split('\n');
   const line = lines[lineNumber - 1];
   if (!line) return null;
@@ -708,10 +973,12 @@ export function resolveArrangementHintAtCursor(
   }
 
   if (CHANNEL_LINE_RE.test(line)) {
+    const itemIndex = channelItemIndexAtColumn(line, column);
+    const channelItemIndex = itemIndex ?? undefined;
     const seqRef = seqRefAtColumnOnChannelLine(line, column);
-    if (seqRef) return { seqName: seqRef };
+    if (seqRef) return { seqName: seqRef, channelItemIndex };
     const patRef = patRefAtColumnOnChannelLine(line, column);
-    if (patRef) return { fallbackName: patRef };
+    if (patRef) return { fallbackName: patRef, channelItemIndex };
   }
 
   const nearbySeq = seqNameNearCursorLine(lines, lineNumber);
@@ -732,8 +999,26 @@ export function findArrangementSliceAnchorAtCursor(
   const hint = resolveArrangementHintAtCursor(fullSource, lineNumber, column);
   if (!hint) return null;
 
+  const timelines = buildChannelTimelines(fullSource, song, ast);
+
+  if (CHANNEL_LINE_RE.test(fullSource.split('\n')[lineNumber - 1] ?? '')) {
+    const line = fullSource.split('\n')[lineNumber - 1];
+    const channelId = channelIdFromLine(line);
+    const itemIndex = channelItemIndexAtColumn(line, column);
+    if (channelId != null && itemIndex != null) {
+      const byItem = findArrangementSliceAnchorByChannelItem(timelines, channelId, itemIndex);
+      if (byItem) return byItem;
+    }
+  }
+
   if (hint.seqName) {
-    const bySeq = findArrangementSliceAnchorBySeqName(fullSource, song, ast, hint.seqName);
+    const bySeq = findArrangementSliceAnchorBySeqName(
+      fullSource,
+      song,
+      ast,
+      hint.seqName,
+      hint.channelItemIndex,
+    );
     if (bySeq) return bySeq;
   }
 
@@ -778,10 +1063,25 @@ export interface ArrangementSectionBlock {
   channelId: number;
   startStep: number;
   endStep: number;
+  channelItemIndex: number | null;
 }
 
-function sectionGroupKey(seg: { seqName: string | null; patName: string }): string {
+export function sectionGroupKey(seg: {
+  seqName: string | null;
+  patName: string;
+  channelItemIndex: number | null;
+}): string {
+  if (seg.channelItemIndex != null) {
+    return seg.seqName
+      ? `seq:${seg.seqName}:${seg.channelItemIndex}`
+      : `pat:${seg.patName}:${seg.channelItemIndex}`;
+  }
   return seg.seqName ? `seq:${seg.seqName}` : `pat:${seg.patName}`;
+}
+
+/** Stable per-occurrence id (React keys, section lists). Includes timeline position. */
+export function sectionBlockKey(groupKey: string, startStep: number): string {
+  return `${groupKey}@s${startStep}`;
 }
 
 /**
@@ -798,22 +1098,25 @@ export function listArrangementSections(
 
   const blocks: ArrangementSectionBlock[] = [];
   let current: ArrangementSectionBlock | null = null;
+  let currentGroupKey: string | null = null;
 
   for (const seg of refRow.segments) {
-    const key = sectionGroupKey(seg);
-    if (current && current.key === key) {
+    const groupKey = sectionGroupKey(seg);
+    if (current && currentGroupKey === groupKey) {
       current.endStep = seg.endStep;
       continue;
     }
     if (current) blocks.push(current);
+    currentGroupKey = groupKey;
     current = {
-      key,
+      key: sectionBlockKey(groupKey, seg.startStep),
       label: seg.seqName ?? seg.patName,
       seqName: seg.seqName,
       patName: seg.patName,
       channelId: refRow.channelId,
       startStep: seg.startStep,
       endStep: seg.endStep,
+      channelItemIndex: seg.channelItemIndex,
     };
   }
 
@@ -852,5 +1155,6 @@ export function findAdjacentSectionAnchor(
     endStep: block.endStep,
     seqName: block.seqName,
     patName: block.patName,
+    channelItemIndex: block.channelItemIndex,
   };
 }

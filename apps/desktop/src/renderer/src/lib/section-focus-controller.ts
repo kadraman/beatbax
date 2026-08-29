@@ -49,6 +49,7 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
     endStep: request.endStep,
     seqName: request.seqName,
     patName: request.patName,
+    channelItemIndex: request.channelItemIndex,
   });
 
   const exit = (): void => {
@@ -117,6 +118,7 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
         endStep: anchor.endStep,
         seqName: anchor.seqName,
         patName: anchor.patName,
+        channelItemIndex: anchor.channelItemIndex,
       },
       { play: options?.play ?? false },
     );
@@ -140,6 +142,7 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
         endStep: anchor.endStep,
         seqName: anchor.seqName,
         patName: anchor.patName,
+        channelItemIndex: anchor.channelItemIndex,
       },
       { play: options?.play ?? false },
     );
@@ -165,6 +168,7 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
         endStep: anchor.endStep,
         seqName: anchor.seqName,
         patName: anchor.patName,
+        channelItemIndex: anchor.channelItemIndex,
       },
       { play: options?.play ?? false },
     );
@@ -220,17 +224,6 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
     }
   };
 
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== 'Escape' || !active) return;
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
-    event.preventDefault();
-    event.stopPropagation();
-    exit();
-  };
-
-  window.addEventListener('keydown', onKeyDown, true);
-
   return {
     enter,
     exit,
@@ -243,7 +236,6 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
     isActive: () => active,
     getFocusInfo: () => lastInfo,
     dispose: () => {
-      window.removeEventListener('keydown', onKeyDown, true);
       exit();
       opts.sectionFocusEditor.dispose();
     },

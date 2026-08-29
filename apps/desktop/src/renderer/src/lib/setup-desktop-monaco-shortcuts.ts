@@ -12,7 +12,7 @@ import type { DesktopChannelMixerHandle } from '../components/panels/DesktopChan
 import type { DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 import type { SectionFocusController } from './section-focus-controller';
-import { createPatternGridShortcutHandlers, bindPatternGridEditorKeys } from './pattern-grid-shortcuts';
+import { createPatternGridShortcutHandlers } from './pattern-grid-shortcuts';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 
 export interface SetupDesktopMonacoShortcutsOptions {
@@ -125,6 +125,11 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
         requiresCapability: 'patternGrid',
       },
       {
+        commandId: 'patternGrid.exitSectionFocus',
+        handler: patternGridHandlers['patternGrid.exitSectionFocus']!,
+        requiresCapability: 'patternGrid',
+      },
+      {
         commandId: 'patternGrid.previousSection',
         handler: patternGridHandlers['patternGrid.previousSection']!,
         requiresCapability: 'patternGrid',
@@ -135,8 +140,6 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
         requiresCapability: 'patternGrid',
       },
     ], DESKTOP_CAPABILITIES);
-
-    disposables.push({ dispose: bindPatternGridEditorKeys(editor, patternGridHandlers) });
   }
 
   if (copilot) {
@@ -150,12 +153,6 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
 
   disposables.push(editor.onKeyDown((e: IKeyboardEvent) => {
     if (e.keyCode === KeyCode.Escape && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-      if (getSectionFocusController?.()?.isActive()) {
-        e.preventDefault();
-        e.stopPropagation();
-        getSectionFocusController()?.exit();
-        return;
-      }
       if (rightTabs.activeTab === 'help') rightTabs.switch('channels');
     }
   }));

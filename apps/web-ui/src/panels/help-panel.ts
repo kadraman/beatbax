@@ -729,7 +729,8 @@ export class HelpPanel {
     // Track active chip for chip-specific section merging.
     // Both embedded and overlay panels need this subscription.
     this.unsubscribers.push(
-      this.eventBus.on('parse:success', ({ ast }) => {
+      this.eventBus.on('parse:success', ({ ast, ephemeral }) => {
+        if (ephemeral) return;
         const raw: string = ((ast?.chip ?? 'gameboy') as string).toLowerCase();
         const chip = chipRegistry.resolve(raw);
         const chipRegion = ast?.chipRegion != null && ast.chipRegion !== ''

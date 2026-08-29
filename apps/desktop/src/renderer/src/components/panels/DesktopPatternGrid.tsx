@@ -18,19 +18,15 @@ import {
   type ChannelInfo,
 } from '@beatbax/app-core/stores/channel.store';
 import type { SectionFocusInfo } from '@beatbax/app-core/editor/arrangement-slice';
+import { buildChannelTimelines, sectionGroupKey, sectionBlockKey } from '@beatbax/app-core/editor/arrangement-slice';
 import { getChannelColor } from '@beatbax/ui-tokens/channel-meta';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 
 interface Segment {
   patName: string;
   seqName: string | null;
+  channelItemIndex: number | null;
   count: number;
-}
-
-interface RowBuildData {
-  ch: any;
-  segs: Segment[];
-  displayTotal: number;
 }
 
 interface PatternGridRow {
@@ -46,6 +42,8 @@ export interface ArrangementSlicePlayRequest {
   endStep: number;
   seqName: string | null;
   patName: string;
+  /** 0-based top-level channel seq/pat item (e.g. second `lead_seq`). */
+  channelItemIndex?: number | null;
   loop?: boolean;
   /** When false, enter focus without starting playback (use transport Play). */
   autoPlay?: boolean;
@@ -101,43 +99,43 @@ interface SectionBlock {
   endStep: number;
   channelId: number;
   patName: string;
-}
-
-function sectionGroupKey(seg: Segment): string {
-  return seg.seqName ? `seq:${seg.seqName}` : `pat:${seg.patName}`;
+  channelItemIndex: number | null;
 }
 
 /** Collapse channel segments into sequence-level blocks for the section strip. */
-function buildSectionBlocks(
-  row: PatternGridRow,
-  pats: Record<string, string[]>,
-  patternDurations: Record<string, number>,
-): SectionBlock[] {
+function buildSectionBlocks(row: PatternGridRow): SectionBlock[] {
   const blocks: SectionBlock[] = [];
   let stepCursor = 0;
   let current: SectionBlock | null = null;
+  let currentGroupKey: string | null = null;
 
   for (const seg of row.segs) {
-    const displayUnits = getSegmentDisplayUnits(seg, pats, patternDurations);
+    const displayUnits = Math.max(1, seg.count);
     const startStep = stepCursor;
     const endStep = stepCursor + Math.max(1, displayUnits);
     stepCursor = endStep;
 
-    const key = sectionGroupKey(seg);
-    if (current && current.key === key) {
+    const groupKey = sectionGroupKey({
+      seqName: seg.seqName,
+      patName: seg.patName,
+      channelItemIndex: seg.channelItemIndex,
+    });
+    if (current && currentGroupKey === groupKey) {
       current.endStep = endStep;
       continue;
     }
 
     if (current) blocks.push(current);
+    currentGroupKey = groupKey;
     current = {
-      key,
+      key: sectionBlockKey(groupKey, startStep),
       seqName: seg.seqName,
       label: seg.seqName ?? seg.patName,
       startStep,
       endStep,
       channelId: row.channelId,
       patName: seg.patName,
+      channelItemIndex: seg.channelItemIndex,
     };
   }
 
@@ -174,197 +172,25 @@ function channelPositionsAtPct(
   return Object.fromEntries(rows.map((row) => [row.channelId, pct]));
 }
 
-function parseRepeatSpec(token: string): { base: string; repeat: number } {
-  const t = token.trim();
-  const rep = t.match(/^(.+?)\s*\*\s*(\d+)$/);
-  if (!rep) return { base: t, repeat: 1 };
-  const repeat = Math.max(1, parseInt(rep[2], 10) || 1);
-  return { base: rep[1].trim(), repeat };
-}
-
-function tokenToPatternName(token: string): string {
-  const t = token.trim();
-  if (!t) return '';
-  const { base } = parseRepeatSpec(t);
-  return base.split(':')[0].trim();
-}
-
-function buildSegmentsFromEvents(events: any[]): Segment[] {
-  const segs: Segment[] = [];
-  let cur: Segment | null = null;
-  for (const ev of events) {
-    const prevPat: string = cur ? cur.patName : '?';
-    const prevSeq: string | null = cur ? cur.seqName : null;
-    const pat: string = ev.sourcePattern ?? prevPat;
-    const seq: string | null = ev.sourceSequence ?? prevSeq;
-    if (!cur || pat !== cur.patName || seq !== cur.seqName) {
-      cur = { patName: pat, seqName: seq, count: 1 };
-      segs.push(cur);
-    } else {
-      cur.count++;
-    }
-  }
-  return segs;
-}
-
-function tokenConsumesStep(token: string): boolean {
-  const t = token.trim();
-  if (!t) return false;
-  return !/^inst(?:\s|\()/i.test(t);
-}
-
-function tokenStepDuration(token: string): number {
-  if (!tokenConsumesStep(token)) return 0;
-  const match = token.trim().match(/:(\d+)(?:\s*)$/);
-  return match ? Math.max(1, parseInt(match[1], 10) || 1) : 1;
-}
-
-function patternEventStepDuration(event: any): number {
-  const kind = String(event?.kind ?? '');
-  if (kind === 'inline-inst' || kind === 'temp-inst') return 0;
-  const raw = typeof event?.raw === 'string' ? event.raw : typeof event?.value === 'string' ? event.value : '';
-  if (raw && !tokenConsumesStep(raw)) return 0;
-  return Math.max(1, Number(event?.duration) || 1);
-}
-
-function buildPatternDurations(ast: any, pats: Record<string, string[]>): Record<string, number> {
-  const durations: Record<string, number> = {};
-  const patternEvents: Record<string, any[]> | undefined = ast?.patternEvents;
-
-  for (const [name, tokens] of Object.entries(pats)) {
-    const events = patternEvents?.[name];
-    if (Array.isArray(events) && events.length > 0) {
-      durations[name] = Math.max(1, events.reduce((acc, event) => acc + patternEventStepDuration(event), 0));
-      continue;
-    }
-    durations[name] = Math.max(1, tokens.reduce((acc, token) => acc + tokenStepDuration(String(token)), 0));
-  }
-
-  return durations;
-}
-
-function getPatternDuration(
-  patName: string,
-  patternDurations: Record<string, number>,
-  pats: Record<string, string[]>,
-): number {
-  return patternDurations[patName] ?? Math.max(1, pats[patName]?.length ?? 1);
-}
-
-function splitRepeatedPatternRuns(
-  segs: Segment[],
-  pats: Record<string, string[]>,
-  patternDurations: Record<string, number>,
-): Segment[] {
-  const out: Segment[] = [];
-  for (const seg of segs) {
-    const patLen = getPatternDuration(seg.patName, patternDurations, pats);
-    const shouldSplit = patLen > 0 && seg.count > patLen && seg.count % patLen === 0;
-    if (!shouldSplit) {
-      out.push(seg);
-      continue;
-    }
-    const repeats = seg.count / patLen;
-    for (let i = 0; i < repeats; i++) {
-      out.push({ ...seg, count: patLen });
-    }
-  }
-  return out;
-}
-
-function getAstChannelSpecTokens(astChannel: any): string[] {
-  const seqSpec: string[] | undefined = astChannel?.seqSpecTokens;
-  if (Array.isArray(seqSpec) && seqSpec.length > 0) {
-    return seqSpec.map((s) => String(s)).map((s) => s.trim()).filter(Boolean);
-  }
-  if (typeof astChannel?.seq === 'string' && astChannel.seq.trim()) {
-    return astChannel.seq.split(/\s*,\s*|\s+/).map((s: string) => s.trim()).filter(Boolean);
-  }
-  if (typeof astChannel?.pat === 'string' && astChannel.pat.trim()) {
-    return astChannel.pat.split(/\s*,\s*|\s+/).map((s: string) => s.trim()).filter(Boolean);
-  }
-  return [];
-}
-
-function expandRefToPatternSegments(
-  refToken: string,
-  astSeqs: Record<string, any>,
-  pats: Record<string, string[]>,
-  rootSeqName: string | null,
-  out: Segment[],
-  visiting: Set<string>,
-): void {
-  const { base, repeat } = parseRepeatSpec(refToken);
-  const refName = tokenToPatternName(base);
-  if (!refName) return;
-
-  const seqItems = astSeqs?.[refName];
-  if (Array.isArray(seqItems)) {
-    if (visiting.has(refName)) return;
-    visiting.add(refName);
-    for (let r = 0; r < repeat; r++) {
-      for (const item of seqItems) {
-        const inner = typeof item === 'string'
-          ? item
-          : String(item?.raw ?? item?.name ?? item?.pattern ?? item?.ref ?? '');
-        if (!inner.trim()) continue;
-        const itemRepeat = typeof item === 'object' && item !== null
-          ? Math.max(1, Number(item.repeat) || 1)
-          : 1;
-        for (let ir = 0; ir < itemRepeat; ir++) {
-          expandRefToPatternSegments(inner, astSeqs, pats, rootSeqName ?? refName, out, visiting);
-        }
-      }
-    }
-    visiting.delete(refName);
-    return;
-  }
-
-  const patLen = Array.isArray(pats[refName]) ? pats[refName].length : 1;
-  for (let r = 0; r < repeat; r++) {
-    out.push({ patName: refName, seqName: rootSeqName, count: Math.max(1, patLen) });
-  }
-}
-
-function buildSegmentsFromAstChannel(astChannel: any, ast: any, pats: Record<string, string[]>): Segment[] {
-  const tokens = getAstChannelSpecTokens(astChannel);
-  if (tokens.length === 0) return [];
-
-  const segs: Segment[] = [];
-  const astSeqs: Record<string, any> = ast?.seqs ?? {};
-  for (const token of tokens) {
-    const refName = tokenToPatternName(token);
-    const rootSeqName = Array.isArray(astSeqs[refName]) ? refName : null;
-    expandRefToPatternSegments(token, astSeqs, pats, rootSeqName, segs, new Set<string>());
-  }
-  return segs;
-}
-
-function getSegmentDisplayUnits(
-  seg: Segment,
-  pats: Record<string, string[]>,
-  patternDurations: Record<string, number>,
-): number {
-  return getPatternDuration(seg.patName, patternDurations, pats) || seg.count;
-}
-
 function buildRows(song: any, ast?: any): {
   rows: PatternGridRow[];
   globalEventTotal: number;
   pats: Record<string, string[]>;
-  patternDurations: Record<string, number>;
 } {
   const channels: any[] = song?.channels ?? [];
   const pats: Record<string, string[]> = song?.pats ?? {};
-  const patternDurations = buildPatternDurations(ast, pats);
-  if (channels.length === 0) return { rows: [], globalEventTotal: 1, pats, patternDurations };
+  if (channels.length === 0) return { rows: [], globalEventTotal: 1, pats };
 
-  const rowData: RowBuildData[] = channels.map((ch) => {
-    const events: any[] = ch.events ?? [];
-    const astChannel = (ast?.channels ?? []).find((c: any) => (c?.id ?? 0) === (ch?.id ?? 0));
-    const astSegs = astChannel ? buildSegmentsFromAstChannel(astChannel, ast, pats) : [];
-    const segs = splitRepeatedPatternRuns(astSegs.length > 0 ? astSegs : buildSegmentsFromEvents(events), pats, patternDurations);
-    const displayTotal = Math.max(1, segs.reduce((acc, seg) => acc + getSegmentDisplayUnits(seg, pats, patternDurations), 0));
+  const timelines = buildChannelTimelines('', song, ast);
+  const rowData = timelines.map((timeline) => {
+    const segs: Segment[] = timeline.segments.map((s) => ({
+      patName: s.patName,
+      seqName: s.seqName,
+      channelItemIndex: s.channelItemIndex,
+      count: Math.max(1, s.endStep - s.startStep),
+    }));
+    const displayTotal = Math.max(1, segs.reduce((acc, seg) => acc + seg.count, 0));
+    const ch = channels.find((c) => (c?.id ?? 0) === timeline.channelId) ?? { id: timeline.channelId };
     return { ch, segs, displayTotal };
   });
 
@@ -372,7 +198,6 @@ function buildRows(song: any, ast?: any): {
   const chip: string = song?.chip ?? 'gameboy';
   return {
     pats,
-    patternDurations,
     globalEventTotal,
     rows: rowData.map((row) => ({
       channelId: row.ch?.id ?? 0,
@@ -396,7 +221,6 @@ function DesktopPatternGrid({
 }: DesktopPatternGridProps): React.JSX.Element {
   const [rows, setRows] = useState<PatternGridRow[]>([]);
   const [pats, setPats] = useState<Record<string, string[]>>({});
-  const [patternDurations, setPatternDurations] = useState<Record<string, number>>({});
   const [globalEventTotal, setGlobalEventTotal] = useState(1);
   const [positions, setPositions] = useState<Record<number, number>>({});
   const [globalPct, setGlobalPct] = useState<number | null>(null);
@@ -487,7 +311,6 @@ function DesktopPatternGrid({
       const next = buildRows(song, ast);
       setRows(next.rows);
       setPats(next.pats);
-      setPatternDurations(next.patternDurations);
       globalEventTotalRef.current = next.globalEventTotal;
       setGlobalEventTotal(next.globalEventTotal);
       setPositions({});
@@ -560,11 +383,11 @@ function DesktopPatternGrid({
     if (rows.length === 0) return { blocks: [] as SectionBlock[], tailEvents: 0, displayTotal: 0 };
     const refRow = rows.find((row) => row.segs.some((seg) => seg.seqName)) ?? rows[0];
     return {
-      blocks: buildSectionBlocks(refRow, pats, patternDurations),
+      blocks: buildSectionBlocks(refRow),
       tailEvents: globalEventTotal - refRow.displayTotal,
       displayTotal: refRow.displayTotal,
     };
-  }, [rows, pats, patternDurations, globalEventTotal]);
+  }, [rows, globalEventTotal]);
 
   const showSectionLane = sectionLane.blocks.length > 0 && !!onPlaySlice;
 
@@ -599,6 +422,7 @@ function DesktopPatternGrid({
                     endStep: block.endStep,
                     seqName: block.seqName,
                     patName: block.patName,
+                    channelItemIndex: block.channelItemIndex,
                   };
                   const inSlice = !!sliceWindow
                     && block.startStep < sliceWindow.endStep
@@ -706,7 +530,7 @@ function DesktopPatternGrid({
                   style={{ opacity: audible ? '1' : '0.4' }}
                 >
                   {row.segs.map((seg, index) => {
-                    const displayUnits = getSegmentDisplayUnits(seg, pats, patternDurations);
+                    const displayUnits = Math.max(1, seg.count);
                     const startStep = stepCursor;
                     const endStep = stepCursor + Math.max(1, displayUnits);
                     stepCursor = endStep;

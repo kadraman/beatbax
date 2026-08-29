@@ -44,6 +44,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['desktop-full'],
     binding: { key: 'n', ctrl: true },
     allowInInput: true,
+    allowInMonaco: true,
     requiresCapability: 'export',
   },
   {
@@ -53,6 +54,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['web-lite', 'desktop-full'],
     binding: { key: 'o', ctrl: true },
     allowInInput: true,
+    allowInMonaco: true,
   },
   {
     id: 'file.save',
@@ -61,6 +63,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['web-lite', 'desktop-full'],
     binding: { key: 's', ctrl: true },
     allowInInput: true,
+    allowInMonaco: true,
   },
   {
     id: 'file.saveAs',
@@ -69,6 +72,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['desktop-full'],
     binding: { key: 's', ctrl: true, shift: true },
     allowInInput: true,
+    allowInMonaco: true,
     requiresCapability: 'nativeMenu',
   },
 
@@ -139,6 +143,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['web-lite', 'desktop-full'],
     binding: { key: '`', ctrl: true },
     allowInInput: true,
+    allowInMonaco: true,
     requiresCapability: 'outputPanel',
   },
   {
@@ -148,6 +153,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['web-lite', 'desktop-full'],
     binding: { key: 'p', alt: true, shift: true },
     allowInInput: true,
+    allowInMonaco: true,
     requiresCapability: 'problemsPanel',
   },
   {
@@ -250,6 +256,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['web-lite', 'desktop-full'],
     binding: { key: 'h', alt: true, shift: true },
     allowInInput: true,
+    allowInMonaco: true,
     requiresCapability: 'helpPanel',
   },
   {

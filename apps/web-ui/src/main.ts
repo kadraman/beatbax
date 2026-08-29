@@ -1489,7 +1489,8 @@ settingFoldComments.subscribe((folded) => menuBar?.setFoldAllChecked(folded));
 }
 
 // Keep the menu bar song name in sync with the parsed metadata.name directive.
-eventBus.on('parse:success', ({ ast, valid }: any) => {
+eventBus.on('parse:success', ({ ast, valid, ephemeral }: any) => {
+  if (ephemeral) return;
   const metaName = (ast as any)?.metadata?.name;
   menuBar?.setSongName(metaName || (loadedFilename === 'song' ? 'untitled' : loadedFilename));
   toolbar?.setChip((ast as any)?.chip || 'gameboy');
@@ -1710,8 +1711,8 @@ const dragDrop = new DragDropHandler(document.body, {
 })();
 
 // ─── Monaco editor shortcut commands ────────────────────────────────────────
-// These fire when the Monaco editor has focus and complement the global window
-// handler (which is blocked by isInInput when Monaco has focus).
+// These fire when the Monaco editor has focus. The global catalog handler skips
+// Monaco unless a shortcut is marked allowInMonaco (e.g. file save).
 const monacoInst = editor.editor;
 const toggleTheme = () => themeManager.toggle();
 

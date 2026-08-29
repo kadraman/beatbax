@@ -64,14 +64,6 @@ export function getLeafPats(
   const base = parts[0].trim();
   const mods = parts.slice(1);
 
-  let mult = 1;
-  for (const mod of mods) {
-    const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
-    if (mSlow) { mult *= mSlow[1] ? parseInt(mSlow[1], 10) : 2; continue; }
-    const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
-    if (mFast) { mult /= (mFast[1] ? parseInt(mFast[1], 10) : 2); continue; }
-  }
-
   let children: TokenSourceLeaf[] = [];
   if (visited.has(base)) {
     return [];
@@ -92,12 +84,33 @@ export function getLeafPats(
     children = [{ patBase: base, count: 1, seqPath }];
   }
 
+  const applyStepCountMods = (steps: number, itemMods: string[]): number => {
+    let count = steps;
+    for (const mod of itemMods) {
+      if (/^pal(?:indrome)?$/i.test(mod)) {
+        count = count <= 1 ? count : count * 2 - 1;
+        continue;
+      }
+      const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
+      if (mSlow) {
+        count *= mSlow[1] ? parseInt(mSlow[1], 10) : 2;
+        continue;
+      }
+      const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
+      if (mFast) {
+        const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
+        count = Math.max(1, Math.ceil(count / factor));
+      }
+    }
+    return Math.max(1, count);
+  };
+
   const out: TokenSourceLeaf[] = [];
   for (let r = 0; r < repeat; r++) {
     for (const c of children) {
       out.push({
         patBase: c.patBase,
-        count: Math.max(1, Math.round(c.count * mult)),
+        count: applyStepCountMods(c.count, mods),
         seqPath: c.seqPath,
       });
     }

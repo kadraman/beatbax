@@ -416,29 +416,38 @@ export class PlaybackManager {
       log.debug('Position tracking callback registered:', !!this.player.onPositionChange);
 
       // Apply channel mute/solo state before playback starts.
-      // Reconcile: clear solo/mute for channels that don't exist in the new song.
       const activeChannelIds = new Set<number>((resolved.channels || []).map((ch: any) => ch.id));
-      const states = channelStates.get();
-      for (const [idStr, info] of Object.entries(states)) {
-        const id = Number(idStr);
-        if (!activeChannelIds.has(id)) {
-          if (info.soloed) setChannelSoloed(id, false);
-          if (info.muted) setChannelMuted(id, false);
+      const isEphemeral = options.ephemeral === true;
+
+      if (!isEphemeral) {
+        // Reconcile: clear solo/mute for channels that don't exist in the new song.
+        const states = channelStates.get();
+        for (const [idStr, info] of Object.entries(states)) {
+          const id = Number(idStr);
+          if (!activeChannelIds.has(id)) {
+            if (info.soloed) setChannelSoloed(id, false);
+            if (info.muted) setChannelMuted(id, false);
+          }
         }
       }
-      // Apply mute/solo to the Player.
+
+      // Apply mute/solo to the Player for channels in this playback source only.
       const currentStates = channelStates.get();
       this.player.muted.clear();
       this.player.solo = null;
       let soloedId: number | null = null;
       for (const [idStr, info] of Object.entries(currentStates)) {
-        if (info.soloed) { soloedId = Number(idStr); break; }
+        const id = Number(idStr);
+        if (!activeChannelIds.has(id)) continue;
+        if (info.soloed) { soloedId = id; break; }
       }
       if (soloedId !== null) {
         this.player.solo = soloedId;
       } else {
         for (const [idStr, info] of Object.entries(currentStates)) {
-          if (info.muted) this.player.muted.add(Number(idStr));
+          const id = Number(idStr);
+          if (!activeChannelIds.has(id)) continue;
+          if (info.muted) this.player.muted.add(id);
         }
       }
 

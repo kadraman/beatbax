@@ -40,6 +40,7 @@ export function registerCatalogShortcuts(options: RegisterCatalogShortcutsOption
         description: entry.description,
         category: entry.category,
         allowInInput: entry.allowInInput,
+        allowInMonaco: entry.allowInMonaco,
         helpOnly,
       }, helpOnly || !action ? () => {} : action));
     };

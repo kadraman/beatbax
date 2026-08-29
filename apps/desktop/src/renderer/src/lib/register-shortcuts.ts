@@ -40,8 +40,8 @@ export interface RegisterDesktopShortcutsOptions {
 
 /**
  * Desktop-global shortcuts. Unlike the browser client, standard file shortcuts
- * (Ctrl+N/O/S) are available here. Editor-focused transport keys (F5/F8,
- * Ctrl+Enter) are duplicated in setupDesktopMonacoShortcuts().
+ * (Ctrl+N/O/S) are available here. Editor-focused keys are registered in
+ * setupDesktopMonacoShortcuts() and skipped by the global handler while Monaco has focus.
  */
 export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions): void {
   const {

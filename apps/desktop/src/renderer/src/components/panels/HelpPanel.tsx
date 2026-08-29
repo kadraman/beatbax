@@ -481,7 +481,8 @@ function DesktopHelpPanel({
   }), [hide, refresh, show, showShortcuts, toggle]);
 
   useEffect(() => {
-    return eventBus.on('parse:success', ({ ast }) => {
+    return eventBus.on('parse:success', ({ ast, ephemeral }) => {
+      if (ephemeral) return;
       const raw = String((ast as { chip?: string } | undefined)?.chip ?? 'gameboy').toLowerCase();
       const chip = chipRegistry.resolve(raw);
       const chipRegionRaw = (ast as { chipRegion?: unknown } | undefined)?.chipRegion;

@@ -12,6 +12,7 @@ import {
   buildChannelTimelines,
   findSectionCommentAbove,
   resolveSectionFocus,
+  resolveSliceWindow,
 } from '../src/editor/arrangement-slice';
 
 const HEROES_SHAPED = `chip gameboy
@@ -167,6 +168,113 @@ play`;
     expect(channelSrc).not.toMatch(/\bbass_i\b/);
   });
 
+  it('partial seq window: emits overlapping pats, not the full parent sequence', () => {
+    const src = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+pat a = C4 E4 G4 C5
+pat b = E4 G4 B4 E5
+pat c = G4 A4 B4 C5
+pat d = C5 D5 E5 G5
+seq long = a b c d
+channel 1 => inst lead seq long
+play`;
+    const pats = {
+      a: ['C4', 'E4', 'G4', 'C5'],
+      b: ['E4', 'G4', 'B4', 'E5'],
+      c: ['G4', 'A4', 'B4', 'C5'],
+      d: ['C5', 'D5', 'E5', 'G5'],
+    };
+    const ast = {
+      seqs: { long: ['a', 'b', 'c', 'd'] },
+      channels: [{ id: 1, inst: 'lead', seqSpecTokens: ['long'] }],
+    };
+    const song = {
+      pats,
+      channels: [{ id: 1, defaultInstrument: 'lead', events: [] }],
+    };
+
+    const timelines = buildChannelTimelines(src, song, ast);
+    const cSeg = timelines[0].segments.find((s) => s.patName === 'c')!;
+    expect(cSeg.startStep).toBe(8);
+    expect(cSeg.endStep).toBe(12);
+
+    const result = buildArrangementSliceSource(src, song, ast, {
+      channelId: 1,
+      startStep: cSeg.startStep,
+      endStep: cSeg.endStep,
+      seqName: null,
+      patName: 'c',
+    });
+
+    expect(result).not.toBeNull();
+    const channelLines = result!.source.split('\n').filter((l) => /^channel /.test(l));
+    expect(channelLines.some((l) => /seq long\b/.test(l))).toBe(false);
+    expect(result!.source).toMatch(/seq __slice_ch1__ = c/);
+    expect(result!.source).toMatch(/channel 1 => inst lead seq __slice_ch1__/);
+  });
+
+  it('cross-channel: longer seq covering the window emits pats, not the full sequence', () => {
+    const src = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+inst bass type=pulse2 duty=25 env=10,down
+pat a = C4 E4 G4 C5
+pat b = E4 G4 B4 E5
+pat c = G4 A4 B4 C5
+pat d = C5 D5 E5 G5
+pat ba = C2 . G2 .
+pat bb = E2 . B1 .
+pat bc = G2 . D2 .
+pat bd = A1 . E1 .
+pat be = B1 . F1 .
+seq section = a b c d
+seq section_bass = ba bb bc bd be
+channel 1 => inst lead seq section
+channel 2 => inst bass seq section_bass
+play`;
+    const pats = {
+      a: ['C4', 'E4', 'G4', 'C5'],
+      b: ['E4', 'G4', 'B4', 'E5'],
+      c: ['G4', 'A4', 'B4', 'C5'],
+      d: ['C5', 'D5', 'E5', 'G5'],
+      ba: ['C2', '.', 'G2', '.'],
+      bb: ['E2', '.', 'B1', '.'],
+      bc: ['G2', '.', 'D2', '.'],
+      bd: ['A1', '.', 'E1', '.'],
+      be: ['B1', '.', 'F1', '.'],
+    };
+    const ast = {
+      seqs: { section: ['a', 'b', 'c', 'd'], section_bass: ['ba', 'bb', 'bc', 'bd', 'be'] },
+      channels: [
+        { id: 1, inst: 'lead', seqSpecTokens: ['section'] },
+        { id: 2, inst: 'bass', seqSpecTokens: ['section_bass'] },
+      ],
+    };
+    const song = {
+      pats,
+      channels: [
+        { id: 1, defaultInstrument: 'lead', events: [] },
+        { id: 2, defaultInstrument: 'bass', events: [] },
+      ],
+    };
+
+    const timelines = buildChannelTimelines(src, song, ast);
+    const sectionSeg = timelines[0].segments.find((s) => s.seqName === 'section')!;
+    const result = buildArrangementSliceSource(src, song, ast, {
+      channelId: 1,
+      startStep: sectionSeg.startStep,
+      endStep: sectionSeg.endStep,
+      seqName: 'section',
+      patName: sectionSeg.patName,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.source).toMatch(/channel 1 => inst lead seq section/);
+    expect(result!.source).not.toMatch(/channel 2 => inst bass seq section_bass/);
+    expect(result!.source).toMatch(/seq __slice_ch2__ = ba bb bc bd/);
+  });
+
   it('mismatched lengths: overlapping whole pats included without crash', () => {
     const src = `chip gameboy
 bpm 120
@@ -233,6 +341,113 @@ play`;
       { loop: true },
     );
     expect(result!.source.trim().endsWith('play auto repeat')).toBe(true);
+  });
+
+  it('transformed seq items use expanded step counts for timeline positions', () => {
+    const src = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+inst bass type=pulse2 duty=25 env=10,down
+pat riff = C4 D4 E4 G4
+pat bassline = C2 . G2 .
+seq section_slow = riff:slow(2)
+seq section_plain = riff bassline
+seq section_pal = riff:pal
+channel 1 => inst lead seq section_slow section_plain
+channel 2 => inst bass seq section_slow section_plain
+play`;
+    const pats = {
+      riff: ['C4', 'D4', 'E4', 'G4'],
+      bassline: ['C2', '.', 'G2', '.'],
+    };
+    const ast = {
+      seqs: {
+        section_slow: ['riff:slow(2)'],
+        section_plain: ['riff', 'bassline'],
+        section_pal: ['riff:pal'],
+      },
+      channels: [
+        { id: 1, inst: 'lead', seqSpecTokens: ['section_slow', 'section_plain'] },
+        { id: 2, inst: 'bass', seqSpecTokens: ['section_slow', 'section_plain'] },
+      ],
+    };
+    const song = {
+      pats,
+      channels: [
+        { id: 1, defaultInstrument: 'lead', events: [] },
+        { id: 2, defaultInstrument: 'bass', events: [] },
+      ],
+    };
+
+    const timelines = buildChannelTimelines(src, song, ast);
+    const ch1Slow = timelines[0].segments.find((s) => s.seqName === 'section_slow')!;
+    expect(ch1Slow.endStep - ch1Slow.startStep).toBe(8);
+    const ch1Plain = timelines[0].segments.find((s) => s.seqName === 'section_plain' && s.patName === 'riff')!;
+    expect(ch1Plain.startStep).toBe(8);
+    expect(timelines[1].segments.find((s) => s.seqName === 'section_plain')!.startStep).toBe(8);
+
+    const palTimelines = buildChannelTimelines(
+      src.replace(
+        'channel 2 => inst bass seq section_slow section_plain',
+        'channel 2 => inst bass seq section_pal',
+      ),
+      {
+        ...song,
+        channels: [
+          song.channels[0],
+          { id: 2, defaultInstrument: 'bass', events: [] },
+        ],
+      },
+      {
+        ...ast,
+        channels: [
+          ast.channels[0],
+          { id: 2, inst: 'bass', seqSpecTokens: ['section_pal'] },
+        ],
+      },
+    );
+    const palSeg = palTimelines[1].segments.find((s) => s.seqName === 'section_pal')!;
+    expect(palSeg.endStep - palSeg.startStep).toBe(7);
+  });
+
+  it('preserves subpat declarations and indented rows in synthetic source', () => {
+    const src = `chip gameboy
+bpm 120
+subpat prism_lead_sub =
+  timbre:160
+  fx:2,4
+inst prism_lead type=pulse1 duty=50 env=12,down subpat=prism_lead_sub
+pat lead_a = C5 E5
+pat lead_b = G5 A5
+seq theme = lead_a lead_b
+channel 1 => inst prism_lead seq theme
+play`;
+    const pats = {
+      lead_a: ['C5', 'E5'],
+      lead_b: ['G5', 'A5'],
+    };
+    const ast = {
+      seqs: { theme: ['lead_a', 'lead_b'] },
+      channels: [{ id: 1, inst: 'prism_lead', seqSpecTokens: ['theme'] }],
+    };
+    const song = {
+      pats,
+      channels: [{ id: 1, defaultInstrument: 'prism_lead', events: [] }],
+    };
+    const timelines = buildChannelTimelines(src, song, ast);
+    const themeSeg = timelines[0].segments.find((s) => s.seqName === 'theme')!;
+    const result = buildArrangementSliceSource(src, song, ast, {
+      channelId: 1,
+      startStep: themeSeg.startStep,
+      endStep: themeSeg.endStep,
+      seqName: 'theme',
+      patName: themeSeg.patName,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.source).toMatch(/subpat prism_lead_sub/);
+    expect(result!.source).toMatch(/timbre:160/);
+    expect(result!.source).toMatch(/fx:2,4/);
+    expect(result!.source).toMatch(/inst prism_lead.*subpat=prism_lead_sub/);
   });
 
   it('findArrangementSliceAnchorByName resolves theme_mel on channel 1', () => {
@@ -351,6 +566,169 @@ describe('cursor-aware arrangement anchors', () => {
       finaleCol,
     );
     expect(anchor?.seqName).toBe('finale_mel');
+    expect(anchor?.channelItemIndex).toBe(1);
+  });
+});
+
+const REPEATED_SEQ_SHAPED = `chip gameboy
+bpm 120
+inst leadA type=pulse1 duty=50 env=12,down
+pat melody_pat = C4 E4 G4 C5
+pat melody_alt_pat = D4 F4 A4 D5
+pat fill_pat = G4 . G4 .
+seq lead_seq = melody_pat melody_alt_pat fill_pat melody_pat
+channel 1 => inst leadA seq lead_seq lead_seq
+play`;
+
+function repeatedSeqSongAst() {
+  const pats: Record<string, string[]> = {
+    melody_pat: ['C4', 'E4', 'G4', 'C5'],
+    melody_alt_pat: ['D4', 'F4', 'A4', 'D5'],
+    fill_pat: ['G4', '.', 'G4', '.'],
+  };
+  const seqs: Record<string, string[]> = {
+    lead_seq: ['melody_pat', 'melody_alt_pat', 'fill_pat', 'melody_pat'],
+  };
+  const ast = {
+    seqs,
+    channels: [{ id: 1, inst: 'leadA', seqSpecTokens: ['lead_seq', 'lead_seq'] }],
+  };
+  const song = {
+    chip: 'gameboy',
+    pats,
+    channels: [{ id: 1, defaultInstrument: 'leadA', events: [] }],
+  };
+  return { song, ast };
+}
+
+describe('repeated top-level channel seq items', () => {
+  it('listArrangementSections keeps each seq occurrence as its own section', () => {
+    const { song, ast } = repeatedSeqSongAst();
+    const sections = listArrangementSections(REPEATED_SEQ_SHAPED, song, ast);
+    expect(sections).toHaveLength(2);
+    expect(sections[0].seqName).toBe('lead_seq');
+    expect(sections[1].seqName).toBe('lead_seq');
+    expect(sections[0].channelItemIndex).toBe(0);
+    expect(sections[1].channelItemIndex).toBe(1);
+    expect(sections[0].startStep).toBe(0);
+    expect(sections[0].endStep).toBe(16);
+    expect(sections[1].startStep).toBe(16);
+    expect(sections[1].endStep).toBe(32);
+    expect(sections[0].key).not.toBe(sections[1].key);
+  });
+
+  it('resolveSliceWindow bounds each occurrence independently', () => {
+    const { song, ast } = repeatedSeqSongAst();
+    const timelines = buildChannelTimelines(REPEATED_SEQ_SHAPED, song, ast);
+    const sections = listArrangementSections(REPEATED_SEQ_SHAPED, song, ast);
+    for (const section of sections) {
+      const window = resolveSliceWindow(timelines, {
+        channelId: section.channelId,
+        startStep: section.startStep,
+        endStep: section.endStep,
+        seqName: section.seqName,
+        patName: section.patName,
+        channelItemIndex: section.channelItemIndex,
+      });
+      expect(window).toEqual({
+        startStep: section.startStep,
+        endStep: section.endStep,
+      });
+    }
+  });
+
+  it('findArrangementSliceAnchorAtCursor resolves the seq token under the cursor', () => {
+    const { song, ast } = repeatedSeqSongAst();
+    const channelLine = REPEATED_SEQ_SHAPED.split('\n').findIndex((l) => l.startsWith('channel 1')) + 1;
+    const line = REPEATED_SEQ_SHAPED.split('\n')[channelLine - 1];
+    const firstCol = line.indexOf('lead_seq') + 1;
+    const secondCol = line.indexOf('lead_seq', firstCol) + 1;
+
+    const first = findArrangementSliceAnchorAtCursor(
+      REPEATED_SEQ_SHAPED,
+      song,
+      ast,
+      channelLine,
+      firstCol,
+    );
+    const second = findArrangementSliceAnchorAtCursor(
+      REPEATED_SEQ_SHAPED,
+      song,
+      ast,
+      channelLine,
+      secondCol,
+    );
+
+    expect(first?.channelItemIndex).toBe(0);
+    expect(first?.startStep).toBe(0);
+    expect(first?.endStep).toBe(16);
+    expect(second?.channelItemIndex).toBe(1);
+    expect(second?.startStep).toBe(16);
+    expect(second?.endStep).toBe(32);
+  });
+
+  it('findAdjacentSectionAnchor steps between repeated seq occurrences', () => {
+    const { song, ast } = repeatedSeqSongAst();
+    const sections = listArrangementSections(REPEATED_SEQ_SHAPED, song, ast);
+    const firstFocus = resolveSectionFocus(REPEATED_SEQ_SHAPED, song, ast, {
+      channelId: sections[0].channelId,
+      startStep: sections[0].startStep,
+      endStep: sections[0].endStep,
+      seqName: sections[0].seqName,
+      patName: sections[0].patName,
+      channelItemIndex: sections[0].channelItemIndex,
+    });
+    const next = findAdjacentSectionAnchor(sections, firstFocus!.window, 'next');
+    expect(next?.channelItemIndex).toBe(1);
+    expect(next?.startStep).toBe(16);
+    expect(next?.endStep).toBe(32);
+  });
+});
+
+const NON_CONTIGUOUS_REPEAT_SHAPED = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+pat mel_a = C4 E4 G4 C5
+pat mel_b = D4 F4 A4 D5
+seq chorus_pal = mel_a
+seq verse = mel_b
+channel 1 => inst lead seq verse chorus_pal verse chorus_pal
+play`;
+
+function nonContiguousRepeatSongAst() {
+  const pats: Record<string, string[]> = {
+    mel_a: ['C4', 'E4', 'G4', 'C5'],
+    mel_b: ['D4', 'F4', 'A4', 'D5'],
+  };
+  const seqs: Record<string, string[]> = {
+    chorus_pal: ['mel_a'],
+    verse: ['mel_b'],
+  };
+  const ast = {
+    seqs,
+    channels: [{
+      id: 1,
+      inst: 'lead',
+      seqSpecTokens: ['verse', 'chorus_pal', 'verse', 'chorus_pal'],
+    }],
+  };
+  const song = {
+    chip: 'gameboy',
+    pats,
+    channels: [{ id: 1, defaultInstrument: 'lead', events: [] }],
+  };
+  return { song, ast };
+}
+
+describe('non-contiguous repeated section names', () => {
+  it('listArrangementSections uses unique occurrence keys for separated repeats', () => {
+    const { song, ast } = nonContiguousRepeatSongAst();
+    const sections = listArrangementSections(NON_CONTIGUOUS_REPEAT_SHAPED, song, ast);
+    const chorusSections = sections.filter((section) => section.seqName === 'chorus_pal');
+    expect(chorusSections).toHaveLength(2);
+    expect(chorusSections[0].key).not.toBe(chorusSections[1].key);
+    expect(chorusSections[0].key).toBe(`seq:chorus_pal:1@s${chorusSections[0].startStep}`);
+    expect(chorusSections[1].key).toBe(`seq:chorus_pal:3@s${chorusSections[1].startStep}`);
   });
 });
 

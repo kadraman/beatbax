@@ -393,7 +393,8 @@ function DesktopOutputPanel({
           ].slice(-MAX_MESSAGES);
           rerender();
         }),
-        eventBus.on('parse:success', () => {
+        eventBus.on('parse:success', ({ ephemeral }) => {
+          if (ephemeral) return;
           clearMessagesBySource('parser', 'error');
         }),
         eventBus.on('parse:started', closeContextMenu),

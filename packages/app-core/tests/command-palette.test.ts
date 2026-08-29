@@ -54,6 +54,24 @@ describe('buildMultiPlaySource', () => {
     expect(lines.every(l => !/^channel 2 =>/.test(l))).toBe(true);
   });
 
+  it('preserves subpat blocks and indented subpat rows', () => {
+    const src = [
+      'chip gameboy',
+      'subpat growl_bass_sub =',
+      '  +0 vol:6',
+      '  timbre:34',
+      'inst growl_bass type=pulse1 duty=50 env=12,down subpat=growl_bass_sub',
+      'pat bass = C3 E3',
+      'seq main = bass',
+      'channel 1 => inst growl_bass seq main',
+      'play',
+    ].join('\n');
+    const { source } = buildMultiPlaySource([{ name: 'main', kind: 'seq' }], src);
+    expect(source).toMatch(/subpat growl_bass_sub/);
+    expect(source).toMatch(/\+0 vol:6/);
+    expect(source).toMatch(/inst growl_bass.*subpat=growl_bass_sub/);
+  });
+
   it('preserves import lines so synthetic play can merge kits', () => {
     const src = [
       'chip gameboy',

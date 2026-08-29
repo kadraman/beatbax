@@ -149,7 +149,8 @@ export class OutputPanel {
       });
 
       // Parse success - clear parse errors
-      this.eventBus.on('parse:success', () => {
+      this.eventBus.on('parse:success', ({ ephemeral }) => {
+        if (ephemeral) return;
         this.clearMessagesBySource('parser', 'error');
       });
     }

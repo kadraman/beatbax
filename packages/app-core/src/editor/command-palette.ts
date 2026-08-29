@@ -19,7 +19,7 @@ import { KeyCode, KeyMod } from 'monaco-editor';
 import {
   buildArrangementSliceSource,
   findArrangementSliceAnchorAtCursor,
-  SYNTHETIC_KEEP_LINES_RE,
+  stripChannelAndPlayLines,
 } from './arrangement-slice.js';
 import { findChannelForNamedItemInSource } from './preview-channel-resolve.js';
 
@@ -316,14 +316,6 @@ let lastExportFormat: ExportFormat = 'json';
 // ---------------------------------------------------------------------------
 // Shared regex for filtering source lines to preserve for synthetic playback
 // ---------------------------------------------------------------------------
-
-/**
- * Matches lines that should be retained when building a synthetic preview
- * source: directives, definitions, comments, and blank lines.
- * Includes `#` and `//` comment prefixes and blank lines so the generated
- * source is well-formed and human-readable when inspected.
- */
-const KEEP_LINES_RE = SYNTHETIC_KEEP_LINES_RE;
 
 // ---------------------------------------------------------------------------
 // Helper: toast notification
@@ -1003,7 +995,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       // definitions from the original source so the pattern can reference them.
       // Ensure explicit default directives when missing for deterministic preview.
       // Only emit a synthetic fallback instrument when none is declared.
-      const baseLines = source.split('\n').filter(l => KEEP_LINES_RE.test(l));
+      const baseLines = stripChannelAndPlayLines(source.split('\n'));
       const hasChip = /^\s*chip\s+/im.test(source);
       const hasBpm = /^\s*bpm\s+/im.test(source);
       const hasTimingDirective = /^\s*(?:stepsPerBar|time)\s+/im.test(source);
@@ -1063,7 +1055,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const chip = chipMatch ? chipMatch[1] : 'gameboy';
 
       // Preserve all inst/pat definitions so the seq body can reference them
-      const baseLines = source.split('\n').filter(l => KEEP_LINES_RE.test(l));
+      const baseLines = stripChannelAndPlayLines(source.split('\n'));
       const newLines = [...baseLines];
       newLines.push(`channel ${channelId} => inst ${inst} seq ${name}`);
       newLines.push('play');
@@ -2068,11 +2060,7 @@ export function buildMultiPlaySource(
   const maxChannels = detectMaxChannels(fullSource);
   const fullLines = fullSource.split('\n');
 
-  // Lines to preserve verbatim (everything except channel/play directives).
-  // The keyword alternatives use \b; comment-only and blank-line alternatives
-  // do not end with a word character so they must be matched without \b.
-  const KEEP_RE = KEEP_LINES_RE;
-  const baseLines = fullLines.filter(l => KEEP_RE.test(l));
+  const baseLines = stripChannelAndPlayLines(fullLines);
 
   // Build a map: seq-or-pat name → inst-name from every token on channel lines.
   // Multi-item channels (`channel 1 => inst lead seq intro theme bridge`) must
