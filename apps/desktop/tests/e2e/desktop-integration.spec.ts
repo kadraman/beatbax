@@ -302,19 +302,21 @@ test('pattern grid renders desktop React UI and navigates to patterns', async ()
   await expect(page.locator('.status-document-name')).toHaveText('sample.bax', { timeout: 15_000 });
 
   await expect(page.locator('.bb-pgrid')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('.bb-pgrid__row')).toHaveCount(4);
-  await expect(page.locator('.bb-pgrid__block[title="lead_seq › melody_pat"]').first()).toBeVisible();
+  await expect(page.locator('.bb-pgrid__row--sections')).toBeVisible();
+  const channelRows = page.locator('.bb-pgrid__row[aria-label^="Channel "]');
+  await expect(channelRows).toHaveCount(4);
+  await expect(page.locator('.bb-pgrid__block[title^="lead_seq › melody_pat"]').first()).toBeVisible();
   // sample.bax channel 2: bass_seq → four bass_pat + three bass_var blocks
-  await expect(page.locator('.bb-pgrid__row').nth(1).locator('.bb-pgrid__block[data-label="bass_pat"]')).toHaveCount(4);
-  await expect(page.locator('.bb-pgrid__row').nth(1).locator('.bb-pgrid__block[data-label="bass_var"]')).toHaveCount(3);
+  await expect(channelRows.nth(1).locator('.bb-pgrid__block[data-label="bass_pat"]')).toHaveCount(4);
+  await expect(channelRows.nth(1).locator('.bb-pgrid__block[data-label="bass_var"]')).toHaveCount(3);
   // channel 3: wave_seq = arp_pat*5
-  await expect(page.locator('.bb-pgrid__row').nth(2).locator('.bb-pgrid__block[data-label="arp_pat"]')).toHaveCount(5);
+  await expect(channelRows.nth(2).locator('.bb-pgrid__block[data-label="arp_pat"]')).toHaveCount(5);
 
   const muteButton = page.getByRole('button', { name: 'Mute channel 1' });
   await muteButton.click();
   await expect(muteButton).toHaveAttribute('aria-pressed', 'true');
 
-  await page.locator('.bb-pgrid__block[title="lead_seq › melody_pat"]').first().click();
+  await page.locator('.bb-pgrid__block[title^="lead_seq › melody_pat"]').first().click();
   await expect.poll(() => page.evaluate(() => {
     const editor = (window as unknown as {
       __beatbax_editor?: {
@@ -347,7 +349,8 @@ test('pattern grid sizes blocks by musical duration', async () => {
   await expect(page.locator('.status-document-name')).toHaveText('a_trainers_journey.bax', { timeout: 15_000 });
   await expect(page.locator('.bb-pgrid')).toBeVisible({ timeout: 15_000 });
 
-  const flexValues = await page.locator('.bb-pgrid__row').first().locator('.bb-pgrid__block').evaluateAll((blocks) => {
+  const channelRows = page.locator('.bb-pgrid__row[aria-label^="Channel "]');
+  const flexValues = await channelRows.first().locator('.bb-pgrid__block').evaluateAll((blocks) => {
     const wanted = new Set(['open_a', 'riff_a']);
     return blocks
       .filter((block) => wanted.has(block.getAttribute('data-label') ?? ''))
@@ -361,14 +364,13 @@ test('pattern grid sizes blocks by musical duration', async () => {
   expect(openABasis).toBeTruthy();
   expect(flexValues.find((item) => item.label === 'riff_a')?.flexBasis).toBe(openABasis);
 
-  const harmFanfareBasis = await page
-    .locator('.bb-pgrid__row')
+  const harmFanfareBasis = await channelRows
     .nth(1)
     .locator('.bb-pgrid__block[data-label="harm_fanfare"]')
     .first()
     .evaluate((block) => getComputedStyle(block).flexBasis);
   expect(harmFanfareBasis).toBe(openABasis);
-  await expect.poll(() => page.locator('.bb-pgrid__track').first().evaluate((track) => getComputedStyle(track).columnGap)).toBe('0px');
+  await expect.poll(() => channelRows.first().locator('.bb-pgrid__track').evaluate((track) => getComputedStyle(track).columnGap)).toBe('0px');
 
   expect(filterBenignConsoleErrors(consoleErrors)).toEqual([]);
   await electronApp.close();

@@ -741,10 +741,6 @@ function DesktopPatternGrid({
                         data-end-step={endStep}
                         key={`${row.channelId}-${seg.seqName ?? 'pat'}-${seg.patName}-${index}`}
                         onClick={() => navigate()}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          onNavigate?.(seg.patName);
-                        }}
                         onKeyDown={onKeyDown}
                         role="button"
                         style={{
