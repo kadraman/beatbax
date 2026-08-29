@@ -175,11 +175,9 @@ function channelPositionsAtPct(
 function buildRows(song: any, ast?: any): {
   rows: PatternGridRow[];
   globalEventTotal: number;
-  pats: Record<string, string[]>;
 } {
   const channels: any[] = song?.channels ?? [];
-  const pats: Record<string, string[]> = song?.pats ?? {};
-  if (channels.length === 0) return { rows: [], globalEventTotal: 1, pats };
+  if (channels.length === 0) return { rows: [], globalEventTotal: 1 };
 
   const timelines = buildChannelTimelines('', song, ast);
   const rowData = timelines.map((timeline) => {
@@ -197,7 +195,6 @@ function buildRows(song: any, ast?: any): {
   const globalEventTotal = Math.max(1, ...rowData.map((row) => row.displayTotal));
   const chip: string = song?.chip ?? 'gameboy';
   return {
-    pats,
     globalEventTotal,
     rows: rowData.map((row) => ({
       channelId: row.ch?.id ?? 0,
@@ -220,7 +217,6 @@ function DesktopPatternGrid({
   onPlaySlice,
 }: DesktopPatternGridProps): React.JSX.Element {
   const [rows, setRows] = useState<PatternGridRow[]>([]);
-  const [pats, setPats] = useState<Record<string, string[]>>({});
   const [globalEventTotal, setGlobalEventTotal] = useState(1);
   const [positions, setPositions] = useState<Record<number, number>>({});
   const [globalPct, setGlobalPct] = useState<number | null>(null);
@@ -310,7 +306,6 @@ function DesktopPatternGrid({
     setSong: (song, ast) => {
       const next = buildRows(song, ast);
       setRows(next.rows);
-      setPats(next.pats);
       globalEventTotalRef.current = next.globalEventTotal;
       setGlobalEventTotal(next.globalEventTotal);
       setPositions({});
