@@ -17,8 +17,8 @@ import {
   toggleChannelSoloed,
   type ChannelInfo,
 } from '@beatbax/app-core/stores/channel.store';
-import type { SectionFocusInfo } from '@beatbax/app-core/editor/arrangement-slice';
-import { buildChannelTimelines, sectionGroupKey, sectionBlockKey } from '@beatbax/app-core/editor/arrangement-slice';
+import type { ArrangementSectionBlock, SectionFocusInfo } from '@beatbax/app-core/editor/arrangement-slice';
+import { buildChannelTimelines, listArrangementSections } from '@beatbax/app-core/editor/arrangement-slice';
 import { getChannelColor } from '@beatbax/ui-tokens/channel-meta';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 
@@ -91,58 +91,6 @@ function abbreviatePatternName(name: string, maxLen = 9): string {
   return `${name.slice(0, keepHead)}…${name.slice(-keepTail)}`;
 }
 
-interface SectionBlock {
-  key: string;
-  seqName: string | null;
-  label: string;
-  startStep: number;
-  endStep: number;
-  channelId: number;
-  patName: string;
-  channelItemIndex: number | null;
-}
-
-/** Collapse channel segments into sequence-level blocks for the section strip. */
-function buildSectionBlocks(row: PatternGridRow): SectionBlock[] {
-  const blocks: SectionBlock[] = [];
-  let stepCursor = 0;
-  let current: SectionBlock | null = null;
-  let currentGroupKey: string | null = null;
-
-  for (const seg of row.segs) {
-    const displayUnits = Math.max(1, seg.count);
-    const startStep = stepCursor;
-    const endStep = stepCursor + Math.max(1, displayUnits);
-    stepCursor = endStep;
-
-    const groupKey = sectionGroupKey({
-      seqName: seg.seqName,
-      patName: seg.patName,
-      channelItemIndex: seg.channelItemIndex,
-    });
-    if (current && currentGroupKey === groupKey) {
-      current.endStep = endStep;
-      continue;
-    }
-
-    if (current) blocks.push(current);
-    currentGroupKey = groupKey;
-    current = {
-      key: sectionBlockKey(groupKey, startStep),
-      seqName: seg.seqName,
-      label: seg.seqName ?? seg.patName,
-      startStep,
-      endStep,
-      channelId: row.channelId,
-      patName: seg.patName,
-      channelItemIndex: seg.channelItemIndex,
-    };
-  }
-
-  if (current) blocks.push(current);
-  return blocks;
-}
-
 /** Map 0–1 playback progress into a step window on the full-song grid. */
 function mapProgressIntoWindow(
   progress: number,
@@ -175,9 +123,12 @@ function channelPositionsAtPct(
 function buildRows(song: any, ast?: any): {
   rows: PatternGridRow[];
   globalEventTotal: number;
+  sectionBlocks: ArrangementSectionBlock[];
 } {
   const channels: any[] = song?.channels ?? [];
-  if (channels.length === 0) return { rows: [], globalEventTotal: 1 };
+  if (channels.length === 0) {
+    return { rows: [], globalEventTotal: 1, sectionBlocks: [] };
+  }
 
   const timelines = buildChannelTimelines('', song, ast);
   const rowData = timelines.map((timeline) => {
@@ -196,6 +147,7 @@ function buildRows(song: any, ast?: any): {
   const chip: string = song?.chip ?? 'gameboy';
   return {
     globalEventTotal,
+    sectionBlocks: listArrangementSections('', song, ast),
     rows: rowData.map((row) => ({
       channelId: row.ch?.id ?? 0,
       color: getChannelColor(chip, row.ch?.id ?? 0),
@@ -217,6 +169,7 @@ function DesktopPatternGrid({
   onPlaySlice,
 }: DesktopPatternGridProps): React.JSX.Element {
   const [rows, setRows] = useState<PatternGridRow[]>([]);
+  const [sectionBlocks, setSectionBlocks] = useState<ArrangementSectionBlock[]>([]);
   const [globalEventTotal, setGlobalEventTotal] = useState(1);
   const [positions, setPositions] = useState<Record<number, number>>({});
   const [globalPct, setGlobalPct] = useState<number | null>(null);
@@ -306,6 +259,7 @@ function DesktopPatternGrid({
     setSong: (song, ast) => {
       const next = buildRows(song, ast);
       setRows(next.rows);
+      setSectionBlocks(next.sectionBlocks);
       globalEventTotalRef.current = next.globalEventTotal;
       setGlobalEventTotal(next.globalEventTotal);
       setPositions({});
@@ -364,6 +318,7 @@ function DesktopPatternGrid({
     },
     dispose: () => {
       setRows([]);
+      setSectionBlocks([]);
       setPositions({});
       setGlobalPct(null);
       setSliceWindow(null);
@@ -375,14 +330,14 @@ function DesktopPatternGrid({
   const empty = rows.length === 0;
 
   const sectionLane = useMemo(() => {
-    if (rows.length === 0) return { blocks: [] as SectionBlock[], tailEvents: 0, displayTotal: 0 };
+    if (rows.length === 0) return { blocks: [] as ArrangementSectionBlock[], tailEvents: 0, displayTotal: 0 };
     const refRow = rows.find((row) => row.segs.some((seg) => seg.seqName)) ?? rows[0];
     return {
-      blocks: buildSectionBlocks(refRow),
+      blocks: sectionBlocks,
       tailEvents: globalEventTotal - refRow.displayTotal,
       displayTotal: refRow.displayTotal,
     };
-  }, [rows, globalEventTotal]);
+  }, [rows, globalEventTotal, sectionBlocks]);
 
   const showSectionLane = sectionLane.blocks.length > 0 && !!onPlaySlice;
 
