@@ -196,4 +196,37 @@ describe('buildCopilotContext', () => {
     expect(context).toContain('[BEATBAX SYNTAX REFERENCE]');
     expect(context).toContain('[INSTRUMENT LOUDNESS]');
   });
+
+  it('includes arrangement layout hints and edit-mode exclusion for info diagnostics', () => {
+    const context = buildCopilotContext(
+      defaultSettings,
+      'edit',
+      () => sampleSong,
+      () => [],
+    );
+
+    expect(context).toContain('[ARRANGEMENT LAYOUT HINTS]');
+    expect(context).toContain('optional authoring hints, NOT parse errors');
+    expect(context).toContain('Restructure Phased Sections into Headers');
+    expect(context).toContain('Ignore `info` severity `[arrangement]` hints');
+  });
+
+  it('ask mode references arrangement layout hints for section-focus questions', () => {
+    const context = buildCopilotContext(
+      defaultSettings,
+      'ask',
+      () => sampleSong,
+      () => [{
+        severity: 'info',
+        message: '[arrangement] Phased layout detected. Add `# --- Section N ---` headers above cross-channel seq groups for full section-focus editor highlighting.',
+        startLine: 6,
+        startColumn: 1,
+      }],
+    );
+
+    expect(context).toContain('[ARRANGEMENT LAYOUT HINTS]');
+    expect(context).toContain('info    line 6, col 1:');
+    expect(context).toContain('Phased layout detected');
+    expect(context).toContain('use [ARRANGEMENT LAYOUT HINTS]');
+  });
 });

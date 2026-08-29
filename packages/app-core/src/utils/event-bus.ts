@@ -134,6 +134,18 @@ export interface BeatBaxEvents {
 
   /** Emitted when a CodeLens preview cannot start, with a human-readable reason. */
   'preview:error': { message: string };
+
+  /**
+   * Persistent command / editor feedback for the Output panel (not Problems).
+   * Toasts may truncate; this carries the full message.
+   */
+  'output:message': {
+    type: 'info' | 'warning' | 'error' | 'success';
+    message: string;
+    source?: string;
+    /** When true, clients should bring the Output panel to the front. */
+    focus?: boolean;
+  };
 }
 
 type EventCallback<T> = (data: T) => void;

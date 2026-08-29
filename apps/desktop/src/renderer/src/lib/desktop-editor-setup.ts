@@ -99,7 +99,10 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
   parseHooks.onSetValidation = (errors, warnings) => {
     const allDiags = [
       ...errors.map((e) => ({ ...e, level: 'error' as const })),
-      ...warnings.map((w) => ({ ...w, level: 'warning' as const })),
+      ...warnings.map((w) => ({
+        ...w,
+        level: (w.level === 'info' ? 'info' : 'warning') as 'info' | 'warning',
+      })),
     ];
     if (allDiags.length > 0) {
       diagnosticsManager.setDiagnostics(warningsToDiagnostics(allDiags));
@@ -213,6 +216,15 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
       },
       getSongContext,
       onSectionFocusEnter,
+      onOutputMessage: (message) => {
+        outputPanel.addMessage({
+          type: message.type,
+          message: message.message,
+          source: message.source ?? 'command',
+          timestamp: new Date(),
+        });
+        if (message.focus) bottomTabs.show('output');
+      },
       ...(capabilities.copilot ? {
         onAddSelectionToCopilot: (payload) => {
           eventBus.emit('copilot:add-selection', payload);

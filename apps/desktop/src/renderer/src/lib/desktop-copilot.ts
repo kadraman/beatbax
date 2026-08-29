@@ -1,5 +1,6 @@
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
+import { refreshEditorFolding } from '@beatbax/app-core/editor/editor-folding';
 import type { Diagnostic } from '@beatbax/app-core/editor/diagnostics';
 import {
   FeatureFlag,
@@ -304,6 +305,7 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
               text,
               forceMoveMarkers: true,
             }]);
+            refreshEditorFolding(monacoEditor);
             if (!options?.beginCopilotReview) {
               monacoEditor.pushUndoStop();
             }
@@ -619,7 +621,7 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
   });
 
   const unsubAsk = eventBus.on('copilot:ask-about-error', (payload) => {
-    askAboutError(payload);
+    askAboutError({ ...payload, autoSubmit: true });
   });
 
   const unsubSelection = eventBus.on('copilot:add-selection', (payload) => {

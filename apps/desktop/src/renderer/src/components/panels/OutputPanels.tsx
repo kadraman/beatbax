@@ -472,6 +472,14 @@ function DesktopOutputPanel({
             timestamp: new Date(),
           });
         }),
+        eventBus.on('output:message', ({ type, message, source }) => {
+          addMessage({
+            type,
+            message,
+            source: source ?? 'output',
+            timestamp: new Date(),
+          });
+        }),
       );
     }
 
@@ -497,7 +505,8 @@ function DesktopOutputPanel({
   const problems = messagesRef.current
     .filter((msg) => msg.type === 'error' || msg.type === 'warning')
     .sort((a, b) => (a.type === b.type ? 0 : a.type === 'error' ? -1 : 1));
-  const outputs = messagesRef.current.filter((msg) => msg.type === 'info' || msg.type === 'success');
+  // Output tab stores command/export/playback logs only — show every severity.
+  const outputs = messagesRef.current;
   const errorCount = problems.filter((msg) => msg.type === 'error').length;
   const warningCount = problems.filter((msg) => msg.type === 'warning').length;
 

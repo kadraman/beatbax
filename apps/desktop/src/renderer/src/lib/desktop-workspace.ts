@@ -320,6 +320,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     eventBus.on('playback:started', () => {
       if (capabilities.outputPanel) bottomTabs.show('output');
     }),
+    eventBus.on('output:message', ({ focus }) => {
+      if (focus && capabilities.outputPanel) bottomTabs.show('output');
+    }),
   );
 
   const ccContainer = document.createElement('div');
@@ -723,6 +726,10 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   });
 
   cleanups.push(
+    eventBus.on('song:loaded', () => {
+      clearSectionFocus();
+      lastSongContext = null;
+    }),
     eventBus.on('parse:success', ({ ast, song, valid, ephemeral }: { ast?: unknown; song?: unknown; valid?: boolean; ephemeral?: boolean }) => {
       try {
         // Ephemeral plays (arrangement slice, Play Selection) must not replace

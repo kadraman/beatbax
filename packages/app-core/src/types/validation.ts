@@ -21,8 +21,8 @@ export interface ValidationIssue {
   loc?: ValidationLoc;
   suggestion?: string;
   file?: string;
-  /** Set when mapping to Monaco markers (errors vs warnings). */
-  level?: 'error' | 'warning';
+  /** Set when mapping to Monaco markers (errors vs warnings vs info). */
+  level?: 'error' | 'warning' | 'info';
   /** Peggy hard syntax errors — used for quick-fix hints. */
   expected?: PeggyExpectedToken[];
   found?: string | null;

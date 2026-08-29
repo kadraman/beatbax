@@ -22,6 +22,7 @@ import {
 } from '../client-profile.js';
 import { buildImportResolverOptions } from '../import/import-resolver-options.js';
 import { omitIssuesForImportedInstruments } from '../import/omit-imported-inst-diagnostics.js';
+import { getArrangementLayoutDiagnostics } from '../editor/arrangement-diagnostics.js';
 
 export interface ParsePipelineHooks {
   /** Called when validation errors/warnings are published after a parse pass. */
@@ -145,6 +146,12 @@ export function createAppContext(options: CreateAppContextOptions = {}): AppCont
               message,
             });
           }
+        }
+      }
+
+      for (const diag of getArrangementLayoutDiagnostics(content, resolvedAst)) {
+        if (!warnings.some((w) => w.message === diag.message)) {
+          warnings.push(diag);
         }
       }
 

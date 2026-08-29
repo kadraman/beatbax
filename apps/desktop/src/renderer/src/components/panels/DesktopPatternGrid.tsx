@@ -339,7 +339,7 @@ function DesktopPatternGrid({
     };
   }, [rows, globalEventTotal, sectionBlocks]);
 
-  const showSectionLane = sectionLane.blocks.length > 0 && !!onPlaySlice;
+  const showSectionLane = sectionLane.blocks.length > 1 && !!onPlaySlice;
 
   return (
     <div

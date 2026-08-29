@@ -13,7 +13,11 @@ import {
   findSectionCommentAbove,
   resolveSectionFocus,
   resolveSliceWindow,
+  detectArrangementLayout,
+  findFirstChannelLine,
 } from '../src/editor/arrangement-slice';
+import { getArrangementLayoutDiagnostics } from '../src/editor/arrangement-diagnostics';
+import { explainPhasedRestructureUnavailable, restructurePhasedSections } from '../src/editor/arrangement-restructure';
 
 const HEROES_SHAPED = `chip gameboy
 bpm 120
@@ -974,5 +978,222 @@ describe('findAdjacentSectionAnchor', () => {
       patName: last.patName,
     });
     expect(findAdjacentSectionAnchor(sections, focus!.window, 'next')).toBeNull();
+  });
+});
+
+const SHADOW_PHASED_SHAPED = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+inst bleep type=pulse2 duty=25 env=10,down
+inst bass type=triangle env=10,down
+inst drum type=noise env=12,down
+pat silence = . . . .
+pat sq1_i1 = C4 E4 G4 C5
+pat sq2_i1 = E4 G4 B4 E5
+pat tri_i1 = C3 . G3 .
+pat drum_i1 = kick . sn .
+pat sq1_m1 = C4 D4 E4 F4
+pat sq2_m1 = E4 F4 G4 A4
+pat tri_m1 = C2 . G2 .
+pat drum_m1 = kick sn kick sn
+# Square 1
+seq sq1_intro = silence sq1_i1
+seq sq1_main = sq1_m1
+# Square 2
+seq sq2_intro = sq2_i1
+seq sq2_main = sq2_m1
+# Triangle
+seq tri_intro = silence tri_i1
+seq tri_main = tri_m1
+# Drums
+seq drum_intro = silence drum_i1
+seq drum_main = drum_m1
+channel 1 => inst lead seq sq1_intro sq1_main
+channel 2 => inst bleep seq sq2_intro sq2_main
+channel 3 => inst bass seq tri_intro tri_main
+channel 4 => inst drum seq drum_intro drum_main
+play`;
+
+function shadowPhasedSongAst() {
+  const pats: Record<string, string[]> = {
+    silence: ['.', '.', '.', '.'],
+    sq1_i1: ['C4', 'E4', 'G4', 'C5'],
+    sq2_i1: ['E4', 'G4', 'B4', 'E5'],
+    tri_i1: ['C3', '.', 'G3', '.'],
+    drum_i1: ['kick', '.', 'sn', '.'],
+    sq1_m1: ['C4', 'D4', 'E4', 'F4'],
+    sq2_m1: ['E4', 'F4', 'G4', 'A4'],
+    tri_m1: ['C2', '.', 'G2', '.'],
+    drum_m1: ['kick', 'sn', 'kick', 'sn'],
+  };
+  const seqs: Record<string, string[]> = {
+    sq1_intro: ['silence', 'sq1_i1'],
+    sq1_main: ['sq1_m1'],
+    sq2_intro: ['sq2_i1'],
+    sq2_main: ['sq2_m1'],
+    tri_intro: ['silence', 'tri_i1'],
+    tri_main: ['tri_m1'],
+    drum_intro: ['silence', 'drum_i1'],
+    drum_main: ['drum_m1'],
+  };
+  const ast = {
+    seqs,
+    channels: [
+      { id: 1, inst: 'lead', seqSpecTokens: ['sq1_intro', 'sq1_main'] },
+      { id: 2, inst: 'bleep', seqSpecTokens: ['sq2_intro', 'sq2_main'] },
+      { id: 3, inst: 'bass', seqSpecTokens: ['tri_intro', 'tri_main'] },
+      { id: 4, inst: 'drum', seqSpecTokens: ['drum_intro', 'drum_main'] },
+    ],
+  };
+  const song = {
+    chip: 'gameboy',
+    pats,
+    channels: [
+      { id: 1, defaultInstrument: 'lead', events: [] },
+      { id: 2, defaultInstrument: 'bleep', events: [] },
+      { id: 3, defaultInstrument: 'bass', events: [] },
+      { id: 4, defaultInstrument: 'drum', events: [] },
+    ],
+  };
+  return { song, ast };
+}
+
+describe('detectArrangementLayout', () => {
+  it('classifies structured dancefloor songs', () => {
+    const { ast } = dancefloorSongAst();
+    expect(detectArrangementLayout(DANCEFLOOR_SHAPED, ast)).toBe('structured');
+  });
+
+  it('classifies channel-grouped phased songs', () => {
+    const { ast } = shadowPhasedSongAst();
+    expect(detectArrangementLayout(SHADOW_PHASED_SHAPED, ast)).toBe('phased');
+  });
+
+  it('classifies monolithic single-seq channels', () => {
+    const src = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+pat a = C4 E4 G4 C5
+seq lead_main = a a
+channel 1 => inst lead seq lead_main
+play`;
+    const ast = {
+      seqs: { lead_main: ['a', 'a'] },
+      channels: [{ id: 1, inst: 'lead', seqSpecTokens: ['lead_main'] }],
+    };
+    expect(detectArrangementLayout(src, ast)).toBe('monolithic');
+  });
+
+  it('keeps monolithic layout when only decorative section headers are present', () => {
+    const src = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+pat a = C4 E4 G4 C5
+# --- Section 1: Fanfare ---
+seq lead_main = a a
+channel 1 => inst lead seq lead_main
+play`;
+    const ast = {
+      seqs: { lead_main: ['a', 'a'] },
+      channels: [{ id: 1, inst: 'lead', seqSpecTokens: ['lead_main'] }],
+    };
+    expect(detectArrangementLayout(src, ast)).toBe('monolithic');
+  });
+
+  it('classifies mixed channel seq counts when no section headers', () => {
+    const src = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+pat a = C4 E4 G4 C5
+seq part_a = a
+seq part_b = a a
+channel 1 => inst lead seq part_a part_b part_b
+channel 2 => inst lead seq part_a part_b
+play`;
+    const ast = {
+      seqs: { part_a: ['a'], part_b: ['a', 'a'] },
+      channels: [
+        { id: 1, inst: 'lead', seqSpecTokens: ['part_a', 'part_b', 'part_b'] },
+        { id: 2, inst: 'lead', seqSpecTokens: ['part_a', 'part_b'] },
+      ],
+    };
+    expect(detectArrangementLayout(src, ast)).toBe('mixed');
+  });
+});
+
+describe('phased section focus (shadow_temple-shaped)', () => {
+  it('intro focus highlights all four channel seq definition lines', () => {
+    const { song, ast } = shadowPhasedSongAst();
+    const sections = listArrangementSections(SHADOW_PHASED_SHAPED, song, ast);
+    const intro = sections[0];
+    const focus = resolveSectionFocus(SHADOW_PHASED_SHAPED, song, ast, {
+      channelId: intro.channelId,
+      startStep: intro.startStep,
+      endStep: intro.endStep,
+      seqName: intro.seqName,
+      patName: intro.patName,
+      channelItemIndex: intro.channelItemIndex,
+    });
+
+    expect(focus).not.toBeNull();
+    expect(focus!.seqDefinitionLines).toEqual([17, 20, 23, 26]);
+    expect(focus!.channels.map((ch) => ch.seqName)).toEqual([
+      'sq1_intro',
+      'sq2_intro',
+      'tri_intro',
+      'drum_intro',
+    ]);
+  });
+});
+
+describe('arrangement layout diagnostics', () => {
+  it('emits phased info on the first channel line', () => {
+    const { ast } = shadowPhasedSongAst();
+    const diags = getArrangementLayoutDiagnostics(SHADOW_PHASED_SHAPED, ast);
+    expect(diags).toHaveLength(1);
+    expect(diags[0].level).toBe('info');
+    expect(diags[0].loc?.start?.line).toBe(findFirstChannelLine(SHADOW_PHASED_SHAPED));
+    expect(diags[0].message).toMatch(/Phased layout detected/);
+  });
+
+  it('emits no diagnostics for structured songs', () => {
+    const { ast } = dancefloorSongAst();
+    expect(getArrangementLayoutDiagnostics(DANCEFLOOR_SHAPED, ast)).toEqual([]);
+  });
+});
+
+describe('restructurePhasedSections', () => {
+  it('rewrites channel-grouped phased seqs into section headers', () => {
+    const { ast } = shadowPhasedSongAst();
+    const result = restructurePhasedSections(SHADOW_PHASED_SHAPED, ast);
+    expect(result).not.toBeNull();
+    expect(result!.sectionCount).toBe(2);
+    expect(result!.source).toMatch(/# --- Section 1: Intro ---/);
+    expect(result!.source).toMatch(/# --- Section 2: Main ---/);
+    expect(result!.source.indexOf('sq1_intro')).toBeLessThan(result!.source.indexOf('sq2_intro'));
+    expect(result!.source.indexOf('sq2_intro')).toBeLessThan(result!.source.indexOf('tri_intro'));
+    expect(result!.source).toMatch(/channel 1 => inst lead seq sq1_intro sq1_main/);
+    expect(detectArrangementLayout(result!.source, ast)).toBe('structured');
+  });
+
+  it('returns null for structured songs', () => {
+    const { ast } = dancefloorSongAst();
+    expect(restructurePhasedSections(DANCEFLOOR_SHAPED, ast)).toBeNull();
+    expect(explainPhasedRestructureUnavailable(DANCEFLOOR_SHAPED, ast)).toMatch(/already has/i);
+  });
+
+  it('detects phased layout from source even when a stale ast says monolithic', () => {
+    const { ast: phasedAst } = shadowPhasedSongAst();
+    const monolithicAst = {
+      channels: [
+        { id: 1, inst: 'lead', seqSpecTokens: ['sq1_main'] },
+        { id: 2, inst: 'bleep', seqSpecTokens: ['sq2_main'] },
+      ],
+      seqs: phasedAst.seqs,
+    };
+    expect(restructurePhasedSections(SHADOW_PHASED_SHAPED, monolithicAst)).toBeNull();
+    expect(explainPhasedRestructureUnavailable(SHADOW_PHASED_SHAPED, monolithicAst))
+      .toMatch(/one long seq per channel/i);
+    expect(restructurePhasedSections(SHADOW_PHASED_SHAPED, phasedAst)).not.toBeNull();
   });
 });

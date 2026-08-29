@@ -40,9 +40,9 @@ export function setupSectionFocusEditor(
         },
         options: {
           isWholeLine: true,
-          className: 'bb-section-focus-comment',
+          className: 'bb-section-focus-line bb-section-focus-line--header',
           overviewRuler: {
-            color: 'rgba(255, 200, 80, 0.85)',
+            color: 'rgba(200, 170, 110, 0.55)',
             position: monaco.editor.OverviewRulerLane.Full,
           },
         },
@@ -59,9 +59,9 @@ export function setupSectionFocusEditor(
         },
         options: {
           isWholeLine: true,
-          className: 'bb-section-focus-seq',
+          className: 'bb-section-focus-line',
           overviewRuler: {
-            color: 'rgba(120, 180, 255, 0.85)',
+            color: 'rgba(200, 170, 110, 0.55)',
             position: monaco.editor.OverviewRulerLane.Full,
           },
         },

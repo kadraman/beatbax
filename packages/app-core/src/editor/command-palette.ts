@@ -16,12 +16,22 @@
 
 import * as monaco from 'monaco-editor';
 import { KeyCode, KeyMod } from 'monaco-editor';
+import { parseWithPeggy } from '@beatbax/engine/parser';
 import {
   buildArrangementSliceSource,
+  detectArrangementLayout,
   findArrangementSliceAnchorAtCursor,
   stripChannelAndPlayLines,
 } from './arrangement-slice.js';
+import { addDefaultSectionMarkers } from './arrangement-markers.js';
+import { restructurePhasedSections, explainPhasedRestructureUnavailable } from './arrangement-restructure.js';
+import {
+  explainMonolithicSplitUnavailable,
+  splitMonolithicChannelSeqs,
+} from './arrangement-monolithic-split.js';
+import { applyFullDocumentEdit } from './editor-folding.js';
 import { findChannelForNamedItemInSource } from './preview-channel-resolve.js';
+import { eventBus } from '../utils/event-bus.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -97,6 +107,17 @@ export interface CommandPaletteOptions {
     patName: string;
     play?: boolean;
     loop?: boolean;
+  }) => void;
+
+  /**
+   * Optional: deliver command feedback to the host Output panel.
+   * When omitted, only the shared event bus is used (may not reach all clients).
+   */
+  onOutputMessage?: (message: {
+    type: 'info' | 'warning' | 'error' | 'success';
+    message: string;
+    source?: string;
+    focus?: boolean;
   }) => void;
 }
 
@@ -321,11 +342,47 @@ let lastExportFormat: ExportFormat = 'json';
 // Helper: toast notification
 // ---------------------------------------------------------------------------
 
+const TOAST_TRUNCATE_AT = 72;
+
+type CommandFeedbackLevel = 'info' | 'success' | 'warning' | 'error';
+
+let commandOutputSink: CommandPaletteOptions['onOutputMessage'] | null = null;
+
+function parseEditorSource(source: string): { ast: any; ok: boolean } {
+  const normalized = source.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const result = parseWithPeggy(normalized);
+  return { ast: result.ast, ok: !result.hasErrors && Boolean(result.ast?.channels?.length) };
+}
+
 /**
- * Shows a brief non-blocking toast message anchored to the bottom-centre of
- * the viewport. Auto-dismisses after `duration` ms.
+ * Shows a brief non-blocking toast and, for important/long messages, logs the
+ * full text to the Output panel via `output:message`.
  */
-function showToast(message: string, duration = 3000): void {
+function showToast(
+  message: string,
+  options?: { duration?: number; level?: CommandFeedbackLevel },
+): void {
+  const duration = options?.duration ?? 3000;
+  const level = options?.level ?? 'info';
+  const persist = level !== 'info' || message.length > TOAST_TRUNCATE_AT;
+  if (persist) {
+    const payload = {
+      type: level,
+      message,
+      source: 'command',
+      focus: level === 'warning' || level === 'error',
+    };
+    if (commandOutputSink) {
+      commandOutputSink(payload);
+    } else {
+      eventBus.emit('output:message', payload);
+    }
+  }
+
+  const toastText = message.length > TOAST_TRUNCATE_AT
+    ? `${message.slice(0, TOAST_TRUNCATE_AT - 1)}… (see Output)`
+    : message;
+
   const toast = document.createElement('div');
   toast.style.cssText = [
     'position:fixed', 'bottom:52px', 'left:50%', 'transform:translateX(-50%)',
@@ -333,10 +390,10 @@ function showToast(message: string, duration = 3000): void {
     'border:1px solid var(--border-color,#454545)', 'border-radius:4px',
     'padding:7px 14px', 'font-family:var(--editor-font,monospace)', 'font-size:13px',
     'color:var(--text-color,#d4d4d4)', 'box-shadow:0 2px 8px rgba(0,0,0,.5)',
-    'max-width:480px', 'white-space:nowrap', 'overflow:hidden', 'text-overflow:ellipsis',
+    'max-width:min(480px,90vw)', 'white-space:nowrap', 'overflow:hidden', 'text-overflow:ellipsis',
     'pointer-events:none',
   ].join(';');
-  toast.textContent = message;
+  toast.textContent = toastText;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), duration);
 }
@@ -533,6 +590,7 @@ function escapeRegex(str: string): string {
  * Returns a disposable that removes all registered actions.
  */
 export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDisposable {
+  commandOutputSink = opts.onOutputMessage ?? null;
   const {
     editor,
     getSource,
@@ -788,6 +846,99 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
+  reg({
+    id: 'beatbax.restructurePhasedSections',
+    label: 'BeatBax: Restructure Phased Sections into Headers',
+    keybindings: [],
+    contextMenuGroupId: '9_beatbax',
+    contextMenuOrder: 1.6,
+    run: () => {
+      const source = getSource();
+      const { ast, ok } = parseEditorSource(source);
+      if (!ok) {
+        showToast('Parse the song first, then restructure phased sections', { level: 'warning' });
+        return;
+      }
+      const result = restructurePhasedSections(source, ast);
+      if (!result) {
+        showToast(explainPhasedRestructureUnavailable(source, ast), { level: 'warning', duration: 6000 });
+        return;
+      }
+      const model = editor.getModel();
+      if (!model) return;
+      applyFullDocumentEdit(editor, 'beatbax.restructurePhasedSections', result.source);
+      editor.focus();
+      showToast(`Restructured into ${result.sectionCount} section(s) — review and save`, { level: 'success' });
+    },
+  });
+
+  reg({
+    id: 'beatbax.addSectionMarkers',
+    label: 'BeatBax: Add Section Header Comments',
+    keybindings: [],
+    contextMenuGroupId: '9_beatbax',
+    contextMenuOrder: 1.65,
+    run: () => {
+      const source = getSource();
+      const { ast, ok } = parseEditorSource(source);
+      if (!ok) {
+        showToast('Parse the song first, then add section header comments', { level: 'warning' });
+        return;
+      }
+      const layout = detectArrangementLayout(source, ast);
+      if (layout === 'monolithic') {
+        showToast(
+          'Comment headers do not create Pattern Grid sections on monolithic songs. Split each channel into multiple top-level seq refs (e.g. fanfare, theme_a, theme_b) instead.',
+          { level: 'warning', duration: 8000 },
+        );
+        return;
+      }
+      if (layout === 'mixed') {
+        showToast('Align channel seq counts before adding section header comments.', { level: 'warning', duration: 6000 });
+        return;
+      }
+      const result = addDefaultSectionMarkers(source);
+      if (result.status === 'already') {
+        showToast('Section header comments are already in the editor.', { level: 'info' });
+        return;
+      }
+      if (result.status !== 'applied') {
+        const reason = result.status === 'failed'
+          ? result.reason
+          : 'Could not add section header comments.';
+        showToast(reason, { level: 'warning', duration: 6000 });
+        return;
+      }
+      applyFullDocumentEdit(editor, 'beatbax.addSectionMarkers', result.song);
+      editor.focus();
+      showToast('Added section header comments — edit labels to match your song, then save.', { level: 'success' });
+    },
+  });
+
+  reg({
+    id: 'beatbax.splitMonolithicSections',
+    label: 'BeatBax: Split Monolithic Channel Sequences',
+    keybindings: [],
+    contextMenuGroupId: '9_beatbax',
+    contextMenuOrder: 1.7,
+    run: () => {
+      const source = getSource();
+      const { ast, ok } = parseEditorSource(source);
+      if (!ok) {
+        showToast('Parse the song first, then split monolithic channel sequences', { level: 'warning' });
+        return;
+      }
+      const result = splitMonolithicChannelSeqs(source, ast);
+      if (!result) {
+        showToast(explainMonolithicSplitUnavailable(source, ast), { level: 'warning', duration: 8000 });
+        return;
+      }
+      applyFullDocumentEdit(editor, 'beatbax.splitMonolithicSections', result.source);
+      editor.focus();
+      showToast(`Split into ${result.sectionCount} section seq group(s) — review and save`, { level: 'success' });
+    },
+  });
+
   // ── BeatBax: Edit — format document ──────────────────────────────────────
 
   reg({
@@ -800,12 +951,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const source = model.getValue();
       const formatted = formatBeatBaxSource(source);
       if (formatted === source) return; // nothing changed
-      const fullRange = model.getFullModelRange();
-      editor.executeEdits('beatbax.formatDocument', [{
-        range: fullRange,
-        text: formatted,
-        forceMoveMarkers: false,
-      }]);
+      applyFullDocumentEdit(editor, 'beatbax.formatDocument', formatted);
       editor.focus();
     },
   });
@@ -2002,6 +2148,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
   return {
     dispose: () => {
+      commandOutputSink = null;
       for (const d of disposables) d.dispose();
     },
   };

@@ -209,7 +209,10 @@ setupDiagnosticsIntegration(diagnosticsManager);
 parseHooks.onSetValidation = (errors, warnings) => {
   const allDiags = [
     ...errors.map(e => ({ ...e, level: 'error' as const })),
-    ...warnings.map(w => ({ ...w, level: 'warning' as const })),
+    ...warnings.map(w => ({
+      ...w,
+      level: (w.level === 'info' ? 'info' : 'warning') as 'info' | 'warning',
+    })),
   ];
   if (allDiags.length > 0) {
     diagnosticsManager?.setDiagnostics?.(warningsToDiagnostics(allDiags));

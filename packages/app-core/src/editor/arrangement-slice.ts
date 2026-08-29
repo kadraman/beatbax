@@ -725,15 +725,44 @@ export function resolveSectionFocus(
   const picks = collectSliceChannelPicks(timelines, window, fallbackInst);
   if (picks.length === 0) return null;
 
-  const channels: SectionFocusChannelRef[] = picks.map((pick) => ({
+  const instByChannel = parseChannelInstruments(fullSource);
+
+  let channels: SectionFocusChannelRef[] = picks.map((pick) => ({
     channelId: pick.channelId,
     inst: pick.inst,
     seqName: pick.kind === 'seq' ? pick.refs[0] : pick.refs.join(' '),
   }));
 
-  const namedSeqs = picks
+  if (anchor.channelItemIndex != null && ast) {
+    const phaseSeqs = collectPhaseSeqNames(ast, anchor.channelItemIndex);
+    if (phaseSeqs.length > 0) {
+      channels = (ast.channels ?? [])
+        .map((ch: any) => {
+          const channelId = Number(ch?.id ?? 0);
+          const tokens = getAstChannelSpecTokens(ch);
+          if (anchor.channelItemIndex! >= tokens.length) return null;
+          const seqName = tokenToPatternName(tokens[anchor.channelItemIndex!]);
+          const inst = instByChannel.get(channelId)
+            ?? picks.find((pick) => pick.channelId === channelId)?.inst
+            ?? fallbackInst;
+          if (!inst || !seqName) return null;
+          return { channelId, inst, seqName };
+        })
+        .filter((ch: SectionFocusChannelRef | null): ch is SectionFocusChannelRef => ch !== null)
+        .sort((a: SectionFocusChannelRef, b: SectionFocusChannelRef) => a.channelId - b.channelId);
+    }
+  }
+
+  const namedSeqsFromPicks = picks
     .filter((pick) => pick.kind === 'seq')
     .map((pick) => pick.refs[0]);
+
+  const namedSeqs = anchor.channelItemIndex != null && ast
+    ? (() => {
+      const phaseSeqs = collectPhaseSeqNames(ast, anchor.channelItemIndex);
+      return phaseSeqs.length > 0 ? phaseSeqs : namedSeqsFromPicks;
+    })()
+    : namedSeqsFromPicks;
 
   const seqDefinitionLines = [...new Set(
     namedSeqs
@@ -1157,4 +1186,70 @@ export function findAdjacentSectionAnchor(
     patName: block.patName,
     channelItemIndex: block.channelItemIndex,
   };
+}
+
+export type ArrangementLayout = 'structured' | 'phased' | 'monolithic' | 'mixed';
+
+function hasStructuredSectionHeaders(fullSource: string): boolean {
+  return fullSource.split('\n').some((line) => SECTION_HEADER_RE.test(line));
+}
+
+function channelSeqTokenCounts(ast: any): number[] {
+  const channels: any[] = ast?.channels ?? [];
+  return channels
+    .map((ch) => getAstChannelSpecTokens(ch).length)
+    .filter((count) => count > 0);
+}
+
+/** Classify how channel seq tokens are arranged for section-focus UX hints. */
+export function detectArrangementLayout(fullSource: string, ast?: any): ArrangementLayout {
+  if (!ast?.channels?.length) return 'monolithic';
+
+  const counts = channelSeqTokenCounts(ast);
+  if (counts.length === 0) return 'monolithic';
+
+  const unique = [...new Set(counts)];
+  let base: ArrangementLayout;
+  if (unique.length === 1) {
+    base = unique[0] === 1 ? 'monolithic' : 'phased';
+  } else {
+    base = 'mixed';
+  }
+
+  // Headers annotate phased/mixed multi-seq songs; they do not upgrade monolithic layouts.
+  if (hasStructuredSectionHeaders(fullSource) && base !== 'monolithic') {
+    return 'structured';
+  }
+  return base;
+}
+
+/** Seq names on every channel at the same top-level channel item index. */
+export function collectPhaseSeqNames(ast: any, phaseIndex: number): string[] {
+  const channels: any[] = ast?.channels ?? [];
+  const names: string[] = [];
+  for (const ch of channels) {
+    const tokens = getAstChannelSpecTokens(ch);
+    if (phaseIndex >= tokens.length) continue;
+    const name = tokenToPatternName(tokens[phaseIndex]);
+    if (Array.isArray(ast?.seqs?.[name])) names.push(name);
+  }
+  return names;
+}
+
+/** 1-based line of the first `channel N =>` line, if any. */
+export function findFirstChannelLine(fullSource: string): number | null {
+  const lines = fullSource.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (CHANNEL_LINE_RE.test(lines[i])) return i + 1;
+  }
+  return null;
+}
+
+/** 1-based lines of `seq name = …` definitions in source order. */
+export function findSeqDefinitionLines(fullSource: string, seqNames: string[]): number[] {
+  return [...new Set(
+    seqNames
+      .map((name) => findSeqDefinitionLine(fullSource, name))
+      .filter((line): line is number => line !== null),
+  )].sort((a, b) => a - b);
 }

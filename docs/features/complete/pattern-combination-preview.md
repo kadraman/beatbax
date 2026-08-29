@@ -149,6 +149,22 @@ Implementation: `section-focus-controller.ts`, `section-focus-editor.ts`, `secti
 
 - **Desktop e2e** for slice play — manual QA in [`docs/qa/desktop-release-qa.md`](../../qa/desktop-release-qa.md) covers this; unit tests cover the builder. Low ROI unless CI regressions appear.
 
+## Supported arrangements
+
+Section focus and the Pattern Grid section lane work best when a song's **top-level channel seq items** align across channels. Three common layouts:
+
+| Layout | Example | Section focus |
+| --- | --- | --- |
+| **Structured** | [`a_trainers_journey.bax`](../../../songs/gameboy/a_trainers_journey.bax) | Full: section lane, cross-channel column highlight, `# --- Section N: … ---` comment + all role `seq` lines in the editor |
+| **Phased** | [`shadow_temple.bax`](../../../songs/nes/shadow_temple.bax) | Slice play and column highlight work per phase (`intro` / `main` / `bridge` on each `channel` line). Editor grouping is weaker when seq defs are channel-grouped instead of under section headers |
+| **Monolithic** | [`battle_fanfare.bax`](../../../songs/nes/battle_fanfare.bax) | One seq per channel spanning the whole song — section focus selects the **entire** timeline. Pat-block navigation and cursor-aware F6 on individual pats still work |
+
+**Slice window rule:** focus expands to the **containing top-level channel seq item** (`channelItemIndex`), not arbitrary pat runs inside a long `seq`. Repeated pattern names on the timeline (e.g. `mel_a1` in Theme A and Reprise) are distinct positions; F6 uses cursor context to pick the right occurrence.
+
+**Editor hints:** after parse, info diagnostics on the first `channel` line suggest improvements for phased or monolithic layouts (see `detectArrangementLayout` in app-core). **BeatBax: Restructure Phased Sections into Headers** (command palette) can rewrite channel-grouped phased seq defs into `# --- Section N ---` blocks — opt-in, edits the open buffer only.
+
+First-class freeform support (`section`, `form`, `cat`) is planned in [song-composition-abstractions.md](../song-composition-abstractions.md).
+
 ## Implementation Plan
 
 ### AST / Parser / CLI / Export
@@ -216,6 +232,9 @@ Fully additive. Existing `.bax` files, CodeLens, mute/solo, and transport Play a
 - [x] Web-lite Pattern Grid Shift+click.
 - [x] Help panel + QA checklist updated.
 - [x] Spec updated for shipped section-lane / section-focus UX (this revision).
+- [x] Supported arrangements docs + layout info diagnostics.
+- [x] Phased cross-channel `resolveSectionFocus` seq highlighting fix.
+- [x] Command `beatbax.restructurePhasedSections` (opt-in buffer rewrite).
 - [ ] Desktop e2e — **deferred** (see Out of scope).
 
 ## Resolved decisions

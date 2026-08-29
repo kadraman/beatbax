@@ -118,7 +118,9 @@ export function parseErrorToDiagnostic(error: any, sourceCode?: string): Diagnos
 export function warningsToDiagnostics(warnings: ValidationIssue[]): Diagnostic[] {
   return warnings.map((w) => {
     const severity: Diagnostic['severity'] =
-      w.level === 'error' ? 'error' : 'warning';
+      w.level === 'error' ? 'error'
+        : w.level === 'info' ? 'info'
+          : 'warning';
     const base = {
       message: `[${w.component}] ${w.message}`,
       severity,

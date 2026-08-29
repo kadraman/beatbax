@@ -25,21 +25,35 @@ export function parseAIChatCompletionResponse(data: unknown): AIChatCompletionRe
   const record = data as { choices?: Array<{ message?: { content?: unknown } }> } | null;
   const content = record?.choices?.[0]?.message?.content;
   return {
-    content: typeof content === 'string' && content.length > 0 ? content : '(no response)',
+    content: typeof content === 'string' && content.length > 0 ? content : '',
     usage: parseAIChatUsage(data),
   };
+}
+
+/** True when the model returned no usable text (internal sentinel must not be shown in chat). */
+export function isEmptyAIChatContent(content: string): boolean {
+  const trimmed = content.trim();
+  return trimmed.length === 0 || trimmed === '(no response)';
+}
+
+/** User-facing assistant text; never surfaces the internal empty-response sentinel. */
+export function formatAssistantChatContent(content: string): string {
+  if (isEmptyAIChatContent(content)) {
+    return 'Copilot returned an empty response. The editor was not changed.';
+  }
+  return content;
 }
 
 /** Accept either the new result object or a legacy content string. */
 export function normalizeAIChatCompletionResult(value: unknown): AIChatCompletionResult {
   if (typeof value === 'string') {
-    return { content: value.length > 0 ? value : '(no response)' };
+    return { content: value.length > 0 ? value : '' };
   }
   if (value && typeof value === 'object' && 'content' in value) {
     const record = value as { content?: unknown; usage?: unknown };
     const content = typeof record.content === 'string' && record.content.length > 0
       ? record.content
-      : '(no response)';
+      : '';
     const usage = parseAIChatUsage({ usage: record.usage }) ?? (
       record.usage && typeof record.usage === 'object'
         ? parseAIChatUsage({ usage: {
@@ -51,5 +65,5 @@ export function normalizeAIChatCompletionResult(value: unknown): AIChatCompletio
     );
     return { content, usage };
   }
-  return { content: '(no response)' };
+  return { content: '' };
 }

@@ -232,6 +232,15 @@ export class OutputPanel {
           timestamp: new Date(),
         });
       });
+
+      this.eventBus.on('output:message', ({ type, message, source }) => {
+        this.addMessage({
+          type,
+          message,
+          source: source ?? 'output',
+          timestamp: new Date(),
+        });
+      });
     }
   }
 
@@ -257,8 +266,9 @@ export class OutputPanel {
       this.messages = this.messages.slice(-this.maxMessages);
     }
 
-    // Auto-switch to Problems tab when errors/warnings are added
-    if (msg.type === 'error' || msg.type === 'warning') {
+    // Auto-switch to Problems tab when parse/validation issues are added
+    const problemSources = new Set(['parser', 'validation', 'verify']);
+    if ((msg.type === 'error' || msg.type === 'warning') && problemSources.has(msg.source ?? '')) {
       this.activeTab = 'problems';
     }
 
@@ -298,7 +308,9 @@ export class OutputPanel {
 
     // Separate messages into problems and output
     const problems = this.messages.filter(msg => msg.type === 'error' || msg.type === 'warning');
-    const outputs = this.messages.filter(msg => msg.type === 'info' || msg.type === 'success');
+    const outputs = this.singleTab === 'output'
+      ? this.messages
+      : this.messages.filter(msg => msg.type === 'info' || msg.type === 'success');
 
     // Sort problems by severity
     const sortedProblems = [...problems].sort((a, b) => {
