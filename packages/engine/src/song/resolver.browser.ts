@@ -285,7 +285,9 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
 
           // Build per-token source metadata for sounding steps only (`inst`/`pan` directives
           // are not timeline rows; counting them skews UGE 16/32/64-row grouping).
-          const itemBase = splitTopLevel(itemRef, ':')[0].trim();
+          const itemParts = splitTopLevel(itemRef, ':');
+          const itemBase = itemParts[0].trim();
+          const itemMods = itemParts.slice(1);
           if (expandedSeqs[itemBase]) {
             // Named sequence — tag with innermost seq + full path, and infer per-token pattern names
             const rawSeqDef = seqs[itemBase];
@@ -294,7 +296,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
               : Array.isArray(rawSeqDef) && rawSeqDef.length > 0 && typeof rawSeqDef[0] !== 'string'
                 ? materializeSequenceItems(rawSeqDef as SequenceItem[])
                 : (rawSeqDef as string[]);
-            const sourceMeta = buildTokenSourceMeta(seqItemStrings, soundingCount, pats, seqs, itemBase);
+            const sourceMeta = buildTokenSourceMeta(seqItemStrings, soundingCount, pats, seqs, itemBase, itemMods);
             let batchMax = 0;
             for (let mi = 0; mi < soundingCount; mi++) {
               const meta = sourceMeta[mi];

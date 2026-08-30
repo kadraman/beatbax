@@ -173,6 +173,58 @@ describe('KeyboardShortcuts — input suppression', () => {
     document.body.removeChild(editor);
     expect(action).not.toHaveBeenCalled();
   });
+
+  it('does not fire allowInInput shortcuts in Monaco unless allowInMonaco is set', () => {
+    const action = jest.fn();
+    ks.register({ key: 'F6', description: 'Focus section', allowInInput: true, action });
+
+    const editor = document.createElement('div');
+    editor.className = 'monaco-editor';
+    editor.tabIndex = 0;
+    const line = document.createElement('span');
+    editor.appendChild(line);
+    document.body.appendChild(editor);
+    editor.focus();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'F6',
+      bubbles: true,
+      cancelable: true,
+    }));
+
+    document.body.removeChild(editor);
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  it('fires allowInMonaco shortcuts while Monaco has focus', () => {
+    const action = jest.fn();
+    ks.register({
+      key: 's',
+      ctrlKey: true,
+      description: 'Save',
+      allowInInput: true,
+      allowInMonaco: true,
+      action,
+    });
+
+    const editor = document.createElement('div');
+    editor.className = 'monaco-editor';
+    editor.tabIndex = 0;
+    const line = document.createElement('span');
+    editor.appendChild(line);
+    document.body.appendChild(editor);
+    editor.focus();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 's',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    }));
+
+    document.body.removeChild(editor);
+    expect(action).toHaveBeenCalledTimes(1);
+  });
 });
 
 // ─── metaKey (macOS Cmd) treated as ctrlKey ──────────────────────────────────

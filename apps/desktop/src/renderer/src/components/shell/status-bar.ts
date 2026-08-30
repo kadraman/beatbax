@@ -21,6 +21,7 @@ import {
   type PanelMenuId,
   type PanelMenuState,
 } from './panels-menu';
+import type { SectionFocusInfo } from '@beatbax/app-core/editor/arrangement-slice';
 
 export interface StatusBarConfig {
   container: HTMLElement;
@@ -69,6 +70,8 @@ export class StatusBar {
   private panelsWrap!: HTMLElement;
   private panelsBtn!: HTMLButtonElement;
   private panelsMenu!: HTMLElement;
+  private sectionFocusSection!: HTMLElement;
+  private sectionFocusLabel!: HTMLSpanElement;
   private scaleContext: ScaleContext | null = null;
   private panelsMenuOpen = false;
   private abort = new AbortController();
@@ -124,6 +127,18 @@ export class StatusBar {
   setStatus(status: string): void {
     this.info.status = status;
     this.statusTextEl.textContent = status;
+  }
+
+  /** Read-only section-focus mode indicator (desktop). */
+  setSectionFocus(info: SectionFocusInfo | null): void {
+    if (!info) {
+      this.sectionFocusSection.hidden = true;
+      return;
+    }
+    const summary = info.channels.map((ch) => ch.seqName).join(' · ');
+    this.sectionFocusLabel.textContent = 'Section focus';
+    this.sectionFocusLabel.title = summary || 'Section focus mode';
+    this.sectionFocusSection.hidden = false;
   }
 
   setCursorPosition(line: number, column: number): void {
@@ -216,6 +231,13 @@ export class StatusBar {
     this.chipEl.className = 'status-label';
     chipSection.appendChild(this.chipEl);
 
+    this.sectionFocusSection = document.createElement('div');
+    this.sectionFocusSection.className = 'status-section status-section-focus';
+    this.sectionFocusSection.hidden = true;
+    this.sectionFocusLabel = document.createElement('span');
+    this.sectionFocusLabel.className = 'status-section-focus-label';
+    this.sectionFocusSection.appendChild(this.sectionFocusLabel);
+
     this.panelsWrap = document.createElement('div');
     this.panelsWrap.className = 'status-section status-panels-wrap';
     this.panelsBtn = document.createElement('button');
@@ -247,7 +269,7 @@ export class StatusBar {
 
       const rightZone = document.createElement('div');
       rightZone.className = 'status-bar-zone status-bar-zone--right';
-      rightZone.append(this.documentDirtyEl, cursorSection, this.scaleSection, this.panelsWrap);
+      rightZone.append(this.sectionFocusSection, this.documentDirtyEl, cursorSection, this.scaleSection, this.panelsWrap);
 
       this.root.classList.add('status-bar--document');
       this.root.append(leftZone, centerZone, rightZone);

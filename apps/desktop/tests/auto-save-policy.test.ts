@@ -37,4 +37,9 @@ describe('canAutoSaveToDisk', () => {
     parseStatus.set('success');
     expect(canAutoSaveToDisk({ valid: false })).toBe(false);
   });
+
+  it('blocks auto-save for ephemeral synthetic plays', () => {
+    parseStatus.set('success');
+    expect(canAutoSaveToDisk({ valid: true, ephemeral: true })).toBe(false);
+  });
 });

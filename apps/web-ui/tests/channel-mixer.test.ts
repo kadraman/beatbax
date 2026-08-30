@@ -86,8 +86,14 @@ describe('ChannelMixer', () => {
     eventBus.emit('parse:success', { ast: makeAst([1, 2, 3, 4]) });
 
     expect(document.getElementById('bb-channel-mixer-strip-1')).not.toBeNull();
-    expect(document.getElementById('bb-channel-mixer-strip-2')).not.toBeNull();
-    expect(document.getElementById('bb-channel-mixer-strip-3')).not.toBeNull();
+    expect(document.getElementById('bb-channel-mixer-strip-4')).not.toBeNull();
+  });
+
+  it('ignores ephemeral parse:success so slice playback does not drop channels', () => {
+    eventBus.emit('parse:success', { ast: makeAst([1, 2, 3, 4]) });
+    eventBus.emit('parse:success', { ast: makeAst([1]), ephemeral: true });
+
+    expect(document.getElementById('bb-channel-mixer-strip-1')).not.toBeNull();
     expect(document.getElementById('bb-channel-mixer-strip-4')).not.toBeNull();
   });
 

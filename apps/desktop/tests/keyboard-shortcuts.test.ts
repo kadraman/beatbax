@@ -64,6 +64,35 @@ describe('desktop keyboard shortcuts', () => {
     shortcuts.dispose();
   });
 
+  it('does not fire allowInInput shortcuts in Monaco unless allowInMonaco is set', () => {
+    const shortcuts = new KeyboardShortcuts();
+    const action = jest.fn();
+
+    shortcuts.register({
+      key: 'F6',
+      description: 'Focus section at cursor',
+      allowInInput: true,
+      action,
+    });
+    shortcuts.mount(window);
+
+    const editor = document.createElement('div');
+    editor.className = 'monaco-editor';
+    editor.tabIndex = 0;
+    document.body.appendChild(editor);
+    editor.focus();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'F6',
+      bubbles: true,
+      cancelable: true,
+    }));
+
+    expect(action).not.toHaveBeenCalled();
+    shortcuts.dispose();
+    document.body.removeChild(editor);
+  });
+
   it('falls back to physical key code when modifier layouts change event.key', () => {
     const shortcuts = new KeyboardShortcuts();
     const action = jest.fn();

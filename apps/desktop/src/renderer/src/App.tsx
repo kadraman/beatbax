@@ -459,7 +459,8 @@ export default function App(): React.JSX.Element {
   }, [scheduleInitialParse]);
 
   useEffect(() => {
-    const unsubParseSuccess = appContext.eventBus.on('parse:success', ({ ast, valid }) => {
+    const unsubParseSuccess = appContext.eventBus.on('parse:success', ({ ast, valid, ephemeral }) => {
+      if (ephemeral) return;
       lastParsedAstRef.current = ast;
       if (!isParseSuccessValid({ valid })) return;
       tryPendingAutoPlay(ast);

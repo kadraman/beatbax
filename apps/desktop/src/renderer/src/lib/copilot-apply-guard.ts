@@ -191,6 +191,34 @@ export function tryMergeSnippetIntoSong(previous: string, candidate: string): st
   return null;
 }
 
+export {
+  addDefaultSectionMarkers,
+  collectSectionMarkers,
+  extractSectionMarkers,
+  mergeSectionMarkersFromCopilotTexts,
+  tryMergeSectionMarkersIntoSong,
+  type SectionMarkerMergeResult,
+} from '@beatbax/app-core/editor/arrangement-markers';
+
+/** Follow-up when Edit mode returned prose but no ```bax fenced song. */
+export function buildMissingBaxRepairPrompt(userRequest: string, previousSong: string): string {
+  return [
+    'Your previous reply did not include a BeatBax song in a ```bax fenced code block.',
+    'Edit mode requires the **complete updated song** — not prose-only instructions.',
+    '',
+    `Original request: ${userRequest.trim()}`,
+    '',
+    'Return the **complete** updated song as a single ```bax fenced code block.',
+    'Change only what was requested; copy all other lines verbatim from the current song.',
+    'After the closing fence you may add 2–4 sentences explaining what you changed.',
+    '',
+    'Current song (return this entire file with your edit applied):',
+    '```bax',
+    previousSong,
+    '```',
+  ].join('\n');
+}
+
 /** Follow-up prompt when the model returned a snippet instead of the full song. */
 export function buildIncompleteSongRepairPrompt(
   userRequest: string,

@@ -792,7 +792,8 @@ export class SongVisualizer {
 
   private setupEventListeners(): void {
     this.unsubscribers.push(
-      this.eventBus.on('parse:success', ({ ast }) => {
+      this.eventBus.on('parse:success', ({ ast, ephemeral }) => {
+        if (ephemeral) return;
         const needsRerender = this.hasChannelStructureChanged(ast);
         this.ast = ast;
         if (needsRerender) this.render();

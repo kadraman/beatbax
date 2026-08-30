@@ -5,8 +5,12 @@ import { resolve } from 'path';
 import {
   assessEditApplyGuard,
   buildIncompleteSongRepairPrompt,
+  buildMissingBaxRepairPrompt,
   countSubstantiveLines,
   detectSongAnchors,
+  extractSectionMarkers,
+  mergeSectionMarkersFromCopilotTexts,
+  tryMergeSectionMarkersIntoSong,
   tryMergeSnippetIntoSong,
 } from '../src/renderer/src/lib/copilot-apply-guard';
 
@@ -77,6 +81,97 @@ describe('tryMergeSnippetIntoSong', () => {
     expect(merged).not.toBeNull();
     expect(merged).toContain(snippet.trim());
     expect(merged).not.toContain('type=pulse1');
+  });
+});
+
+describe('tryMergeSectionMarkersIntoSong', () => {
+  it('inserts section markers before the first seq definition', () => {
+    const song = [
+      'chip nes',
+      'bpm 120',
+      'pat p = C5:4',
+      'seq main = p p',
+      'channel 1 => inst lead pat p',
+      'play auto',
+    ].join('\n');
+    const snippet = [
+      '# --- Section 1: Fanfare ---',
+      '# --- Section 2: Theme A ---',
+    ].join('\n');
+    const merged = tryMergeSectionMarkersIntoSong(song, snippet);
+    expect(merged).toContain('# --- Section 1: Fanfare ---');
+    expect(merged).toContain('# --- Section 2: Theme A ---');
+    expect(merged?.indexOf('Section 1')).toBeLessThan(merged?.indexOf('seq main') ?? 0);
+  });
+
+  it('extracts markers from fenced blocks in assistant text', () => {
+    const text = [
+      'Add markers:',
+      '```bax',
+      '# --- Section 1: Intro ---',
+      '```',
+    ].join('\n');
+    expect(extractSectionMarkers(text)).toEqual(['# --- Section 1: Intro ---']);
+  });
+
+  it('places one marker before each phased seq group', () => {
+    const song = [
+      'chip gameboy',
+      'seq lead_intro = rest_bar rest_bar',
+      'seq bass_intro = bass_a bass_b',
+      '',
+      'seq lead_main = lead_a lead_b',
+      'seq bass_main = bass_c bass_d',
+      'channel 1 => inst lead seq lead_intro lead_main',
+      'play auto',
+    ].join('\n');
+    const markers = [
+      '# --- Section 1: Intro ---',
+      '# --- Section 2: Main ---',
+    ];
+    const merged = tryMergeSectionMarkersIntoSong(song, markers);
+    expect(merged?.indexOf('Section 1')).toBeLessThan(merged?.indexOf('seq lead_intro') ?? 0);
+    expect(merged?.indexOf('Section 2')).toBeLessThan(merged?.indexOf('seq lead_main') ?? 0);
+    expect(merged?.indexOf('Section 1')).toBeLessThan(merged?.indexOf('Section 2') ?? 0);
+  });
+
+  it('reports already applied markers without calling the model', () => {
+    const song = [
+      'chip gameboy',
+      '# --- Section 1: Intro ---',
+      'seq main = p p',
+      'channel 1 => inst lead pat p',
+      'play auto',
+    ].join('\n');
+    const result = mergeSectionMarkersFromCopilotTexts(song, '# --- Section 1: Intro ---');
+    expect(result).toEqual({ status: 'already' });
+  });
+
+  it('merges markers from snippet and assistant context together', () => {
+    const song = [
+      'chip gameboy',
+      'seq main = p p',
+      'channel 1 => inst lead pat p',
+      'play auto',
+    ].join('\n');
+    const result = mergeSectionMarkersFromCopilotTexts(
+      song,
+      '# --- Section 1: Intro ---',
+      '# --- Section 2: Main ---',
+    );
+    expect(result.status).toBe('applied');
+    if (result.status !== 'applied') return;
+    expect(result.song).toContain('# --- Section 1: Intro ---');
+    expect(result.song).toContain('# --- Section 2: Main ---');
+  });
+});
+
+describe('buildMissingBaxRepairPrompt', () => {
+  it('asks for a fenced full song', () => {
+    const prompt = buildMissingBaxRepairPrompt('add markers', sampleSong);
+    expect(prompt).toContain('```bax fenced code block');
+    expect(prompt).toContain('add markers');
+    expect(prompt).toContain('play auto repeat');
   });
 });
 

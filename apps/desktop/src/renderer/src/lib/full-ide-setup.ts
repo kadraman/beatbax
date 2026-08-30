@@ -313,8 +313,9 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
   cleanups.push(
     eventBus.on('parse:error', () => setErrorState(true)),
     eventBus.on('validation:errors', ({ errors }) => setErrorState(errors.length > 0)),
-    eventBus.on('parse:success', ({ ast, sourceBpm: evtSourceBpm }) => {
+    eventBus.on('parse:success', ({ ast, sourceBpm: evtSourceBpm, ephemeral }) => {
       try {
+        if (ephemeral) return;
         const bpm = Number(evtSourceBpm ?? (ast as { bpm?: number })?.bpm ?? 120);
         if (!bpmUserOverride) {
           currentBpm = bpm;
@@ -425,7 +426,8 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
       eventBus.on('playback:resumed', updateRecordButtonEnabled),
       settingMidiInputEnabled.subscribe(updateRecordButtonEnabled),
       settingMidiInputDevice.subscribe(updateRecordButtonEnabled),
-      eventBus.on('parse:success', ({ ast, resolvedAst }) => {
+      eventBus.on('parse:success', ({ ast, resolvedAst, ephemeral }) => {
+        if (ephemeral) return;
         if (resolvedAst !== undefined) return;
         midiController?.setParsedAst(ast);
       }),

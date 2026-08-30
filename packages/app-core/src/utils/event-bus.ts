@@ -20,7 +20,7 @@ export interface BeatBaxEvents {
 
   // Parse events
   'parse:started': void;
-  'parse:success': { ast: any; resolvedAst?: any; song?: any; sourceBpm?: number; valid?: boolean };
+  'parse:success': { ast: any; resolvedAst?: any; song?: any; sourceBpm?: number; valid?: boolean; ephemeral?: boolean };
   'parse:error': { error: Error; message: string };
 
   // Playback events
@@ -43,6 +43,20 @@ export interface BeatBaxEvents {
     sampleCount: number;
     sampleRateHint: number;
   };
+
+  /** Pattern Grid section focus entered (slice highlight + editor decorations). */
+  'section:focus-enter': {
+    info: import('../editor/arrangement-slice.js').SectionFocusInfo;
+    request: {
+      channelId: number;
+      startStep: number;
+      endStep: number;
+      seqName: string | null;
+      patName: string;
+    };
+  };
+  /** Pattern Grid section focus cleared (Esc / Exit focus). */
+  'section:focus-exit': void;
 
   // Export events
   'export:started': { format: string };
@@ -120,6 +134,18 @@ export interface BeatBaxEvents {
 
   /** Emitted when a CodeLens preview cannot start, with a human-readable reason. */
   'preview:error': { message: string };
+
+  /**
+   * Persistent command / editor feedback for the Output panel (not Problems).
+   * Toasts may truncate; this carries the full message.
+   */
+  'output:message': {
+    type: 'info' | 'warning' | 'error' | 'success';
+    message: string;
+    source?: string;
+    /** When true, clients should bring the Output panel to the front. */
+    focus?: boolean;
+  };
 }
 
 type EventCallback<T> = (data: T) => void;

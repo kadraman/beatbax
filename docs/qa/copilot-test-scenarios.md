@@ -56,8 +56,9 @@ Track manual passes and automation separately. Update this table when a scenario
 | 24 | Wave instrument quieter (`volume=` not `gm=`) | Not tested | — | — | Requires chip reference in Copilot context |
 | 25 | New chat / session switch | Not tested | — | — | Header **+** New chat; session menu switches/deletes; previous transcript restored on switch |
 | 26 | Context meter + token usage | Not tested | — | — | Footer %; last-turn `prompt → completion` when provider returns `usage` |
+| 27 | Explain `[arrangement]` info diagnostic | Not tested | — | — | Open phased/monolithic song; Ask about section-focus info squiggle; expect explanation + restructure command, not forced rewrite |
 
-**Automated (partial):** `apps/desktop/tests/copilot-context.test.ts` — prompt assembly. `copilot-token-budget.test.ts` / `copilot-history-pack.test.ts` / `ai-chat-completion.test.ts` — meter math, Edit-history stubs, `usage` parsing. `packages/app-core/tests/chat-store-sessions.test.ts` — multi-session store. Light e2e in `desktop-integration.spec.ts` — Copilot panel mount/startup only.
+**Automated (partial):** `apps/desktop/tests/copilot-context.test.ts` — prompt assembly (includes `[ARRANGEMENT LAYOUT HINTS]`). `copilot-token-budget.test.ts` / `copilot-history-pack.test.ts` / `ai-chat-completion.test.ts` — meter math, Edit-history stubs, `usage` parsing. `packages/app-core/tests/chat-store-sessions.test.ts` — multi-session store. Light e2e in `desktop-integration.spec.ts` — Copilot panel mount/startup only.
 
 ---
 

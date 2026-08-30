@@ -543,7 +543,8 @@ function DesktopSongVisualizer({
 
   useEffect(() => {
     const cleanups = [
-      eventBus.on('parse:success', ({ ast: nextAst }) => {
+      eventBus.on('parse:success', ({ ast: nextAst, ephemeral }) => {
+        if (ephemeral) return;
         setAst(nextAst);
         setPositions({});
       }),

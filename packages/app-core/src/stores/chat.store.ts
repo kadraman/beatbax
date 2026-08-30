@@ -64,6 +64,11 @@ export interface ChatMessage {
    * while `display` keeps the transcript readable.
    */
   display?: string;
+  /**
+   * Full prompt sent to the model when `content` is a shorter UI transcript
+   * (e.g. Problems → Copilot auto-submit).
+   */
+  promptContent?: string;
   /** Assistant edit-mode reply whose song was applied to the editor. */
   applied?: boolean;
   /**
@@ -105,10 +110,14 @@ export interface ChatMessage {
   replyMode?: ChatMode;
   /** Provider-reported or accumulated token usage for this turn. */
   usage?: ChatTokenUsage;
+  /** Built-in arrangement command the user can run locally (no AI rewrite). */
+  layoutFixAction?: 'split_monolithic' | 'restructure_phased' | 'add_section_markers';
+  layoutFixCommandLabel?: string;
 }
 
 export interface ChatMessageMeta {
   display?: string;
+  promptContent?: string;
   applied?: boolean;
   applyOutcome?: 'pending' | 'kept' | 'discarded';
   applyBlocked?: boolean;
@@ -125,6 +134,8 @@ export interface ChatMessageMeta {
   system?: boolean;
   replyMode?: ChatMode;
   usage?: ChatTokenUsage;
+  layoutFixAction?: 'split_monolithic' | 'restructure_phased' | 'add_section_markers';
+  layoutFixCommandLabel?: string;
 }
 
 export interface CopilotSessionTokenTotals {

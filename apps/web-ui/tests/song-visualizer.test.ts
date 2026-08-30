@@ -51,6 +51,13 @@ describe('SongVisualizer', () => {
     expect(document.getElementById('bb-viz-card-4')).not.toBeNull();
   });
 
+  it('ignores ephemeral parse:success so slice playback does not drop channel cards', () => {
+    eventBus.emit('parse:success', { ast: makeAst([1, 2, 3, 4]) });
+    eventBus.emit('parse:success', { ast: makeAst([1]), ephemeral: true });
+    expect(document.getElementById('bb-viz-card-1')).not.toBeNull();
+    expect(document.getElementById('bb-viz-card-4')).not.toBeNull();
+  });
+
   it('renders waveform canvas with 80px visual height in normal mode', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
     const canvas = document.getElementById('bb-viz-wave-1') as HTMLCanvasElement | null;

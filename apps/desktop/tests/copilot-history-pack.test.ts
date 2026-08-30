@@ -59,11 +59,45 @@ describe('packCopilotHistoryForModel', () => {
     expect(packed[0].content).toBe(bulky);
   });
 
+  it('packs promptContent for machine-generated user turns', () => {
+    const packed = packCopilotHistoryForModel([
+      msg({
+        role: 'user',
+        content: '[validation] short transcript',
+        promptContent: 'Please explain this error and suggest how to fix it:\n\n[validation] short transcript',
+      }),
+    ]);
+    expect(packed[0].content).toContain('Please explain this error');
+  });
+
+  it('excludes the in-flight user turn when promptContent matches', () => {
+    const packed = packHistoryExcludingCurrentUser([
+      msg({
+        role: 'user',
+        content: '[validation] short transcript',
+        promptContent: 'full model prompt',
+      }),
+    ], 'full model prompt');
+    expect(packed).toEqual([]);
+  });
+
+  it('uses the short transcript for context meter after auto-submit', () => {
+    const split = splitContextBudgetMessages([
+      msg({
+        role: 'user',
+        content: '[validation] short transcript',
+        promptContent: 'Please explain this error and suggest how to fix it:\n\n[validation] short transcript',
+      }),
+      msg({ role: 'assistant', content: 'answer', replyMode: 'ask' }),
+    ], '');
+    expect(split.userText).toBe('[validation] short transcript');
+  });
+
   it('attributes the last sent question to This message when the composer is empty', () => {
     const split = splitContextBudgetMessages([
       msg({ role: 'user', content: 'what is bpm?' }),
       msg({ role: 'assistant', content: 'beats per minute', replyMode: 'ask' }),
-      msg({ role: 'user', content: 'and chip?' }),
+      msg({ role: 'user', content: 'verbose wrapper', display: 'and chip?' }),
       msg({ role: 'assistant', content: 'sound chip', replyMode: 'ask' }),
     ], '');
     expect(split.userText).toBe('and chip?');

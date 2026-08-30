@@ -118,6 +118,25 @@ const INSTRUMENT_LOUDNESS_GUIDE = [
   'Internal: `gm=` / `note=` / `uge_note=` are export or hit metadata — not playback volume. Use the fields above for mix level; do not suggest changing export metadata unless the user asks about MIDI/UGE export.',
 ].join('\n');
 
+const ARRANGEMENT_LAYOUT_GUIDE = [
+  'Pattern Grid section-focus info diagnostics (`[arrangement]` in [DIAGNOSTICS], severity `info`):',
+  '- These are optional authoring hints, NOT parse errors. The song is valid and playable as written.',
+  '- Do not rewrite the song to clear them unless the user explicitly asks to improve section focus or restructure.',
+  '',
+  'Layouts:',
+  '- **Structured**: `# --- Section N: … ---` headers above cross-channel `seq` groups; parallel `seq` tokens on each `channel` line. Full section lane + editor highlighting.',
+  '- **Phased**: same number of top-level `seq` tokens on every channel (e.g. intro/main/bridge), often with channel-grouped `seq` definitions. Slice play works; add section headers for richer editor grouping.',
+  '- **Monolithic**: one top-level `seq` per channel; musical form lives inside long `seq` bodies. Section focus spans the whole song — pat navigation and F6 on individual pats still work.',
+  '- **Mixed**: channels have different `seq` token counts; cross-channel section slices may misalign.',
+  '',
+  'When the user asks about an `[arrangement]` info message:',
+  '- **Monolithic** ("Section focus plays the whole song…"): explain that Pattern Grid sections need multiple top-level `seq` refs per `channel` line — comment headers do not help. For battle_fanfare-shaped songs (`*_main`, 19 patterns/channel), tell the user about **BeatBax: Split Monolithic Channel Sequences** (F1 → command palette). Say that **Fix in Edit mode** or **Apply fix** will show steps and a **Run command locally** button — Copilot does not rewrite the whole file with AI. Do not claim the song was already split unless the user confirmed and ran the command.',
+  '- **Phased** ("Phased layout detected…"): mention **BeatBax: Restructure Phased Sections into Headers** (F1). Same confirm flow: propose first, then **Run command locally** or **yes, run it**.',
+  '- **Mixed** ("Channels have different seq counts…"): explain alignment risk; suggest equalizing `seq` token lists per channel or using structured section blocks.',
+  '',
+  'In Edit mode: never restructure solely to remove `[arrangement]` info hints. In Ask mode: explain the hint and offer options; point to Edit mode or the restructure command only when the user wants to apply a change.',
+].join('\n');
+
 /** Detect the canonical chip id from song source (`chip gb` / `chip dmg` → `gameboy`). */
 export function detectChip(source: string): string {
   const m = source.match(/^\s*chip\s+(\S+)/m);
@@ -179,6 +198,7 @@ function buildAskModeHint(): string {
     'When suggesting effects, prefer built-in parametric syntax such as `C5<vib:3,5>` or show a short `effect preset = ...`',
     'definition together with `C5<preset>`; never use `<preset>` without its definition.',
     'When answering loudness or mix questions, name the correct playback field (`volume=` for wave, `env=` for pulse/noise).',
+    'When the user asks about `[arrangement]` info diagnostics or Pattern Grid section focus, use [ARRANGEMENT LAYOUT HINTS].',
     'Do not mention unrelated instrument fields (e.g. `gm=` for MIDI export) unless the user asked about them.',
     'Format prose with Markdown: short paragraphs, `##` headings, **bold** key terms, `-` bullet lists, and tables when comparing channels.',
   ].join(' ');
@@ -211,7 +231,8 @@ export function buildCopilotContext(
         'In that explanation, wrap BeatBax tokens and names in backticks (e.g. `E5:4`, `E5<leadTrem>:4`, `pat drums`).',
         'Do not put prose, Markdown headings, or commentary inside the code fence. Do not repeat the song in the explanation.',
         'NEVER return only the changed `pat` or `seq` line — always return the entire song from chip through play.',
-        'The returned song must parse as valid BeatBax. If diagnostics are present, fix them instead of adding new features.',
+        'The returned song must parse as valid BeatBax. If error or warning diagnostics are present, fix them instead of adding new features.',
+        'Ignore `info` severity `[arrangement]` hints in [DIAGNOSTICS] unless the user asked to improve section focus or restructure (see [ARRANGEMENT LAYOUT HINTS]).',
         'Invalid syntax (e.g. `|` bar separators in patterns) is rejected before apply; you may be asked to repair parse errors automatically.',
         'If diagnostics warn that an effect is not defined, add `effect name = type:params` before using `<name>`, or replace `<name>` with a built-in parametric form such as `<vib:3,5>`.',
         'Prefer minimal edits to the current song; preserve comments, metadata, instruments, channel structure, and play directives unless the user asks otherwise.',
@@ -262,6 +283,9 @@ export function buildCopilotContext(
     '',
     '[EFFECT GUIDANCE]',
     effectGuidance,
+    '',
+    '[ARRANGEMENT LAYOUT HINTS]',
+    ARRANGEMENT_LAYOUT_GUIDE,
     '',
     '[DEFINED NAMES]',
     definedNames,

@@ -13,6 +13,17 @@ export interface PackedChatMessage {
   content: string;
 }
 
+function modelMessageContent(message: ChatMessage): string {
+  if (message.role === 'user' && message.promptContent?.trim()) {
+    return message.promptContent;
+  }
+  return message.content;
+}
+
+function userMessageMatchesPrompt(message: ChatMessage, userText: string): boolean {
+  return message.content === userText || message.promptContent === userText;
+}
+
 function looksLikeEditPayload(message: ChatMessage): boolean {
   if (message.role !== 'assistant' || message.system) return false;
   if (message.replyMode === 'edit' || message.applied || message.applyBlocked) return true;
@@ -67,7 +78,9 @@ export function packCopilotHistoryForModel(
   const recent = messages.filter((message) => !message.system).slice(-limit);
   const packed = recent.map((message) => ({
     role: message.role,
-    content: isOversizedEditPayload(message) ? stubEditAssistantContent(message) : message.content,
+    content: isOversizedEditPayload(message)
+      ? stubEditAssistantContent(message)
+      : modelMessageContent(message),
   }));
   return dropOldestUntilBudget(packed, HISTORY_TOKEN_BUDGET);
 }
@@ -86,7 +99,7 @@ export function packHistoryExcludingCurrentUser(
   const withoutCurrent = last
     && last.role === 'user'
     && !last.system
-    && last.content === userText
+    && userMessageMatchesPrompt(last, userText)
     ? messages.slice(0, -1)
     : messages;
   return packCopilotHistoryForModel(withoutCurrent, limit);
@@ -125,9 +138,10 @@ export function splitContextBudgetMessages(
       historyTexts: packCopilotHistoryForModel(messages, limit).map((message) => message.content),
     };
   }
+  const lastUser = messages[lastUserIndex];
   const withoutLastUser = messages.slice(0, lastUserIndex).concat(messages.slice(lastUserIndex + 1));
   return {
-    userText: messages[lastUserIndex].content,
+    userText: lastUser.display ?? lastUser.content,
     historyTexts: packCopilotHistoryForModel(withoutLastUser, limit).map((message) => message.content),
   };
 }

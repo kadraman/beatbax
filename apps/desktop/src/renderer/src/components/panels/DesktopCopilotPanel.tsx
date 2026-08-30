@@ -43,11 +43,26 @@ import {
   type ContextBudgetHoverModel,
 } from '../../lib/copilot-token-budget';
 import {
+  formatAssistantChatContent,
+  isEmptyAIChatContent,
   normalizeAIChatCompletionResult,
   parseAIChatCompletionResponse,
 } from '../../../../shared/ai-chat-completion';
 import { buildMinimalEditFixPrompt } from '../../lib/copilot-edit-fix-prompt';
-import { formatCopilotErrorPrompt } from '../../lib/copilot-error-prompt';
+import {
+  type ArrangementLayoutFixAction,
+  type ArrangementLayoutFixResult,
+  getLastAssistantChatContent,
+  isArrangementLayoutFixConfirmation,
+  isArrangementLayoutFixIntent,
+  tryApplyArrangementLayoutFix,
+} from '../../lib/copilot-arrangement-fix';
+import {
+  formatCopilotErrorDisplay,
+  formatCopilotErrorPrompt,
+  isCopilotErrorMachinePrompt,
+  summarizeCopilotErrorMachinePrompt,
+} from '../../lib/copilot-error-prompt';
 import {
   buildUserMessageWithReferences,
   createCopilotEditorReference,
@@ -55,7 +70,7 @@ import {
   type CopilotEditorReference,
 } from '../../lib/copilot-selection-prompt';
 import { adjustCopilotInputHeight } from '../../lib/copilot-input-resize';
-import { assessEditApplyGuard, buildIncompleteSongRepairPrompt, tryMergeSnippetIntoSong } from '../../lib/copilot-apply-guard';
+import { assessEditApplyGuard, buildIncompleteSongRepairPrompt, buildMissingBaxRepairPrompt, tryMergeSnippetIntoSong } from '../../lib/copilot-apply-guard';
 import { collectBaxDefs, tryMergeChangedDefinitions } from '../../lib/bax-def-index';
 import { buildLegacyChangeSummary, collectCopilotEditChanges } from '../../lib/copilot-edit-changes';
 import { extractEditExplanation, wrapBaxTokensForMarkdown } from '../../lib/copilot-edit-explanation';
@@ -206,6 +221,8 @@ function validateBaxSource(source: string): { ok: boolean; errors: string[] } {
 const MAX_PARSE_REPAIR_ATTEMPTS = 2;
 /** Max retries when the model returns a snippet instead of the full song. */
 const MAX_INCOMPLETE_REPAIR_ATTEMPTS = 2;
+/** Max retries when Edit mode returns prose without a ```bax block. */
+const MAX_NO_BAX_REPAIR_ATTEMPTS = 1;
 
 function buildRepairPrompt(errors: string[], brokenSong: string): string {
   const errorList = errors.map((e) => `- ${e}`).join('\n');
@@ -879,10 +896,35 @@ function isSameChatMessage(a: ChatMessage, b: ChatMessage): boolean {
   return a.timestamp === b.timestamp && a.role === b.role && a.content === b.content;
 }
 
+function shouldTryLocalArrangementFix(activeMode: ChatMode, text: string): boolean {
+  if (activeMode === 'edit') return true;
+  if (isArrangementLayoutFixConfirmation(text)) return true;
+  if (isCopilotErrorMachinePrompt(text)) return true;
+  return isArrangementLayoutFixIntent(text)
+    && /\b(?:apply|refactor|split|restructure|fix)\b/i.test(text);
+}
+
+function resolveLocalArrangementFix(
+  previous: string,
+  text: string,
+  history: ChatMessage[],
+): ArrangementLayoutFixResult {
+  const lastAssistant = getLastAssistantChatContent(history);
+  const pendingProposal = [...history].reverse().find((message) => message.layoutFixAction);
+  const confirmed = isArrangementLayoutFixConfirmation(text);
+  return tryApplyArrangementLayoutFix(previous, text, lastAssistant, {
+    confirmed,
+    action: confirmed && pendingProposal?.layoutFixAction
+      ? pendingProposal.layoutFixAction
+      : undefined,
+  });
+}
+
 function ChatMessageView({
   message,
   mode: _mode,
   onFixInEditMode,
+  onRunLayoutFixCommand,
   onInsertSnippet,
   onReplaceSelection,
   onReplaceEditor,
@@ -893,6 +935,7 @@ function ChatMessageView({
   message: ChatMessage;
   mode: ChatMode;
   onFixInEditMode: (snippet?: string, assistantContext?: string) => void;
+  onRunLayoutFixCommand: (action: ArrangementLayoutFixAction, commandLabel: string) => void;
   onInsertSnippet: (text: string) => void;
   onReplaceSelection: (text: string) => void;
   onReplaceEditor: (text: string, options?: { beginCopilotReview?: boolean }) => void;
@@ -909,9 +952,13 @@ function ChatMessageView({
   }
 
   if (message.role === 'user') {
+    const transcript = message.display
+      ?? (isCopilotErrorMachinePrompt(message.content)
+        ? summarizeCopilotErrorMachinePrompt(message.content)
+        : message.content);
     return (
       <div className="bb-chat-msg bb-chat-msg--user">
-        <p className="bb-chat-msg-text">{message.display ?? message.content}</p>
+        <p className="bb-chat-msg-text">{transcript}</p>
       </div>
     );
   }
@@ -1006,7 +1053,21 @@ function ChatMessageView({
     <div className="bb-chat-msg bb-chat-msg--assistant">
       <CopilotMessageHead usage={message.usage} />
       {body}
-      {actionMode === 'ask' && !hasCodeBlocks ? (
+      {message.layoutFixAction && message.layoutFixCommandLabel ? (
+        <div className="bb-chat-ask-actions">
+          <button
+            className="bb-chat-action-btn bb-chat-action-btn--primary"
+            onClick={() => onRunLayoutFixCommand(message.layoutFixAction!, message.layoutFixCommandLabel!)}
+            type="button"
+          >
+            Run command locally
+          </button>
+          <span className="bb-chat-applied-hint">
+            Runs {message.layoutFixCommandLabel} — built-in transform, not an AI rewrite.
+          </span>
+        </div>
+      ) : null}
+      {actionMode === 'ask' && !hasCodeBlocks && !message.layoutFixAction ? (
         <div className="bb-chat-ask-actions">
           <button
             className="bb-chat-action-btn bb-chat-action-btn--primary"
@@ -1052,17 +1113,36 @@ function DesktopCopilotPanel({
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const promptHistoryIndexRef = useRef<number | null>(null);
   const promptDraftRef = useRef('');
-  const setInputRef = useRef(setInput);
+  const systemSubmitRef = useRef(false);
+  const wasLoadingRef = useRef(false);
   const submitPromptRef = useRef<(
     text: string,
     activeMode: ChatMode,
     displayText?: string,
   ) => Promise<void>>(async () => {});
-  setInputRef.current = setInput;
+
+  const clearComposer = useCallback((): void => {
+    promptHistoryIndexRef.current = null;
+    promptDraftRef.current = '';
+    setInput('');
+  }, []);
+
+  const setComposerInput = useCallback((value: string): void => {
+    if (systemSubmitRef.current && value.trim()) return;
+    if (isCopilotErrorMachinePrompt(value)) return;
+    setInput(value);
+  }, []);
 
   useLayoutEffect(() => {
     adjustCopilotInputHeight(inputRef.current);
   }, [input, visible]);
+
+  useLayoutEffect(() => {
+    if (wasLoadingRef.current && !loading) {
+      clearComposer();
+    }
+    wasLoadingRef.current = loading;
+  }, [clearComposer, loading]);
 
   useEffect(() => {
     return () => {
@@ -1112,6 +1192,32 @@ function DesktopCopilotPanel({
     setStatus(!isLocal && !settings.apiKey ? '⚠ No API key set. Click ⚙ to open AI Settings.' : '');
   }, [settings]);
 
+  const askAboutErrorHandler = useCallback(({
+    message,
+    source,
+    line,
+    column,
+  }: CopilotAskAboutErrorOptions) => {
+    chatMode.set('ask');
+    if (chatLoading.get()) {
+      pushChatNotice('Copilot is still busy — wait for the current reply.');
+      return;
+    }
+    const modelPrompt = formatCopilotErrorPrompt(message, { source, line, column });
+    const chatTranscript = formatCopilotErrorDisplay(message, { source, line, column });
+    const prunedHistory = chatPromptHistory.get().filter((entry) => !isCopilotErrorMachinePrompt(entry));
+    if (prunedHistory.length !== chatPromptHistory.get().length) {
+      chatPromptHistory.set(prunedHistory);
+    }
+    systemSubmitRef.current = true;
+    clearComposer();
+    void submitPromptRef.current(modelPrompt, 'ask', chatTranscript);
+    window.requestAnimationFrame(() => inputRef.current?.focus());
+  }, [clearComposer]);
+
+  const askAboutErrorRef = useRef(askAboutErrorHandler);
+  askAboutErrorRef.current = askAboutErrorHandler;
+
   useImperativeHandle(panelRef, () => ({
     show: () => {
       void readDesktopAIAPIKey()
@@ -1123,34 +1229,12 @@ function DesktopCopilotPanel({
     },
     hide: () => flushSync(() => setVisible(false)),
     dispose: () => abortRef.current?.abort(),
-    askAboutError: ({ message, source, line, column, autoSubmit }) => {
-      chatMode.set('ask');
-      const prompt = formatCopilotErrorPrompt(message, { source, line, column });
-      promptHistoryIndexRef.current = null;
-      promptDraftRef.current = '';
-      setInputRef.current('');
-      window.requestAnimationFrame(() => {
-        setInputRef.current(prompt);
-        const textarea = inputRef.current;
-        if (textarea) {
-          textarea.focus();
-          textarea.selectionStart = prompt.length;
-          textarea.selectionEnd = prompt.length;
-        }
-        if (autoSubmit) {
-          if (chatLoading.get()) {
-            pushChatNotice('Copilot is still busy — wait for the current reply.');
-            return;
-          }
-          void submitPromptRef.current(prompt, 'ask');
-        }
-      });
-    },
+    askAboutError: (options) => askAboutErrorRef.current(options),
     addSelectionToChat: ({ text, startLine, endLine }) => {
       const ref = createCopilotEditorReference({ text, startLine, endLine });
       promptHistoryIndexRef.current = null;
       promptDraftRef.current = '';
-      setInputRef.current('');
+      clearComposer();
       setEditorReferences((prev) => {
         const duplicate = prev.some((item) => item.startLine === ref.startLine && item.endLine === ref.endLine);
         return duplicate ? prev : [...prev, ref];
@@ -1253,8 +1337,13 @@ function DesktopCopilotPanel({
     activeMode: ChatMode,
     displayText?: string,
   ): Promise<void> => {
-    if (!text || chatLoading.get()) return;
+    if (!text || chatLoading.get()) {
+      systemSubmitRef.current = false;
+      return;
+    }
+    clearComposer();
     if (!settings.endpoint) {
+      systemSubmitRef.current = false;
       setStatus('⚠ No endpoint configured. Click the settings icon to set one.');
       return;
     }
@@ -1267,9 +1356,11 @@ function DesktopCopilotPanel({
     }
     // Only record real typed prompts for arrow-up recall — not the verbose
     // machine-generated "apply this snippet" instructions.
-    if (!displayText) recordChatPrompt(text);
-    pushChatMessage('user', text, displayText
-      ? { display: displayText, replyMode: activeMode }
+    if (!displayText && !isCopilotErrorMachinePrompt(text)) recordChatPrompt(text);
+    const transcript = (displayText ?? text).trim();
+    const modelText = text.trim();
+    pushChatMessage('user', transcript, displayText && transcript !== modelText
+      ? { display: transcript, promptContent: modelText, replyMode: activeMode }
       : { replyMode: activeMode });
     cancelledRef.current = false;
     const requestGen = ++requestGenRef.current;
@@ -1283,9 +1374,58 @@ function DesktopCopilotPanel({
       return result.content;
     };
     const finishAssistant = (content: string, meta?: Parameters<typeof pushChatMessage>[2]): void => {
-      pushChatMessage('assistant', content, { ...meta, usage: turnUsage });
+      pushChatMessage('assistant', formatAssistantChatContent(content), { ...meta, usage: turnUsage });
       addCopilotSessionUsage(turnUsage);
     };
+
+    const tryLocalArrangementFix = (): boolean => {
+      if (!shouldTryLocalArrangementFix(activeMode, text)) return false;
+
+      const previous = getEditorContent();
+      const fix = resolveLocalArrangementFix(previous, text, chatHistory.get());
+      if (fix.status === 'proposed') {
+        finishAssistant(fix.explanation, {
+          replyMode: 'ask',
+          layoutFixAction: fix.action,
+          layoutFixCommandLabel: fix.commandLabel,
+        });
+        pushChatNotice(`Use **Run command locally** or reply **yes, run it** to apply ${fix.commandLabel}.`);
+        return true;
+      }
+      if (fix.status === 'already') {
+        pushChatNotice(fix.message);
+        finishAssistant(fix.message, { replyMode: activeMode });
+        return true;
+      }
+      if (fix.status !== 'applied') return false;
+      const validation = validateBaxSource(fix.song);
+      if (!validation.ok) {
+        pushChatNotice(`Could not apply arrangement fix: ${validation.errors[0] ?? 'parse error'}`);
+        finishAssistant(
+          `Could not apply arrangement fix: ${validation.errors[0] ?? 'parse error'}`,
+          { replyMode: activeMode, applyBlocked: true },
+        );
+        return true;
+      }
+      onReplaceEditor(fix.song);
+      pushChatNotice(fix.message);
+      finishAssistant(fix.message, {
+        replyMode: activeMode,
+        applied: true,
+        applyOutcome: 'kept',
+        changedLines: 0,
+        changeSummary: [fix.message],
+        documentName: readPersistedDocument().name,
+      });
+      return true;
+    };
+
+    if (tryLocalArrangementFix()) {
+      chatLoading.set(false);
+      abortRef.current = null;
+      systemSubmitRef.current = false;
+      return;
+    }
     try {
       let response = await requestCompletion();
       if (requestGen !== requestGenRef.current || cancelledRef.current) return;
@@ -1308,6 +1448,23 @@ function DesktopCopilotPanel({
       if (activeMode === 'edit') {
         applyExplanation = extractEditExplanation(response);
         let baxCode = extractBaxCode(response);
+        let noBaxAttempts = 0;
+        while (baxCode === null && noBaxAttempts < MAX_NO_BAX_REPAIR_ATTEMPTS) {
+          if (requestGen !== requestGenRef.current || cancelledRef.current) return;
+          if (isEmptyAIChatContent(response)) {
+            break;
+          }
+          noBaxAttempts += 1;
+          pushChatNotice('No ```bax block found — asking Copilot for the full song…');
+          const repairPrompt = buildMissingBaxRepairPrompt(text, getEditorContent());
+          response = await requestCompletion([
+            { role: 'assistant', content: response },
+            { role: 'user', content: repairPrompt },
+          ]);
+          if (requestGen !== requestGenRef.current || cancelledRef.current) return;
+          applyExplanation = extractEditExplanation(response) || applyExplanation;
+          baxCode = extractBaxCode(response);
+        }
         if (baxCode !== null) {
           // Validate and auto-repair: feed parse errors back to the model and retry.
           for (;;) {
@@ -1483,9 +1640,11 @@ function DesktopCopilotPanel({
       if (requestGen === requestGenRef.current) {
         chatLoading.set(false);
         abortRef.current = null;
+        systemSubmitRef.current = false;
+        flushSync(() => clearComposer());
       }
     }
-  }, [generate, getEditorContent, loading, onHighlightChanges, onReplaceEditor, settings]);
+  }, [clearComposer, generate, getEditorContent, loading, onHighlightChanges, onReplaceEditor, settings]);
 
   submitPromptRef.current = submitPrompt;
 
@@ -1495,6 +1654,31 @@ function DesktopCopilotPanel({
       return;
     }
     const previous = getEditorContent();
+    const fix = tryApplyArrangementLayoutFix(previous, snippet, assistantContext);
+    if (fix.status === 'proposed') {
+      pushChatMessage('assistant', fix.explanation, {
+        replyMode: 'ask',
+        layoutFixAction: fix.action,
+        layoutFixCommandLabel: fix.commandLabel,
+      });
+      pushChatNotice(`Use **Run command locally** or reply **yes, run it** to apply ${fix.commandLabel}.`);
+      return;
+    }
+    if (fix.status === 'applied') {
+      const validation = validateBaxSource(fix.song);
+      if (!validation.ok) {
+        pushChatNotice(`Could not apply arrangement fix: ${validation.errors[0] ?? 'parse error'}`);
+        return;
+      }
+      onReplaceEditor(fix.song);
+      pushChatNotice(fix.message);
+      return;
+    }
+    if (fix.status === 'already') {
+      pushChatNotice(fix.message);
+      return;
+    }
+
     if (snippet?.trim()) {
       const merged = tryMergeSnippetIntoSong(previous, snippet);
       if (merged) {
@@ -1510,14 +1694,48 @@ function DesktopCopilotPanel({
         }
       }
     }
+    if (isArrangementLayoutFixIntent(snippet, assistantContext)) {
+      pushChatNotice('Could not apply arrangement layout fix locally — check the song has `seq` definitions before `channel` lines.');
+      return;
+    }
     chatMode.set('edit');
     pushChatNotice('Switched to Edit mode — applying fix…');
+    clearComposer();
     const prompt = buildMinimalEditFixPrompt(snippet, assistantContext);
     await submitPromptRef.current(
       prompt,
       'edit',
       snippet?.trim() ? 'Apply suggested fix' : 'Apply fix from explanation',
     );
+  }, [clearComposer, getEditorContent, loading, onReplaceEditor]);
+
+  const runLayoutFixCommand = useCallback((action: ArrangementLayoutFixAction, commandLabel: string) => {
+    if (loading) {
+      pushChatNotice('Copilot is still busy — wait for the current reply.');
+      return;
+    }
+    const previous = getEditorContent();
+    const fix = tryApplyArrangementLayoutFix(previous, 'yes, run it', undefined, { confirmed: true, action });
+    if (fix.status === 'applied') {
+      const validation = validateBaxSource(fix.song);
+      if (!validation.ok) {
+        pushChatNotice(`Could not run ${commandLabel}: ${validation.errors[0] ?? 'parse error'}`);
+        return;
+      }
+      onReplaceEditor(fix.song);
+      pushChatMessage('assistant', fix.message, {
+        replyMode: 'ask',
+        applied: true,
+        applyOutcome: 'kept',
+        changeSummary: [fix.message],
+        documentName: readPersistedDocument().name,
+      });
+      pushChatNotice(fix.message);
+      return;
+    }
+    if (fix.status === 'already') {
+      pushChatNotice(fix.message);
+    }
   }, [getEditorContent, loading, onReplaceEditor]);
 
   const cancelRequest = useCallback((): void => {
@@ -1528,8 +1746,10 @@ function DesktopCopilotPanel({
     void window.electronAPI?.cancelAIChatCompletion?.().catch(() => undefined);
     chatLoading.set(false);
     abortRef.current = null;
+    systemSubmitRef.current = false;
     pushChatNotice('Request cancelled.');
-  }, [loading]);
+    clearComposer();
+  }, [clearComposer, loading]);
 
   const sendMessage = useCallback(async (): Promise<void> => {
     const text = input.trim();
@@ -1539,10 +1759,7 @@ function DesktopCopilotPanel({
     const displayText = editorReferences.length > 0
       ? (text ? `[${refLabels}] ${text}` : `[${refLabels}]`)
       : undefined;
-    setInput('');
     setEditorReferences([]);
-    promptHistoryIndexRef.current = null;
-    promptDraftRef.current = '';
     if (text) recordChatPrompt(text);
     await submitPrompt(resolvedPrompt, mode, displayText);
   }, [editorReferences, getEditorContent, input, loading, mode, submitPrompt]);
@@ -1550,10 +1767,10 @@ function DesktopCopilotPanel({
 
   const modelLabel = useMemo(() => settings.model || 'model not set', [settings.model]);
 
-  const draftUserText = useMemo(
-    () => buildUserMessageWithReferences(input.trim(), editorReferences, getEditorContent()),
-    [editorReferences, getEditorContent, input],
-  );
+  const draftUserText = useMemo(() => {
+    const text = input.trim();
+    return buildUserMessageWithReferences(text, editorReferences, getEditorContent());
+  }, [editorReferences, getEditorContent, input]);
 
   const lastUsage = useMemo(() => {
     for (let i = history.length - 1; i >= 0; i -= 1) {
@@ -1596,15 +1813,20 @@ function DesktopCopilotPanel({
   }, [activeSessionId, loading]);
 
   const setInputFromHistory = useCallback((value: string): void => {
-    setInput(value);
+    if (isCopilotErrorMachinePrompt(value)) {
+      clearComposer();
+      return;
+    }
+    setComposerInput(value);
     window.requestAnimationFrame(() => {
       const textarea = inputRef.current;
       if (!textarea) return;
+      adjustCopilotInputHeight(textarea);
       textarea.focus();
       textarea.selectionStart = value.length;
       textarea.selectionEnd = value.length;
     });
-  }, []);
+  }, [clearComposer, setComposerInput]);
 
   const handleInputKeyDown = useCallback((event: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -1703,6 +1925,7 @@ function DesktopCopilotPanel({
               message={message}
               mode={mode}
               onFixInEditMode={applyFixInEditMode}
+              onRunLayoutFixCommand={runLayoutFixCommand}
               onInsertSnippet={onInsertSnippet}
               onReplaceEditor={onReplaceEditor}
               onReplaceSelection={onReplaceSelection}
@@ -1746,11 +1969,13 @@ function DesktopCopilotPanel({
         ) : null}
         <div className="bb-chat-input-wrap">
           <textarea
+            autoComplete="off"
             className="bb-chat-input"
+            disabled={loading}
             onChange={(event) => {
               promptHistoryIndexRef.current = null;
               promptDraftRef.current = '';
-              setInput(event.target.value);
+              setComposerInput(event.target.value);
               adjustCopilotInputHeight(event.currentTarget);
             }}
             onKeyDown={handleInputKeyDown}

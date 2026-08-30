@@ -1,4 +1,5 @@
 import type * as monaco from 'monaco-editor';
+import { refreshEditorFolding } from '@beatbax/app-core/editor/editor-folding';
 import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 
 export interface EditorViewToolbarHandle {
@@ -11,12 +12,7 @@ export function applyCommentsFoldPreference(
   folded = settingFoldComments.get(),
   toolbar?: EditorViewToolbarHandle | null,
 ): void {
-  if (!editor) return;
-  if (folded) {
-    editor.trigger('beatbax', 'editor.foldAllBlockComments', null);
-  } else {
-    editor.trigger('beatbax', 'editor.unfoldAll', null);
-  }
+  refreshEditorFolding(editor, folded);
   toolbar?.setFoldCommentsActive(folded);
 }
 
@@ -25,14 +21,8 @@ export function scheduleCommentsFoldPreference(
   editor: monaco.editor.IStandaloneCodeEditor | null | undefined,
   toolbar?: EditorViewToolbarHandle | null,
 ): void {
-  const folded = settingFoldComments.get();
-  if (!folded) {
-    applyCommentsFoldPreference(editor, false, toolbar);
-    return;
-  }
-  const fold = () => applyCommentsFoldPreference(editor, true, toolbar);
-  requestAnimationFrame(() => requestAnimationFrame(fold));
-  window.setTimeout(fold, 100);
+  refreshEditorFolding(editor, settingFoldComments.get());
+  toolbar?.setFoldCommentsActive(settingFoldComments.get());
 }
 
 export function applyStoredWordWrap(
