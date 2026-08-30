@@ -9,6 +9,8 @@ function displayKey(key: string): string {
   if (raw === ' ') return 'Space';
   if (lower === 'escape') return 'Esc';
   if (lower === 'enter') return 'Enter';
+  if (lower === 'arrowleft') return '←';
+  if (lower === 'arrowright') return '→';
   if (lower === 'f1') return 'F1';
   if (raw === '`') return '`';
   if (raw.length === 1) return raw.toUpperCase();

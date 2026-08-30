@@ -5,15 +5,25 @@ import { resolveProfileBinding } from './types.js';
 export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
   {
     id: 'transport.play',
-    description: 'Play / re-play',
+    description: 'Play / re-play (plays focused section when section focus is on)',
     category: 'Transport',
     profiles: ['desktop-full'],
     binding: { key: 'F5' },
     requiresCapability: 'nativeMenu',
   },
   {
+    id: 'patternGrid.focusSectionAtCursor',
+    description: 'Focus section at cursor (no play)',
+    category: 'Transport',
+    profiles: ['desktop-full'],
+    binding: { key: 'F6' },
+    allowInInput: true,
+    requiresCapability: 'patternGrid',
+    requiresFeatureFlag: 'feature.patternGrid',
+  },
+  {
     id: 'transport.stop',
-    description: 'Stop playback',
+    description: 'Stop playback (keeps section focus when active)',
     category: 'Transport',
     profiles: ['desktop-full'],
     binding: { key: 'F8' },
@@ -34,6 +44,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['desktop-full'],
     binding: { key: 'n', ctrl: true },
     allowInInput: true,
+    allowInMonaco: true,
     requiresCapability: 'export',
   },
   {
@@ -43,6 +54,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['web-lite', 'desktop-full'],
     binding: { key: 'o', ctrl: true },
     allowInInput: true,
+    allowInMonaco: true,
   },
   {
     id: 'file.save',
@@ -51,6 +63,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['web-lite', 'desktop-full'],
     binding: { key: 's', ctrl: true },
     allowInInput: true,
+    allowInMonaco: true,
   },
   {
     id: 'file.saveAs',
@@ -59,6 +72,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['desktop-full'],
     binding: { key: 's', ctrl: true, shift: true },
     allowInInput: true,
+    allowInMonaco: true,
     requiresCapability: 'nativeMenu',
   },
 
@@ -129,6 +143,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['web-lite', 'desktop-full'],
     binding: { key: '`', ctrl: true },
     allowInInput: true,
+    allowInMonaco: true,
     requiresCapability: 'outputPanel',
   },
   {
@@ -138,6 +153,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['web-lite', 'desktop-full'],
     binding: { key: 'p', alt: true, shift: true },
     allowInInput: true,
+    allowInMonaco: true,
     requiresCapability: 'problemsPanel',
   },
   {
@@ -194,6 +210,37 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
   },
 
   {
+    id: 'patternGrid.exitSectionFocus',
+    description: 'Exit section focus',
+    category: 'Pattern Grid',
+    profiles: ['desktop-full'],
+    binding: { key: 'Escape' },
+    allowInInput: true,
+    requiresCapability: 'patternGrid',
+    requiresFeatureFlag: 'feature.patternGrid',
+  },
+  {
+    id: 'patternGrid.previousSection',
+    description: 'Previous section (while section focus is on)',
+    category: 'Pattern Grid',
+    profiles: ['desktop-full'],
+    binding: { key: 'ArrowLeft', alt: true },
+    allowInInput: true,
+    requiresCapability: 'patternGrid',
+    requiresFeatureFlag: 'feature.patternGrid',
+  },
+  {
+    id: 'patternGrid.nextSection',
+    description: 'Next section (while section focus is on)',
+    category: 'Pattern Grid',
+    profiles: ['desktop-full'],
+    binding: { key: 'ArrowRight', alt: true },
+    allowInInput: true,
+    requiresCapability: 'patternGrid',
+    requiresFeatureFlag: 'feature.patternGrid',
+  },
+
+  {
     id: 'help.showHelp',
     description: 'Show Help tab',
     category: 'Help',
@@ -209,6 +256,7 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     profiles: ['web-lite', 'desktop-full'],
     binding: { key: 'h', alt: true, shift: true },
     allowInInput: true,
+    allowInMonaco: true,
     requiresCapability: 'helpPanel',
   },
   {

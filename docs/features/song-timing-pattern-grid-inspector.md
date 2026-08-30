@@ -3,11 +3,11 @@ title: "Song Timing Pattern Grid Inspector"
 status: proposed
 authors: ["kadraman"]
 created: 2026-06-28
-updated: 2026-08-24
+updated: 2026-08-28
 issue: https://github.com/kadraman/beatbax/issues/191
 related:
   - docs/features/pattern-grid-seek-and-loop.md
-  - docs/features/pattern-combination-preview.md
+  - docs/features/complete/pattern-combination-preview.md
 ---
 
 ## Summary
@@ -15,6 +15,16 @@ related:
 Add a Pattern Grid diagnostics mode that visualizes resolved song timing across channels and highlights pattern/sequence length problems before playback or export.
 
 The goal is to make sync issues visible in the UI instead of requiring manual inspection of `.bax` source or exported tracker files. This feature complements the proposed Pattern Grid seek/loop work by using the same timeline representation for validation, debugging, and authoring feedback.
+
+### Relationship to shipped work
+
+**[Pattern Combination Preview](complete/pattern-combination-preview.md)** (complete) added Desktop Pattern Grid capabilities this inspector should build on:
+
+- **Section lane** — collapsed seq-level blocks (`listArrangementSections`) for arrangement overview.
+- **Section focus** — column highlight and editor decorations for one time-aligned section; not a diagnostics mode.
+- **Shared timeline model** — [`arrangement-slice.ts`](../../packages/app-core/src/editor/arrangement-slice.ts) already maps channels to `TimedSegment[]` with `startStep` / `endStep`. The inspector's proposed `ResolvedTimelineBlock` should extend or reuse this rather than invent a parallel resolver.
+
+Section-level **play** on Desktop is available today via section focus (synthetic AST), not via seek/loop. This inspector spec's "click-to-play or loop selected sections" should treat section focus as the baseline for **section** playback; arbitrary range play/loop remains dependent on [pattern-grid-seek-and-loop.md](pattern-grid-seek-and-loop.md).
 
 ---
 
@@ -176,11 +186,11 @@ Once the grid has `ResolvedTimelineBlock[]`, it can support:
 
 - Visual length comparisons across channels.
 - Click-to-source navigation from a block to the `pat` or `seq` definition.
-- Click-to-play or loop selected sections once seek/loop support lands.
+- Section-level play/focus on Desktop (shipped via [pattern-combination-preview](complete/pattern-combination-preview.md)); arbitrary range play/loop once [seek/loop](pattern-grid-seek-and-loop.md) lands.
 - Export-aware overlays, such as UGE pattern/order boundaries.
 - "Why does this sound out of sync?" diagnostics grounded in the same timeline users hear.
 
-The seek/loop feature and this inspector can share the same global step coordinate system. Seek/loop makes the grid interactive for playback; the Timing Inspector makes it explanatory.
+The seek/loop feature and this inspector can share the same global step coordinate system already started in `arrangement-slice.ts`. Seek/loop makes the grid interactive for playback on the **full** timeline; the Timing Inspector makes it explanatory; section focus (shipped) covers **named section columns** via synthetic AST.
 
 ---
 
@@ -272,7 +282,7 @@ Add focused fixtures for:
 - A section with mismatched channel sequence lengths is highlighted across all affected channel rows.
 - Percussion timing warnings identify the relevant pattern and steps.
 - UGE readiness warnings appear before export and match exporter behavior.
-- Existing Pattern Grid playback visualization remains unchanged unless the inspector mode is enabled.
+- Existing Pattern Grid section lane, focus highlight, and playback playhead remain unchanged unless the inspector mode is enabled.
 
 ---
 

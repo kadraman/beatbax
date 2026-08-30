@@ -62,6 +62,7 @@ Confirm these remain covered (or note gaps):
 | External `.bax` reload (edit in another editor, BeatBax picks it up) | | Settings → Editor: When the open file changes on disk |
 | Toolbar / transport click and hover reliability | | Unmute, clear solo, performance mode, visualizer |
 | Shared keyboard shortcuts (menus, toolbar, Help, editor) | | Include macOS label check when on macOS |
+| Pattern Grid section focus shortcuts | | F6 focus; Esc exit; Alt+←/→ prev/next section; F5/F8 scoped playback |
 | Copilot smoke (panel, Settings AI, Ask prompt) | | See [copilot-test-scenarios.md](../copilot-test-scenarios.md) |
 | New Song Wizard (chip cards, metadata, audible preview) | | |
 | Export smoke: JSON and WAV | | |

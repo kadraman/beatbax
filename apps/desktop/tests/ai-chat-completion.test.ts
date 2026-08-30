@@ -1,4 +1,6 @@
 import {
+  formatAssistantChatContent,
+  isEmptyAIChatContent,
   normalizeAIChatCompletionResult,
   parseAIChatCompletionResponse,
   parseAIChatUsage,
@@ -34,7 +36,7 @@ describe('parseAIChatCompletionResponse', () => {
   });
 
   it('falls back when content is empty', () => {
-    expect(parseAIChatCompletionResponse({})).toEqual({ content: '(no response)' });
+    expect(parseAIChatCompletionResponse({})).toEqual({ content: '' });
   });
 });
 
@@ -51,5 +53,17 @@ describe('normalizeAIChatCompletionResult', () => {
       content: 'ok',
       usage: { promptTokens: 3, completionTokens: 1, totalTokens: 4 },
     });
+  });
+});
+
+describe('formatAssistantChatContent', () => {
+  it('replaces empty internal responses with a user-facing message', () => {
+    expect(formatAssistantChatContent('')).toBe(
+      'Copilot returned an empty response. The editor was not changed.',
+    );
+    expect(formatAssistantChatContent('(no response)')).toBe(
+      'Copilot returned an empty response. The editor was not changed.',
+    );
+    expect(isEmptyAIChatContent('(no response)')).toBe(true);
   });
 });

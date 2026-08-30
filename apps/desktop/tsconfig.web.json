@@ -10,6 +10,7 @@
   "compilerOptions": {
     "composite": true,
     "jsx": "react-jsx",
+    "noEmit": true,
     "baseUrl": ".",
     "skipLibCheck": true,
     "noUnusedLocals": false,

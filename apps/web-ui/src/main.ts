@@ -34,6 +34,7 @@ if (!capabilities.export && capabilities.channelMixer) {
 }
 let { playbackManager, exportManager, emitParse } = appContext;
 import type { ValidationIssue } from '@beatbax/app-core/types/validation';
+import { countValidationWarningBadge } from '@beatbax/app-core/types/validation';
 import {
   createLogger,
   loadLoggingFromStorage,
@@ -99,6 +100,7 @@ import { LoadingOverlay } from './ui/loading-overlay';
 import { ThemeManager } from './ui/theme-manager';
 import { TransportBar } from './ui/transport-bar';
 import { PatternGrid } from './ui/pattern-grid';
+import { buildArrangementSliceSource } from '@beatbax/app-core/editor/arrangement-slice';
 import { HelpPanel } from './panels/help-panel';
 import { SongVisualizer } from './panels/song-visualizer';
 import { ChannelMixer } from './panels/channel-mixer';
@@ -208,7 +210,10 @@ setupDiagnosticsIntegration(diagnosticsManager);
 parseHooks.onSetValidation = (errors, warnings) => {
   const allDiags = [
     ...errors.map(e => ({ ...e, level: 'error' as const })),
-    ...warnings.map(w => ({ ...w, level: 'warning' as const })),
+    ...warnings.map(w => ({
+      ...w,
+      level: (w.level === 'info' ? 'info' : 'warning') as 'info' | 'warning',
+    })),
   ];
   if (allDiags.length > 0) {
     diagnosticsManager?.setDiagnostics?.(warningsToDiagnostics(allDiags));
@@ -381,7 +386,7 @@ eventBus.on('playback:started', () => { if (capabilities.outputPanel) bottomTabs
 // ─── Problems tab badge ───────────────────────────────────────────────────────
 let _badgeErrors = 0, _badgeWarnings = 0;
 eventBus.on('validation:errors',   ({ errors })   => { _badgeErrors   = errors.length;   bottomTabs.updateBadge(_badgeErrors, _badgeWarnings); });
-eventBus.on('validation:warnings', ({ warnings }) => { _badgeWarnings = warnings.length; bottomTabs.updateBadge(_badgeErrors, _badgeWarnings); });
+eventBus.on('validation:warnings', ({ warnings }) => { _badgeWarnings = countValidationWarningBadge(warnings); bottomTabs.updateBadge(_badgeErrors, _badgeWarnings); });
 eventBus.on('parse:error',         ()             => { _badgeErrors   = 1;               bottomTabs.updateBadge(_badgeErrors, _badgeWarnings); });
 
 // ─── Right pane: Mixer | Help | Copilot tabs ──────────────────────────────────
@@ -622,6 +627,7 @@ if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
 
 // ─── Pattern Grid (sequence overview, sits below TransportBar) ───────────────
 let patternGrid: PatternGrid | null = null;
+let lastSongContext: { song: unknown; ast?: unknown } | null = null;
 if (capabilities.patternGrid) {
   patternGrid = new PatternGrid();
   patternGridContainer.appendChild(patternGrid.el);
@@ -645,8 +651,9 @@ let _loopUserOverride = false;
 let _bpmUserOverride = false;
 
 // Update transport display from parser / playback events
-eventBus.on('parse:success', ({ ast, sourceBpm: evtSourceBpm }) => {
+eventBus.on('parse:success', ({ ast, sourceBpm: evtSourceBpm, ephemeral }: any) => {
   try {
+    if (ephemeral) return;
     // Use sourceBpm from the event when available (emitted by PlaybackManager
     // *before* any BPM override is applied). Fall back to ast.bpm for events
     // emitted by emitParse(), which always reflects the raw source value.
@@ -699,15 +706,21 @@ eventBus.on('parse:success', ({ ast, sourceBpm: evtSourceBpm }) => {
 });
 
 // Update pattern grid on each successful parse
-eventBus.on('parse:success', ({ ast, song, valid }: any) => {
+eventBus.on('parse:success', ({ ast, song, valid, ephemeral }: any) => {
   try {
+    if (ephemeral) return;
     // Ensure the channel store has entries for every channel in this song
     // so mute/solo work for all channels (e.g. NES channel 5 DMC).
     if (ast?.channels?.length) {
       ensureChannels((ast.channels as any[]).map((c: any) => c.id as number));
     }
     if (!isParseSuccessValid({ valid })) return;
-    if (song) patternGrid?.setSong(song, ast);
+    if (song) {
+      lastSongContext = { song, ast };
+      patternGrid?.setSong(song, ast, getSource());
+    } else {
+      lastSongContext = null;
+    }
   } catch (_e) {}
 });
 
@@ -724,6 +737,27 @@ patternGrid.onNavigate = (patName: string) => {
         break;
       }
     }
+  } catch (_e) {}
+};
+patternGrid.onPlaySlice = (request) => {
+  try {
+    if (!lastSongContext?.song) return;
+    const result = buildArrangementSliceSource(
+      getSource(),
+      lastSongContext.song,
+      lastSongContext.ast,
+      {
+        channelId: request.channelId,
+        startStep: request.startStep,
+        endStep: request.endStep,
+        seqName: request.seqName,
+        patName: request.patName,
+      },
+      { loop: !!request.loop },
+    );
+    if (!result) return;
+    bottomTabs.show('output');
+    void playbackManager.play(result.source, { ephemeral: true });
   } catch (_e) {}
 };
 }
@@ -1459,7 +1493,8 @@ settingFoldComments.subscribe((folded) => menuBar?.setFoldAllChecked(folded));
 }
 
 // Keep the menu bar song name in sync with the parsed metadata.name directive.
-eventBus.on('parse:success', ({ ast, valid }: any) => {
+eventBus.on('parse:success', ({ ast, valid, ephemeral }: any) => {
+  if (ephemeral) return;
   const metaName = (ast as any)?.metadata?.name;
   menuBar?.setSongName(metaName || (loadedFilename === 'song' ? 'untitled' : loadedFilename));
   toolbar?.setChip((ast as any)?.chip || 'gameboy');
@@ -1680,8 +1715,8 @@ const dragDrop = new DragDropHandler(document.body, {
 })();
 
 // ─── Monaco editor shortcut commands ────────────────────────────────────────
-// These fire when the Monaco editor has focus and complement the global window
-// handler (which is blocked by isInInput when Monaco has focus).
+// These fire when the Monaco editor has focus. The global catalog handler skips
+// Monaco unless a shortcut is marked allowInMonaco (e.g. file save).
 const monacoInst = editor.editor;
 const toggleTheme = () => themeManager.toggle();
 
@@ -1796,8 +1831,9 @@ setupCommandPalette({
       eventBus.emit('preview:chunkInfo', { chunkInfo });
     }
     bottomTabs.show('output');
-    playbackManager.play(src);
+    void playbackManager.play(src, { ephemeral: true });
   },
+  getSongContext: () => lastSongContext,
   onExportData: handleExportData,
 });
 }

@@ -947,6 +947,7 @@ export function setupCodeLensPreview(
 
   // ── EventBus subscriptions ────────────────────────────────────────────────
   const unsubParseSuccess = eventBus.on('parse:success', (payload) => {
+    if (payload.ephemeral) return;
     hasValidParse = payload.valid !== false;
     notifyChange();
   });

@@ -3,12 +3,12 @@ title: "Pattern Grid Seek And Loop Playback"
 status: proposed
 authors: ["kadraman"]
 created: 2026-06-22
-updated: 2026-08-24
+updated: 2026-08-28
 issue: https://github.com/kadraman/beatbax/issues/190
 related:
   - docs/features/desktop-client-enhancements.md
   - docs/features/complete/daw-channel-mixer.md
-  - docs/features/pattern-combination-preview.md
+  - docs/features/complete/pattern-combination-preview.md
   - docs/features/song-timing-pattern-grid-inspector.md
 ---
 
@@ -17,6 +17,21 @@ related:
 Add DAW-style navigation controls to the Pattern Grid so users can choose where playback starts and define a loop range directly on the song timeline.
 
 The Pattern Grid already provides a compact per-channel overview and a global playhead. This feature turns that read-only timeline into an interactive playback surface while keeping the first implementation conservative: snap to pattern or bar boundaries before attempting arbitrary step-level seeking.
+
+### Relationship to shipped work
+
+**[Pattern Combination Preview](complete/pattern-combination-preview.md)** (complete, issue #189) is **Phase 0** of timeline interaction — not this feature:
+
+| Shipped today (synthetic AST) | This spec (engine seek/loop) |
+| --- | --- |
+| Play a **named section column** (seq-level window) on all channels | Play from **any** pending start step on the **full** song |
+| Loop via transport toggle + `play auto repeat` on synthetic source | Loop via **drag-selected range** on the full timeline |
+| Section focus mode (F5/F6/F8, section lane, editor highlight) | Pending start marker + loop handles on the grid |
+| No engine `startStep` / `endStep` | Requires engine range-aware scheduling |
+
+Desktop section focus may **look** like loop/seek (column highlight, playhead at section start) but it does not implement drag-to-set start, drag loop ranges, or mid-song seek on the unresolved full song. This spec remains the right long-term design for those behaviours.
+
+Shared foundation already in app-core: [`arrangement-slice.ts`](../../packages/app-core/src/editor/arrangement-slice.ts) (`buildChannelTimelines`, step windows, `listArrangementSections`) — seek/loop UI should reuse the same global step coordinate system.
 
 ---
 

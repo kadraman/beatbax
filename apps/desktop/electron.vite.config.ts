@@ -39,6 +39,8 @@ export default defineConfig({
         fs: resolve(__dirname, 'src/renderer/src/electron-fs.ts'),
         path: resolve(__dirname, '../web-ui/src/utils/browser-path.ts'),
       },
+      // Prefer TypeScript sources over stale co-located .js emit in src/.
+      extensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.mts', '.json'],
       conditions: ['browser', 'module', 'import', 'default'],
     },
     define: {

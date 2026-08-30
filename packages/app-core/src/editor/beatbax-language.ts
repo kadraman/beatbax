@@ -36,7 +36,8 @@ let tokenCache: { versionId: number; data: Uint32Array } | null = null;
 const semanticTokensChangedEmitter = new monaco.Emitter<void>();
 /** Chip name resolved from the latest successfully-parsed AST. */
 let latestChip: string = 'gameboy';
-eventBus.on('parse:success', ({ ast, resolvedAst, song }) => {
+eventBus.on('parse:success', ({ ast, resolvedAst, song, ephemeral }) => {
+  if (ephemeral) return;
   latestAST = ast;
   latestResolvedAst = resolvedAst ?? ast;
   latestSong = song ?? null;
@@ -660,6 +661,7 @@ export function registerBeatBaxLanguage(): void {
       { open: '{', close: '}' },
       { open: '"', close: '"' },
     ],
+    wordPattern: /(-?\d*\.\d\w*)|([A-Za-z_][A-Za-z0-9_]*)/g,
   });
 
   // Set syntax highlighting (Monarch tokenizer)

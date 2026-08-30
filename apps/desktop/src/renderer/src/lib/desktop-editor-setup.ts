@@ -37,6 +37,18 @@ export interface DesktopEditorSetupOptions {
   handleExport: (format: ExportFormat) => Promise<void>;
   onAstParsed: (ast: unknown) => void;
   toolbar?: DesktopToolbarHandle | null;
+  /** Latest resolved song + AST for arrangement-slice command. */
+  getSongContext?: () => { song: unknown; ast?: unknown } | null;
+  /** Enter Pattern Grid section focus from editor command palette. */
+  onSectionFocusEnter?: (payload: {
+    channelId: number;
+    startStep: number;
+    endStep: number;
+    seqName: string | null;
+    patName: string;
+    play?: boolean;
+    loop?: boolean;
+  }) => void;
 }
 
 export interface DesktopEditorSetupHandle {
@@ -57,6 +69,8 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
     handleExport,
     onAstParsed,
     toolbar,
+    getSongContext,
+    onSectionFocusEnter,
   } = options;
   const { eventBus, capabilities, playbackManager } = appContext;
   const monacoEditor = editor.editor;
@@ -85,7 +99,10 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
   parseHooks.onSetValidation = (errors, warnings) => {
     const allDiags = [
       ...errors.map((e) => ({ ...e, level: 'error' as const })),
-      ...warnings.map((w) => ({ ...w, level: 'warning' as const })),
+      ...warnings.map((w) => ({
+        ...w,
+        level: (w.level === 'info' ? 'info' : 'warning') as 'info' | 'warning',
+      })),
     ];
     if (allDiags.length > 0) {
       diagnosticsManager.setDiagnostics(warningsToDiagnostics(allDiags));
@@ -142,7 +159,8 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
       monacoEditor.revealLineInCenter(line);
       monacoEditor.focus();
     }),
-    eventBus.on('parse:success', ({ ast }: { ast?: unknown }) => {
+    eventBus.on('parse:success', ({ ast, ephemeral }: { ast?: unknown; ephemeral?: boolean }) => {
+      if (ephemeral) return;
       lastParsedAst = ast ?? null;
       onAstParsed(lastParsedAst);
       refreshScaleContextStrip();
@@ -160,10 +178,10 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
     }),
     eventBus.on('validation:warnings', ({ warnings }) => {
       lastDiagnostics = [
-        ...lastDiagnostics.filter((d) => d.severity !== 'warning'),
-        ...warnings.map((w: { message: string; loc?: { start?: { line?: number; column?: number } } }) => ({
+        ...lastDiagnostics.filter((d) => d.severity !== 'warning' && d.severity !== 'info'),
+        ...warnings.map((w: { message: string; loc?: { start?: { line?: number; column?: number } }; level?: string }) => ({
           message: w.message,
-          severity: 'warning' as const,
+          severity: (w.level === 'info' ? 'info' : 'warning') as 'info' | 'warning',
           startLine: w.loc?.start?.line ?? 1,
           startColumn: w.loc?.start?.column ?? 1,
         })),
@@ -194,7 +212,18 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
           eventBus.emit('preview:chunkInfo', { chunkInfo });
         }
         bottomTabs.show('output');
-        playbackManager.play(src);
+        void playbackManager.play(src, { ephemeral: true });
+      },
+      getSongContext,
+      onSectionFocusEnter,
+      onOutputMessage: (message) => {
+        outputPanel.addMessage({
+          type: message.type,
+          message: message.message,
+          source: message.source ?? 'command',
+          timestamp: new Date(),
+        });
+        if (message.focus) bottomTabs.show('output');
       },
       ...(capabilities.copilot ? {
         onAddSelectionToCopilot: (payload) => {
