@@ -67,6 +67,8 @@ describe('tryApplyArrangementLayoutFix', () => {
     const { ast: nextAst } = parseWithPeggy(result.song);
     expect(detectArrangementLayout(result.song, nextAst)).toBe('structured');
     expect(result.song).toMatch(/# --- Section 1: Intro ---/);
+    expect(result.song).toMatch(/Square 2 \(Arpeggio counter-melody\)/);
+    expect(result.song).toMatch(/Timing summary:/);
   });
 
   it('reports already when section headers exist', () => {
@@ -102,6 +104,8 @@ describe('tryApplyArrangementLayoutFix', () => {
     expect(result.action).toBe('split_monolithic');
     expect(result.commandLabel).toMatch(/Split Monolithic Channel Sequences/i);
     expect(result.explanation).toMatch(/Edit mode cannot safely rewrite/i);
+    expect(result.explanation).not.toMatch(/\$\{split\.sectionCount\}/);
+    expect(result.explanation).toMatch(/5 groups/);
   });
 
   it('splits monolithic battle_fanfare after confirmation', () => {

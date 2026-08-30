@@ -79,8 +79,17 @@ export function createAppContext(options: CreateAppContextOptions = {}): AppCont
         });
       }
       for (const d of ((ast as any).diagnostics ?? [])) {
-        const entry = { component: d.component ?? 'parser', message: d.message, loc: d.loc };
-        if (d.level === 'error') errors.push(entry);
+        const level: ValidationIssue['level'] =
+          d.level === 'error' ? 'error'
+            : d.level === 'info' ? 'info'
+              : 'warning';
+        const entry: ValidationIssue = {
+          component: d.component ?? 'parser',
+          message: d.message,
+          loc: d.loc,
+          level,
+        };
+        if (level === 'error') errors.push(entry);
         else warnings.push(entry);
       }
 

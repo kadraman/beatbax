@@ -1,4 +1,4 @@
-import type { AppContext, ParsePipelineHooks } from '@beatbax/app-core';
+import { countValidationWarningBadge } from '@beatbax/app-core/types/validation';
 import { isParseSuccessValid } from '@beatbax/app-core/parse/parse-validity';
 import { insertHelpSnippetBlock, type BeatBaxEditor } from '@beatbax/app-core/editor';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
@@ -310,7 +310,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     }),
     eventBus.on('validation:warnings', ({ warnings }) => {
       if (warnings.length > 0) bottomTabs.show('problems');
-      badgeWarnings = warnings.length;
+      badgeWarnings = countValidationWarningBadge(warnings);
       bottomTabs.updateBadge(badgeErrors, badgeWarnings);
     }),
     eventBus.on('parse:error', () => {
@@ -730,16 +730,17 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       clearSectionFocus();
       lastSongContext = null;
     }),
-    eventBus.on('parse:success', ({ ast, song, valid, ephemeral }: { ast?: unknown; song?: unknown; valid?: boolean; ephemeral?: boolean }) => {
+    eventBus.on('parse:success', ({ ast, resolvedAst, song, valid, ephemeral }: { ast?: unknown; resolvedAst?: unknown; song?: unknown; valid?: boolean; ephemeral?: boolean }) => {
       try {
         // Ephemeral plays (arrangement slice, Play Selection) must not replace
         // the Pattern Grid / song context with the synthetic AST.
         if (ephemeral) return;
 
-        const channels = (ast as { channels?: Array<{ id: number }> })?.channels;
+        const layoutAst = resolvedAst ?? ast;
+        const channels = (layoutAst as { channels?: Array<{ id: number }> })?.channels;
         if (channels?.length) ensureChannels(channels.map((c) => c.id));
-        toolbar.setChip((ast as { chip?: string })?.chip || 'gameboy');
-        menuBar?.setChip((ast as { chip?: string })?.chip || 'gameboy');
+        toolbar.setChip((layoutAst as { chip?: string })?.chip || 'gameboy');
+        menuBar?.setChip((layoutAst as { chip?: string })?.chip || 'gameboy');
         if (!isParseSuccessValid({ valid })) {
           toolbar.setExportEnabled(false);
           if (verifyPending) {
@@ -755,8 +756,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
           }
           return;
         }
-        if (song && patternGrid) patternGrid.setSong(song, ast);
-        if (song) lastSongContext = { song, ast };
+        if (song && patternGrid) patternGrid.setSong(song, layoutAst);
+        if (song) lastSongContext = { song, ast: layoutAst };
         else lastSongContext = null;
         if (sectionFocusController?.isActive()) {
           sectionFocusController.refresh();

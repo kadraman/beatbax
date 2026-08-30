@@ -24,6 +24,32 @@ function normalizeMarkerLine(line: string): string {
   return line.trim().replace(/\s+/g, ' ');
 }
 
+/** 1-based section number from `# --- Section N: … ---`, if present. */
+function parseSectionNumber(marker: string): number | null {
+  const match = marker.match(/^\s*#\s*---\s*Section\s+(\d+)\s*:/i);
+  if (!match) return null;
+  const n = parseInt(match[1], 10);
+  return Number.isFinite(n) && n >= 1 ? n : null;
+}
+
+/** Map a marker to the seq-group index it should anchor (0-based). */
+function resolveMarkerGroupIndex(
+  marker: string,
+  allMarkers: string[],
+  groupCount: number,
+): number {
+  const sectionNumber = parseSectionNumber(marker);
+  if (sectionNumber != null) {
+    return Math.min(sectionNumber - 1, groupCount - 1);
+  }
+  const normalized = normalizeMarkerLine(marker);
+  const ordinal = allMarkers.findIndex((m) => normalizeMarkerLine(m) === normalized);
+  if (ordinal >= 0) {
+    return Math.min(ordinal, groupCount - 1);
+  }
+  return 0;
+}
+
 function markerAlreadyInSource(source: string, marker: string): boolean {
   const target = normalizeMarkerLine(marker);
   return source.split('\n').some((line) => normalizeMarkerLine(line) === target);
@@ -118,12 +144,12 @@ export function tryMergeSectionMarkersIntoSong(
   const anchor = findSectionMarkerAnchorLine(lines);
   if (anchor < 0) return null;
 
-  if (groupStarts.length >= 2 && missing.length > 1) {
+  if (groupStarts.length >= 2) {
     const placements: Array<{ index: number; marker: string }> = [];
     const groupCount = groupStarts.length;
-    for (let i = 0; i < missing.length; i++) {
-      const groupIndex = Math.min(i, groupCount - 1);
-      placements.push({ index: groupStarts[groupIndex], marker: missing[i] });
+    for (const marker of missing) {
+      const groupIndex = resolveMarkerGroupIndex(marker, markers, groupCount);
+      placements.push({ index: groupStarts[groupIndex], marker });
     }
 
     placements.sort((a, b) => b.index - a.index);

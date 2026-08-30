@@ -15,6 +15,13 @@ export interface RestructurePhasedSectionsResult {
   sectionCount: number;
 }
 
+type SeqDefEntry = {
+  name: string;
+  defLine: string;
+  /** Comment/blank lines immediately preceding this definition in source order. */
+  leadingLines: string[];
+};
+
 function getAstChannelSpecTokens(astChannel: any): string[] {
   const seqSpec: string[] | undefined = astChannel?.seqSpecTokens;
   if (Array.isArray(seqSpec) && seqSpec.length > 0) {
@@ -32,15 +39,6 @@ function phaseCount(ast: any): number {
     0,
     ...channels.map((ch) => getAstChannelSpecTokens(ch).length),
   );
-}
-
-function extractSeqDefinitionLines(lines: string[]): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const line of lines) {
-    const match = line.match(SEQ_DEF_LINE_RE);
-    if (match) map.set(match[1], line);
-  }
-  return map;
 }
 
 function findSeqDefinitionRegion(lines: string[]): { start: number; end: number } | null {
@@ -61,6 +59,42 @@ function findSeqDefinitionRegion(lines: string[]): { start: number; end: number 
   return { start, end };
 }
 
+/** Split the seq-definition region into entries with their preceding non-def lines. */
+function parseSeqDefinitionRegion(lines: string[], region: { start: number; end: number }): {
+  entries: SeqDefEntry[];
+  trailingLines: string[];
+} {
+  const entries: SeqDefEntry[] = [];
+  let leadingLines: string[] = [];
+
+  for (let i = region.start; i <= region.end; i++) {
+    const line = lines[i];
+    const match = line.match(SEQ_DEF_LINE_RE);
+    if (match) {
+      entries.push({
+        name: match[1],
+        defLine: line,
+        leadingLines: leadingLines.slice(),
+      });
+      leadingLines = [];
+      continue;
+    }
+    leadingLines.push(line);
+  }
+
+  return { entries, trailingLines: leadingLines };
+}
+
+function collectReferencedSeqNames(ast: any, phases: number): Set<string> {
+  const referenced = new Set<string>();
+  for (let phase = 0; phase < phases; phase++) {
+    for (const name of collectPhaseSeqNames(ast, phase)) {
+      referenced.add(name);
+    }
+  }
+  return referenced;
+}
+
 function formatPhaseLabel(seqNames: string[], phaseIndex: number): string {
   const suffixes = seqNames.map((name) => {
     const idx = name.lastIndexOf('_');
@@ -71,6 +105,16 @@ function formatPhaseLabel(seqNames: string[], phaseIndex: number): string {
     return first.charAt(0).toUpperCase() + first.slice(1);
   }
   return `Section ${phaseIndex + 1}`;
+}
+
+function pushLines(block: string[], lines: string[]): void {
+  for (const line of lines) block.push(line);
+}
+
+function trimTrailingBlankLines(block: string[]): void {
+  while (block.length > 0 && block[block.length - 1] === '') {
+    block.pop();
+  }
 }
 
 /** User-facing reason when {@link restructurePhasedSections} cannot run. */
@@ -115,11 +159,14 @@ export function restructurePhasedSections(
   const region = findSeqDefinitionRegion(lines);
   if (!region) return null;
 
-  const seqLines = extractSeqDefinitionLines(lines);
+  const { entries, trailingLines } = parseSeqDefinitionRegion(lines, region);
+  const entryByName = new Map(entries.map((entry) => [entry.name, entry]));
   const phases = phaseCount(ast);
   if (phases < 2) return null;
 
+  const referenced = collectReferencedSeqNames(ast, phases);
   const newSeqBlock: string[] = [];
+
   for (let phase = 0; phase < phases; phase++) {
     const seqNames = collectPhaseSeqNames(ast, phase);
     if (seqNames.length === 0) continue;
@@ -127,16 +174,26 @@ export function restructurePhasedSections(
     const label = formatPhaseLabel(seqNames, phase);
     newSeqBlock.push(`# --- Section ${phase + 1}: ${label} ---`);
     for (const seqName of seqNames) {
-      const defLine = seqLines.get(seqName);
-      if (!defLine) return null;
-      newSeqBlock.push(defLine);
+      const entry = entryByName.get(seqName);
+      if (!entry) return null;
+      pushLines(newSeqBlock, entry.leadingLines);
+      newSeqBlock.push(entry.defLine);
     }
     newSeqBlock.push('');
   }
 
-  while (newSeqBlock.length > 0 && newSeqBlock[newSeqBlock.length - 1] === '') {
-    newSeqBlock.pop();
+  const unreferenced = entries.filter((entry) => !referenced.has(entry.name));
+  if (unreferenced.length > 0) {
+    newSeqBlock.push('# --- Additional sequences ---');
+    for (const entry of unreferenced) {
+      pushLines(newSeqBlock, entry.leadingLines);
+      newSeqBlock.push(entry.defLine);
+    }
+    newSeqBlock.push('');
   }
+
+  pushLines(newSeqBlock, trailingLines);
+  trimTrailingBlankLines(newSeqBlock);
 
   const out = [
     ...lines.slice(0, region.start),

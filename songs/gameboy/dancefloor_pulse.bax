@@ -26,7 +26,7 @@
 ##   arp  : arpeggio effect preset used for the sustained outro chord (arpShimmer), as an
 ##          alternative technique to the manually-written arpeggio patterns used elsewhere
 ##
-## Play: node bin/beatbax play songs/features/dancefloor_pulse_gameboy.bax
+## Play: node bin/beatbax play songs/features/dancefloor_pulse.bax
 
 song name "Dancefloor Pulse (Game Boy)"
 song artist "The BeatBax Team"

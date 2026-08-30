@@ -178,10 +178,10 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
     }),
     eventBus.on('validation:warnings', ({ warnings }) => {
       lastDiagnostics = [
-        ...lastDiagnostics.filter((d) => d.severity !== 'warning'),
-        ...warnings.map((w: { message: string; loc?: { start?: { line?: number; column?: number } } }) => ({
+        ...lastDiagnostics.filter((d) => d.severity !== 'warning' && d.severity !== 'info'),
+        ...warnings.map((w: { message: string; loc?: { start?: { line?: number; column?: number } }; level?: string }) => ({
           message: w.message,
-          severity: 'warning' as const,
+          severity: (w.level === 'info' ? 'info' : 'warning') as 'info' | 'warning',
           startLine: w.loc?.start?.line ?? 1,
           startColumn: w.loc?.start?.column ?? 1,
         })),

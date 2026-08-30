@@ -65,4 +65,48 @@ describe('tokenSourceMeta', () => {
     expect(meta[3].seqPath).toEqual(['form', 'mel']);
     expect(meta[3].seqName).toBe('mel');
   });
+
+  it('applies fast(2) to the expanded stream, not each leaf independently', () => {
+    const groupPats = { a: ['C4'], b: ['D4'] };
+    const groupSeqs = { group: ['a', 'b'] };
+    const meta = buildTokenSourceMeta(['a', 'b'], 1, groupPats, groupSeqs, 'group', ['fast(2)']);
+    expect(meta).toHaveLength(1);
+    expect(meta[0].patBase).toBe('a');
+  });
+
+  it('applies pal to the expanded stream for correct step attribution order', () => {
+    const groupPats = { a: ['C4'], b: ['D4'] };
+    const groupSeqs = { group: ['a', 'b'] };
+    const meta = buildTokenSourceMeta(['a', 'b'], 3, groupPats, groupSeqs, 'group', ['pal']);
+    expect(meta.map((m) => m.patBase)).toEqual(['a', 'b', 'a']);
+    expect(meta.map((m) => m.patternIndex)).toEqual([0, 1, 2]);
+  });
+
+  it('applies slow to the expanded stream', () => {
+    const groupPats = { a: ['C4'], b: ['D4'] };
+    const groupSeqs = { group: ['a', 'b'] };
+    const meta = buildTokenSourceMeta(['a', 'b'], 4, groupPats, groupSeqs, 'group', ['slow(2)']);
+    expect(meta.map((m) => m.patBase)).toEqual(['a', 'a', 'b', 'b']);
+  });
+
+  it('applies item-level mods to the item stream before concatenation', () => {
+    const meta = buildTokenSourceMeta(['deep', 'land:slow(2)'], 6, pats, seqs, 'mel');
+    expect(meta.map((m) => m.patBase)).toEqual(['deep_a', 'deep_b', 'land', 'land', 'land', 'land']);
+  });
+
+  it('handles parenthesized groups with stream-level mods', () => {
+    const groupPats = { a: ['C4'], b: ['D4'] };
+    const leaves = getLeafPats('(a b):fast(2)', {}, groupPats, ['group']);
+    expect(leaves).toEqual([{ patBase: 'a', count: 1, seqPath: ['group'] }]);
+  });
+
+  it('assigns distinct patternIndex to repeated pat references', () => {
+    const meta = buildTokenSourceMeta(['p', 'p', 'p', 'p'], 4, { p: ['C4'] }, {}, 's');
+    expect(meta.map((m) => m.patternIndex)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('assigns distinct patternIndex to spaced repeat operator', () => {
+    const meta = buildTokenSourceMeta(['p * 4'], 4, { p: ['C4'] }, {}, 's');
+    expect(meta.map((m) => m.patternIndex)).toEqual([0, 1, 2, 3]);
+  });
 });

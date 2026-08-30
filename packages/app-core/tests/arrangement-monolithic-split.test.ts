@@ -51,4 +51,40 @@ describe('splitMonolithicChannelSeqs', () => {
     };
     expect(detectArrangementLayout(result!.source, splitAst)).toBe('structured');
   });
+
+  it('preserves spaced * N repetition as one slot when splitting seq bodies', () => {
+    const src = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+inst harm type=pulse2 duty=25 env=10,down
+pat a = C4 E4 G4 C5
+pat b = D4 F4 A4 D5
+pat c = E4 G4 B4 E5
+pat d = F4 A4 C5 F5
+seq pulse1_main = a b * 2 c d
+seq pulse2_main = a b * 2 c d
+channel 1 => inst lead seq pulse1_main
+channel 2 => inst harm seq pulse2_main
+play`;
+    const ast = {
+      channels: [
+        { id: 1, inst: 'lead', seqSpecTokens: ['pulse1_main'] },
+        { id: 2, inst: 'harm', seqSpecTokens: ['pulse2_main'] },
+      ],
+      seqs: {
+        pulse1_main: ['a', 'b', 'b', 'c', 'd'],
+        pulse2_main: ['a', 'b', 'b', 'c', 'd'],
+      },
+    };
+    const sections = [
+      { label: 'First', tokenCount: 2 },
+      { label: 'Second', tokenCount: 2 },
+    ];
+    const result = splitMonolithicChannelSeqs(src, ast, sections);
+    expect(result).not.toBeNull();
+    expect(result!.source).toMatch(/seq pulse1_first = a b\*2/);
+    expect(result!.source).toMatch(/seq pulse1_second = c d/);
+    expect(result!.source).toMatch(/seq pulse2_first = a b\*2/);
+    expect(result!.source).not.toMatch(/seq pulse1_first = a b \* 2 c/);
+  });
 });

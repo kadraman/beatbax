@@ -140,7 +140,7 @@ function proposeForLayout(
           '',
           'This song has **one long `seq` per channel**, so section focus plays the whole timeline.',
           '',
-          'BeatBax can split each channel into aligned section sequences (${split.sectionCount} groups) so the Pattern Grid section lane and slice playback work.',
+          `BeatBax can split each channel into aligned section sequences (${split.sectionCount} groups) so the Pattern Grid section lane and slice playback work.`,
           '',
           '**Edit mode cannot safely rewrite this file with AI** — it is too large for a full-song reply.',
         ].join('\n'),

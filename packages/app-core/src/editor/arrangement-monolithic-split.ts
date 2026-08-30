@@ -39,7 +39,7 @@ function slugifySectionLabel(label: string): string {
 }
 
 function tokenizeSeqBody(body: string): string[] {
-  const tokens: string[] = [];
+  const raw: string[] = [];
   let current = '';
   let depth = 0;
   for (let i = 0; i < body.length; i++) {
@@ -55,14 +55,33 @@ function tokenizeSeqBody(body: string): string[] {
       continue;
     }
     if (/\s/.test(ch) && depth === 0) {
-      if (current.trim()) tokens.push(current.trim());
+      if (current.trim()) raw.push(current.trim());
       current = '';
       continue;
     }
     current += ch;
   }
-  if (current.trim()) tokens.push(current.trim());
-  return tokens;
+  if (current.trim()) raw.push(current.trim());
+  return mergeSpacedRepetitionTokens(raw);
+}
+
+/** Attach top-level `* N` suffixes to the preceding seq reference (supports `name*2` and `name * 2`). */
+function mergeSpacedRepetitionTokens(tokens: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token === '*' && i + 1 < tokens.length && /^\d+$/.test(tokens[i + 1])) {
+      if (out.length === 0) {
+        out.push(`*${tokens[i + 1]}`);
+      } else {
+        out[out.length - 1] = `${out[out.length - 1]}*${tokens[i + 1]}`;
+      }
+      i += 1;
+      continue;
+    }
+    out.push(token);
+  }
+  return out;
 }
 
 function parseSeqDefinitions(lines: string[]): Map<string, { lineIndex: number; tokens: string[] }> {

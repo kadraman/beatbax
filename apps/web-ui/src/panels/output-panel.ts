@@ -11,6 +11,11 @@ import {
   getQuickFixesForProblem,
 } from '@beatbax/app-core/editor/code-actions';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
+import {
+  isValidationProblemsPanelMessage,
+  validationIssuePanelType,
+} from '@beatbax/app-core/types/validation';
+import type { ValidationIssue } from '@beatbax/app-core/types/validation';
 import { icon } from '../utils/icons';
 
 export interface OutputMessage {
@@ -98,20 +103,21 @@ export class OutputPanel {
         });
       });
 
-      // Validation warnings
+      // Validation warnings and info hints
       this.eventBus.on('validation:warnings', ({ warnings }) => {
         // If validation ran, that means parsing succeeded - clear parse errors
         this.clearMessagesBySource('parser', 'error');
 
-        // Clear previous validation warnings
+        // Clear previous validation warnings and info hints
         this.clearMessagesBySource('validation', 'warning');
+        this.clearMessagesBySource('validation', 'info');
 
-        // Add all warnings, skipping render until the last one
+        // Add all issues, skipping render until the last one
         for (let i = 0; i < warnings.length; i++) {
-          const w = warnings[i];
+          const w = warnings[i] as ValidationIssue;
           const isLast = i === warnings.length - 1;
           this.addMessage({
-            type: 'warning',
+            type: validationIssuePanelType(w),
             message: w.message,
             source: 'validation',
             timestamp: new Date(),
@@ -267,8 +273,7 @@ export class OutputPanel {
     }
 
     // Auto-switch to Problems tab when parse/validation issues are added
-    const problemSources = new Set(['parser', 'validation', 'verify']);
-    if ((msg.type === 'error' || msg.type === 'warning') && problemSources.has(msg.source ?? '')) {
+    if (isValidationProblemsPanelMessage(msg.type, msg.source)) {
       this.activeTab = 'problems';
     }
 
@@ -307,10 +312,10 @@ export class OutputPanel {
     this.closeQuickFixMenu();
 
     // Separate messages into problems and output
-    const problems = this.messages.filter(msg => msg.type === 'error' || msg.type === 'warning');
+    const problems = this.messages.filter((msg) => isValidationProblemsPanelMessage(msg.type, msg.source));
     const outputs = this.singleTab === 'output'
       ? this.messages
-      : this.messages.filter(msg => msg.type === 'info' || msg.type === 'success');
+      : this.messages.filter((msg) => (msg.type === 'info' || msg.type === 'success') && !isValidationProblemsPanelMessage(msg.type, msg.source));
 
     // Sort problems by severity
     const sortedProblems = [...problems].sort((a, b) => {
@@ -367,7 +372,7 @@ export class OutputPanel {
       // Wire up clear button
       this.container.querySelector('.clear-btn')?.addEventListener('click', () => {
         if (this.activeTab === 'problems') {
-          this.messages = this.messages.filter(m => m.type !== 'error' && m.type !== 'warning');
+          this.messages = this.messages.filter((m) => !isValidationProblemsPanelMessage(m.type, m.source));
         } else {
           this.messages = this.messages.filter(m => m.type !== 'info' && m.type !== 'success');
         }

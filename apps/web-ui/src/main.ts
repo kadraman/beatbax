@@ -34,6 +34,7 @@ if (!capabilities.export && capabilities.channelMixer) {
 }
 let { playbackManager, exportManager, emitParse } = appContext;
 import type { ValidationIssue } from '@beatbax/app-core/types/validation';
+import { countValidationWarningBadge } from '@beatbax/app-core/types/validation';
 import {
   createLogger,
   loadLoggingFromStorage,
@@ -385,7 +386,7 @@ eventBus.on('playback:started', () => { if (capabilities.outputPanel) bottomTabs
 // ─── Problems tab badge ───────────────────────────────────────────────────────
 let _badgeErrors = 0, _badgeWarnings = 0;
 eventBus.on('validation:errors',   ({ errors })   => { _badgeErrors   = errors.length;   bottomTabs.updateBadge(_badgeErrors, _badgeWarnings); });
-eventBus.on('validation:warnings', ({ warnings }) => { _badgeWarnings = warnings.length; bottomTabs.updateBadge(_badgeErrors, _badgeWarnings); });
+eventBus.on('validation:warnings', ({ warnings }) => { _badgeWarnings = countValidationWarningBadge(warnings); bottomTabs.updateBadge(_badgeErrors, _badgeWarnings); });
 eventBus.on('parse:error',         ()             => { _badgeErrors   = 1;               bottomTabs.updateBadge(_badgeErrors, _badgeWarnings); });
 
 // ─── Right pane: Mixer | Help | Copilot tabs ──────────────────────────────────

@@ -1176,6 +1176,31 @@ describe('restructurePhasedSections', () => {
     expect(detectArrangementLayout(result!.source, ast)).toBe('structured');
   });
 
+  it('relocates per-channel comment blocks with their first phase seq', () => {
+    const { ast } = shadowPhasedSongAst();
+    const result = restructurePhasedSections(SHADOW_PHASED_SHAPED, ast);
+    expect(result).not.toBeNull();
+    expect(result!.source).toMatch(/# Square 1/);
+    expect(result!.source).toMatch(/# --- Section 1: Intro ---[\s\S]*# Square 2[\s\S]*seq sq2_intro/);
+    expect(result!.source).toMatch(/# --- Section 1: Intro ---[\s\S]*# Triangle[\s\S]*seq tri_intro/);
+    expect(result!.source).toMatch(/# --- Section 1: Intro ---[\s\S]*# Drums[\s\S]*seq drum_intro/);
+  });
+
+  it('preserves unreferenced helper sequences after section blocks', () => {
+    const src = SHADOW_PHASED_SHAPED.replace(
+      'seq sq1_main = sq1_m1',
+      '# Preview helper for sq1 intro patterns\nseq sq1_preview = sq1_i1\nseq sq1_main = sq1_m1',
+    );
+    const { ast } = shadowPhasedSongAst();
+    const result = restructurePhasedSections(src, ast);
+    expect(result).not.toBeNull();
+    expect(result!.source).toMatch(/# --- Additional sequences ---/);
+    expect(result!.source).toMatch(/# Preview helper for sq1 intro patterns/);
+    expect(result!.source).toMatch(/seq sq1_preview = sq1_i1/);
+    expect(result!.source.indexOf('# --- Section 2: Main ---'))
+      .toBeLessThan(result!.source.indexOf('# --- Additional sequences ---'));
+  });
+
   it('returns null for structured songs', () => {
     const { ast } = dancefloorSongAst();
     expect(restructurePhasedSections(DANCEFLOOR_SHAPED, ast)).toBeNull();
