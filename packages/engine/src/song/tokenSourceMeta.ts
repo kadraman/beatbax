@@ -56,6 +56,13 @@ function stepKey(step: { patBase: string; seqPath: string[] }): string {
   return `${step.patBase}\0${step.seqPath.join('/')}`;
 }
 
+/** Padding steps from off/lag — excluded from patternIndex progression. */
+const REST_SOURCE_REF = -1;
+
+function restPaddingStep(seqPath: string[]): StepAttribution {
+  return { patBase: '.', seqPath, sourceRef: REST_SOURCE_REF };
+}
+
 /** Mirror structural length/order ops from applyModsToTokens on a step-attribution stream. */
 function applyStepStreamMods(stream: StepAttribution[], mods: string[]): StepAttribution[] {
   let steps = stream.slice();
@@ -93,6 +100,46 @@ function applyStepStreamMods(stream: StepAttribution[], mods: string[]): StepAtt
     if (mFast) {
       const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
       steps = steps.filter((_, idx) => idx % factor === 0);
+      continue;
+    }
+    const mOff = mod.match(/^(?:off|lag)\((\d+)\)$/i);
+    if (mOff) {
+      const n = parseInt(mOff[1], 10);
+      if (n > 0) {
+        const padPath = steps[0]?.seqPath ?? [];
+        const padding = Array.from({ length: n }, () => restPaddingStep(padPath));
+        steps = padding.concat(steps);
+      }
+      continue;
+    }
+    const mPick = mod.match(/^pick\(([^)]+)\)$/i);
+    if (mPick) {
+      const indices = mPick[1].split(',').map((s) => parseInt(s.trim(), 10) - 1);
+      steps = indices.filter((i) => i >= 0 && i < steps.length).map((i) => steps[i]);
+      continue;
+    }
+    const mChunk = mod.match(/^chunk\((\d+)\)$/i);
+    if (mChunk) {
+      const n = parseInt(mChunk[1], 10);
+      if (n >= 1) {
+        const out: StepAttribution[] = [];
+        for (let i = 0; i < steps.length; i += n) {
+          out.push(...steps.slice(i, i + n).reverse());
+        }
+        steps = out;
+      }
+      continue;
+    }
+    const mShuffle = mod.match(/^shuffle\((\d+)\)$/i);
+    if (mShuffle) {
+      const arr = steps.slice();
+      let s = parseInt(mShuffle[1], 10) >>> 0;
+      for (let i = arr.length - 1; i > 0; i--) {
+        s = (Math.imul(1664525, s) + 1013904223) >>> 0;
+        const j = s % (i + 1);
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      steps = arr;
     }
   }
   return steps;
@@ -174,8 +221,10 @@ function streamToMeta(stream: StepAttribution[], outerSeqName: string): TokenSou
   let patternIndex = 0;
   let lastRef = -1;
   return stream.map((step) => {
-    if (lastRef !== -1 && step.sourceRef !== lastRef) patternIndex++;
-    lastRef = step.sourceRef;
+    if (step.sourceRef >= 0) {
+      if (lastRef >= 0 && step.sourceRef !== lastRef) patternIndex++;
+      lastRef = step.sourceRef;
+    }
     const seqPath = step.seqPath.length > 0 ? step.seqPath : [outerSeqName];
     return {
       patBase: step.patBase,
