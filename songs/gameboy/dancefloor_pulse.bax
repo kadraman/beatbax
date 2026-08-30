@@ -111,7 +111,7 @@ subpat growl_bass_sub =
   timbre:68
   fx:4,99
   jump:9
-inst growl_bass type=pulse1 duty=50 env=12,down,5 subpat=growl_bass_sub
+inst growl_bass type=pulse2 duty=50 env=12,down,5 subpat=growl_bass_sub
 
 # Shimmering lead: timbre cascade, then 1xx/2xx pitch slides. Bright, restless.
 subpat prism_lead_sub =
@@ -138,7 +138,7 @@ inst prism_lead type=pulse1 duty=50 env=12,flat,0 subpat=prism_lead_sub
 inst lead_gb        type=pulse1 duty=50   env={"level":11,"direction":"down","period":2,"format":"gb"} gm=81  # Lead motif — warm mid duty
 inst lead_gb_bright  type=pulse1 duty=25   env={"level":12,"direction":"down","period":1,"format":"gb"} gm=80  # Brighter duty variant for the surge
 
-inst bass_gb  type=pulse2 duty=30  env={"level":14,"direction":"down","period":1,"format":"gb"} gm=39         # Driving pulse bassline
+inst bass_gb  type=pulse2 duty=25  env={"level":14,"direction":"down","period":1,"format":"gb"} gm=39         # Driving pulse bassline
 
 inst arp_gb type=wave wave=[15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0] volume=50 gm=82
 
@@ -167,6 +167,10 @@ pat rest_bar = . . . . . . . . . . . . . . . .
 pat lead_call     = . . . . E5:4 G5:2 A5:2 . . . .
 pat lead_response = . . . . C5:2 D5:2 E5<leadTrem>:4 . . . .
 pat lead_var      = E5:2 G5:2 A5:2 C6:2 A5:2 G5:2 E5<leadTrem>:2 D5:2
+pat lead_intro_ping = A4 . E5 . A4 . E5 . C5 . E5 . C5 . E5 .
+pat lead_intro_rise = A4 C5 E5 A5 G5 E5 C5 A4 B4 D5 G5 B5 A5 G5 E5 D5
+pat lead_response_turn = . . E5:2 G5:2 E5:2 D5:2 C5<leadTrem>:4 . .
+pat lead_response_peak = . . C6:2 A5:2 G5:2 E5:2 D5:2 C5:2 A4<leadTrem>:4
 
 # =============================================================================
 # Bass patterns (Channel 2 — Pulse2)  — root movement Am - F - C - G
@@ -177,6 +181,10 @@ pat bass_F       = F2:2 F2:2 F3:2 F2:2 F2:2 F2:2 F3:2 F2:2
 pat bass_C       = C3:2 C3:2 C4:2 C3:2 C3:2 C3:2 C4:2 C3:2
 pat bass_G       = G2:2 G2:2 G3:2 G2:2 G2:2 G2:2 G3:2 G2:2
 pat bass_G_glide = G2:2 G2:2 G3:2 G2:2 G2:2 G2:2 G3<bassGlide>:2 G2:2
+pat bass_intro_pulse = A2 . . . A2 . . . A2 . . . A2 . . .
+pat bass_intro_tick  = A2 . . . A2 . . . A2 . . . A2 . G2 .
+pat bass_intro_rise  = A2 . . . A2 . . . A2 . . . C3 . G2 .
+pat bass_G_push  = G2:2 G2:2 B2:2 D3:2 G3:2 D3:2 B2:2 G2:2
 
 # =============================================================================
 # Arpeggio patterns (Channel 3 — Wave)  — manual chord-tone cycling, the song's "hook"
@@ -190,6 +198,8 @@ pat arp_G  = (G3 B3 D4 G4) * 4
 # arp_Am_sustain: outro variant — single sustained note using the arp EFFECT instead
 # of a manually-written note cycle (alternative technique, same audible result).
 pat arp_Am_sustain = A3<arpShimmer>:16
+
+pat arp_G_lift  = G3 B3 D4 G4 B4 G4 D4 B3 G3 B3 D4 F4 G4 F4 D4 B3
 
 # =============================================================================
 # Drum patterns (Channel 4 — Noise)
@@ -207,11 +217,6 @@ pat drum_intro_snap  = kick . hat . snare . hat . kick . hat . snare . hat .
 pat drum_intro_fill  = kick . hat . snare . hat . kick . kick . snare hat hat .
 pat drum_build_lift  = kick . hat hat snare . hat . kick . kick . snare . hat .
 pat drum_build_fill  = kick . hat . snare . hat hat kick . kick snare hat snare hat hat
-pat bass_intro_pulse = A2 . . . A2 . . . A2 . . . A2 . . .
-pat bass_intro_tick  = A2 . . . A2 . . . A2 . . . A2 . G2 .
-pat bass_intro_rise  = A2 . . . A2 . . . A2 . . . C3 . G2 .
-pat lead_intro_ping = A4 . E5 . A4 . E5 . C5 . E5 . C5 . E5 .
-pat lead_intro_rise = A4 C5 E5 A5 G5 E5 C5 A4 B4 D5 G5 B5 A5 G5 E5 D5
 
 # =============================================================================
 # Sequences — grouped by song section
@@ -219,18 +224,18 @@ pat lead_intro_rise = A4 C5 E5 A5 G5 E5 C5 A4 B4 D5 G5 B5 A5 G5 E5 D5
 
 # --- Section 1: Intro (Bars 1-4) — drums only ---
 seq lead_intro = rest_bar rest_bar rest_bar rest_bar
-seq bass_intro = bass_intro_pulse bass_intro_pulse bass_intro_tick bass_intro_rise
+seq bass_intro = rest_bar rest_bar rest_bar rest_bar
 seq arp_intro  = rest_bar rest_bar rest_bar arp_Am_sustain
 seq drum_seq_intro = drum_intro drum_intro_tick drum_intro_snap drum_intro_fill
 
 # --- Section 2: Build (Bars 5-8) — arpeggio hook enters ---
 seq lead_build = rest_bar rest_bar rest_bar rest_bar
-seq bass_build = rest_bar rest_bar rest_bar rest_bar
+seq bass_build = bass_intro_pulse bass_intro_pulse bass_intro_tick bass_intro_rise
 seq arp_build  = arp_Am arp_F arp_C arp_G
 seq drum_seq_build = drum_build drum_build_lift drum_build drum_build_fill
 
 # --- Section 3: Main groove (Bars 9-16) — full band, Am-F-C-G x2 ---
-seq lead_main = lead_call lead_response lead_call lead_response lead_call lead_response lead_call lead_response
+seq lead_main = lead_call lead_response lead_call lead_response_turn lead_call lead_response lead_call lead_response_peak
 seq bass_main = bass_Am bass_F bass_C bass_G bass_Am bass_F bass_C bass_G
 seq arp_main  = arp_Am arp_F arp_C arp_G arp_Am arp_F arp_C arp_G
 seq drum_seq_main = drum_full drum_full drum_full drum_full drum_full drum_full drum_full drum_full

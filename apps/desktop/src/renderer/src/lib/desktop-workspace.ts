@@ -701,8 +701,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       enableKeyboardShortcuts: false,
       tryPlayOverride: () => {
         if (!sectionFocusController?.isActive()) return false;
-        sectionFocusController.playFocused();
-        return true;
+        return sectionFocusController.playFocused();
       },
     },
     playbackManager,
@@ -724,6 +723,10 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     runParse,
     capabilities,
     transportDisplay,
+    tryPlayFocused: () => {
+      if (!sectionFocusController?.isActive()) return false;
+      return sectionFocusController.playFocused();
+    },
   });
 
   cleanups.push(
@@ -737,7 +740,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         // the Pattern Grid / song context with the synthetic AST.
         if (ephemeral) return;
 
-        const layoutAst = resolvedAst ?? ast;
+        const layoutAst = ast ?? resolvedAst;
         const channels = (layoutAst as { channels?: Array<{ id: number }> })?.channels;
         if (channels?.length) ensureChannels(channels.map((c) => c.id));
         toolbar.setChip((layoutAst as { chip?: string })?.chip || 'gameboy');

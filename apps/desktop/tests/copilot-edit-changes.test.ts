@@ -1,10 +1,25 @@
 /** @jest-environment node */
 
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import {
   collectCopilotEditChanges,
   resolveCopilotChangeLineNumber,
   revertCopilotEditChange,
 } from '../src/renderer/src/lib/copilot-edit-changes';
+import { collectSemanticChangeLines } from '../src/renderer/src/lib/bax-def-index';
+import { computeLineChangeDiff, countAIChangeDiff } from '../src/renderer/src/lib/line-change-diff';
+
+const dancefloorPulsePath = resolve(__dirname, '../../../songs/gameboy/dancefloor_pulse.bax');
+const dancefloorPulse = readFileSync(dancefloorPulsePath, 'utf8');
+
+function moveLines(source: string, fromStart: number, fromEnd: number, insertBefore: number): string {
+  const lines = source.split('\n');
+  const block = lines.splice(fromStart - 1, fromEnd - fromStart + 1);
+  const insertIndex = insertBefore - 1 - (fromStart < insertBefore ? block.length : 0);
+  lines.splice(insertIndex, 0, ...block);
+  return lines.join('\n');
+}
 
 describe('collectCopilotEditChanges', () => {
   it('lists added, updated, and removed definitions', () => {
@@ -21,6 +36,22 @@ describe('collectCopilotEditChanges', () => {
 
     const changes = collectCopilotEditChanges(previous, next);
     expect(changes.map((change) => change.action)).toEqual(['updated', 'added', 'removed', 'updated']);
+  });
+
+  it('detects relocated patterns without body changes (dancefloor_pulse bass move)', () => {
+    // Bass intro pats live under the bass section; simulate moving them into the drum block.
+    const moved = moveLines(dancefloorPulse, 184, 186, 210);
+    const changes = collectCopilotEditChanges(dancefloorPulse, moved);
+    const movedPatterns = changes.filter((change) => change.action === 'moved');
+    expect(movedPatterns.map((change) => change.name)).toEqual([
+      'bass_intro_pulse',
+      'bass_intro_tick',
+      'bass_intro_rise',
+    ]);
+    expect(collectSemanticChangeLines(dancefloorPulse, moved)).toHaveLength(3);
+
+    const lineDiffTotal = countAIChangeDiff(computeLineChangeDiff(dancefloorPulse, moved)).total;
+    expect(lineDiffTotal).toBeGreaterThan(movedPatterns.length);
   });
 });
 
@@ -47,6 +78,28 @@ describe('revertCopilotEditChange', () => {
     const removed = collectCopilotEditChanges(baseline, edited)[0];
     const reverted = revertCopilotEditChange(edited, removed, baseline);
     expect(reverted).toBe(baseline);
+  });
+
+  it('reverts a single relocated pattern', () => {
+    const previous = [
+      '# Drum patterns',
+      'pat drum_full = kick . hat .',
+      'pat bass_wrong = C2',
+      'play',
+    ].join('\n');
+    const next = [
+      '# Bass patterns',
+      'pat bass_wrong = C2',
+      '# Drum patterns',
+      'pat drum_full = kick . hat .',
+      'play',
+    ].join('\n');
+    const moved = collectCopilotEditChanges(previous, next).find((change) => change.name === 'bass_wrong');
+    expect(moved?.action).toBe('moved');
+    if (!moved) return;
+
+    const reverted = revertCopilotEditChange(next, moved, previous);
+    expect(collectCopilotEditChanges(previous, reverted)).toHaveLength(0);
   });
 });
 

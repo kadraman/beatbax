@@ -136,8 +136,8 @@ export class StatusBar {
       return;
     }
     const summary = info.channels.map((ch) => ch.seqName).join(' · ');
-    this.sectionFocusLabel.textContent = 'Section focus';
-    this.sectionFocusLabel.title = summary || 'Section focus mode';
+    this.sectionFocusLabel.textContent = info.sectionLabel || 'Section focus';
+    this.sectionFocusLabel.title = summary || info.sectionLabel || 'Section focus mode';
     this.sectionFocusSection.hidden = false;
   }
 

@@ -98,14 +98,50 @@ export function insertDefinitionLine(content: string, def: BaxDef): string {
   return lines.join('\n');
 }
 
-/** Line numbers (in `next`) for definitions that were added or had body changes. */
+function precedingSubstantiveLine(content: string, lineNumber: number): string {
+  const lines = content.split('\n');
+  for (let i = lineNumber - 2; i >= 0; i -= 1) {
+    const line = lines[i]?.trim();
+    if (line) return line;
+  }
+  return '';
+}
+
+function enclosingSectionHeader(content: string, lineNumber: number): string {
+  const lines = content.split('\n');
+  for (let i = lineNumber - 2; i >= 0; i -= 1) {
+    const line = lines[i]?.trim();
+    if (!line || !line.startsWith('#')) continue;
+    if (/^#\s*=+\s*$/.test(line)) continue;
+    return line;
+  }
+  return '';
+}
+
+export function definitionMoved(previous: string, prev: BaxDef, next: string, def: BaxDef): boolean {
+  return enclosingSectionHeader(previous, prev.lineNumber)
+    !== enclosingSectionHeader(next, def.lineNumber);
+}
+
+/** Stable placement key — ignores line numbers shifted by unrelated edits elsewhere. */
+export function definitionPlacementSignature(content: string, def: BaxDef): string {
+  return `${enclosingSectionHeader(content, def.lineNumber)}\n${precedingSubstantiveLine(content, def.lineNumber)}\n${def.line}`;
+}
+
+/** Line numbers (in `next`) for definitions that were added, moved, or had body changes. */
 export function collectSemanticChangeLines(previous: string, next: string): number[] {
   const prevDefs = collectBaxDefs(previous);
   const nextDefs = collectBaxDefs(next);
   const lines = new Set<number>();
   for (const [key, def] of nextDefs) {
     const prev = prevDefs.get(key);
-    if (!prev || prev.body !== def.body) lines.add(def.lineNumber);
+    if (!prev || prev.body !== def.body) {
+      lines.add(def.lineNumber);
+      continue;
+    }
+    if (definitionMoved(previous, prev, next, def)) {
+      lines.add(def.lineNumber);
+    }
   }
   return [...lines].sort((a, b) => a - b);
 }
