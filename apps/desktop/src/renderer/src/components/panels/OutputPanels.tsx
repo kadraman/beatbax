@@ -13,6 +13,7 @@ import {
   validationIssuePanelType,
 } from '@beatbax/app-core/types/validation';
 import type { ValidationIssue } from '@beatbax/app-core/types/validation';
+import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { copyTextToClipboard, formatProblemClipboardText } from '../../lib/copilot-error-prompt';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 

@@ -717,7 +717,7 @@ eventBus.on('parse:success', ({ ast, song, valid, ephemeral }: any) => {
     if (!isParseSuccessValid({ valid })) return;
     if (song) {
       lastSongContext = { song, ast };
-      patternGrid?.setSong(song, ast);
+      patternGrid?.setSong(song, ast, getSource());
     } else {
       lastSongContext = null;
     }

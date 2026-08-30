@@ -18,6 +18,7 @@
  *   grid.onNavigate = (patName) => { /* jump editor cursor *\/ };
  */
 
+import { buildChannelTimelines } from '@beatbax/app-core/editor/arrangement-slice';
 import { channelStates, toggleChannelMuted, toggleChannelSoloed, isChannelAudible } from '@beatbax/app-core/stores/channel.store';
 import { getChannelColor } from '../utils/chip-meta';
 
@@ -42,6 +43,8 @@ interface Segment {
   patName: string;
   seqName: string | null;
   count: number;
+  startStep: number;
+  endStep: number;
 }
 
 interface RowBuildData {
@@ -55,203 +58,6 @@ function abbreviatePatternName(name: string, maxLen = 9): string {
   const keepHead = Math.max(3, Math.floor((maxLen - 1) / 2));
   const keepTail = Math.max(2, maxLen - keepHead - 1);
   return `${name.slice(0, keepHead)}…${name.slice(-keepTail)}`;
-}
-
-function parseRepeatSpec(token: string): { base: string; repeat: number } {
-  const t = token.trim();
-  const rep = t.match(/^(.+?)\s*\*\s*(\d+)$/);
-  if (!rep) return { base: t, repeat: 1 };
-  const repeat = Math.max(1, parseInt(rep[2], 10) || 1);
-  return { base: rep[1].trim(), repeat };
-}
-
-function tokenToPatternName(token: string): string {
-  const t = token.trim();
-  if (!t) return '';
-  // Strip repetition suffix and transform/effect suffixes, keep the base ref.
-  const { base } = parseRepeatSpec(t);
-  return base.split(':')[0].trim();
-}
-
-function buildSegmentsFromEvents(events: any[]): Segment[] {
-  const segs: Segment[] = [];
-  let cur: Segment | null = null;
-  for (const ev of events) {
-    const prevPat: string = cur ? cur.patName : '?';
-    const prevSeq: string | null = cur ? cur.seqName : null;
-    const pat: string = ev.sourcePattern ?? prevPat;
-    const seq: string | null = ev.sourceSequence ?? prevSeq;
-    if (!cur || pat !== cur.patName || seq !== cur.seqName) {
-      cur = { patName: pat, seqName: seq, count: 1 };
-      segs.push(cur);
-    } else {
-      cur.count++;
-    }
-  }
-  return segs;
-}
-
-function tokenConsumesStep(token: string): boolean {
-  const t = token.trim();
-  if (!t) return false;
-  return !/^inst(?:\s|\()/i.test(t);
-}
-
-function tokenStepDuration(token: string): number {
-  if (!tokenConsumesStep(token)) return 0;
-  const match = token.trim().match(/:(\d+)(?:\s*)$/);
-  return match ? Math.max(1, parseInt(match[1], 10) || 1) : 1;
-}
-
-function patternEventStepDuration(event: any): number {
-  const kind = String(event?.kind ?? '');
-  if (kind === 'inline-inst' || kind === 'temp-inst') return 0;
-  const raw = typeof event?.raw === 'string' ? event.raw : typeof event?.value === 'string' ? event.value : '';
-  if (raw && !tokenConsumesStep(raw)) return 0;
-  return Math.max(1, Number(event?.duration) || 1);
-}
-
-function buildPatternDurations(ast: any, pats: Record<string, string[]>): Record<string, number> {
-  const durations: Record<string, number> = {};
-  const patternEvents: Record<string, any[]> | undefined = ast?.patternEvents;
-
-  for (const [name, tokens] of Object.entries(pats)) {
-    const events = patternEvents?.[name];
-    if (Array.isArray(events) && events.length > 0) {
-      durations[name] = Math.max(1, events.reduce((acc, event) => acc + patternEventStepDuration(event), 0));
-      continue;
-    }
-    durations[name] = Math.max(1, tokens.reduce((acc, token) => acc + tokenStepDuration(String(token)), 0));
-  }
-
-  return durations;
-}
-
-function getPatternDuration(
-  patName: string,
-  patternDurations: Record<string, number>,
-  pats: Record<string, string[]>,
-): number {
-  return patternDurations[patName] ?? Math.max(1, pats[patName]?.length ?? 1);
-}
-
-function splitRepeatedPatternRuns(
-  segs: Segment[],
-  pats: Record<string, string[]>,
-  patternDurations: Record<string, number>,
-): Segment[] {
-  const out: Segment[] = [];
-  for (const seg of segs) {
-    const patLen = getPatternDuration(seg.patName, patternDurations, pats);
-    const shouldSplit = patLen > 0 && seg.count > patLen && seg.count % patLen === 0;
-    if (!shouldSplit) {
-      out.push(seg);
-      continue;
-    }
-    const repeats = seg.count / patLen;
-    for (let i = 0; i < repeats; i++) {
-      out.push({ ...seg, count: patLen });
-    }
-  }
-  return out;
-}
-
-function buildSegmentsFromSequence(seqName: string, seqTokens: string[], pats: Record<string, string[]>): Segment[] {
-  const segs: Segment[] = [];
-  for (const raw of seqTokens) {
-    if (typeof raw !== 'string') continue;
-    const token = raw.trim();
-    if (!token) continue;
-
-    // Expand simple inline repetition syntax, e.g. "mel_a1 * 2".
-    const rep = token.match(/^(.+?)\s*\*\s*(\d+)$/);
-    const repeat = rep ? Math.max(1, parseInt(rep[2], 10) || 1) : 1;
-    const ref = rep ? rep[1] : token;
-    const patName = tokenToPatternName(ref);
-    if (!patName) continue;
-    const patLen = Array.isArray(pats[patName]) ? pats[patName].length : 1;
-
-    for (let i = 0; i < repeat; i++) {
-      segs.push({ patName, seqName, count: Math.max(1, patLen) });
-    }
-  }
-  return segs;
-}
-
-function getAstChannelSpecTokens(astChannel: any): string[] {
-  const seqSpec: string[] | undefined = (astChannel as any)?.seqSpecTokens;
-  if (Array.isArray(seqSpec) && seqSpec.length > 0) {
-    return seqSpec.map((s) => String(s)).map((s) => s.trim()).filter(Boolean);
-  }
-  if (typeof astChannel?.seq === 'string' && astChannel.seq.trim()) {
-    return astChannel.seq.split(/\s*,\s*|\s+/).map((s: string) => s.trim()).filter(Boolean);
-  }
-  if (typeof astChannel?.pat === 'string' && astChannel.pat.trim()) {
-    return astChannel.pat.split(/\s*,\s*|\s+/).map((s: string) => s.trim()).filter(Boolean);
-  }
-  return [];
-}
-
-function expandRefToPatternSegments(
-  refToken: string,
-  astSeqs: Record<string, any>,
-  pats: Record<string, string[]>,
-  rootSeqName: string | null,
-  out: Segment[],
-  visiting: Set<string>
-): void {
-  const { base, repeat } = parseRepeatSpec(refToken);
-  const refName = tokenToPatternName(base);
-  if (!refName) return;
-
-  const seqItems = astSeqs?.[refName];
-  if (Array.isArray(seqItems)) {
-    if (visiting.has(refName)) return;
-    visiting.add(refName);
-    for (let r = 0; r < repeat; r++) {
-      for (const item of seqItems) {
-        const inner = typeof item === 'string'
-          ? item
-          : String((item as any)?.raw ?? (item as any)?.name ?? (item as any)?.pattern ?? (item as any)?.ref ?? '');
-        if (!inner.trim()) continue;
-        const itemRepeat = typeof item === 'object' && item !== null
-          ? Math.max(1, Number((item as any).repeat) || 1)
-          : 1;
-        for (let ir = 0; ir < itemRepeat; ir++) {
-          expandRefToPatternSegments(inner, astSeqs, pats, rootSeqName ?? refName, out, visiting);
-        }
-      }
-    }
-    visiting.delete(refName);
-    return;
-  }
-
-  const patLen = Array.isArray(pats[refName]) ? pats[refName].length : 1;
-  for (let r = 0; r < repeat; r++) {
-    out.push({ patName: refName, seqName: rootSeqName, count: Math.max(1, patLen) });
-  }
-}
-
-function buildSegmentsFromAstChannel(astChannel: any, ast: any, pats: Record<string, string[]>): Segment[] {
-  const tokens = getAstChannelSpecTokens(astChannel);
-  if (tokens.length === 0) return [];
-
-  const segs: Segment[] = [];
-  const astSeqs: Record<string, any> = ast?.seqs ?? {};
-  for (const token of tokens) {
-    const refName = tokenToPatternName(token);
-    const rootSeqName = Array.isArray(astSeqs[refName]) ? refName : null;
-    expandRefToPatternSegments(token, astSeqs, pats, rootSeqName, segs, new Set<string>());
-  }
-  return segs;
-}
-
-function getSegmentDisplayUnits(
-  seg: Segment,
-  pats: Record<string, string[]>,
-  patternDurations: Record<string, number>,
-): number {
-  return getPatternDuration(seg.patName, patternDurations, pats) || seg.count;
 }
 
 interface RowMeta {
@@ -319,7 +125,7 @@ export class PatternGrid {
   }
 
   /** Rebuild the grid from a resolved SongModel (treated as `any` to avoid import deps). */
-  setSong(song: any, ast?: any): void {
+  setSong(song: any, ast?: any, fullSource = ''): void {
     this._teardownLayoutObserver();
     this.el.innerHTML = '';
     this._rows.clear();
@@ -346,19 +152,18 @@ export class PatternGrid {
     rowsWrap.appendChild(globalCursor);
     this._globalCursor = globalCursor;
 
-    const pats: Record<string, string[]> = song?.pats ?? {};
-    const patternDurations = buildPatternDurations(ast, pats);
-    const rowData: RowBuildData[] = channels.map((ch) => {
-      const events: any[] = ch.events ?? [];
-      const astChannel = (ast?.channels ?? []).find((c: any) => (c?.id ?? 0) === (ch?.id ?? 0));
-      const astSegs = astChannel ? buildSegmentsFromAstChannel(astChannel, ast, pats) : [];
-      const segs = splitRepeatedPatternRuns(astSegs.length > 0 ? astSegs : buildSegmentsFromEvents(events), pats, patternDurations);
-      const displayTotal = Math.max(1, segs.reduce((acc, seg) => acc + getSegmentDisplayUnits(seg, pats, patternDurations), 0));
-      return {
-        ch,
-        segs,
-        displayTotal,
-      };
+    const timelines = buildChannelTimelines(fullSource, song, ast);
+    const rowData: RowBuildData[] = timelines.map((timeline) => {
+      const ch = channels.find((c) => (c?.id ?? 0) === timeline.channelId) ?? { id: timeline.channelId };
+      const segs: Segment[] = timeline.segments.map((s) => ({
+        patName: s.patName,
+        seqName: s.seqName,
+        count: Math.max(1, s.endStep - s.startStep),
+        startStep: s.startStep,
+        endStep: s.endStep,
+      }));
+      const displayTotal = Math.max(1, segs.reduce((acc, seg) => acc + seg.count, 0));
+      return { ch, segs, displayTotal };
     });
 
     // ── First pass: compute global totals for cross-channel alignment ────────
@@ -425,15 +230,13 @@ export class PatternGrid {
       const toneLevels = [0.80, 0.64, 0.48, 0.32];
 
       const channelTotal = rowInfo.displayTotal;
-      let stepCursor = 0;
 
       for (const seg of segs) {
         const block = document.createElement('div');
         block.className = 'bb-pgrid__block';
-        const displayUnits = getSegmentDisplayUnits(seg, pats, patternDurations);
-        const startStep = stepCursor;
-        const endStep = stepCursor + Math.max(1, displayUnits);
-        stepCursor = endStep;
+        const displayUnits = seg.count;
+        const startStep = seg.startStep;
+        const endStep = seg.endStep;
         if (displayUnits <= 1) block.classList.add('bb-pgrid__block--compact');
         block.style.flex = `0 0 ${(displayUnits / Math.max(1, this._globalEventTotal)) * 100}%`;
         let tone = patternToneByName.get(seg.patName);

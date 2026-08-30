@@ -1,4 +1,5 @@
 import { countValidationWarningBadge } from '@beatbax/app-core/types/validation';
+import type { AppContext, ParsePipelineHooks } from '@beatbax/app-core';
 import { isParseSuccessValid } from '@beatbax/app-core/parse/parse-validity';
 import { insertHelpSnippetBlock, type BeatBaxEditor } from '@beatbax/app-core/editor';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
