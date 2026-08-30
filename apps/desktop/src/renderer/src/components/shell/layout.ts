@@ -373,7 +373,10 @@ export function createOutputPanelContent(container: HTMLElement): {
 
   eventBus.on('validation:warnings', ({ warnings }) => {
     clearWarnings();
-    warnings.forEach((w) => showWarning(w.component, w.message, w.loc));
+    for (const w of warnings) {
+      if (w.level === 'info') continue;
+      showWarning(w.component, w.message, w.loc);
+    }
   });
 
   return {

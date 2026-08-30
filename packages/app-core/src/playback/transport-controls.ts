@@ -16,6 +16,11 @@ export interface TransportControlsConfig {
   stopButton: HTMLButtonElement;
   applyButton?: HTMLButtonElement;
   enableKeyboardShortcuts?: boolean;
+  /**
+   * When this returns true, default full-document play is skipped.
+   * Used for Pattern Grid section focus (ephemeral slice playback).
+   */
+  tryPlayOverride?: () => boolean | Promise<boolean>;
 }
 
 /**
@@ -148,6 +153,10 @@ export class TransportControls {
     this.config.playButton.disabled = true;
 
     try {
+      if (this.config.tryPlayOverride) {
+        const handled = await this.config.tryPlayOverride();
+        if (handled) return;
+      }
       const source = this.getSource();
       await this.playbackManager.play(source);
     } catch (error) {
@@ -207,6 +216,11 @@ export class TransportControls {
 
     // Wait a bit for stop to complete
     await new Promise(resolve => setTimeout(resolve, 100));
+
+    if (this.config.tryPlayOverride) {
+      const handled = await this.config.tryPlayOverride();
+      if (handled) return;
+    }
 
     // Then play
     await this.handlePlay();

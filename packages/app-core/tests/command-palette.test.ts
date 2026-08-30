@@ -54,6 +54,24 @@ describe('buildMultiPlaySource', () => {
     expect(lines.every(l => !/^channel 2 =>/.test(l))).toBe(true);
   });
 
+  it('preserves subpat blocks and indented subpat rows', () => {
+    const src = [
+      'chip gameboy',
+      'subpat growl_bass_sub =',
+      '  +0 vol:6',
+      '  timbre:34',
+      'inst growl_bass type=pulse1 duty=50 env=12,down subpat=growl_bass_sub',
+      'pat bass = C3 E3',
+      'seq main = bass',
+      'channel 1 => inst growl_bass seq main',
+      'play',
+    ].join('\n');
+    const { source } = buildMultiPlaySource([{ name: 'main', kind: 'seq' }], src);
+    expect(source).toMatch(/subpat growl_bass_sub/);
+    expect(source).toMatch(/\+0 vol:6/);
+    expect(source).toMatch(/inst growl_bass.*subpat=growl_bass_sub/);
+  });
+
   it('preserves import lines so synthetic play can merge kits', () => {
     const src = [
       'chip gameboy',
@@ -306,17 +324,58 @@ play`;
 
   // ── pat-only items ────────────────────────────────────────────────────────
 
-  it('pat-only items: chains into a synthetic __multi__ seq on channel 1', () => {
+  it('pat-only items: layers by resolved channel (same channel → chained synth seq)', () => {
     const { source, chunkInfo } = buildMultiPlaySource(
       [{ name: 'melody', kind: 'pat' }, { name: 'bass_pat', kind: 'pat' }],
       BASE_SOURCE,
     );
-    expect(source).toMatch(/seq __multi__ = melody bass_pat/);
-    expect(source).toMatch(/channel 1 => inst lead seq __multi__/);
+    // Both pats live under channel 1's seq tree in BASE_SOURCE → one layered channel.
+    expect(source).toMatch(/seq __multi_ch1__ = melody bass_pat/);
+    expect(source).toMatch(/channel 1 => inst lead seq __multi_ch1__/);
     expect(Object.keys(chunkInfo)).toHaveLength(0);
   });
 
-  it('mixed seq+pat: seqs fill channels first, pats go on the next available channel', () => {
+  it('pat-only items on different channels: layer across channels with correct instruments', () => {
+    const src = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+inst wave1 type=wave wave=[0,2,4,6,8,10,12,14,15,14,12,10,8,6,4,2]
+pat melody = C4 E4
+pat wave_pat = C3 E3
+seq main = melody
+seq waves = wave_pat
+channel 1 => inst lead seq main
+channel 3 => inst wave1 seq waves
+play`;
+    const { source } = buildMultiPlaySource(
+      [{ name: 'melody', kind: 'pat' }, { name: 'wave_pat', kind: 'pat' }],
+      src,
+    );
+    expect(source).toMatch(/channel 1 => inst lead pat melody/);
+    expect(source).toMatch(/channel 3 => inst wave1 pat wave_pat/);
+    expect(source).not.toMatch(/__multi__/);
+  });
+
+  it('maps later seq tokens on a multi-item channel line to that channel instrument', () => {
+    const src = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+inst bass type=pulse2 duty=25 env=10,down
+pat a = C4
+pat b = E4
+seq intro = a
+seq theme = b
+channel 1 => inst lead seq intro theme
+channel 2 => inst bass seq intro
+play`;
+    const { source } = buildMultiPlaySource(
+      [{ name: 'theme', kind: 'seq' }],
+      src,
+    );
+    expect(source).toMatch(/channel 1 => inst lead seq theme/);
+  });
+
+  it('mixed seq+pat: seqs fill channels first, pats layer on their own channels', () => {
     const { source } = buildMultiPlaySource(
       [
         { name: 'main', kind: 'seq' },
@@ -325,11 +384,10 @@ play`;
       ],
       BASE_SOURCE,
     );
-    // Seqs on channels 1 and 2
     expect(source).toMatch(/channel 1 => inst lead seq main/);
     expect(source).toMatch(/channel 2 => inst bass seq intro/);
-    // Pat chain on channel 3
-    expect(source).toMatch(/channel 3 => inst lead seq __multi__/);
+    // melody resolves to channel 1, which is already used → next free channel
+    expect(source).toMatch(/channel 3 => inst lead pat melody/);
   });
 
   // ── no chip directive ─────────────────────────────────────────────────────

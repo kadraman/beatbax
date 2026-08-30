@@ -1,0 +1,269 @@
+## dancefloor_pulse_gameboy.bax
+## Original synth-pop/dance-inspired instrumental — Game Boy 4-channel grammar/audio test song.
+## Key: A minor | Tempo: 130 BPM | Style: Early-80s drum-machine synth-pop, instrumental
+##
+## This is an entirely original composition — it does not reproduce any copyrighted material.
+## Written purely to exercise BeatBax grammar and audio rendering: a long drum-machine build,
+## a wavetable arpeggio hook, a driving pulse bassline, and a sparse call-and-response lead motif.
+##
+## Structure (32 bars):
+##   Bars  1– 4 : Intro      — drum machine only (kick pattern, everything else silent)
+##   Bars  5– 8 : Build      — arpeggio hook enters over the drums (Am-F-C-G)
+##   Bars  9–16 : Main groove— full band: drums + arp + bass + lead motif (Am-F-C-G x2)
+##   Bars 17–20 : Breakdown  — strip back to arp + bass only, drums thin out
+##   Bars 21–28 : Surge      — full band returns, brighter lead duty, drum fills
+##   Bars 29–32 : Outro      — fade back down to drums only, then silence
+##
+## Channels:
+##   Ch1 (Pulse1): Lead motif — sparse call-and-response phrasing, brighter duty in the surge
+##   Ch2 (Pulse2): Bassline — driving octave-bounce pulse bass following the chord roots
+##   Ch3 (Wave  ): Arpeggio hook — custom sawtooth wavetable cycling chord tones (the "hook")
+##   Ch4 (Noise ): Drum machine — kick/snare/hat groove, builds from sparse to full and back
+##
+## Effects demonstrated:
+##   trem : gentle amplitude wobble on sustained lead notes (leadTrem)
+##   port : portamento glide on the bass note leading into the surge (bassGlide)
+##   arp  : arpeggio effect preset used for the sustained outro chord (arpShimmer), as an
+##          alternative technique to the manually-written arpeggio patterns used elsewhere
+##
+## Play: node bin/beatbax play songs/features/dancefloor_pulse.bax
+
+song name "Dancefloor Pulse (Game Boy)"
+song artist "The BeatBax Team"
+song description """Original synth-pop/dance-inspired instrumental for testing BeatBax grammar and audio across all four Game Boy APU channels. Features a drum-machine build, a wavetable arpeggio hook, a driving pulse bassline, and a sparse call-and-response lead motif. This is an entirely original composition — it does not reproduce any copyrighted material."""
+song tags "original,synthpop,dance,demo,test"
+
+chip gameboy
+bpm 130
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+
+# =============================================================================
+# Pulse
+# =============================================================================
+
+# Looping six-step interval riff: one held note fans into a busy chord arpeggio.
+subpat lattice_arp_sub =
+  +8
+  +17
+  +0
+  +20
+  +5
+  +12 jump:1
+inst lattice_arp type=pulse1 duty=50 env=11,down,2 subpat=lattice_arp_sub
+
+# Gated pulse snare: silent, then a hit, a −6 drop, then mute. Drum without noise.
+subpat gate_snare_sub =
+  vol:0
+  +0 vol:15
+  -6 vol:15
+  vol:0
+inst gate_snare type=pulse1 duty=50 env=12,down,1 subpat=gate_snare_sub
+
+# PWM-style wash: long duty/timbre sweep that settles into a looping vibrato.
+subpat pwm_wash_sub =
+  +0 timbre:208
+  +0 vol:4
+  +0 vol:9
+  timbre:192
+  timbre:177
+  timbre:162
+  timbre:148
+  timbre:133
+  timbre:118
+  timbre:104
+  timbre:89
+  timbre:74
+  timbre:60
+  timbre:45
+  timbre:30
+  timbre:16
+  timbre:30
+  timbre:43
+  timbre:57
+  timbre:71
+  timbre:84
+  timbre:98
+  timbre:112
+  timbre:125
+  timbre:139
+  timbre:153
+  timbre:166
+  timbre:180
+  timbre:194
+  timbre:208
+  fx:4,98
+  jump:30
+inst pwm_wash type=pulse1 duty=75 env=7,down,4 subpat=pwm_wash_sub
+
+# Growling bass: volume and timbre steps with pitch FX under a slow decay.
+subpat growl_bass_sub =
+  +0 vol:6
+  timbre:34
+  vol:12
+  timbre:0
+  fx:2,5
+  timbre:34
+  fx:4,99
+  timbre:68
+  fx:4,99
+  jump:9
+inst growl_bass type=pulse1 duty=50 env=12,down,5 subpat=growl_bass_sub
+
+# Shimmering lead: timbre cascade, then 1xx/2xx pitch slides. Bright, restless.
+subpat prism_lead_sub =
+  timbre:160
+  timbre:140
+  timbre:120
+  timbre:100
+  timbre:82
+  timbre:3
+  timbre:40
+  timbre:20
+  timbre:0
+  timbre:80
+  timbre:144
+  .
+  fx:2,4
+  fx:2,4
+  fx:1,4
+  fx:1,4
+  fx:2,64
+  fx:1,64
+inst prism_lead type=pulse1 duty=50 env=12,flat,0 subpat=prism_lead_sub
+
+inst lead_gb        type=pulse1 duty=50   env={"level":11,"direction":"down","period":2,"format":"gb"} gm=81  # Lead motif — warm mid duty
+inst lead_gb_bright  type=pulse1 duty=25   env={"level":12,"direction":"down","period":1,"format":"gb"} gm=80  # Brighter duty variant for the surge
+
+inst bass_gb  type=pulse2 duty=30  env={"level":14,"direction":"down","period":1,"format":"gb"} gm=39         # Driving pulse bassline
+
+inst arp_gb type=wave wave=[15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0] volume=50 gm=82
+
+inst kick  type=noise env={"level":13,"direction":"down","period":1,"format":"gb"} uge_note=C-7 pitch_env=[0,-3,-6] vol_env=[15,10,4]  # Deep kick thump
+inst snare type=noise env={"level":11,"direction":"down","period":2,"format":"gb"} uge_note=C-7 pitch_env=[0,6,0]   vol_env=[12,7,3]   # Snappy snare crack
+inst hat   type=noise env={"level":5,"direction":"down","period":1,"format":"gb"}  uge_note=C-8 vol_env=[5,2]                          # Short closed hi-hat
+
+# =============================================================================
+# Effect presets
+# =============================================================================
+
+effect leadTrem   = trem:5,6,sine   # gentle amplitude wobble on sustained lead notes
+effect bassGlide  = port:14         # portamento glide on the bass approach into the surge
+effect arpShimmer = arp:3,7         # minor-triad arp effect (root + m3 + P5) — used on outro Am chord
+
+# =============================================================================
+# Shared rest pattern (silence for channels not yet active in a section)
+# =============================================================================
+
+pat rest_bar = . . . . . . . . . . . . . . . .
+
+# =============================================================================
+# Lead patterns (Channel 1 — Pulse1)
+# =============================================================================
+
+pat lead_call     = . . . . E5:4 G5:2 A5:2 . . . .
+pat lead_response = . . . . C5:2 D5:2 E5<leadTrem>:4 . . . .
+pat lead_var      = E5:2 G5:2 A5:2 C6:2 A5:2 G5:2 E5<leadTrem>:2 D5:2
+
+# =============================================================================
+# Bass patterns (Channel 2 — Pulse2)  — root movement Am - F - C - G
+# =============================================================================
+
+pat bass_Am      = A2:2 A2:2 A3:2 A2:2 A2:2 A2:2 A3:2 A2:2
+pat bass_F       = F2:2 F2:2 F3:2 F2:2 F2:2 F2:2 F3:2 F2:2
+pat bass_C       = C3:2 C3:2 C4:2 C3:2 C3:2 C3:2 C4:2 C3:2
+pat bass_G       = G2:2 G2:2 G3:2 G2:2 G2:2 G2:2 G3:2 G2:2
+pat bass_G_glide = G2:2 G2:2 G3:2 G2:2 G2:2 G2:2 G3<bassGlide>:2 G2:2
+
+# =============================================================================
+# Arpeggio patterns (Channel 3 — Wave)  — manual chord-tone cycling, the song's "hook"
+# =============================================================================
+
+pat arp_Am = (A3 C4 E4 A4) * 4
+pat arp_F  = (F3 A3 C4 F4) * 4
+pat arp_C  = (C4 E4 G4 C5) * 4
+pat arp_G  = (G3 B3 D4 G4) * 4
+
+# arp_Am_sustain: outro variant — single sustained note using the arp EFFECT instead
+# of a manually-written note cycle (alternative technique, same audible result).
+pat arp_Am_sustain = A3<arpShimmer>:16
+
+# =============================================================================
+# Drum patterns (Channel 4 — Noise)
+# =============================================================================
+
+pat drum_intro       = kick . . . kick . hat . kick . . . kick . hat .
+pat drum_build       = kick . hat . kick . . hat kick . hat . snare . hat .
+pat drum_full        = kick . hat . snare . hat . kick . hat . snare . hat .
+pat drum_break       = hat . . . hat . . . hat . . . hat . . .
+pat drum_fill        = kick snare kick snare hat hat hat hat kick snare kick snare hat hat hat hat
+pat drum_outro1      = kick . . . snare . . . kick . . . . . . .
+pat drum_outro2      = kick . . . . . . . . . . . . . . .
+pat drum_intro_tick  = kick . hat . kick . hat . kick . hat . kick . hat .
+pat drum_intro_snap  = kick . hat . snare . hat . kick . hat . snare . hat .
+pat drum_intro_fill  = kick . hat . snare . hat . kick . kick . snare hat hat .
+pat drum_build_lift  = kick . hat hat snare . hat . kick . kick . snare . hat .
+pat drum_build_fill  = kick . hat . snare . hat hat kick . kick snare hat snare hat hat
+pat bass_intro_pulse = A2 . . . A2 . . . A2 . . . A2 . . .
+pat bass_intro_tick  = A2 . . . A2 . . . A2 . . . A2 . G2 .
+pat bass_intro_rise  = A2 . . . A2 . . . A2 . . . C3 . G2 .
+pat lead_intro_ping = A4 . E5 . A4 . E5 . C5 . E5 . C5 . E5 .
+pat lead_intro_rise = A4 C5 E5 A5 G5 E5 C5 A4 B4 D5 G5 B5 A5 G5 E5 D5
+
+# =============================================================================
+# Sequences — grouped by song section
+# =============================================================================
+
+# --- Section 1: Intro (Bars 1-4) — drums only ---
+seq lead_intro = rest_bar rest_bar rest_bar rest_bar
+seq bass_intro = bass_intro_pulse bass_intro_pulse bass_intro_tick bass_intro_rise
+seq arp_intro  = rest_bar rest_bar rest_bar arp_Am_sustain
+seq drum_seq_intro = drum_intro drum_intro_tick drum_intro_snap drum_intro_fill
+
+# --- Section 2: Build (Bars 5-8) — arpeggio hook enters ---
+seq lead_build = rest_bar rest_bar rest_bar rest_bar
+seq bass_build = rest_bar rest_bar rest_bar rest_bar
+seq arp_build  = arp_Am arp_F arp_C arp_G
+seq drum_seq_build = drum_build drum_build_lift drum_build drum_build_fill
+
+# --- Section 3: Main groove (Bars 9-16) — full band, Am-F-C-G x2 ---
+seq lead_main = lead_call lead_response lead_call lead_response lead_call lead_response lead_call lead_response
+seq bass_main = bass_Am bass_F bass_C bass_G bass_Am bass_F bass_C bass_G
+seq arp_main  = arp_Am arp_F arp_C arp_G arp_Am arp_F arp_C arp_G
+seq drum_seq_main = drum_full drum_full drum_full drum_full drum_full drum_full drum_full drum_full
+
+# --- Section 4: Breakdown (Bars 17-20) — arp + bass only ---
+seq lead_break = rest_bar rest_bar rest_bar rest_bar
+seq bass_break = bass_Am bass_F bass_C bass_G_glide
+seq arp_break  = arp_Am arp_F arp_C arp_G
+seq drum_seq_break = drum_break drum_break drum_break drum_break
+
+# --- Section 5: Surge (Bars 21-28) — full band, brighter lead, fills ---
+seq lead_surge = lead_var:inst(pwm_wash) lead_var:inst(pwm_wash) lead_call lead_response lead_var lead_var lead_call lead_response
+seq bass_surge = bass_Am bass_F bass_C bass_G bass_Am bass_F bass_C bass_G
+seq arp_surge  = arp_Am arp_F arp_C arp_G arp_Am arp_F arp_C arp_G
+seq drum_seq_surge = drum_fill drum_full drum_full drum_full drum_fill drum_full drum_full drum_full
+
+# --- Section 6: Outro (Bars 29-32) — fade back to drums only, then silence ---
+seq lead_outro = rest_bar rest_bar rest_bar rest_bar
+seq bass_outro = bass_Am bass_Am rest_bar rest_bar
+seq arp_outro  = arp_Am_sustain arp_Am_sustain rest_bar rest_bar
+seq drum_seq_outro = drum_outro1 drum_outro1 drum_outro2 drum_outro2
+
+# =============================================================================
+# Channel routing
+# =============================================================================
+
+channel 1 => inst prism_lead  seq lead_intro lead_build lead_main lead_break lead_surge lead_outro
+channel 2 => inst growl_bass  seq bass_intro bass_build bass_main bass_break bass_surge bass_outro
+channel 3 => inst arp_gb   seq arp_intro arp_build arp_main arp_break arp_surge arp_outro
+channel 4 => inst kick     seq drum_seq_intro drum_seq_build drum_seq_main drum_seq_break drum_seq_surge drum_seq_outro
+
+# =============================================================================
+# Playback
+# =============================================================================
+
+play auto repeat

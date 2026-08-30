@@ -12,6 +12,8 @@ import type { DesktopSettingsModalHandle } from '../components/panels/DesktopSet
 import type { DesktopChannelMixerHandle } from '../components/panels/DesktopChannelMixer';
 import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 import type { DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
+import type { SectionFocusController } from './section-focus-controller';
+import { createPatternGridShortcutHandlers } from './pattern-grid-shortcuts';
 
 export type { ShortcutHandlers as DesktopShortcutHandlers };
 
@@ -32,18 +34,21 @@ export interface RegisterDesktopShortcutsOptions {
   themeManager: ThemeManager;
   channelMixer: DesktopChannelMixerHandle | null;
   copilot: DesktopCopilotHandle | null;
+  getSectionFocusController?: () => SectionFocusController | null;
+  onStatus?: (message: string) => void;
 }
 
 /**
  * Desktop-global shortcuts. Unlike the browser client, standard file shortcuts
- * (Ctrl+N/O/S) are available here. Editor-focused transport keys (F5/F8,
- * Ctrl+Enter) are duplicated in setupDesktopMonacoShortcuts().
+ * (Ctrl+N/O/S) are available here. Editor-focused keys are registered in
+ * setupDesktopMonacoShortcuts() and skipped by the global handler while Monaco has focus.
  */
 export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions): void {
   const {
     ks, eventBus, getEditor, transportBar, toolbar, bottomTabs, rightTabs,
     settingsModal, shortcutsModal,
     onVerify, onNew, onOpen, onSave, themeManager, channelMixer,
+    getSectionFocusController, onStatus,
   } = opts;
 
   const monacoInst = () => getEditor()?.editor;
@@ -103,6 +108,14 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
       const aiActive = rightTabs.tabOpen.ai && rightTabs.activeTab === 'ai';
       eventBus.emit('panel:toggled', { panel: 'ai-assistant', visible: !aiActive });
     },
+
+    ...(getSectionFocusController
+      ? createPatternGridShortcutHandlers({
+          getSectionFocusController,
+          getEditor,
+          onStatus,
+        })
+      : {}),
   };
 
   registerCatalogShortcuts({

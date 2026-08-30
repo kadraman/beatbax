@@ -3,6 +3,7 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -16,19 +17,16 @@ import {
   toggleChannelSoloed,
   type ChannelInfo,
 } from '@beatbax/app-core/stores/channel.store';
+import type { ArrangementSectionBlock, SectionFocusInfo } from '@beatbax/app-core/editor/arrangement-slice';
+import { buildChannelTimelines, listArrangementSections } from '@beatbax/app-core/editor/arrangement-slice';
 import { getChannelColor } from '@beatbax/ui-tokens/channel-meta';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 
 interface Segment {
   patName: string;
   seqName: string | null;
+  channelItemIndex: number | null;
   count: number;
-}
-
-interface RowBuildData {
-  ch: any;
-  segs: Segment[];
-  displayTotal: number;
 }
 
 interface PatternGridRow {
@@ -38,9 +36,23 @@ interface PatternGridRow {
   displayTotal: number;
 }
 
+export interface ArrangementSlicePlayRequest {
+  channelId: number;
+  startStep: number;
+  endStep: number;
+  seqName: string | null;
+  patName: string;
+  /** 0-based top-level channel seq/pat item (e.g. second `lead_seq`). */
+  channelItemIndex?: number | null;
+  loop?: boolean;
+  /** When false, enter focus without starting playback (use transport Play). */
+  autoPlay?: boolean;
+}
+
 interface DesktopPatternGridProps {
   gridRef: RefCallback<DesktopPatternGridHandle>;
   onNavigate?: (patName: string) => void;
+  onPlaySlice?: (request: ArrangementSlicePlayRequest) => void;
 }
 
 export interface DesktopPatternGridHandle {
@@ -50,6 +62,10 @@ export interface DesktopPatternGridHandle {
   pausePositions: () => void;
   resumePositions: () => void;
   clearPositions: () => void;
+  /** Highlight the active arrangement-slice column (step window). */
+  setSliceHighlight: (window: { startStep: number; endStep: number } | null) => void;
+  /** Section focus banner + editor highlight metadata. */
+  setSectionFocus: (info: SectionFocusInfo | null) => void;
   dispose: () => void;
 }
 
@@ -75,206 +91,63 @@ function abbreviatePatternName(name: string, maxLen = 9): string {
   return `${name.slice(0, keepHead)}…${name.slice(-keepTail)}`;
 }
 
-function parseRepeatSpec(token: string): { base: string; repeat: number } {
-  const t = token.trim();
-  const rep = t.match(/^(.+?)\s*\*\s*(\d+)$/);
-  if (!rep) return { base: t, repeat: 1 };
-  const repeat = Math.max(1, parseInt(rep[2], 10) || 1);
-  return { base: rep[1].trim(), repeat };
-}
-
-function tokenToPatternName(token: string): string {
-  const t = token.trim();
-  if (!t) return '';
-  const { base } = parseRepeatSpec(t);
-  return base.split(':')[0].trim();
-}
-
-function buildSegmentsFromEvents(events: any[]): Segment[] {
-  const segs: Segment[] = [];
-  let cur: Segment | null = null;
-  for (const ev of events) {
-    const prevPat: string = cur ? cur.patName : '?';
-    const prevSeq: string | null = cur ? cur.seqName : null;
-    const pat: string = ev.sourcePattern ?? prevPat;
-    const seq: string | null = ev.sourceSequence ?? prevSeq;
-    if (!cur || pat !== cur.patName || seq !== cur.seqName) {
-      cur = { patName: pat, seqName: seq, count: 1 };
-      segs.push(cur);
-    } else {
-      cur.count++;
-    }
-  }
-  return segs;
-}
-
-function tokenConsumesStep(token: string): boolean {
-  const t = token.trim();
-  if (!t) return false;
-  return !/^inst(?:\s|\()/i.test(t);
-}
-
-function tokenStepDuration(token: string): number {
-  if (!tokenConsumesStep(token)) return 0;
-  const match = token.trim().match(/:(\d+)(?:\s*)$/);
-  return match ? Math.max(1, parseInt(match[1], 10) || 1) : 1;
-}
-
-function patternEventStepDuration(event: any): number {
-  const kind = String(event?.kind ?? '');
-  if (kind === 'inline-inst' || kind === 'temp-inst') return 0;
-  const raw = typeof event?.raw === 'string' ? event.raw : typeof event?.value === 'string' ? event.value : '';
-  if (raw && !tokenConsumesStep(raw)) return 0;
-  return Math.max(1, Number(event?.duration) || 1);
-}
-
-function buildPatternDurations(ast: any, pats: Record<string, string[]>): Record<string, number> {
-  const durations: Record<string, number> = {};
-  const patternEvents: Record<string, any[]> | undefined = ast?.patternEvents;
-
-  for (const [name, tokens] of Object.entries(pats)) {
-    const events = patternEvents?.[name];
-    if (Array.isArray(events) && events.length > 0) {
-      durations[name] = Math.max(1, events.reduce((acc, event) => acc + patternEventStepDuration(event), 0));
-      continue;
-    }
-    durations[name] = Math.max(1, tokens.reduce((acc, token) => acc + tokenStepDuration(String(token)), 0));
-  }
-
-  return durations;
-}
-
-function getPatternDuration(
-  patName: string,
-  patternDurations: Record<string, number>,
-  pats: Record<string, string[]>,
+/** Map 0–1 playback progress into a step window on the full-song grid. */
+function mapProgressIntoWindow(
+  progress: number,
+  window: { startStep: number; endStep: number } | null | undefined,
+  globalEventTotal: number,
 ): number {
-  return patternDurations[patName] ?? Math.max(1, pats[patName]?.length ?? 1);
+  if (!window || globalEventTotal <= 0) return progress;
+  const sliceSteps = window.endStep - window.startStep;
+  if (sliceSteps <= 0) return progress;
+  const start = window.startStep / globalEventTotal;
+  const width = sliceSteps / globalEventTotal;
+  return start + progress * width;
 }
 
-function splitRepeatedPatternRuns(
-  segs: Segment[],
-  pats: Record<string, string[]>,
-  patternDurations: Record<string, number>,
-): Segment[] {
-  const out: Segment[] = [];
-  for (const seg of segs) {
-    const patLen = getPatternDuration(seg.patName, patternDurations, pats);
-    const shouldSplit = patLen > 0 && seg.count > patLen && seg.count % patLen === 0;
-    if (!shouldSplit) {
-      out.push(seg);
-      continue;
-    }
-    const repeats = seg.count / patLen;
-    for (let i = 0; i < repeats; i++) {
-      out.push({ ...seg, count: patLen });
-    }
-  }
-  return out;
+function sectionWindowStartPct(
+  window: { startStep: number; endStep: number } | null | undefined,
+  globalEventTotal: number,
+): number | null {
+  if (!window || globalEventTotal <= 0) return null;
+  return Math.min(99.5, Math.max(0, (window.startStep / globalEventTotal) * 100));
 }
 
-function getAstChannelSpecTokens(astChannel: any): string[] {
-  const seqSpec: string[] | undefined = astChannel?.seqSpecTokens;
-  if (Array.isArray(seqSpec) && seqSpec.length > 0) {
-    return seqSpec.map((s) => String(s)).map((s) => s.trim()).filter(Boolean);
-  }
-  if (typeof astChannel?.seq === 'string' && astChannel.seq.trim()) {
-    return astChannel.seq.split(/\s*,\s*|\s+/).map((s: string) => s.trim()).filter(Boolean);
-  }
-  if (typeof astChannel?.pat === 'string' && astChannel.pat.trim()) {
-    return astChannel.pat.split(/\s*,\s*|\s+/).map((s: string) => s.trim()).filter(Boolean);
-  }
-  return [];
-}
-
-function expandRefToPatternSegments(
-  refToken: string,
-  astSeqs: Record<string, any>,
-  pats: Record<string, string[]>,
-  rootSeqName: string | null,
-  out: Segment[],
-  visiting: Set<string>,
-): void {
-  const { base, repeat } = parseRepeatSpec(refToken);
-  const refName = tokenToPatternName(base);
-  if (!refName) return;
-
-  const seqItems = astSeqs?.[refName];
-  if (Array.isArray(seqItems)) {
-    if (visiting.has(refName)) return;
-    visiting.add(refName);
-    for (let r = 0; r < repeat; r++) {
-      for (const item of seqItems) {
-        const inner = typeof item === 'string'
-          ? item
-          : String(item?.raw ?? item?.name ?? item?.pattern ?? item?.ref ?? '');
-        if (!inner.trim()) continue;
-        const itemRepeat = typeof item === 'object' && item !== null
-          ? Math.max(1, Number(item.repeat) || 1)
-          : 1;
-        for (let ir = 0; ir < itemRepeat; ir++) {
-          expandRefToPatternSegments(inner, astSeqs, pats, rootSeqName ?? refName, out, visiting);
-        }
-      }
-    }
-    visiting.delete(refName);
-    return;
-  }
-
-  const patLen = Array.isArray(pats[refName]) ? pats[refName].length : 1;
-  for (let r = 0; r < repeat; r++) {
-    out.push({ patName: refName, seqName: rootSeqName, count: Math.max(1, patLen) });
-  }
-}
-
-function buildSegmentsFromAstChannel(astChannel: any, ast: any, pats: Record<string, string[]>): Segment[] {
-  const tokens = getAstChannelSpecTokens(astChannel);
-  if (tokens.length === 0) return [];
-
-  const segs: Segment[] = [];
-  const astSeqs: Record<string, any> = ast?.seqs ?? {};
-  for (const token of tokens) {
-    const refName = tokenToPatternName(token);
-    const rootSeqName = Array.isArray(astSeqs[refName]) ? refName : null;
-    expandRefToPatternSegments(token, astSeqs, pats, rootSeqName, segs, new Set<string>());
-  }
-  return segs;
-}
-
-function getSegmentDisplayUnits(
-  seg: Segment,
-  pats: Record<string, string[]>,
-  patternDurations: Record<string, number>,
-): number {
-  return getPatternDuration(seg.patName, patternDurations, pats) || seg.count;
+function channelPositionsAtPct(
+  rows: PatternGridRow[],
+  pct: number,
+): Record<number, number> {
+  return Object.fromEntries(rows.map((row) => [row.channelId, pct]));
 }
 
 function buildRows(song: any, ast?: any): {
   rows: PatternGridRow[];
   globalEventTotal: number;
-  pats: Record<string, string[]>;
-  patternDurations: Record<string, number>;
+  sectionBlocks: ArrangementSectionBlock[];
 } {
   const channels: any[] = song?.channels ?? [];
-  const pats: Record<string, string[]> = song?.pats ?? {};
-  const patternDurations = buildPatternDurations(ast, pats);
-  if (channels.length === 0) return { rows: [], globalEventTotal: 1, pats, patternDurations };
+  if (channels.length === 0) {
+    return { rows: [], globalEventTotal: 1, sectionBlocks: [] };
+  }
 
-  const rowData: RowBuildData[] = channels.map((ch) => {
-    const events: any[] = ch.events ?? [];
-    const astChannel = (ast?.channels ?? []).find((c: any) => (c?.id ?? 0) === (ch?.id ?? 0));
-    const astSegs = astChannel ? buildSegmentsFromAstChannel(astChannel, ast, pats) : [];
-    const segs = splitRepeatedPatternRuns(astSegs.length > 0 ? astSegs : buildSegmentsFromEvents(events), pats, patternDurations);
-    const displayTotal = Math.max(1, segs.reduce((acc, seg) => acc + getSegmentDisplayUnits(seg, pats, patternDurations), 0));
+  const timelines = buildChannelTimelines('', song, ast);
+  const rowData = timelines.map((timeline) => {
+    const segs: Segment[] = timeline.segments.map((s) => ({
+      patName: s.patName,
+      seqName: s.seqName,
+      channelItemIndex: s.channelItemIndex,
+      count: Math.max(1, s.endStep - s.startStep),
+    }));
+    const displayTotal = Math.max(1, segs.reduce((acc, seg) => acc + seg.count, 0));
+    const ch = channels.find((c) => (c?.id ?? 0) === timeline.channelId) ?? { id: timeline.channelId };
     return { ch, segs, displayTotal };
   });
 
   const globalEventTotal = Math.max(1, ...rowData.map((row) => row.displayTotal));
   const chip: string = song?.chip ?? 'gameboy';
   return {
-    pats,
-    patternDurations,
     globalEventTotal,
+    sectionBlocks: listArrangementSections('', song, ast),
     rows: rowData.map((row) => ({
       channelId: row.ch?.id ?? 0,
       color: getChannelColor(chip, row.ch?.id ?? 0),
@@ -284,27 +157,65 @@ function buildRows(song: any, ast?: any): {
   };
 }
 
-function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): React.JSX.Element {
+interface ContextMenuState {
+  x: number;
+  y: number;
+  request: ArrangementSlicePlayRequest;
+}
+
+function DesktopPatternGrid({
+  gridRef,
+  onNavigate,
+  onPlaySlice,
+}: DesktopPatternGridProps): React.JSX.Element {
   const [rows, setRows] = useState<PatternGridRow[]>([]);
-  const [pats, setPats] = useState<Record<string, string[]>>({});
-  const [patternDurations, setPatternDurations] = useState<Record<string, number>>({});
+  const [sectionBlocks, setSectionBlocks] = useState<ArrangementSectionBlock[]>([]);
   const [globalEventTotal, setGlobalEventTotal] = useState(1);
   const [positions, setPositions] = useState<Record<number, number>>({});
   const [globalPct, setGlobalPct] = useState<number | null>(null);
   const [globalLeft, setGlobalLeft] = useState<string>('0%');
   const [paused, setPaused] = useState(false);
   const [channelInfo, setChannelInfo] = useState<Record<number, ChannelInfo>>(channelStates.get());
+  const [sliceWindow, setSliceWindow] = useState<{ startStep: number; endStep: number } | null>(null);
+  const [sectionFocus, setSectionFocusState] = useState<SectionFocusInfo | null>(null);
+  const sectionFocusRef = useRef<SectionFocusInfo | null>(null);
+  const globalEventTotalRef = useRef(1);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const rowsWrapRef = useRef<HTMLDivElement | null>(null);
   const firstTrackRef = useRef<HTMLDivElement | null>(null);
   const rowsRef = useRef<PatternGridRow[]>([]);
+  const onPlaySliceRef = useRef(onPlaySlice);
+  onPlaySliceRef.current = onPlaySlice;
 
   useEffect(() => channelStates.subscribe((states) => {
     setChannelInfo({ ...states });
   }), []);
 
   useEffect(() => {
+    sectionFocusRef.current = sectionFocus;
+  }, [sectionFocus]);
+
+  useEffect(() => {
+    globalEventTotalRef.current = globalEventTotal;
+  }, [globalEventTotal]);
+
+  useEffect(() => {
     rowsRef.current = rows;
   }, [rows]);
+
+  useEffect(() => {
+    if (!contextMenu) return undefined;
+    const close = () => setContextMenu(null);
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [contextMenu]);
 
   const updateGlobalLeft = useCallback((pct: number | null): void => {
     if (pct === null) return;
@@ -348,41 +259,96 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
     setSong: (song, ast) => {
       const next = buildRows(song, ast);
       setRows(next.rows);
-      setPats(next.pats);
-      setPatternDurations(next.patternDurations);
+      setSectionBlocks(next.sectionBlocks);
+      globalEventTotalRef.current = next.globalEventTotal;
       setGlobalEventTotal(next.globalEventTotal);
       setPositions({});
       setGlobalPct(null);
       setPaused(false);
+      setSliceWindow(null);
     },
     setPosition: (channelId, progress) => {
-      const pct = Math.min(99.5, Math.max(0, progress * 100));
+      const mapped = mapProgressIntoWindow(
+        progress,
+        sectionFocusRef.current?.window,
+        globalEventTotalRef.current,
+      );
+      const pct = Math.min(99.5, Math.max(0, mapped * 100));
       setPositions((current) => ({ ...current, [channelId]: pct }));
       setPaused(false);
     },
     setGlobalProgress: (progress) => {
-      const pct = Math.min(99.5, Math.max(0, progress * 100));
+      const mapped = mapProgressIntoWindow(
+        progress,
+        sectionFocusRef.current?.window,
+        globalEventTotalRef.current,
+      );
+      const pct = Math.min(99.5, Math.max(0, mapped * 100));
       setGlobalPct(pct);
       setPaused(false);
     },
     pausePositions: () => setPaused(true),
     resumePositions: () => setPaused(false),
     clearPositions: () => {
-      setPositions(Object.fromEntries(rowsRef.current.map((row) => [row.channelId, 0])));
-      setGlobalPct(0);
+      const startPct = sectionWindowStartPct(
+        sectionFocusRef.current?.window,
+        globalEventTotalRef.current,
+      ) ?? 0;
+      setPositions(channelPositionsAtPct(rowsRef.current, startPct));
+      setGlobalPct(startPct);
       setPaused(false);
+    },
+    setSliceHighlight: (window) => setSliceWindow(window),
+    setSectionFocus: (info) => {
+      const prevWindow = sectionFocusRef.current?.window;
+      sectionFocusRef.current = info;
+      setSectionFocusState(info);
+      const window = info?.window;
+      const windowChanged = !prevWindow || !window
+        || prevWindow.startStep !== window.startStep
+        || prevWindow.endStep !== window.endStep;
+      if (window && windowChanged) {
+        const startPct = sectionWindowStartPct(window, globalEventTotalRef.current);
+        if (startPct !== null) {
+          setGlobalPct(startPct);
+          setPositions(channelPositionsAtPct(rowsRef.current, startPct));
+          setPaused(false);
+        }
+      }
     },
     dispose: () => {
       setRows([]);
+      setSectionBlocks([]);
       setPositions({});
       setGlobalPct(null);
+      setSliceWindow(null);
+      setSectionFocusState(null);
+      setContextMenu(null);
     },
   }), []);
 
   const empty = rows.length === 0;
 
+  const sectionLane = useMemo(() => {
+    if (rows.length === 0) return { blocks: [] as ArrangementSectionBlock[], tailEvents: 0, displayTotal: 0 };
+    const refRow = rows.find((row) => row.segs.some((seg) => seg.seqName)) ?? rows[0];
+    return {
+      blocks: sectionBlocks,
+      tailEvents: globalEventTotal - refRow.displayTotal,
+      displayTotal: refRow.displayTotal,
+    };
+  }, [rows, globalEventTotal, sectionBlocks]);
+
+  const showSectionLane = sectionLane.blocks.length > 0 && !!onPlaySlice;
+
   return (
-    <div className="bb-pgrid" role="region" aria-label="Pattern grid" data-empty={empty ? 'true' : undefined}>
+    <div
+      className="bb-pgrid"
+      role="region"
+      aria-label="Pattern grid"
+      data-empty={empty ? 'true' : undefined}
+      data-section-focus={sectionFocus ? 'true' : undefined}
+    >
       {empty ? null : (
         <div className="bb-pgrid__rows" ref={rowsWrapRef}>
           <div
@@ -390,12 +356,89 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
             className={`bb-pgrid__cursor bb-pgrid__cursor--global${paused ? ' bb-pgrid__cursor--paused' : ''}`}
             style={{ display: globalPct === null ? 'none' : 'block', left: globalLeft }}
           />
+          {showSectionLane ? (
+            <div className="bb-pgrid__row bb-pgrid__row--sections" role="group" aria-label="Sequence sections">
+              <div aria-hidden="true" className="bb-pgrid__controls bb-pgrid__controls--section">
+                <span className="bb-pgrid__section-heading">Seq</span>
+              </div>
+              <span aria-hidden="true" className="bb-pgrid__dot bb-pgrid__dot--spacer" />
+              <div className="bb-pgrid__track bb-pgrid__track--sections" ref={firstTrackRef}>
+                {sectionLane.blocks.map((block) => {
+                  const displayUnits = block.endStep - block.startStep;
+                  const flexBasis = `${(displayUnits / Math.max(1, globalEventTotal)) * 100}%`;
+                  const sliceRequest: ArrangementSlicePlayRequest = {
+                    channelId: block.channelId,
+                    startStep: block.startStep,
+                    endStep: block.endStep,
+                    seqName: block.seqName,
+                    patName: block.patName,
+                    channelItemIndex: block.channelItemIndex,
+                  };
+                  const inSlice = !!sliceWindow
+                    && block.startStep < sliceWindow.endStep
+                    && sliceWindow.startStep < block.endStep;
+                  const chipLabel = abbreviatePatternName(block.label, 11);
+                  return (
+                    <div
+                      key={block.key}
+                      className={[
+                        'bb-pgrid__section-block',
+                        inSlice ? 'bb-pgrid__section-block--focus' : '',
+                      ].filter(Boolean).join(' ')}
+                      style={{ flex: `0 0 ${flexBasis}` }}
+                      title={`${block.label}\nClick: focus section · ▶: play section`}
+                    >
+                      <button
+                        aria-label={`Play sequence section ${block.label}`}
+                        className="bb-pgrid__section-play"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onPlaySliceRef.current?.({ ...sliceRequest, autoPlay: true });
+                        }}
+                        title={`Play ${block.label}`}
+                        type="button"
+                      >
+                        ▶
+                      </button>
+                      <button
+                        aria-label={`Focus sequence section ${block.label}`}
+                        className="bb-pgrid__section-label"
+                        onClick={() => {
+                          onPlaySliceRef.current?.({ ...sliceRequest, autoPlay: false });
+                        }}
+                        onContextMenu={(event) => {
+                          if (!onPlaySliceRef.current) return;
+                          event.preventDefault();
+                          setContextMenu({
+                            x: event.clientX,
+                            y: event.clientY,
+                            request: sliceRequest,
+                          });
+                        }}
+                        title={`Focus ${block.label}`}
+                        type="button"
+                      >
+                        {chipLabel}
+                      </button>
+                    </div>
+                  );
+                })}
+                {sectionLane.tailEvents > 0 ? (
+                  <div
+                    className="bb-pgrid__block bb-pgrid__block--filler"
+                    style={{ flex: `0 0 ${(sectionLane.tailEvents / Math.max(1, globalEventTotal)) * 100}%` }}
+                  />
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           {rows.map((row, rowIndex) => {
             const info = channelInfo[row.channelId];
             const audible = isChannelAudible(channelInfo, row.channelId);
             const tailEvents = globalEventTotal - row.displayTotal;
             const patternToneByName = new Map<string, number>();
             const toneLevels = [0.80, 0.64, 0.48, 0.32];
+            let stepCursor = 0;
             return (
               <div className="bb-pgrid__row" role="group" aria-label={`Channel ${row.channelId}`} key={row.channelId}>
                 <div className="bb-pgrid__controls">
@@ -433,11 +476,14 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
                 />
                 <div
                   className="bb-pgrid__track"
-                  ref={rowIndex === 0 ? firstTrackRef : undefined}
+                  ref={rowIndex === 0 && !showSectionLane ? firstTrackRef : undefined}
                   style={{ opacity: audible ? '1' : '0.4' }}
                 >
                   {row.segs.map((seg, index) => {
-                    const displayUnits = getSegmentDisplayUnits(seg, pats, patternDurations);
+                    const displayUnits = Math.max(1, seg.count);
+                    const startStep = stepCursor;
+                    const endStep = stepCursor + Math.max(1, displayUnits);
+                    stepCursor = endStep;
                     const flexBasis = `${(displayUnits / Math.max(1, globalEventTotal)) * 100}%`;
                     let tone = patternToneByName.get(seg.patName);
                     if (tone === undefined) {
@@ -446,6 +492,9 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
                     }
                     const blockLabel = seg.seqName ? `${seg.seqName} › ${seg.patName}` : seg.patName;
                     const chipLabel = abbreviatePatternName(seg.patName);
+                    const inSlice = !!sliceWindow
+                      && startStep < sliceWindow.endStep
+                      && sliceWindow.startStep < endStep;
                     const navigate = () => onNavigate?.(seg.patName);
                     const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
                       if (event.key === 'Enter' || event.key === ' ') {
@@ -455,11 +504,17 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
                     };
                     return (
                       <div
-                        aria-label={`Navigate to pattern: ${blockLabel}`}
-                        className={`bb-pgrid__block${displayUnits <= 1 ? ' bb-pgrid__block--compact' : ''}`}
+                        aria-label={`Pattern block: ${blockLabel}. Click to go to pattern.`}
+                        className={[
+                          'bb-pgrid__block',
+                          displayUnits <= 1 ? 'bb-pgrid__block--compact' : '',
+                          inSlice ? 'bb-pgrid__block--slice' : '',
+                        ].filter(Boolean).join(' ')}
                         data-label={seg.patName}
+                        data-start-step={startStep}
+                        data-end-step={endStep}
                         key={`${row.channelId}-${seg.seqName ?? 'pat'}-${seg.patName}-${index}`}
-                        onClick={navigate}
+                        onClick={() => navigate()}
                         onKeyDown={onKeyDown}
                         role="button"
                         style={{
@@ -469,7 +524,7 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
                           flex: `0 0 ${flexBasis}`,
                         }}
                         tabIndex={0}
-                        title={blockLabel}
+                        title={`${blockLabel}\nClick: go to pattern`}
                       >
                         <span aria-hidden="true" className="bb-pgrid__block-label">{chipLabel}</span>
                       </div>
@@ -495,13 +550,45 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
           })}
         </div>
       )}
+      {contextMenu ? (
+        <div
+          className="bb-pgrid__menu"
+          role="menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              onPlaySliceRef.current?.({ ...contextMenu.request, autoPlay: false });
+              setContextMenu(null);
+            }}
+          >
+            Focus section
+          </button>
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              onPlaySliceRef.current?.({ ...contextMenu.request, autoPlay: true });
+              setContextMenu(null);
+            }}
+          >
+            Play section
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 export function createDesktopPatternGrid(
   container: HTMLElement,
-  options: { onNavigate?: (patName: string) => void } = {},
+  options: {
+    onNavigate?: (patName: string) => void;
+    onPlaySlice?: (request: ArrangementSlicePlayRequest) => void;
+  } = {},
 ): DesktopPatternGridHandle {
   const handleRef = { current: null as DesktopPatternGridHandle | null };
   const pendingCalls: Array<(handle: DesktopPatternGridHandle) => void> = [];
@@ -522,6 +609,7 @@ export function createDesktopPatternGrid(
     <DesktopPatternGrid
       gridRef={assignGridRef}
       onNavigate={options.onNavigate}
+      onPlaySlice={options.onPlaySlice}
     />,
   );
 
@@ -537,6 +625,8 @@ export function createDesktopPatternGrid(
     pausePositions: () => call((handle) => handle.pausePositions()),
     resumePositions: () => call((handle) => handle.resumePositions()),
     clearPositions: () => call((handle) => handle.clearPositions()),
+    setSliceHighlight: (window) => call((handle) => handle.setSliceHighlight(window)),
+    setSectionFocus: (info) => call((handle) => handle.setSectionFocus(info)),
     dispose: () => {
       handleRef.current?.dispose();
       unmountReactRoot(container, root);

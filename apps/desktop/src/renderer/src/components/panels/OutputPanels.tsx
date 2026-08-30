@@ -7,6 +7,12 @@ import {
   getQuickFixesForProblem,
 } from '@beatbax/app-core/editor/code-actions';
 import { FeatureFlag, isFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
+import {
+  countValidationWarningBadge,
+  isValidationProblemsPanelMessage,
+  validationIssuePanelType,
+} from '@beatbax/app-core/types/validation';
+import type { ValidationIssue } from '@beatbax/app-core/types/validation';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { copyTextToClipboard, formatProblemClipboardText } from '../../lib/copilot-error-prompt';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
@@ -364,11 +370,13 @@ function DesktopOutputPanel({
         }),
         eventBus.on('validation:warnings', ({ warnings }) => {
           clearMessagesBySource('parser', 'error');
-          messagesRef.current = messagesRef.current.filter((msg) => !(msg.source === 'validation' && msg.type === 'warning'));
+          messagesRef.current = messagesRef.current.filter(
+            (msg) => !(msg.source === 'validation' && (msg.type === 'warning' || msg.type === 'info')),
+          );
           messagesRef.current = [
             ...messagesRef.current,
-            ...warnings.map((warning) => ({
-              type: 'warning' as const,
+            ...warnings.map((warning: ValidationIssue) => ({
+              type: validationIssuePanelType(warning),
               message: warning.message,
               source: 'validation',
               timestamp: new Date(),
@@ -393,7 +401,8 @@ function DesktopOutputPanel({
           ].slice(-MAX_MESSAGES);
           rerender();
         }),
-        eventBus.on('parse:success', () => {
+        eventBus.on('parse:success', ({ ephemeral }) => {
+          if (ephemeral) return;
           clearMessagesBySource('parser', 'error');
         }),
         eventBus.on('parse:started', closeContextMenu),
@@ -471,6 +480,14 @@ function DesktopOutputPanel({
             timestamp: new Date(),
           });
         }),
+        eventBus.on('output:message', ({ type, message, source }) => {
+          addMessage({
+            type,
+            message,
+            source: source ?? 'output',
+            timestamp: new Date(),
+          });
+        }),
       );
     }
 
@@ -494,9 +511,13 @@ function DesktopOutputPanel({
   });
 
   const problems = messagesRef.current
-    .filter((msg) => msg.type === 'error' || msg.type === 'warning')
-    .sort((a, b) => (a.type === b.type ? 0 : a.type === 'error' ? -1 : 1));
-  const outputs = messagesRef.current.filter((msg) => msg.type === 'info' || msg.type === 'success');
+    .filter((msg) => isValidationProblemsPanelMessage(msg.type, msg.source))
+    .sort((a, b) => {
+      const severityOrder = { error: 0, warning: 1, info: 2, success: 3 };
+      return severityOrder[a.type] - severityOrder[b.type];
+    });
+  // Output tab stores command/export/playback logs only — show every severity.
+  const outputs = messagesRef.current;
   const errorCount = problems.filter((msg) => msg.type === 'error').length;
   const warningCount = problems.filter((msg) => msg.type === 'warning').length;
 

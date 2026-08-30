@@ -20,6 +20,8 @@ export interface ShortcutMetadata {
   category?: string;
   desktopOnly?: boolean;
   allowInInput?: boolean;
+  /** When true, the global handler may fire while Monaco has focus (e.g. Ctrl+S). */
+  allowInMonaco?: boolean;
   helpOnly?: boolean;
 }
 
@@ -27,27 +29,35 @@ export interface ShortcutDescriptor extends ShortcutMetadata {
   action: () => void;
 }
 
-function isEditableElement(element: Element | null): boolean {
-  if (!element) return false;
-  const tag = element.tagName?.toUpperCase?.();
-  const htmlElement = element as HTMLElement;
-
-  return (
-    tag === 'INPUT' ||
-    tag === 'TEXTAREA' ||
-    tag === 'SELECT' ||
-    htmlElement.isContentEditable ||
-    element.closest('[contenteditable="true"], [contenteditable="plaintext-only"], .monaco-editor') !== null
-  );
+function isInMonacoEditor(e: KeyboardEvent): boolean {
+  const target = e.target instanceof Element ? e.target : null;
+  const active = typeof document !== 'undefined' && document.activeElement instanceof Element
+    ? document.activeElement
+    : null;
+  const inMonaco = (element: Element | null) => element?.closest('.monaco-editor') != null;
+  return inMonaco(target) || inMonaco(active);
 }
 
-function isInInput(e: KeyboardEvent): boolean {
+function isInPlainInput(e: KeyboardEvent): boolean {
   const target = e.target instanceof Element ? e.target : null;
   const active = typeof document !== 'undefined' && document.activeElement instanceof Element
     ? document.activeElement
     : null;
 
-  return isEditableElement(target) || isEditableElement(active);
+  const isPlainEditable = (element: Element | null): boolean => {
+    if (!element || element.closest('.monaco-editor')) return false;
+    const tag = element.tagName?.toUpperCase?.();
+    const htmlElement = element as HTMLElement;
+    return (
+      tag === 'INPUT' ||
+      tag === 'TEXTAREA' ||
+      tag === 'SELECT' ||
+      htmlElement.isContentEditable ||
+      element.closest('[contenteditable="true"], [contenteditable="plaintext-only"]') !== null
+    );
+  };
+
+  return isPlainEditable(target) || isPlainEditable(active);
 }
 
 export function descriptorFromBinding(
@@ -139,7 +149,8 @@ export class KeyboardShortcuts {
     }
 
     if (!matchedDescriptor) return;
-    if (isInInput(e) && !matchedDescriptor.allowInInput) return;
+    if (isInMonacoEditor(e) && !matchedDescriptor.allowInMonaco) return;
+    if (isInPlainInput(e) && !matchedDescriptor.allowInInput) return;
 
     log.debug(`Shortcut fired: ${shortcutId(matchedDescriptor)}`);
     e.preventDefault();

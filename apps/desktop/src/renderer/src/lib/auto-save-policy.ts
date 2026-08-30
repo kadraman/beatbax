@@ -2,7 +2,8 @@ import { parseStatus, validationErrors } from '@beatbax/app-core/stores/editor.s
 import { isParseSuccessValid, type ParseSuccessPayload } from '@beatbax/app-core/parse/parse-validity';
 
 /** True when the current song has no blocking parse/validation errors. */
-export function canAutoSaveToDisk(parsePayload?: ParseSuccessPayload): boolean {
+export function canAutoSaveToDisk(parsePayload?: ParseSuccessPayload & { ephemeral?: boolean }): boolean {
+  if (parsePayload?.ephemeral) return false;
   if (validationErrors.get().length > 0) return false;
   if (parsePayload !== undefined && !isParseSuccessValid(parsePayload)) return false;
   if (parsePayload !== undefined && isParseSuccessValid(parsePayload)) return true;

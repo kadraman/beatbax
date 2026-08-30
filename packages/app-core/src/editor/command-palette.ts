@@ -16,7 +16,22 @@
 
 import * as monaco from 'monaco-editor';
 import { KeyCode, KeyMod } from 'monaco-editor';
+import { parseWithPeggy } from '@beatbax/engine/parser';
+import {
+  buildArrangementSliceSource,
+  detectArrangementLayout,
+  findArrangementSliceAnchorAtCursor,
+  stripChannelAndPlayLines,
+} from './arrangement-slice.js';
+import { addDefaultSectionMarkers } from './arrangement-markers.js';
+import { restructurePhasedSections, explainPhasedRestructureUnavailable } from './arrangement-restructure.js';
+import {
+  explainMonolithicSplitUnavailable,
+  splitMonolithicChannelSeqs,
+} from './arrangement-monolithic-split.js';
+import { applyFullDocumentEdit } from './editor-folding.js';
 import { findChannelForNamedItemInSource } from './preview-channel-resolve.js';
+import { eventBus } from '../utils/event-bus.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -73,6 +88,37 @@ export interface CommandPaletteOptions {
    * When omitted the context-menu action is not registered.
    */
   onAddSelectionToCopilot?: (payload: { text: string; startLine: number; endLine: number }) => void;
+
+  /**
+   * Optional: latest parsed song + AST for arrangement-slice playback.
+   * When omitted, `beatbax.playArrangementSlice` reports that a parse is needed.
+   */
+  getSongContext?: () => { song: unknown; ast?: unknown } | null;
+
+  /**
+   * Enter Pattern Grid section focus (highlight + optional play).
+   * When set, `beatbax.playArrangementSlice` uses this instead of raw play.
+   */
+  onSectionFocusEnter?: (payload: {
+    channelId: number;
+    startStep: number;
+    endStep: number;
+    seqName: string | null;
+    patName: string;
+    play?: boolean;
+    loop?: boolean;
+  }) => void;
+
+  /**
+   * Optional: deliver command feedback to the host Output panel.
+   * When omitted, only the shared event bus is used (may not reach all clients).
+   */
+  onOutputMessage?: (message: {
+    type: 'info' | 'warning' | 'error' | 'success';
+    message: string;
+    source?: string;
+    focus?: boolean;
+  }) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -292,23 +338,51 @@ let lastExportFormat: ExportFormat = 'json';
 // Shared regex for filtering source lines to preserve for synthetic playback
 // ---------------------------------------------------------------------------
 
-/**
- * Matches lines that should be retained when building a synthetic preview
- * source: directives, definitions, comments, and blank lines.
- * Includes `#` and `//` comment prefixes and blank lines so the generated
- * source is well-formed and human-readable when inspected.
- */
-const KEEP_LINES_RE = /^\s*(?:(?:inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume|import)\b|#|\/\/|$)/;
-
 // ---------------------------------------------------------------------------
 // Helper: toast notification
 // ---------------------------------------------------------------------------
 
+const TOAST_TRUNCATE_AT = 72;
+
+type CommandFeedbackLevel = 'info' | 'success' | 'warning' | 'error';
+
+let commandOutputSink: CommandPaletteOptions['onOutputMessage'] | null = null;
+
+function parseEditorSource(source: string): { ast: any; ok: boolean } {
+  const normalized = source.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const result = parseWithPeggy(normalized);
+  return { ast: result.ast, ok: !result.hasErrors && Boolean(result.ast?.channels?.length) };
+}
+
 /**
- * Shows a brief non-blocking toast message anchored to the bottom-centre of
- * the viewport. Auto-dismisses after `duration` ms.
+ * Shows a brief non-blocking toast and, for important/long messages, logs the
+ * full text to the Output panel via `output:message`.
  */
-function showToast(message: string, duration = 3000): void {
+function showToast(
+  message: string,
+  options?: { duration?: number; level?: CommandFeedbackLevel },
+): void {
+  const duration = options?.duration ?? 3000;
+  const level = options?.level ?? 'info';
+  const persist = level !== 'info' || message.length > TOAST_TRUNCATE_AT;
+  if (persist) {
+    const payload = {
+      type: level,
+      message,
+      source: 'command',
+      focus: level === 'warning' || level === 'error',
+    };
+    if (commandOutputSink) {
+      commandOutputSink(payload);
+    } else {
+      eventBus.emit('output:message', payload);
+    }
+  }
+
+  const toastText = message.length > TOAST_TRUNCATE_AT
+    ? `${message.slice(0, TOAST_TRUNCATE_AT - 1)}… (see Output)`
+    : message;
+
   const toast = document.createElement('div');
   toast.style.cssText = [
     'position:fixed', 'bottom:52px', 'left:50%', 'transform:translateX(-50%)',
@@ -316,10 +390,10 @@ function showToast(message: string, duration = 3000): void {
     'border:1px solid var(--border-color,#454545)', 'border-radius:4px',
     'padding:7px 14px', 'font-family:var(--editor-font,monospace)', 'font-size:13px',
     'color:var(--text-color,#d4d4d4)', 'box-shadow:0 2px 8px rgba(0,0,0,.5)',
-    'max-width:480px', 'white-space:nowrap', 'overflow:hidden', 'text-overflow:ellipsis',
+    'max-width:min(480px,90vw)', 'white-space:nowrap', 'overflow:hidden', 'text-overflow:ellipsis',
     'pointer-events:none',
   ].join(';');
-  toast.textContent = message;
+  toast.textContent = toastText;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), duration);
 }
@@ -516,7 +590,20 @@ function escapeRegex(str: string): string {
  * Returns a disposable that removes all registered actions.
  */
 export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDisposable {
-  const { editor, getSource, onExport, onVerify, onToggleMute, onToggleSolo, onPlayRaw, onExportData, onAddSelectionToCopilot } = opts;
+  commandOutputSink = opts.onOutputMessage ?? null;
+  const {
+    editor,
+    getSource,
+    onExport,
+    onVerify,
+    onToggleMute,
+    onToggleSolo,
+    onPlayRaw,
+    onExportData,
+    onAddSelectionToCopilot,
+    getSongContext,
+    onSectionFocusEnter,
+  } = opts;
 
   const disposables: monaco.IDisposable[] = [];
 
@@ -708,6 +795,150 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
+  reg({
+    id: 'beatbax.playArrangementSlice',
+    label: 'BeatBax: Play Arrangement Slice at Cursor',
+    keybindings: [],
+    contextMenuGroupId: '9_beatbax',
+    contextMenuOrder: 1.5,
+    run: () => {
+      const model = editor.getModel();
+      const position = editor.getPosition();
+      if (!model || !position) {
+        showToast('No cursor position in editor');
+        return;
+      }
+      const ctx = getSongContext?.() ?? null;
+      if (!ctx?.song) {
+        showToast('Parse the song first, then play an arrangement slice');
+        return;
+      }
+      const source = getSource();
+      const anchor = findArrangementSliceAnchorAtCursor(
+        source,
+        ctx.song,
+        ctx.ast,
+        position.lineNumber,
+        position.column,
+      );
+      if (!anchor) {
+        showToast('No section found at cursor');
+        return;
+      }
+      if (onSectionFocusEnter) {
+        onSectionFocusEnter({
+          channelId: anchor.channelId,
+          startStep: anchor.startStep,
+          endStep: anchor.endStep,
+          seqName: anchor.seqName,
+          patName: anchor.patName,
+          play: true,
+        });
+        return;
+      }
+      const result = buildArrangementSliceSource(source, ctx.song, ctx.ast, anchor);
+      if (!result) {
+        showToast('Could not build arrangement slice');
+        return;
+      }
+      if (result.warning) showToast(result.warning);
+      onPlayRaw?.(result.source);
+    },
+  });
+
+  reg({
+    id: 'beatbax.restructurePhasedSections',
+    label: 'BeatBax: Restructure Phased Sections into Headers',
+    keybindings: [],
+    contextMenuGroupId: '9_beatbax',
+    contextMenuOrder: 1.6,
+    run: () => {
+      const source = getSource();
+      const { ast, ok } = parseEditorSource(source);
+      if (!ok) {
+        showToast('Parse the song first, then restructure phased sections', { level: 'warning' });
+        return;
+      }
+      const result = restructurePhasedSections(source, ast);
+      if (!result) {
+        showToast(explainPhasedRestructureUnavailable(source, ast), { level: 'warning', duration: 6000 });
+        return;
+      }
+      const model = editor.getModel();
+      if (!model) return;
+      applyFullDocumentEdit(editor, 'beatbax.restructurePhasedSections', result.source);
+      editor.focus();
+      showToast(`Restructured into ${result.sectionCount} section(s) — review and save`, { level: 'success' });
+    },
+  });
+
+  reg({
+    id: 'beatbax.addSectionMarkers',
+    label: 'BeatBax: Add Section Header Comments',
+    keybindings: [],
+    contextMenuGroupId: '9_beatbax',
+    contextMenuOrder: 1.65,
+    run: () => {
+      const source = getSource();
+      const { ast, ok } = parseEditorSource(source);
+      if (!ok) {
+        showToast('Parse the song first, then add section header comments', { level: 'warning' });
+        return;
+      }
+      const layout = detectArrangementLayout(source, ast);
+      if (layout === 'monolithic') {
+        showToast(
+          'Comment headers do not create Pattern Grid sections on monolithic songs. Split each channel into multiple top-level seq refs (e.g. fanfare, theme_a, theme_b) instead.',
+          { level: 'warning', duration: 8000 },
+        );
+        return;
+      }
+      if (layout === 'mixed') {
+        showToast('Align channel seq counts before adding section header comments.', { level: 'warning', duration: 6000 });
+        return;
+      }
+      const result = addDefaultSectionMarkers(source);
+      if (result.status === 'already') {
+        showToast('Section header comments are already in the editor.', { level: 'info' });
+        return;
+      }
+      if (result.status !== 'applied') {
+        const reason = result.status === 'failed'
+          ? result.reason
+          : 'Could not add section header comments.';
+        showToast(reason, { level: 'warning', duration: 6000 });
+        return;
+      }
+      applyFullDocumentEdit(editor, 'beatbax.addSectionMarkers', result.song);
+      editor.focus();
+      showToast('Added section header comments — edit labels to match your song, then save.', { level: 'success' });
+    },
+  });
+
+  reg({
+    id: 'beatbax.splitMonolithicSections',
+    label: 'BeatBax: Split Monolithic Channel Sequences',
+    keybindings: [],
+    contextMenuGroupId: '9_beatbax',
+    contextMenuOrder: 1.7,
+    run: () => {
+      const source = getSource();
+      const { ast, ok } = parseEditorSource(source);
+      if (!ok) {
+        showToast('Parse the song first, then split monolithic channel sequences', { level: 'warning' });
+        return;
+      }
+      const result = splitMonolithicChannelSeqs(source, ast);
+      if (!result) {
+        showToast(explainMonolithicSplitUnavailable(source, ast), { level: 'warning', duration: 8000 });
+        return;
+      }
+      applyFullDocumentEdit(editor, 'beatbax.splitMonolithicSections', result.source);
+      editor.focus();
+      showToast(`Split into ${result.sectionCount} section seq group(s) — review and save`, { level: 'success' });
+    },
+  });
+
   // ── BeatBax: Edit — format document ──────────────────────────────────────
 
   reg({
@@ -720,12 +951,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const source = model.getValue();
       const formatted = formatBeatBaxSource(source);
       if (formatted === source) return; // nothing changed
-      const fullRange = model.getFullModelRange();
-      editor.executeEdits('beatbax.formatDocument', [{
-        range: fullRange,
-        text: formatted,
-        forceMoveMarkers: false,
-      }]);
+      applyFullDocumentEdit(editor, 'beatbax.formatDocument', formatted);
       editor.focus();
     },
   });
@@ -915,7 +1141,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       // definitions from the original source so the pattern can reference them.
       // Ensure explicit default directives when missing for deterministic preview.
       // Only emit a synthetic fallback instrument when none is declared.
-      const baseLines = source.split('\n').filter(l => KEEP_LINES_RE.test(l));
+      const baseLines = stripChannelAndPlayLines(source.split('\n'));
       const hasChip = /^\s*chip\s+/im.test(source);
       const hasBpm = /^\s*bpm\s+/im.test(source);
       const hasTimingDirective = /^\s*(?:stepsPerBar|time)\s+/im.test(source);
@@ -975,7 +1201,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const chip = chipMatch ? chipMatch[1] : 'gameboy';
 
       // Preserve all inst/pat definitions so the seq body can reference them
-      const baseLines = source.split('\n').filter(l => KEEP_LINES_RE.test(l));
+      const baseLines = stripChannelAndPlayLines(source.split('\n'));
       const newLines = [...baseLines];
       newLines.push(`channel ${channelId} => inst ${inst} seq ${name}`);
       newLines.push('play');
@@ -1922,6 +2148,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
   return {
     dispose: () => {
+      commandOutputSink = null;
       for (const d of disposables) d.dispose();
     },
   };
@@ -1980,17 +2207,24 @@ export function buildMultiPlaySource(
   const maxChannels = detectMaxChannels(fullSource);
   const fullLines = fullSource.split('\n');
 
-  // Lines to preserve verbatim (everything except channel/play directives).
-  // The keyword alternatives use \b; comment-only and blank-line alternatives
-  // do not end with a word character so they must be matched without \b.
-  const KEEP_RE = KEEP_LINES_RE;
-  const baseLines = fullLines.filter(l => KEEP_RE.test(l));
+  const baseLines = stripChannelAndPlayLines(fullLines);
 
-  // Build a map: seq-name → inst-name from the original channel assignments.
+  // Build a map: seq-or-pat name → inst-name from every token on channel lines.
+  // Multi-item channels (`channel 1 => inst lead seq intro theme bridge`) must
+  // map *all* tokens, not only the first seq name.
   const seqInstMap = new Map<string, string>();
   for (const l of fullLines) {
-    const m = l.match(/^\s*channel\s+\d+\s*=>\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)\s+seq\s+([A-Za-z_][A-Za-z0-9_]*)/);
-    if (m) seqInstMap.set(m[2], m[1]); // seq-name → inst-name
+    const m = l.match(/^\s*channel\s+\d+\s*=>\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?:seq|pat)\s+(.+)$/);
+    if (!m) continue;
+    const inst = m[1];
+    const tokens = m[2]
+      .trim()
+      .split(/[\s,]+/)
+      .filter((t) => t && /^[A-Za-z_]/.test(t) && !t.includes('='));
+    for (const token of tokens) {
+      const base = token.split(':')[0].trim().replace(/\*\d+$/, '');
+      if (base) seqInstMap.set(base, inst);
+    }
   }
 
   // Build a map: seq-name → raw pattern-list string (for chaining overflow).
@@ -2123,11 +2357,44 @@ export function buildMultiPlaySource(
     }
   }
 
-  // Chain all selected pats into a synthetic sequence on one remaining channel.
-  if (patItems.length > 0 && ch <= maxChannels) {
-    const chain = patItems.map(p => p.name).join(' ');
-    newLines.push(`seq __multi__ = ${chain}`);
-    if (fallbackInst) newLines.push(`channel ${ch++} => inst ${fallbackInst} seq __multi__`);
+  // Layer selected pats by resolved channel (same instrument / channel id),
+  // instead of chaining every pat onto one synthetic __multi__ sequence.
+  if (patItems.length > 0) {
+    const patsByChannel = new Map<number, { inst: string; names: string[] }>();
+    for (const { name } of patItems) {
+      const found = findChannelForNamedItemInSource(fullSource, name);
+      const channelId = found?.id ?? ch;
+      const inst = found?.inst ?? seqInstMap.get(name) ?? fallbackInst;
+      if (!inst) continue;
+      const slot = patsByChannel.get(channelId) ?? { inst, names: [] };
+      if (!patsByChannel.has(channelId)) patsByChannel.set(channelId, slot);
+      slot.names.push(name);
+    }
+
+    const usedChannels = new Set(
+      [...newLines]
+        .map((l) => l.match(/^\s*channel\s+(\d+)\s*=>/))
+        .filter(Boolean)
+        .map((m) => Number(m![1])),
+    );
+
+    for (const [channelId, { inst, names }] of [...patsByChannel.entries()].sort((a, b) => a[0] - b[0])) {
+      let targetCh = channelId;
+      if (usedChannels.has(targetCh)) {
+        // Avoid colliding with a seq already assigned to this channel id.
+        while (usedChannels.has(ch) && ch <= maxChannels) ch++;
+        if (ch > maxChannels) break;
+        targetCh = ch++;
+      }
+      usedChannels.add(targetCh);
+      if (names.length === 1) {
+        newLines.push(`channel ${targetCh} => inst ${inst} pat ${names[0]}`);
+      } else {
+        const synth = `__multi_ch${targetCh}__`;
+        newLines.push(`seq ${synth} = ${names.join(' ')}`);
+        newLines.push(`channel ${targetCh} => inst ${inst} seq ${synth}`);
+      }
+    }
   }
 
   newLines.push('play');
