@@ -55,6 +55,7 @@ import {
   getLastAssistantChatContent,
   isArrangementLayoutFixConfirmation,
   isArrangementLayoutFixIntent,
+  shouldTryLocalArrangementFix,
   tryApplyArrangementLayoutFix,
 } from '../../lib/copilot-arrangement-fix';
 import {
@@ -318,6 +319,7 @@ const CHANGE_ACTION_LABEL: Record<CopilotChangeDetail['action'], string> = {
   added: 'Added',
   updated: 'Modified',
   removed: 'Removed',
+  moved: 'Moved',
 };
 
 function formatEditStats(message: ChatMessage): string {
@@ -896,14 +898,6 @@ function isSameChatMessage(a: ChatMessage, b: ChatMessage): boolean {
   return a.timestamp === b.timestamp && a.role === b.role && a.content === b.content;
 }
 
-function shouldTryLocalArrangementFix(activeMode: ChatMode, text: string): boolean {
-  if (activeMode === 'edit') return true;
-  if (isArrangementLayoutFixConfirmation(text)) return true;
-  if (isCopilotErrorMachinePrompt(text)) return true;
-  return isArrangementLayoutFixIntent(text)
-    && /\b(?:apply|refactor|split|restructure|fix)\b/i.test(text);
-}
-
 function resolveLocalArrangementFix(
   previous: string,
   text: string,
@@ -1233,8 +1227,7 @@ function DesktopCopilotPanel({
     addSelectionToChat: ({ text, startLine, endLine }) => {
       const ref = createCopilotEditorReference({ text, startLine, endLine });
       promptHistoryIndexRef.current = null;
-      promptDraftRef.current = '';
-      clearComposer();
+      promptDraftRef.current = inputRef.current?.value ?? '';
       setEditorReferences((prev) => {
         const duplicate = prev.some((item) => item.startLine === ref.startLine && item.endLine === ref.endLine);
         return duplicate ? prev : [...prev, ref];
@@ -1243,8 +1236,9 @@ function DesktopCopilotPanel({
         const textarea = inputRef.current;
         if (textarea) {
           textarea.focus();
-          textarea.selectionStart = 0;
-          textarea.selectionEnd = 0;
+          const end = textarea.value.length;
+          textarea.selectionStart = end;
+          textarea.selectionEnd = end;
         }
       });
     },

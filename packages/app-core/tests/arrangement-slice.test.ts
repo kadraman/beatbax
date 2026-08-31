@@ -6,6 +6,8 @@ import {
   buildArrangementSliceSource,
   findArrangementSliceAnchorByName,
   findArrangementSliceAnchorAtCursor,
+  findArrangementSliceAnchorBySectionIdentity,
+  normalizeSectionHeadword,
   resolveArrangementHintAtCursor,
   findAdjacentSectionAnchor,
   listArrangementSections,
@@ -13,6 +15,10 @@ import {
   findSectionCommentAbove,
   resolveSectionFocus,
   resolveSliceWindow,
+  segmentMatchesSectionFocus,
+  collectPhaseSeqNames,
+  collectPhaseSeqNamesFromSource,
+  expandContiguousSeqDefinitionLines,
   detectArrangementLayout,
   findFirstChannelLine,
 } from '../src/editor/arrangement-slice';
@@ -842,7 +848,8 @@ describe('resolveSectionFocus', () => {
     });
 
     expect(focus).not.toBeNull();
-    expect(focus!.sectionLabel).toBe('Section');
+    expect(focus!.sectionLabel).toBe('Intro (Bars 1-4) — drums only');
+    expect(focus!.sectionHeadword).toBe('intro');
     expect(focus!.commentLine).toBe(14);
     expect(focus!.seqDefinitionLines).toEqual([15, 16, 17, 18]);
     expect(focus!.channels.map((ch) => ch.seqName)).toEqual([
@@ -852,6 +859,7 @@ describe('resolveSectionFocus', () => {
       'drum_seq_intro',
     ]);
     expect(focus!.primarySeqName).toBe('lead_intro');
+    expect(focus!.channelItemIndex).toBe(introSeg.channelItemIndex);
   });
 
   it('build column: resolves Build section label and seq block', () => {
@@ -867,7 +875,8 @@ describe('resolveSectionFocus', () => {
     });
 
     expect(focus).not.toBeNull();
-    expect(focus!.sectionLabel).toBe('Section');
+    expect(focus!.sectionLabel).toBe('Build (Bars 5-8) — arpeggio hook enters');
+    expect(focus!.sectionHeadword).toBe('build');
     expect(focus!.commentLine).toBe(19);
     expect(focus!.seqDefinitionLines).toEqual([20, 21, 22, 23]);
   });
@@ -885,7 +894,8 @@ describe('resolveSectionFocus', () => {
     });
 
     expect(focus).not.toBeNull();
-    expect(focus!.sectionLabel).toBe('Section');
+    expect(focus!.sectionLabel).toBe('Main groove (Bars 9-16) — full band, Am-F-C-G x2');
+    expect(focus!.sectionHeadword).toBe('main groove');
     expect(focus!.commentLine).toBe(24);
     expect(focus!.seqDefinitionLines).toEqual([25, 26, 27, 28]);
   });
@@ -903,8 +913,34 @@ describe('resolveSectionFocus', () => {
     });
 
     expect(focus).not.toBeNull();
-    expect(focus!.sectionLabel).toBe('Section');
+    expect(focus!.sectionLabel).toBe('Main groove (Bars 9-16) — full band, Am-F-C-G x2');
+    expect(focus!.sectionHeadword).toBe('main groove');
     expect(focus!.commentLine).toBe(24);
+    expect(focus!.seqDefinitionLines).toEqual([25, 26, 27, 28]);
+  });
+
+  it('main groove expands contiguous seq block when ast channel metadata is missing', () => {
+    const { song, ast } = dancefloorSongAst();
+    const sections = listArrangementSections(DANCEFLOOR_SHAPED, song, ast);
+    const main = sections.find((section) => section.label === 'lead_main')!;
+    const strippedAst = { ...ast, seqs: {} };
+    const focus = resolveSectionFocus(DANCEFLOOR_SHAPED, song, strippedAst, {
+      channelId: main.channelId,
+      startStep: main.startStep,
+      endStep: main.endStep,
+      seqName: main.seqName,
+      patName: main.patName,
+      channelItemIndex: main.channelItemIndex,
+    });
+
+    expect(focus).not.toBeNull();
+    expect(focus!.seqDefinitionLines).toEqual([25, 26, 27, 28]);
+    expect(focus!.channels.map((ch) => ch.seqName)).toEqual([
+      'lead_main',
+      'bass_main',
+      'arp_main',
+      'drum_seq_main',
+    ]);
   });
 
   it('seq block without a section comment does not inherit a prior header', () => {
@@ -921,7 +957,8 @@ describe('resolveSectionFocus', () => {
 
     expect(focus).not.toBeNull();
     expect(focus!.commentLine).toBeUndefined();
-    expect(focus!.sectionLabel).toBe('Section');
+    expect(focus!.sectionLabel).toBe('orphan_lead');
+    expect(focus!.sectionHeadword).toBeNull();
     expect(focus!.seqDefinitionLines).toEqual([29, 30]);
     expect(findSectionCommentAbove(DANCEFLOOR_SHAPED, 29)).toBeNull();
   });
@@ -933,6 +970,97 @@ describe('resolveSectionFocus', () => {
       label: 'Main groove (Bars 9-16) — full band, Am-F-C-G x2',
       line: 3,
     });
+  });
+});
+
+describe('normalizeSectionHeadword', () => {
+  it('extracts headword before parens and em dash', () => {
+    expect(normalizeSectionHeadword('Intro (Bars 1-4) — drums only')).toBe('intro');
+    expect(normalizeSectionHeadword('Main groove (Bars 9-16) — full band')).toBe('main groove');
+  });
+});
+
+describe('findArrangementSliceAnchorBySectionIdentity', () => {
+  it('finds Intro by headword after seq names change', () => {
+    const renamed = DANCEFLOOR_SHAPED
+      .replace(/lead_intro/g, 'lead_intro_v2')
+      .replace(/bass_intro/g, 'bass_intro_v2')
+      .replace(/arp_intro/g, 'arp_intro_v2')
+      .replace(/drum_seq_intro/g, 'drum_seq_intro_v2');
+    const { song, ast } = dancefloorSongAst();
+    ast.seqs.lead_intro_v2 = ast.seqs.lead_intro;
+    ast.seqs.bass_intro_v2 = ast.seqs.bass_intro;
+    ast.seqs.arp_intro_v2 = ast.seqs.arp_intro;
+    ast.seqs.drum_seq_intro_v2 = ast.seqs.drum_seq_intro;
+    delete ast.seqs.lead_intro;
+    delete ast.seqs.bass_intro;
+    delete ast.seqs.arp_intro;
+    delete ast.seqs.drum_seq_intro;
+    for (const ch of ast.channels) {
+      ch.seqSpecTokens = ch.seqSpecTokens.map((token: string) => token.replace('_intro', '_intro_v2'));
+    }
+
+    const anchor = findArrangementSliceAnchorBySectionIdentity(renamed, song, ast, {
+      headword: 'intro',
+      seqName: 'lead_intro',
+    });
+
+    expect(anchor).not.toBeNull();
+    expect(anchor!.seqName).toBe('lead_intro_v2');
+  });
+
+  it('finds section by seq name when section comments are stripped', () => {
+    const { song, ast } = dancefloorSongAst();
+    const stripped = DANCEFLOOR_SHAPED.replace(/^# --- Section.*$/gm, '');
+
+    const anchor = findArrangementSliceAnchorBySectionIdentity(stripped, song, ast, {
+      headword: 'intro',
+      seqName: 'lead_intro',
+    });
+
+    expect(anchor).not.toBeNull();
+    expect(anchor!.seqName).toBe('lead_intro');
+  });
+
+  it('returns null when the named section no longer exists', () => {
+    const withoutIntro = DANCEFLOOR_SHAPED
+      .replace(/# --- Section 1: Intro[^\n]*\n/g, '')
+      .replace(/seq lead_intro = rest rest rest rest\n/g, '')
+      .replace(/seq bass_intro = ba ba bb bb\n/g, '')
+      .replace(/seq arp_intro = rest rest rest a\n/g, '')
+      .replace(/seq drum_seq_intro = da da db db\n/g, '')
+      .replace(
+        'channel 1 => inst lead seq lead_intro lead_build lead_main orphan_lead',
+        'channel 1 => inst lead seq lead_build lead_main orphan_lead',
+      )
+      .replace(
+        'channel 2 => inst bass seq bass_intro bass_build bass_main orphan_bass',
+        'channel 2 => inst bass seq bass_build bass_main orphan_bass',
+      )
+      .replace(
+        'channel 3 => inst arp seq arp_intro arp_build arp_main',
+        'channel 3 => inst arp seq arp_build arp_main',
+      )
+      .replace(
+        'channel 4 => inst kick seq drum_seq_intro drum_seq_build drum_seq_main',
+        'channel 4 => inst kick seq drum_seq_build drum_seq_main',
+      );
+    const { song, ast } = dancefloorSongAst();
+    delete ast.seqs.lead_intro;
+    delete ast.seqs.bass_intro;
+    delete ast.seqs.arp_intro;
+    delete ast.seqs.drum_seq_intro;
+    ast.channels[0].seqSpecTokens = ['lead_build', 'lead_main', 'orphan_lead'];
+    ast.channels[1].seqSpecTokens = ['bass_build', 'bass_main', 'orphan_bass'];
+    ast.channels[2].seqSpecTokens = ['arp_build', 'arp_main'];
+    ast.channels[3].seqSpecTokens = ['drum_seq_build', 'drum_seq_main'];
+
+    const anchor = findArrangementSliceAnchorBySectionIdentity(withoutIntro, song, ast, {
+      headword: 'intro',
+      seqName: 'lead_intro',
+    });
+
+    expect(anchor).toBeNull();
   });
 });
 
@@ -1118,6 +1246,237 @@ play`;
       ],
     };
     expect(detectArrangementLayout(src, ast)).toBe('mixed');
+  });
+});
+
+describe('collectPhaseSeqNames', () => {
+  it('collects cross-channel seq names from channel tokens even without ast.seqs', () => {
+    const ast = {
+      channels: [
+        { id: 1, seqSpecTokens: ['lead_intro', 'lead_main'] },
+        { id: 2, seqSpecTokens: ['bass_intro', 'bass_main'] },
+        { id: 3, seqSpecTokens: ['arp_intro', 'arp_main'] },
+        { id: 4, seqSpecTokens: ['drum_seq_intro', 'drum_seq_main'] },
+      ],
+    };
+    expect(collectPhaseSeqNames(ast, 1)).toEqual([
+      'lead_main',
+      'bass_main',
+      'arp_main',
+      'drum_seq_main',
+    ]);
+  });
+});
+
+describe('expandContiguousSeqDefinitionLines', () => {
+  it('expands a single seed line to the full section seq block', () => {
+    const allowed = ['lead_main', 'bass_main', 'arp_main', 'drum_seq_main'];
+    expect(expandContiguousSeqDefinitionLines(DANCEFLOOR_SHAPED, [25], 4, allowed)).toEqual([25, 26, 27, 28]);
+  });
+});
+
+describe('collectPhaseSeqNamesFromSource', () => {
+  it('reads phase seq names from channel lines in source', () => {
+    expect(collectPhaseSeqNamesFromSource(DANCEFLOOR_SHAPED, 2)).toEqual([
+      'lead_main',
+      'bass_main',
+      'arp_main',
+      'drum_seq_main',
+    ]);
+  });
+});
+
+describe('segmentMatchesSectionFocus', () => {
+  it('does not fall back to step overlap when focus has a channel item index', () => {
+    const focus = {
+      channelItemIndex: 2,
+      window: { startStep: 128, endStep: 258 },
+    };
+    expect(segmentMatchesSectionFocus(
+      { channelItemIndex: null, startStep: 256, endStep: 272 },
+      focus,
+    )).toBe(false);
+  });
+
+  it('matches by channel item index when timelines diverge across channels', () => {
+    const src = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+inst bass type=pulse2 duty=50 env=12,down
+pat a = C4
+pat b = D4
+pat c = E4
+pat ba = A2
+pat bb = B2
+pat bc = C3
+seq lead_a = a
+seq lead_b = b b
+seq lead_c = c
+seq bass_a = ba
+seq bass_b = bb bb bb
+seq bass_c = bc
+channel 1 => inst lead seq lead_a lead_b lead_c
+channel 2 => inst bass seq bass_a bass_b bass_c
+play`;
+    const ast = {
+      seqs: {
+        lead_a: ['a'], lead_b: ['b', 'b'], lead_c: ['c'],
+        bass_a: ['ba'], bass_b: ['bb', 'bb', 'bb'], bass_c: ['bc'],
+      },
+      channels: [
+        { id: 1, inst: 'lead', seqSpecTokens: ['lead_a', 'lead_b', 'lead_c'] },
+        { id: 2, inst: 'bass', seqSpecTokens: ['bass_a', 'bass_b', 'bass_c'] },
+      ],
+    };
+    const song = {
+      chip: 'gameboy',
+      pats: { a: ['C4'], b: ['D4'], c: ['E4'], ba: ['A2'], bb: ['B2'], bc: ['C3'] },
+      channels: [
+        { id: 1, defaultInstrument: 'lead', events: [] },
+        { id: 2, defaultInstrument: 'bass', events: [] },
+      ],
+    };
+
+    const timelines = buildChannelTimelines(src, song, ast);
+    const sections = listArrangementSections(src, song, ast);
+    const sectionB = sections[1];
+    expect(sectionB.label).toBe('lead_b');
+
+    const focus = resolveSectionFocus(src, song, ast, {
+      channelId: sectionB.channelId,
+      startStep: sectionB.startStep,
+      endStep: sectionB.endStep,
+      seqName: sectionB.seqName,
+      patName: sectionB.patName,
+      channelItemIndex: sectionB.channelItemIndex,
+    });
+    expect(focus?.channelItemIndex).toBe(1);
+
+    const bassRow = timelines.find((row) => row.channelId === 2)!;
+    const bassMatches = bassRow.segments.filter((seg) => segmentMatchesSectionFocus(seg, focus!));
+    expect(bassMatches.map((seg) => seg.patName)).toEqual(['bb', 'bb', 'bb']);
+    expect(bassMatches.some((seg) => seg.patName === 'ba')).toBe(false);
+    expect(bassMatches.some((seg) => seg.patName === 'bc')).toBe(false);
+
+    const stepWindowMatches = bassRow.segments.filter((seg) =>
+      seg.startStep < focus!.window.endStep && focus!.window.startStep < seg.endStep,
+    );
+    expect(stepWindowMatches.map((seg) => seg.patName)).not.toEqual(['bb', 'bb', 'bb']);
+  });
+
+  it('dancefloor main groove: excludes breakdown pats when lead timeline is longer', () => {
+    const src = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+inst bass type=pulse2 duty=50 env=12,down
+inst arp type=wave wave=[0,1,2,3]
+inst kick type=noise env=12,down
+pat rest = . . . . . . . . . . . . . . . .
+pat lead_a = . . . . E5:4 G5:2 A5:2 . . . .
+pat lead_b = . . . . C5:2 D5:2 E5:4 . . . .
+pat lead_turn = . . E5:2 G5:2 E5:2 D5:2 C5:4 . .
+pat lead_peak = . . C6:2 A5:2 G5:2 E5:2 D5:2 C5:2 A4:4
+pat ba = A2:2 A2:2 A3:2 A2:2 A2:2 A2:2 A3:2 A2:2
+pat bb = F2:2 F2:2 F3:2 F2:2 F2:2 F2:2 F3:2 F2:2
+pat arp_a = (A3 C4 E4 A4) * 4
+pat arp_b = (F3 A3 C4 F4) * 4
+pat da = kick . sn . .
+pat db = kick sn kick sn
+seq lead_intro = rest rest rest rest
+seq bass_intro = rest rest rest rest
+seq arp_intro = rest rest rest rest
+seq drum_seq_intro = da da da da
+seq lead_build = rest rest rest rest
+seq bass_build = rest rest rest rest
+seq arp_build = arp_a arp_b arp_a arp_b
+seq drum_seq_build = da db da db
+seq lead_main = lead_a lead_b lead_a lead_turn lead_a lead_b lead_a lead_peak
+seq bass_main = ba bb ba bb ba bb ba bb
+seq arp_main = arp_a arp_b arp_a arp_b arp_a arp_b arp_a arp_b
+seq drum_seq_main = da db da db da db da db
+seq lead_break = rest rest rest rest
+seq bass_break = ba bb ba bb
+seq arp_break = arp_a arp_b arp_a arp_b
+seq drum_seq_break = da da da da
+channel 1 => inst lead seq lead_intro lead_build lead_main lead_break
+channel 2 => inst bass seq bass_intro bass_build bass_main bass_break
+channel 3 => inst arp seq arp_intro arp_build arp_main arp_break
+channel 4 => inst kick seq drum_seq_intro drum_seq_build drum_seq_main drum_seq_break
+play`;
+    const pats: Record<string, string[]> = {
+      rest: ['.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'],
+      lead_a: ['.', '.', '.', '.', 'E5:4', 'G5:2', 'A5:2', '.', '.', '.', '.'],
+      lead_b: ['.', '.', '.', '.', 'C5:2', 'D5:2', 'E5:4', '.', '.', '.', '.'],
+      lead_turn: ['.', '.', 'E5:2', 'G5:2', 'E5:2', 'D5:2', 'C5:4', '.', '.'],
+      lead_peak: ['.', '.', 'C6:2', 'A5:2', 'G5:2', 'E5:2', 'D5:2', 'C5:2', 'A4:4'],
+      ba: ['A2:2', 'A2:2', 'A3:2', 'A2:2', 'A2:2', 'A2:2', 'A3:2', 'A2:2'],
+      bb: ['F2:2', 'F2:2', 'F3:2', 'F2:2', 'F2:2', 'F2:2', 'F3:2', 'F2:2'],
+      arp_a: ['(A3 C4 E4 A4) * 4'],
+      arp_b: ['(F3 A3 C4 F4) * 4'],
+      da: ['kick', '.', 'sn', '.'],
+      db: ['kick', 'sn', 'kick', 'sn'],
+    };
+    const ast = {
+      seqs: {
+        lead_intro: ['rest', 'rest', 'rest', 'rest'],
+        bass_intro: ['rest', 'rest', 'rest', 'rest'],
+        arp_intro: ['rest', 'rest', 'rest', 'rest'],
+        drum_seq_intro: ['da', 'da', 'da', 'da'],
+        lead_build: ['rest', 'rest', 'rest', 'rest'],
+        bass_build: ['rest', 'rest', 'rest', 'rest'],
+        arp_build: ['arp_a', 'arp_b', 'arp_a', 'arp_b'],
+        drum_seq_build: ['da', 'db', 'da', 'db'],
+        lead_main: ['lead_a', 'lead_b', 'lead_a', 'lead_turn', 'lead_a', 'lead_b', 'lead_a', 'lead_peak'],
+        bass_main: ['ba', 'bb', 'ba', 'bb', 'ba', 'bb', 'ba', 'bb'],
+        arp_main: ['arp_a', 'arp_b', 'arp_a', 'arp_b', 'arp_a', 'arp_b', 'arp_a', 'arp_b'],
+        drum_seq_main: ['da', 'db', 'da', 'db', 'da', 'db', 'da', 'db'],
+        lead_break: ['rest', 'rest', 'rest', 'rest'],
+        bass_break: ['ba', 'bb', 'ba', 'bb'],
+        arp_break: ['arp_a', 'arp_b', 'arp_a', 'arp_b'],
+        drum_seq_break: ['da', 'da', 'da', 'da'],
+      },
+      channels: [
+        { id: 1, inst: 'lead', seqSpecTokens: ['lead_intro', 'lead_build', 'lead_main', 'lead_break'] },
+        { id: 2, inst: 'bass', seqSpecTokens: ['bass_intro', 'bass_build', 'bass_main', 'bass_break'] },
+        { id: 3, inst: 'arp', seqSpecTokens: ['arp_intro', 'arp_build', 'arp_main', 'arp_break'] },
+        { id: 4, inst: 'kick', seqSpecTokens: ['drum_seq_intro', 'drum_seq_build', 'drum_seq_main', 'drum_seq_break'] },
+      ],
+    };
+    const song = {
+      chip: 'gameboy',
+      pats,
+      channels: [
+        { id: 1, defaultInstrument: 'lead', events: [] },
+        { id: 2, defaultInstrument: 'bass', events: [] },
+        { id: 3, defaultInstrument: 'arp', events: [] },
+        { id: 4, defaultInstrument: 'kick', events: [] },
+      ],
+    };
+
+    const timelines = buildChannelTimelines(src, song, ast);
+    const leadTotal = timelines.find((row) => row.channelId === 1)!.segments.at(-1)!.endStep;
+    const bassTotal = timelines.find((row) => row.channelId === 2)!.segments.at(-1)!.endStep;
+    expect(leadTotal).toBeGreaterThan(bassTotal);
+
+    const sections = listArrangementSections(src, song, ast);
+    const main = sections.find((section) => section.label === 'lead_main')!;
+    const focus = resolveSectionFocus(src, song, ast, {
+      channelId: main.channelId,
+      startStep: main.startStep,
+      endStep: main.endStep,
+      seqName: main.seqName,
+      patName: main.patName,
+      channelItemIndex: main.channelItemIndex,
+    });
+
+    expect(focus?.channelItemIndex).toBe(2);
+    expect(focus?.seqDefinitionLines.length).toBe(4);
+
+    for (const row of timelines) {
+      const matched = row.segments.filter((seg) => segmentMatchesSectionFocus(seg, focus!));
+      expect(matched.every((seg) => seg.channelItemIndex === 2)).toBe(true);
+      expect(matched.some((seg) => seg.seqName?.includes('_break'))).toBe(false);
+    }
   });
 });
 

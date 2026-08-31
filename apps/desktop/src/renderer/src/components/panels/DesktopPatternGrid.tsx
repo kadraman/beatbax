@@ -18,7 +18,7 @@ import {
   type ChannelInfo,
 } from '@beatbax/app-core/stores/channel.store';
 import type { ArrangementSectionBlock, SectionFocusInfo } from '@beatbax/app-core/editor/arrangement-slice';
-import { buildChannelTimelines, listArrangementSections } from '@beatbax/app-core/editor/arrangement-slice';
+import { buildChannelTimelines, listArrangementSections, segmentMatchesSectionFocus } from '@beatbax/app-core/editor/arrangement-slice';
 import { getChannelColor } from '@beatbax/ui-tokens/channel-meta';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 
@@ -66,6 +66,8 @@ export interface DesktopPatternGridHandle {
   setSliceHighlight: (window: { startStep: number; endStep: number } | null) => void;
   /** Section focus banner + editor highlight metadata. */
   setSectionFocus: (info: SectionFocusInfo | null) => void;
+  /** When true, map playback progress into the focused section column (slice playback only). */
+  setSlicePlaybackRemap: (remap: boolean) => void;
   dispose: () => void;
 }
 
@@ -111,6 +113,40 @@ function sectionWindowStartPct(
 ): number | null {
   if (!window || globalEventTotal <= 0) return null;
   return Math.min(99.5, Math.max(0, (window.startStep / globalEventTotal) * 100));
+}
+
+function sectionWindowRect(
+  window: { startStep: number; endStep: number } | null | undefined,
+  globalEventTotal: number,
+  rowsWrap: HTMLElement | null,
+  firstTrack: HTMLElement | null,
+): { left: string; width: string } | null {
+  if (!window || globalEventTotal <= 0) return null;
+  const startPct = window.startStep / globalEventTotal;
+  const widthPct = (window.endStep - window.startStep) / globalEventTotal;
+  if (widthPct <= 0) return null;
+
+  if (!rowsWrap || !firstTrack) {
+    return {
+      left: `${startPct * 100}%`,
+      width: `${widthPct * 100}%`,
+    };
+  }
+
+  const wrapRect = rowsWrap.getBoundingClientRect();
+  const trackRect = firstTrack.getBoundingClientRect();
+  if (wrapRect.width <= 0 || trackRect.width <= 0) {
+    return {
+      left: `${startPct * 100}%`,
+      width: `${widthPct * 100}%`,
+    };
+  }
+
+  const trackLeft = trackRect.left - wrapRect.left;
+  return {
+    left: `${trackLeft + trackRect.width * startPct}px`,
+    width: `${trackRect.width * widthPct}px`,
+  };
 }
 
 function channelPositionsAtPct(
@@ -174,11 +210,13 @@ function DesktopPatternGrid({
   const [positions, setPositions] = useState<Record<number, number>>({});
   const [globalPct, setGlobalPct] = useState<number | null>(null);
   const [globalLeft, setGlobalLeft] = useState<string>('0%');
+  const [focusColumnRect, setFocusColumnRect] = useState<{ left: string; width: string } | null>(null);
   const [paused, setPaused] = useState(false);
   const [channelInfo, setChannelInfo] = useState<Record<number, ChannelInfo>>(channelStates.get());
   const [sliceWindow, setSliceWindow] = useState<{ startStep: number; endStep: number } | null>(null);
   const [sectionFocus, setSectionFocusState] = useState<SectionFocusInfo | null>(null);
   const sectionFocusRef = useRef<SectionFocusInfo | null>(null);
+  const slicePlaybackRemapRef = useRef(false);
   const globalEventTotalRef = useRef(1);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const rowsWrapRef = useRef<HTMLDivElement | null>(null);
@@ -235,25 +273,42 @@ function DesktopPatternGrid({
     setGlobalLeft(`${x}px`);
   }, []);
 
+  const updateFocusColumnRect = useCallback((): void => {
+    const rect = sectionWindowRect(
+      sectionFocusRef.current?.window,
+      globalEventTotalRef.current,
+      rowsWrapRef.current,
+      firstTrackRef.current,
+    );
+    setFocusColumnRect(rect);
+  }, []);
+
   useLayoutEffect(() => {
     updateGlobalLeft(globalPct);
-  }, [globalPct, rows, updateGlobalLeft]);
+    updateFocusColumnRect();
+  }, [globalPct, rows, sectionFocus, updateGlobalLeft, updateFocusColumnRect]);
 
   useEffect(() => {
-    const onResize = () => updateGlobalLeft(globalPct);
+    const onResize = () => {
+      updateGlobalLeft(globalPct);
+      updateFocusColumnRect();
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [globalPct, updateGlobalLeft]);
+  }, [globalPct, updateGlobalLeft, updateFocusColumnRect]);
 
   useEffect(() => {
     const rowsWrap = rowsWrapRef.current;
     const firstTrack = firstTrackRef.current;
     if (!rowsWrap || !firstTrack || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(() => updateGlobalLeft(globalPct));
+    const observer = new ResizeObserver(() => {
+      updateGlobalLeft(globalPct);
+      updateFocusColumnRect();
+    });
     observer.observe(rowsWrap);
     observer.observe(firstTrack);
     return () => observer.disconnect();
-  }, [globalPct, rows, updateGlobalLeft]);
+  }, [globalPct, rows, sectionFocus, updateGlobalLeft, updateFocusColumnRect]);
 
   useImperativeHandle(gridRef, () => ({
     setSong: (song, ast) => {
@@ -266,11 +321,14 @@ function DesktopPatternGrid({
       setGlobalPct(null);
       setPaused(false);
       setSliceWindow(null);
+      setSectionFocusState(null);
+      sectionFocusRef.current = null;
     },
     setPosition: (channelId, progress) => {
+      const window = slicePlaybackRemapRef.current ? sectionFocusRef.current?.window : null;
       const mapped = mapProgressIntoWindow(
         progress,
-        sectionFocusRef.current?.window,
+        window,
         globalEventTotalRef.current,
       );
       const pct = Math.min(99.5, Math.max(0, mapped * 100));
@@ -278,9 +336,10 @@ function DesktopPatternGrid({
       setPaused(false);
     },
     setGlobalProgress: (progress) => {
+      const window = slicePlaybackRemapRef.current ? sectionFocusRef.current?.window : null;
       const mapped = mapProgressIntoWindow(
         progress,
-        sectionFocusRef.current?.window,
+        window,
         globalEventTotalRef.current,
       );
       const pct = Math.min(99.5, Math.max(0, mapped * 100));
@@ -299,10 +358,19 @@ function DesktopPatternGrid({
       setPaused(false);
     },
     setSliceHighlight: (window) => setSliceWindow(window),
+    setSlicePlaybackRemap: (remap) => {
+      slicePlaybackRemapRef.current = remap;
+    },
     setSectionFocus: (info) => {
       const prevWindow = sectionFocusRef.current?.window;
       sectionFocusRef.current = info;
       setSectionFocusState(info);
+      setFocusColumnRect(sectionWindowRect(
+        info?.window,
+        globalEventTotalRef.current,
+        rowsWrapRef.current,
+        firstTrackRef.current,
+      ));
       const window = info?.window;
       const windowChanged = !prevWindow || !window
         || prevWindow.startStep !== window.startStep
@@ -351,6 +419,13 @@ function DesktopPatternGrid({
     >
       {empty ? null : (
         <div className="bb-pgrid__rows" ref={rowsWrapRef}>
+          {sectionFocus && focusColumnRect ? (
+            <div
+              aria-hidden="true"
+              className="bb-pgrid__focus-column"
+              style={focusColumnRect}
+            />
+          ) : null}
           <div
             aria-hidden="true"
             className={`bb-pgrid__cursor bb-pgrid__cursor--global${paused ? ' bb-pgrid__cursor--paused' : ''}`}
@@ -374,9 +449,14 @@ function DesktopPatternGrid({
                     patName: block.patName,
                     channelItemIndex: block.channelItemIndex,
                   };
-                  const inSlice = !!sliceWindow
-                    && block.startStep < sliceWindow.endStep
-                    && sliceWindow.startStep < block.endStep;
+                  const inSlice = sectionFocus
+                    ? segmentMatchesSectionFocus(
+                      { channelItemIndex: block.channelItemIndex, startStep: block.startStep, endStep: block.endStep },
+                      sectionFocus,
+                    )
+                    : !!sliceWindow
+                      && block.startStep < sliceWindow.endStep
+                      && sliceWindow.startStep < block.endStep;
                   const chipLabel = abbreviatePatternName(block.label, 11);
                   return (
                     <div
@@ -492,9 +572,14 @@ function DesktopPatternGrid({
                     }
                     const blockLabel = seg.seqName ? `${seg.seqName} › ${seg.patName}` : seg.patName;
                     const chipLabel = abbreviatePatternName(seg.patName);
-                    const inSlice = !!sliceWindow
-                      && startStep < sliceWindow.endStep
-                      && sliceWindow.startStep < endStep;
+                    const inSlice = sectionFocus
+                      ? segmentMatchesSectionFocus(
+                        { channelItemIndex: seg.channelItemIndex, startStep, endStep },
+                        sectionFocus,
+                      )
+                      : !!sliceWindow
+                        && startStep < sliceWindow.endStep
+                        && sliceWindow.startStep < endStep;
                     const navigate = () => onNavigate?.(seg.patName);
                     const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
                       if (event.key === 'Enter' || event.key === ' ') {
@@ -626,6 +711,7 @@ export function createDesktopPatternGrid(
     resumePositions: () => call((handle) => handle.resumePositions()),
     clearPositions: () => call((handle) => handle.clearPositions()),
     setSliceHighlight: (window) => call((handle) => handle.setSliceHighlight(window)),
+    setSlicePlaybackRemap: (remap) => call((handle) => handle.setSlicePlaybackRemap(remap)),
     setSectionFocus: (info) => call((handle) => handle.setSectionFocus(info)),
     dispose: () => {
       handleRef.current?.dispose();

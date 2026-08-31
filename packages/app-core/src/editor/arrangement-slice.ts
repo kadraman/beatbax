@@ -48,11 +48,21 @@ export interface SectionFocusChannelRef {
   seqName: string;
 }
 
+/** Stable identity for rebinding section focus after song edits. */
+export interface SectionFocusIdentity {
+  /** Normalized headword from a `# --- Section …` comment (e.g. `intro`). */
+  headword?: string | null;
+  /** Primary seq on the focused channel, when known. */
+  seqName?: string | null;
+}
+
 /** UI/editor metadata for an arrangement section focus (Pattern Grid + Monaco). */
 export interface SectionFocusInfo {
   window: { startStep: number; endStep: number };
-  /** Fixed display title until `.bax` has named sections. */
+  /** Human-readable section title from comment or primary seq name. */
   sectionLabel: string;
+  /** Normalized headword for rebinding after edits; null when no section comment. */
+  sectionHeadword?: string | null;
   /** 1-based line of the section comment when found. */
   commentLine?: number;
   /** Per-channel seq refs included in this section slice. */
@@ -61,6 +71,8 @@ export interface SectionFocusInfo {
   seqDefinitionLines: number[];
   /** Seq on the clicked channel, when known. */
   primarySeqName: string | null;
+  /** Top-level channel seq/pat item for this section (0-based), when known. */
+  channelItemIndex?: number | null;
 }
 
 interface SliceChannelPick {
@@ -171,6 +183,34 @@ function buildSegmentsFromEvents(events: any[]): SliceSegment[] {
     }
   }
   return segs;
+}
+
+/** Map a top-level channel seq name to its 0-based item index. */
+function channelItemIndexForSeqName(
+  ast: any | undefined,
+  channelId: number,
+  seqName: string | null,
+): number | null {
+  if (!seqName || !ast) return null;
+  const astChannel = (ast?.channels ?? []).find((c: any) => (c?.id ?? 0) === channelId);
+  const tokens = getAstChannelSpecTokens(astChannel);
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokenToPatternName(tokens[i]) === seqName) return i;
+  }
+  return null;
+}
+
+function stampSegmentChannelItemIndexes(
+  segments: SliceSegment[],
+  channelId: number,
+  ast?: any,
+): SliceSegment[] {
+  if (!ast) return segments;
+  return segments.map((seg) => {
+    if (seg.channelItemIndex != null) return seg;
+    const idx = channelItemIndexForSeqName(ast, channelId, seg.seqName);
+    return idx != null ? { ...seg, channelItemIndex: idx } : seg;
+  });
 }
 
 function getAstChannelSpecTokens(astChannel: any): string[] {
@@ -419,9 +459,10 @@ export function buildChannelTimelines(
     const events: any[] = ch.events ?? [];
     const astChannel = (ast?.channels ?? []).find((c: any) => (c?.id ?? 0) === channelId);
     const astSegs = astChannel ? buildSegmentsFromAstChannel(astChannel, ast, pats, patternDurations) : [];
-    const segs = astSegs.length > 0
+    const rawSegs = astSegs.length > 0
       ? astSegs
       : splitRepeatedPatternRuns(buildSegmentsFromEvents(events), pats, patternDurations);
+    const segs = stampSegmentChannelItemIndexes(rawSegs, channelId, ast);
 
     let cursor = 0;
     const timed: TimedSegment[] = segs.map((seg) => {
@@ -648,6 +689,166 @@ function findSeqDefinitionLine(fullSource: string, seqName: string): number | nu
   return null;
 }
 
+/** Expand seed seq lines to the full contiguous `seq … =` block in source order. */
+export function expandContiguousSeqDefinitionLines(
+  fullSource: string,
+  seedLines: number[],
+  maxLines?: number,
+  allowedSeqNames?: Iterable<string>,
+): number[] {
+  if (seedLines.length === 0) return seedLines;
+  const lines = fullSource.split('\n');
+  const allowed = allowedSeqNames ? new Set(allowedSeqNames) : null;
+  let start = Math.min(...seedLines);
+  let end = Math.max(...seedLines);
+
+  for (let i = start - 2; i >= 0; i--) {
+    const line = lines[i];
+    if (/^\s*#\s*---\s*Section/i.test(line)) break;
+    if (/^\s*seq\s+/i.test(line)) {
+      const name = seqNameFromDefinitionLine(line);
+      if (allowed && name && !allowed.has(name)) break;
+      start = i + 1;
+    } else break;
+  }
+
+  for (let i = end; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*#\s*---\s*Section/i.test(line)) break;
+    if (/^\s*seq\s+/i.test(line)) {
+      const name = seqNameFromDefinitionLine(line);
+      if (allowed && name && !allowed.has(name)) break;
+      end = i + 1;
+    } else if (line.trim() === '') continue;
+    else break;
+  }
+
+  const out: number[] = [];
+  for (let line = start; line <= end; line++) {
+    const text = lines[line - 1];
+    if (!/^\s*seq\s+/i.test(text)) continue;
+    const name = seqNameFromDefinitionLine(text);
+    if (allowed && name && !allowed.has(name)) break;
+    out.push(line);
+    if (maxLines != null && out.length >= maxLines) break;
+  }
+  return out;
+}
+
+function inferChannelItemIndexFromSource(
+  fullSource: string,
+  channelId: number,
+  seqName: string | null,
+): number | null {
+  if (!seqName) return null;
+  const channelRe = new RegExp(`^\\s*channel\\s+${channelId}\\s*=>\\s*inst\\s+\\S+\\s+seq\\s+(.+)`, 'i');
+  for (const line of fullSource.split('\n')) {
+    const match = line.match(channelRe);
+    if (!match) continue;
+    const tokens = match[1].trim().split(/\s+/).filter(Boolean);
+    for (let i = 0; i < tokens.length; i++) {
+      if (tokenToPatternName(tokens[i]) === seqName) return i;
+    }
+  }
+  return null;
+}
+
+function resolveSeqDefinitionLines(
+  fullSource: string,
+  phaseSeqNames: string[],
+  channels: SectionFocusChannelRef[],
+  fallbackSeqNames: string[],
+  channelItemIndex: number | null,
+): number[] {
+  const names = phaseSeqNames.length > 0
+    ? [...new Set(phaseSeqNames)]
+    : [...new Set([
+      ...fallbackSeqNames,
+      ...channels.map((ch) => ch.seqName),
+    ].filter(Boolean))];
+
+  const expectedCount = Math.max(
+    names.length,
+    channels.length,
+    channelItemIndex != null ? collectPhaseSeqNamesFromSource(fullSource, channelItemIndex).length : 0,
+    1,
+  );
+
+  const directLines = findSeqDefinitionLines(fullSource, names);
+  if (directLines.length >= expectedCount) {
+    return directLines.slice(0, expectedCount);
+  }
+
+  const seedLines = directLines.length > 0
+    ? directLines
+    : (names[0] ? [findSeqDefinitionLine(fullSource, names[0])].filter((line): line is number => line !== null) : []);
+
+  if (seedLines.length === 0) return [];
+
+  return expandContiguousSeqDefinitionLines(
+    fullSource,
+    seedLines,
+    expectedCount,
+    names.length > 0 ? names : undefined,
+  );
+}
+
+/** Seq names from `channel N => … seq …` lines at a top-level item index. */
+export function collectPhaseSeqNamesFromSource(
+  fullSource: string,
+  phaseIndex: number,
+): string[] {
+  const names: string[] = [];
+  for (const line of fullSource.split('\n')) {
+    const match = line.match(/^\s*channel\s+\d+\s*=>\s*inst\s+\S+\s+seq\s+(.+)/i);
+    if (!match) continue;
+    const tokens = match[1].trim().split(/\s+/).filter(Boolean);
+    if (phaseIndex >= tokens.length) continue;
+    const name = tokenToPatternName(tokens[phaseIndex]);
+    if (name) names.push(name);
+  }
+  return names;
+}
+
+function collectPhaseSeqChannelsFromSource(
+  fullSource: string,
+  phaseIndex: number,
+): SectionFocusChannelRef[] {
+  const instByChannel = parseChannelInstruments(fullSource);
+  const refs: SectionFocusChannelRef[] = [];
+  for (const line of fullSource.split('\n')) {
+    const match = line.match(/^\s*channel\s+(\d+)\s*=>\s*inst\s+(\S+)\s+seq\s+(.+)/i);
+    if (!match) continue;
+    const channelId = Number(match[1]);
+    const tokens = match[3].trim().split(/\s+/).filter(Boolean);
+    if (phaseIndex >= tokens.length) continue;
+    const seqName = tokenToPatternName(tokens[phaseIndex]);
+    if (!seqName) continue;
+    refs.push({
+      channelId,
+      inst: instByChannel.get(channelId) ?? match[2],
+      seqName,
+    });
+  }
+  return refs.sort((a, b) => a.channelId - b.channelId);
+}
+
+/** Extract a stable headword from a section comment label for identity matching. */
+export function normalizeSectionHeadword(label: string): string {
+  const trimmed = label.trim();
+  const beforeParen = trimmed.split('(')[0] ?? trimmed;
+  const beforeDash = beforeParen.split('—')[0]?.split('–')[0] ?? beforeParen;
+  return beforeDash.trim().toLowerCase();
+}
+
+/** Derive rebind identity from resolved section-focus metadata. */
+export function deriveSectionFocusIdentity(info: SectionFocusInfo): SectionFocusIdentity {
+  return {
+    headword: info.sectionHeadword ?? null,
+    seqName: info.primarySeqName,
+  };
+}
+
 /** Nearest `# --- Section …` (or generic `# --- … ---`) comment directly above a seq line. */
 export function findSectionCommentAbove(
   fullSource: string,
@@ -721,6 +922,16 @@ export function resolveSectionFocus(
   const window = resolveSliceWindow(timelines, anchor);
   if (window.endStep <= window.startStep) return null;
 
+  const channelItemIndex = anchor.channelItemIndex ?? (() => {
+    const row = timelines.find((t) => t.channelId === anchor.channelId);
+    if (!row) return null;
+    const mid = (window.startStep + window.endStep) / 2;
+    const hit = row.segments.find((s) => s.startStep <= mid && mid < s.endStep);
+    return hit?.channelItemIndex ?? null;
+  })()
+    ?? channelItemIndexForSeqName(ast, anchor.channelId, anchor.seqName)
+    ?? inferChannelItemIndexFromSource(fullSource, anchor.channelId, anchor.seqName);
+
   const fallbackInst = firstDeclaredInstrument(fullSource);
   const picks = collectSliceChannelPicks(timelines, window, fallbackInst);
   if (picks.length === 0) return null;
@@ -733,15 +944,15 @@ export function resolveSectionFocus(
     seqName: pick.kind === 'seq' ? pick.refs[0] : pick.refs.join(' '),
   }));
 
-  if (anchor.channelItemIndex != null && ast) {
-    const phaseSeqs = collectPhaseSeqNames(ast, anchor.channelItemIndex);
+  if (channelItemIndex != null && ast) {
+    const phaseSeqs = collectPhaseSeqNames(ast, channelItemIndex);
     if (phaseSeqs.length > 0) {
       channels = (ast.channels ?? [])
         .map((ch: any) => {
           const channelId = Number(ch?.id ?? 0);
           const tokens = getAstChannelSpecTokens(ch);
-          if (anchor.channelItemIndex! >= tokens.length) return null;
-          const seqName = tokenToPatternName(tokens[anchor.channelItemIndex!]);
+          if (channelItemIndex >= tokens.length) return null;
+          const seqName = tokenToPatternName(tokens[channelItemIndex]);
           const inst = instByChannel.get(channelId)
             ?? picks.find((pick) => pick.channelId === channelId)?.inst
             ?? fallbackInst;
@@ -753,22 +964,35 @@ export function resolveSectionFocus(
     }
   }
 
+  if (channelItemIndex != null) {
+    const sourceChannels = collectPhaseSeqChannelsFromSource(fullSource, channelItemIndex);
+    if (sourceChannels.length > channels.length) {
+      channels = sourceChannels;
+    }
+  }
+
   const namedSeqsFromPicks = picks
     .filter((pick) => pick.kind === 'seq')
     .map((pick) => pick.refs[0]);
 
-  const namedSeqs = anchor.channelItemIndex != null && ast
-    ? (() => {
-      const phaseSeqs = collectPhaseSeqNames(ast, anchor.channelItemIndex);
-      return phaseSeqs.length > 0 ? phaseSeqs : namedSeqsFromPicks;
-    })()
+  const phaseSeqNames = channelItemIndex != null
+    ? [...new Set([
+      ...collectPhaseSeqNames(ast, channelItemIndex),
+      ...collectPhaseSeqNamesFromSource(fullSource, channelItemIndex),
+    ])]
+    : [];
+
+  const namedSeqs = phaseSeqNames.length > 0
+    ? phaseSeqNames
     : namedSeqsFromPicks;
 
-  const seqDefinitionLines = [...new Set(
-    namedSeqs
-      .map((name) => findSeqDefinitionLine(fullSource, name))
-      .filter((line): line is number => line !== null),
-  )].sort((a, b) => a - b);
+  const seqDefinitionLines = resolveSeqDefinitionLines(
+    fullSource,
+    phaseSeqNames,
+    channels,
+    namedSeqsFromPicks,
+    channelItemIndex,
+  );
 
   const primarySeqName = anchor.seqName
     ?? picks.find((pick) => pick.channelId === anchor.channelId && pick.kind === 'seq')?.refs[0]
@@ -780,15 +1004,30 @@ export function resolveSectionFocus(
     : (primarySeqName ? findSeqDefinitionLine(fullSource, primarySeqName) : null);
 
   const comment = blockStartLine ? findSectionCommentAbove(fullSource, blockStartLine) : null;
+  const sectionLabel = comment?.label ?? primarySeqName ?? 'Section';
+  const sectionHeadword = comment ? normalizeSectionHeadword(comment.label) : null;
 
   return {
     window,
-    sectionLabel: 'Section',
+    sectionLabel,
+    sectionHeadword,
     commentLine: comment?.line,
     channels,
     seqDefinitionLines,
     primarySeqName,
+    channelItemIndex,
   };
+}
+
+/** Whether a timed grid segment belongs to the active section focus. */
+export function segmentMatchesSectionFocus(
+  seg: { channelItemIndex: number | null; startStep: number; endStep: number },
+  focus: Pick<SectionFocusInfo, 'channelItemIndex' | 'window'>,
+): boolean {
+  if (focus.channelItemIndex != null) {
+    return seg.channelItemIndex === focus.channelItemIndex;
+  }
+  return seg.startStep < focus.window.endStep && focus.window.startStep < seg.endStep;
 }
 
 /**
@@ -1084,6 +1323,47 @@ export function findArrangementSliceAnchorByName(
   return null;
 }
 
+/**
+ * Rebind section focus after song edits: match comment headword first, then seq name.
+ */
+export function findArrangementSliceAnchorBySectionIdentity(
+  fullSource: string,
+  song: any,
+  ast: any | undefined,
+  identity: SectionFocusIdentity,
+): ArrangementSliceAnchor | null {
+  const headword = identity.headword?.trim()
+    ? normalizeSectionHeadword(identity.headword)
+    : null;
+  const seqName = identity.seqName?.trim() || null;
+
+  if (headword) {
+    const sections = listArrangementSections(fullSource, song, ast);
+    for (const section of sections) {
+      if (!section.seqName) continue;
+      const seqDefLine = findSeqDefinitionLine(fullSource, section.seqName);
+      if (!seqDefLine) continue;
+      const comment = findSectionCommentAbove(fullSource, seqDefLine);
+      if (!comment) continue;
+      if (normalizeSectionHeadword(comment.label) !== headword) continue;
+      return {
+        channelId: section.channelId,
+        startStep: section.startStep,
+        endStep: section.endStep,
+        seqName: section.seqName,
+        patName: section.patName,
+        channelItemIndex: section.channelItemIndex,
+      };
+    }
+  }
+
+  if (seqName) {
+    return findArrangementSliceAnchorBySeqName(fullSource, song, ast, seqName);
+  }
+
+  return null;
+}
+
 export interface ArrangementSectionBlock {
   key: string;
   label: string;
@@ -1231,7 +1511,8 @@ export function collectPhaseSeqNames(ast: any, phaseIndex: number): string[] {
     const tokens = getAstChannelSpecTokens(ch);
     if (phaseIndex >= tokens.length) continue;
     const name = tokenToPatternName(tokens[phaseIndex]);
-    if (Array.isArray(ast?.seqs?.[name])) names.push(name);
+    if (!name) continue;
+    names.push(name);
   }
   return names;
 }

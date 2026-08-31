@@ -23,7 +23,7 @@ import { storage, StorageKey } from '../utils/local-storage.js';
 
 export type ChatMode = 'edit' | 'ask';
 
-export type CopilotChangeDetailAction = 'added' | 'updated' | 'removed';
+export type CopilotChangeDetailAction = 'added' | 'updated' | 'removed' | 'moved';
 export type CopilotChangeReviewStatus = 'pending' | 'kept' | 'discarded';
 
 export interface CopilotChangeDetail {

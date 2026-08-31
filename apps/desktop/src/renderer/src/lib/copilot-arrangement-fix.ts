@@ -7,10 +7,12 @@ import { detectArrangementLayout } from '@beatbax/app-core/editor/arrangement-sl
 import { restructurePhasedSections } from '@beatbax/app-core/editor/arrangement-restructure';
 import { splitMonolithicChannelSeqs } from '@beatbax/app-core/editor/arrangement-monolithic-split';
 import { parseWithPeggy } from '@beatbax/engine/parser';
+import type { ChatMode } from '@beatbax/app-core/stores/chat.store';
 import {
   collectSectionMarkers,
   mergeSectionMarkersFromCopilotTexts,
 } from './copilot-apply-guard';
+import { isCopilotErrorMachinePrompt } from './copilot-error-prompt';
 
 export type ArrangementLayoutFixAction =
   | 'split_monolithic'
@@ -54,6 +56,19 @@ export function isArrangementLayoutFixIntent(...texts: Array<string | undefined>
 /** True when the user is confirming a proposed local command run. */
 export function isArrangementLayoutFixConfirmation(...texts: Array<string | undefined>): boolean {
   return texts.some((text) => text?.trim() && ARRANGEMENT_FIX_CONFIRM_RE.test(text));
+}
+
+/** Whether to attempt a local arrangement transform before calling the model. */
+export function shouldTryLocalArrangementFix(activeMode: ChatMode, text: string): boolean {
+  if (isArrangementLayoutFixConfirmation(text)) return true;
+  if (isCopilotErrorMachinePrompt(text)) return true;
+  if (!isArrangementLayoutFixIntent(text)) return false;
+  // Ask mode: require an explicit apply/fix verb so casual questions don't trigger local transforms.
+  if (activeMode === 'ask') {
+    return /\b(?:apply|refactor|split|restructure|fix)\b/i.test(text);
+  }
+  // Edit mode: machine prompts from buildMinimalEditFixPrompt match intent without apply/fix verbs.
+  return true;
 }
 
 function buildProposal(
@@ -211,8 +226,13 @@ export function tryApplyArrangementLayoutFix(
   const confirmed = options.confirmed
     || isArrangementLayoutFixConfirmation(...contextTexts)
     || Boolean(options.action);
+  const primaryText = contextTexts[0];
+  const userRequestedArrangementFix = isArrangementLayoutFixIntent(primaryText)
+    || isArrangementLayoutFixConfirmation(primaryText)
+    || options.confirmed
+    || Boolean(options.action);
 
-  if (layout === 'structured' && (hasIntent || hasMarkers)) {
+  if (layout === 'structured' && userRequestedArrangementFix) {
     return { status: 'already', message: 'Section headers are already in the editor.' };
   }
 

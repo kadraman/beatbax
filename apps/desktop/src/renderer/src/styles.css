@@ -3578,9 +3578,31 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 
 .bb-pgrid[data-section-focus="true"] {
   box-shadow:
-    inset 0 1px 0 rgba(255, 200, 80, 0.12),
-    inset 0 0 0 1px rgba(255, 200, 80, 0.18),
+    inset 0 1px 0 rgba(255, 190, 70, 0.16),
+    inset 0 0 0 1px rgba(255, 190, 70, 0.28),
     0 3px 6px rgba(0,0,0,0.45);
+}
+
+.bb-pgrid__focus-column {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+  border-radius: 3px;
+  background: rgba(255, 190, 70, 0.12);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 190, 70, 0.55),
+    inset 3px 0 0 rgba(255, 190, 70, 0.85),
+    inset -3px 0 0 rgba(255, 190, 70, 0.85);
+}
+
+[data-theme=light] .bb-pgrid__focus-column {
+  background: rgba(180, 110, 10, 0.1);
+  box-shadow:
+    inset 0 0 0 1px rgba(160, 100, 10, 0.45),
+    inset 3px 0 0 rgba(160, 100, 10, 0.75),
+    inset -3px 0 0 rgba(160, 100, 10, 0.75);
 }
 
 .bb-pgrid__focus-bar {
@@ -3714,17 +3736,20 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 }
 
 .bb-pgrid[data-section-focus="true"] .bb-pgrid__block:not(.bb-pgrid__block--slice):not(.bb-pgrid__block--filler):not(.bb-pgrid__block--tail) {
-  opacity: 0.62;
+  opacity: 0.42;
+  filter: saturate(0.65);
 }
 
 .bb-pgrid[data-section-focus="true"] .bb-pgrid__section-block:not(.bb-pgrid__section-block--focus) {
-  opacity: 0.68;
+  opacity: 0.55;
 }
 
 .bb-pgrid__section-block--focus {
-  border-color: rgba(255, 200, 80, 0.5);
-  background: rgba(255, 200, 80, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(255, 200, 80, 0.18);
+  border-color: rgba(255, 190, 70, 0.85);
+  background: rgba(255, 190, 70, 0.22);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 190, 70, 0.35),
+    0 0 0 1px rgba(255, 190, 70, 0.25);
 }
 
 .bb-pgrid__section-play {
@@ -3775,9 +3800,11 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   background: rgba(180, 120, 20, 0.08);
 }
 [data-theme=light] .bb-pgrid__section-block--focus {
-  border-color: rgba(180, 120, 20, 0.42);
-  background: rgba(180, 120, 20, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(180, 120, 20, 0.16);
+  border-color: rgba(160, 100, 10, 0.65);
+  background: rgba(180, 110, 10, 0.18);
+  box-shadow:
+    inset 0 0 0 1px rgba(160, 100, 10, 0.28),
+    0 0 0 1px rgba(160, 100, 10, 0.2);
 }
 [data-theme=light] .bb-pgrid__section-play {
   background: rgba(0, 0, 0, 0.06);
@@ -3840,10 +3867,11 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-pgrid__block:not(.bb-pgrid__block--filler):hover { filter: brightness(1.8); }
 
 .bb-pgrid__block--slice {
-  outline: 1px solid rgba(255, 200, 80, 0.62);
+  outline: 2px solid rgba(255, 190, 70, 0.9);
   outline-offset: -1px;
-  filter: brightness(1.1);
-  z-index: 1;
+  filter: brightness(1.12) saturate(1.08);
+  z-index: 2;
+  box-shadow: inset 0 0 0 1px rgba(255, 190, 70, 0.35);
 }
 
 .bb-pgrid__block-play {
@@ -3929,7 +3957,7 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   pointer-events: none;
   z-index: 2;
   transform: translateX(-1px);
-  transition: opacity 0.15s, left 0.07s linear;
+  transition: opacity 0.15s;
 }
 
 /* Primary DAW-style playhead spanning all rows. */
@@ -5267,23 +5295,39 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-changed-line-removed-hint { color: #f48771 !important; font-style: italic; opacity: 0.95; }
 
 .monaco-editor .view-overlays .cdr.bb-section-focus-line {
-  background: rgba(255, 200, 80, 0.07) !important;
-  box-shadow: inset 2px 0 0 rgba(200, 170, 110, 0.75) !important;
+  background: rgba(255, 190, 70, 0.22) !important;
+  box-shadow: inset 4px 0 0 rgba(255, 190, 70, 0.95) !important;
 }
 
 .monaco-editor .view-overlays .cdr.bb-section-focus-line--header {
-  background: rgba(255, 200, 80, 0.1) !important;
-  box-shadow: inset 2px 0 0 rgba(210, 180, 120, 0.85) !important;
+  background: rgba(255, 190, 70, 0.28) !important;
+  box-shadow: inset 4px 0 0 rgba(255, 210, 100, 1) !important;
+}
+
+.monaco-editor .view-overlays .cdr.bb-section-focus-line--block {
+  background: rgba(255, 190, 70, 0.18) !important;
+}
+
+.monaco-editor .view-lines .bb-section-focus-inline {
+  background-color: rgba(255, 190, 70, 0.16) !important;
 }
 
 [data-theme=light] .monaco-editor .view-overlays .cdr.bb-section-focus-line {
-  background: rgba(180, 120, 20, 0.06) !important;
-  box-shadow: inset 2px 0 0 rgba(160, 110, 20, 0.55) !important;
+  background: rgba(180, 110, 10, 0.18) !important;
+  box-shadow: inset 4px 0 0 rgba(160, 100, 10, 0.9) !important;
 }
 
 [data-theme=light] .monaco-editor .view-overlays .cdr.bb-section-focus-line--header {
-  background: rgba(180, 120, 20, 0.09) !important;
-  box-shadow: inset 2px 0 0 rgba(160, 110, 20, 0.65) !important;
+  background: rgba(180, 110, 10, 0.24) !important;
+  box-shadow: inset 4px 0 0 rgba(140, 90, 10, 1) !important;
+}
+
+[data-theme=light] .monaco-editor .view-overlays .cdr.bb-section-focus-line--block {
+  background: rgba(180, 110, 10, 0.14) !important;
+}
+
+[data-theme=light] .monaco-editor .view-lines .bb-section-focus-inline {
+  background-color: rgba(180, 110, 10, 0.12) !important;
 }
 
 .monaco-editor .view-overlays .cdr.bb-pat-nav-flash {
@@ -7411,23 +7455,39 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-changed-line-removed-hint { color: #f48771 !important; font-style: italic; opacity: 0.95; }
 
 .monaco-editor .view-overlays .cdr.bb-section-focus-line {
-  background: rgba(255, 200, 80, 0.07) !important;
-  box-shadow: inset 2px 0 0 rgba(200, 170, 110, 0.75) !important;
+  background: rgba(255, 190, 70, 0.22) !important;
+  box-shadow: inset 4px 0 0 rgba(255, 190, 70, 0.95) !important;
 }
 
 .monaco-editor .view-overlays .cdr.bb-section-focus-line--header {
-  background: rgba(255, 200, 80, 0.1) !important;
-  box-shadow: inset 2px 0 0 rgba(210, 180, 120, 0.85) !important;
+  background: rgba(255, 190, 70, 0.28) !important;
+  box-shadow: inset 4px 0 0 rgba(255, 210, 100, 1) !important;
+}
+
+.monaco-editor .view-overlays .cdr.bb-section-focus-line--block {
+  background: rgba(255, 190, 70, 0.18) !important;
+}
+
+.monaco-editor .view-lines .bb-section-focus-inline {
+  background-color: rgba(255, 190, 70, 0.16) !important;
 }
 
 [data-theme=light] .monaco-editor .view-overlays .cdr.bb-section-focus-line {
-  background: rgba(180, 120, 20, 0.06) !important;
-  box-shadow: inset 2px 0 0 rgba(160, 110, 20, 0.55) !important;
+  background: rgba(180, 110, 10, 0.18) !important;
+  box-shadow: inset 4px 0 0 rgba(160, 100, 10, 0.9) !important;
 }
 
 [data-theme=light] .monaco-editor .view-overlays .cdr.bb-section-focus-line--header {
-  background: rgba(180, 120, 20, 0.09) !important;
-  box-shadow: inset 2px 0 0 rgba(160, 110, 20, 0.65) !important;
+  background: rgba(180, 110, 10, 0.24) !important;
+  box-shadow: inset 4px 0 0 rgba(140, 90, 10, 1) !important;
+}
+
+[data-theme=light] .monaco-editor .view-overlays .cdr.bb-section-focus-line--block {
+  background: rgba(180, 110, 10, 0.14) !important;
+}
+
+[data-theme=light] .monaco-editor .view-lines .bb-section-focus-inline {
+  background-color: rgba(180, 110, 10, 0.12) !important;
 }
 
 .monaco-editor .view-overlays .cdr.bb-pat-nav-flash {

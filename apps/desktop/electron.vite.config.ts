@@ -33,12 +33,25 @@ export default defineConfig({
   renderer: {
     base: './',
     resolve: {
-      alias: {
-        '@': resolve(__dirname, 'src/renderer/src'),
-        '@beatbax/app-core': resolve(__dirname, '../../packages/app-core/src'),
-        fs: resolve(__dirname, 'src/renderer/src/electron-fs.ts'),
-        path: resolve(__dirname, '../web-ui/src/utils/browser-path.ts'),
-      },
+      alias: [
+        {
+          // Route all app-core imports to TypeScript sources (not stale dist/) in dev + build.
+          find: /^@beatbax\/app-core(\/.*)?$/,
+          replacement: `${resolve(__dirname, '../../packages/app-core/src')}$1`,
+        },
+        {
+          find: '@',
+          replacement: resolve(__dirname, 'src/renderer/src'),
+        },
+        {
+          find: 'fs',
+          replacement: resolve(__dirname, 'src/renderer/src/electron-fs.ts'),
+        },
+        {
+          find: 'path',
+          replacement: resolve(__dirname, '../web-ui/src/utils/browser-path.ts'),
+        },
+      ],
       // Prefer TypeScript sources over stale co-located .js emit in src/.
       extensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.mts', '.json'],
       conditions: ['browser', 'module', 'import', 'default'],
