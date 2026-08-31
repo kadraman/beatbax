@@ -13,6 +13,18 @@ import { computeLineChangeDiff, countAIChangeDiff } from '../src/renderer/src/li
 const dancefloorPulsePath = resolve(__dirname, '../../../songs/gameboy/dancefloor_pulse.bax');
 const dancefloorPulse = readFileSync(dancefloorPulsePath, 'utf8');
 
+function findPatternLine(source: string, name: string): number {
+  const pattern = new RegExp(`^\\s*pat\\s+${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=`);
+  const index = source.split('\n').findIndex((line) => pattern.test(line));
+  if (index < 0) throw new Error(`Pattern not found: ${name}`);
+  return index + 1;
+}
+
+function findPatternLineRange(source: string, names: string[]): { fromStart: number; fromEnd: number } {
+  const lines = names.map((name) => findPatternLine(source, name));
+  return { fromStart: Math.min(...lines), fromEnd: Math.max(...lines) };
+}
+
 function moveLines(source: string, fromStart: number, fromEnd: number, insertBefore: number): string {
   const lines = source.split('\n');
   const block = lines.splice(fromStart - 1, fromEnd - fromStart + 1);
@@ -39,15 +51,13 @@ describe('collectCopilotEditChanges', () => {
   });
 
   it('detects relocated patterns without body changes (dancefloor_pulse bass move)', () => {
-    // Bass intro pats live under the bass section; simulate moving them into the drum block.
-    const moved = moveLines(dancefloorPulse, 184, 186, 210);
+    const movedPatternNames = ['bass_intro_pulse', 'bass_intro_tick', 'bass_intro_rise'];
+    const { fromStart, fromEnd } = findPatternLineRange(dancefloorPulse, movedPatternNames);
+    const insertBefore = findPatternLine(dancefloorPulse, 'drum_full');
+    const moved = moveLines(dancefloorPulse, fromStart, fromEnd, insertBefore);
     const changes = collectCopilotEditChanges(dancefloorPulse, moved);
     const movedPatterns = changes.filter((change) => change.action === 'moved');
-    expect(movedPatterns.map((change) => change.name)).toEqual([
-      'bass_intro_pulse',
-      'bass_intro_tick',
-      'bass_intro_rise',
-    ]);
+    expect(movedPatterns.map((change) => change.name)).toEqual(movedPatternNames);
     expect(collectSemanticChangeLines(dancefloorPulse, moved)).toHaveLength(3);
 
     const lineDiffTotal = countAIChangeDiff(computeLineChangeDiff(dancefloorPulse, moved)).total;

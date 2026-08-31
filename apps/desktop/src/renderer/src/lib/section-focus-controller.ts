@@ -49,6 +49,7 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
   let lastInfo: SectionFocusInfo | null = null;
   let lastIdentity: SectionFocusIdentity | null = null;
   let slicePlaybackActive = false;
+  let slicePlayGeneration = 0;
 
   const clearSlicePlaybackRemap = (): void => {
     slicePlaybackActive = false;
@@ -120,8 +121,11 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
     }
     slicePlaybackActive = true;
     opts.getPatternGrid()?.setSlicePlaybackRemap(true);
+    const generation = ++slicePlayGeneration;
     void opts.playbackManager.play(result.source, { ephemeral: true }).catch(() => {
-      /* playback errors surface via playback:error */
+      if (generation === slicePlayGeneration) {
+        clearSlicePlaybackRemap();
+      }
     });
     return true;
   };

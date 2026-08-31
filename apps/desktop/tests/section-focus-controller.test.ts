@@ -385,6 +385,33 @@ describe('createSectionFocusController', () => {
     expect(clearFocus).toHaveBeenCalled();
   });
 
+  it('clears slice playback remap when play() rejects', async () => {
+    const heroes = heroesSongAst();
+    const timelines = buildChannelTimelines(HEROES_SHAPED, heroes.song, heroes.ast);
+    const themeSeg = timelines[0].segments.find((s) => s.seqName === 'theme_mel')!;
+
+    const play = jest.fn().mockRejectedValue(new Error('parse failed'));
+    const { controller, setSlicePlaybackRemap } = createMockController({ playbackManager: { play, stop: jest.fn(), isPlaying: jest.fn().mockReturnValue(false), getLoop: jest.fn().mockReturnValue(false) } as never });
+
+    controller.enter({
+      channelId: 1,
+      startStep: themeSeg.startStep,
+      endStep: themeSeg.endStep,
+      seqName: 'theme_mel',
+      patName: themeSeg.patName,
+    }, { play: false });
+
+    controller.playFocused();
+    expect(setSlicePlaybackRemap).toHaveBeenCalledWith(true);
+    expect(controller.isSlicePlaybackActive()).toBe(true);
+
+    await Promise.resolve();
+
+    expect(setSlicePlaybackRemap).toHaveBeenCalledWith(false);
+    expect(controller.isSlicePlaybackActive()).toBe(false);
+    expect(controller.isActive()).toBe(true);
+  });
+
   it('clears slice playback remap on playback:stopped', () => {
     const heroes = heroesSongAst();
     const timelines = buildChannelTimelines(HEROES_SHAPED, heroes.song, heroes.ast);
