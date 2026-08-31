@@ -8,6 +8,7 @@ import {
   getLastAssistantChatContent,
   isArrangementLayoutFixConfirmation,
   isArrangementLayoutFixIntent,
+  shouldTryLocalArrangementFix,
   tryApplyArrangementLayoutFix,
 } from '../src/renderer/src/lib/copilot-arrangement-fix';
 
@@ -34,6 +35,25 @@ describe('isArrangementLayoutFixConfirmation', () => {
     expect(isArrangementLayoutFixConfirmation('yes, run it')).toBe(true);
     expect(isArrangementLayoutFixConfirmation('please run split')).toBe(true);
     expect(isArrangementLayoutFixConfirmation('explain section focus')).toBe(false);
+  });
+});
+
+describe('shouldTryLocalArrangementFix', () => {
+  it('does not intercept unrelated Edit-mode prompts', () => {
+    expect(shouldTryLocalArrangementFix('edit', 'make the kick louder')).toBe(false);
+    expect(shouldTryLocalArrangementFix('edit', 'increase tempo to 140')).toBe(false);
+  });
+
+  it('still intercepts Edit-mode section-marker machine prompts', () => {
+    expect(shouldTryLocalArrangementFix(
+      'edit',
+      'Insert these section marker comments into the current song immediately before the first `seq` definition.',
+    )).toBe(true);
+  });
+
+  it('requires apply/fix verbs in Ask mode', () => {
+    expect(shouldTryLocalArrangementFix('ask', 'explain section focus')).toBe(false);
+    expect(shouldTryLocalArrangementFix('ask', 'please apply this change')).toBe(true);
   });
 });
 
@@ -83,6 +103,24 @@ describe('tryApplyArrangementLayoutFix', () => {
 
     const again = tryApplyArrangementLayoutFix(applied.song, 'please apply this change');
     expect(again.status).toBe('already');
+  });
+
+  it('ignores stale assistant context for unrelated follow-ups on structured songs', () => {
+    const applied = tryApplyArrangementLayoutFix(
+      shadowTemple,
+      'yes, run it',
+      undefined,
+      { confirmed: true, action: 'restructure_phased' },
+    );
+    expect(applied.status).toBe('applied');
+    if (applied.status !== 'applied') return;
+
+    const followUp = tryApplyArrangementLayoutFix(
+      applied.song,
+      'make the kick louder',
+      'Ran **BeatBax: Restructure Phased Sections** locally — restructured 4 phased section(s). Review and save.',
+    );
+    expect(followUp.status).toBe('not_applicable');
   });
 
   it('is not applicable for unrelated edit prompts', () => {
