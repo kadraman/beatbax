@@ -15,12 +15,14 @@ const CLASS_BY_ACTION: Record<CopilotEditChangeAction, string> = {
   added: 'bb-changed-line-added',
   updated: 'bb-changed-line-modified',
   removed: 'bb-changed-line-removed',
+  moved: 'bb-changed-line-modified',
 };
 
 const COLOR_BY_ACTION: Record<CopilotEditChangeAction, string> = {
   added: '#4ec94e',
   updated: '#dcdcaa',
   removed: '#f48771',
+  moved: '#dcdcaa',
 };
 
 export function buildFocusedChangeDecorationSpecs(

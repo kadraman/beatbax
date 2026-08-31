@@ -68,6 +68,8 @@ export interface FullIdeSetupOptions {
   runParse: (content: string) => void;
   capabilities: ClientCapabilities;
   transportDisplay: TransportDisplayState;
+  /** When section focus is active, play the focused slice instead of the full song. */
+  tryPlayFocused?: () => boolean;
 }
 
 export interface FullIdeSetupHandle {
@@ -86,6 +88,7 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
     runParse,
     capabilities,
     transportDisplay,
+    tryPlayFocused,
   } = options;
 
   const cleanups: Array<() => void> = [];
@@ -185,7 +188,10 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
     const wasPlaying = playbackManager.isPlaying();
     playbackManager.stop();
     if (wasPlaying) {
-      setTimeout(() => playbackManager.play(getSource()), 80);
+      setTimeout(() => {
+        if (tryPlayFocused?.()) return;
+        void playbackManager.play(getSource());
+      }, 80);
     }
   });
 
@@ -373,7 +379,10 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
 
       if (!liveMode || hasParseErrors) return;
       clearTimeout(win.__bb_liveTimer as ReturnType<typeof setTimeout> | undefined);
-      win.__bb_liveTimer = setTimeout(() => playbackManager.play(getSource()), 800);
+      win.__bb_liveTimer = setTimeout(() => {
+        if (tryPlayFocused?.()) return;
+        void playbackManager.play(getSource());
+      }, 800);
     }),
   );
 

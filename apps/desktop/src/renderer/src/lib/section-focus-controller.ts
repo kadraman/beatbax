@@ -2,12 +2,15 @@ import type { PlaybackManager } from '@beatbax/app-core/playback';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import {
   buildArrangementSliceSource,
+  deriveSectionFocusIdentity,
   findArrangementSliceAnchorByName,
   findArrangementSliceAnchorAtCursor,
+  findArrangementSliceAnchorBySectionIdentity,
   findAdjacentSectionAnchor,
   listArrangementSections,
   resolveSectionFocus,
   type ArrangementSliceAnchor,
+  type SectionFocusIdentity,
   type SectionFocusInfo,
 } from '@beatbax/app-core/editor/arrangement-slice';
 import type { DesktopPatternGridHandle, ArrangementSlicePlayRequest } from '../components/panels/DesktopPatternGrid';
@@ -27,13 +30,15 @@ export interface SectionFocusControllerOptions {
 export interface SectionFocusController {
   enter: (request: ArrangementSlicePlayRequest, options?: { play?: boolean; loop?: boolean }) => void;
   exit: () => void;
-  playFocused: (loop?: boolean) => void;
+  /** Play the focused section slice. Returns false when focus was cleared (caller may play full song). */
+  playFocused: (loop?: boolean) => boolean;
   revealInEditor: () => void;
   focusAtName: (name: string, options?: { play?: boolean }) => void;
   focusAtCursor: (lineNumber: number, column: number, options?: { play?: boolean }) => void;
   focusAdjacentSection: (direction: 'prev' | 'next', options?: { play?: boolean }) => void;
   refresh: () => void;
   isActive: () => boolean;
+  isSlicePlaybackActive: () => boolean;
   getFocusInfo: () => SectionFocusInfo | null;
   dispose: () => void;
 }
@@ -42,6 +47,14 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
   let active = false;
   let lastRequest: ArrangementSlicePlayRequest | null = null;
   let lastInfo: SectionFocusInfo | null = null;
+  let lastIdentity: SectionFocusIdentity | null = null;
+  let slicePlaybackActive = false;
+  let slicePlayGeneration = 0;
+
+  const clearSlicePlaybackRemap = (): void => {
+    slicePlaybackActive = false;
+    opts.getPatternGrid()?.setSlicePlaybackRemap(false);
+  };
 
   const toAnchor = (request: ArrangementSlicePlayRequest): ArrangementSliceAnchor => ({
     channelId: request.channelId,
@@ -52,11 +65,29 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
     channelItemIndex: request.channelItemIndex,
   });
 
+  const toRequest = (anchor: ArrangementSliceAnchor): ArrangementSlicePlayRequest => ({
+    channelId: anchor.channelId,
+    startStep: anchor.startStep,
+    endStep: anchor.endStep,
+    seqName: anchor.seqName,
+    patName: anchor.patName,
+    channelItemIndex: anchor.channelItemIndex,
+  });
+
+  const applyFocusUi = (info: SectionFocusInfo): void => {
+    opts.getPatternGrid()?.setSectionFocus(info);
+    opts.getPatternGrid()?.setSliceHighlight(info.window);
+    opts.sectionFocusEditor.applyFocus(info);
+    opts.onFocusChange?.(info);
+  };
+
   const exit = (): void => {
     if (!active && !lastInfo) return;
     active = false;
     lastRequest = null;
     lastInfo = null;
+    lastIdentity = null;
+    clearSlicePlaybackRemap();
     opts.getPatternGrid()?.setSectionFocus(null);
     opts.getPatternGrid()?.setSliceHighlight(null);
     opts.sectionFocusEditor.clearFocus();
@@ -65,11 +96,11 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
     opts.eventBus.emit('section:focus-exit', undefined);
   };
 
-  const playFocused = (loop?: boolean): void => {
+  const playFocused = (loop?: boolean): boolean => {
     const ctx = opts.getSongContext();
     if (!lastRequest || !ctx?.song) {
       opts.onStatus?.('Nothing focused to play');
-      return;
+      return false;
     }
     const useLoop = loop ?? opts.playbackManager.getLoop();
     const result = buildArrangementSliceSource(
@@ -81,12 +112,22 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
     );
     if (!result) {
       opts.onStatus?.('Could not build arrangement slice');
-      return;
+      exit();
+      return false;
     }
     if (result.warning) opts.onStatus?.(result.warning);
+    if (opts.playbackManager.isPlaying()) {
+      opts.playbackManager.stop();
+    }
+    slicePlaybackActive = true;
+    opts.getPatternGrid()?.setSlicePlaybackRemap(true);
+    const generation = ++slicePlayGeneration;
     void opts.playbackManager.play(result.source, { ephemeral: true }).catch(() => {
-      /* playback errors surface via playback:error */
+      if (generation === slicePlayGeneration) {
+        clearSlicePlaybackRemap();
+      }
     });
+    return true;
   };
 
   const revealInEditor = (): void => {
@@ -111,17 +152,7 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
       opts.onStatus?.('No section found at cursor');
       return;
     }
-    enter(
-      {
-        channelId: anchor.channelId,
-        startStep: anchor.startStep,
-        endStep: anchor.endStep,
-        seqName: anchor.seqName,
-        patName: anchor.patName,
-        channelItemIndex: anchor.channelItemIndex,
-      },
-      { play: options?.play ?? false },
-    );
+    enter(toRequest(anchor), { play: options?.play ?? false });
   };
 
   const focusAtName = (name: string, options?: { play?: boolean }): void => {
@@ -135,17 +166,7 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
       opts.onStatus?.(`'${name}' is not on a channel timeline`);
       return;
     }
-    enter(
-      {
-        channelId: anchor.channelId,
-        startStep: anchor.startStep,
-        endStep: anchor.endStep,
-        seqName: anchor.seqName,
-        patName: anchor.patName,
-        channelItemIndex: anchor.channelItemIndex,
-      },
-      { play: options?.play ?? false },
-    );
+    enter(toRequest(anchor), { play: options?.play ?? false });
   };
 
   const focusAdjacentSection = (direction: 'prev' | 'next', options?: { play?: boolean }): void => {
@@ -161,38 +182,44 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
       opts.onStatus?.(direction === 'prev' ? 'Already at first section' : 'Already at last section');
       return;
     }
-    enter(
-      {
-        channelId: anchor.channelId,
-        startStep: anchor.startStep,
-        endStep: anchor.endStep,
-        seqName: anchor.seqName,
-        patName: anchor.patName,
-        channelItemIndex: anchor.channelItemIndex,
-      },
-      { play: options?.play ?? false },
-    );
+    enter(toRequest(anchor), { play: options?.play ?? false });
   };
 
   const refresh = (): void => {
-    if (!active || !lastRequest) return;
+    if (!active || !lastIdentity) return;
     const ctx = opts.getSongContext();
     if (!ctx?.song) return;
-    const info = resolveSectionFocus(
+
+    const wasPlaying = opts.playbackManager.isPlaying();
+
+    const anchor = findArrangementSliceAnchorBySectionIdentity(
       opts.getSource(),
       ctx.song,
       ctx.ast,
-      toAnchor(lastRequest),
+      lastIdentity,
     );
+    if (!anchor) {
+      const name = lastIdentity.headword ?? lastIdentity.seqName ?? 'Section';
+      exit();
+      opts.onStatus?.(`Section focus ended — ${name} is no longer in the song`);
+      return;
+    }
+
+    const request = toRequest(anchor);
+    const info = resolveSectionFocus(opts.getSource(), ctx.song, ctx.ast, anchor);
     if (!info) {
       exit();
       return;
     }
+
+    lastRequest = request;
     lastInfo = info;
-    opts.getPatternGrid()?.setSectionFocus(info);
-    opts.getPatternGrid()?.setSliceHighlight(info.window);
-    opts.sectionFocusEditor.applyFocus(info);
-    opts.onFocusChange?.(info);
+    lastIdentity = deriveSectionFocusIdentity(info);
+    applyFocusUi(info);
+
+    if (wasPlaying) {
+      playFocused();
+    }
   };
 
   const enter = (request: ArrangementSlicePlayRequest, options?: { play?: boolean; loop?: boolean }): void => {
@@ -201,6 +228,9 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
       opts.onStatus?.('Parse the song first to focus a section');
       return;
     }
+    const resumeSlicePlayback = slicePlaybackActive && opts.playbackManager.isPlaying();
+    const shouldPlay = options?.play === true
+      || (options?.play === false && resumeSlicePlayback);
     const source = opts.getSource();
     const info = resolveSectionFocus(source, ctx.song, ctx.ast, toAnchor(request));
     if (!info) {
@@ -208,21 +238,27 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
       return;
     }
 
+    if (resumeSlicePlayback || shouldPlay) {
+      opts.playbackManager.stop();
+    }
+
     active = true;
     lastRequest = request;
     lastInfo = info;
+    lastIdentity = deriveSectionFocusIdentity(info);
 
-    opts.getPatternGrid()?.setSectionFocus(info);
-    opts.getPatternGrid()?.setSliceHighlight(info.window);
-    opts.sectionFocusEditor.applyFocus(info);
+    applyFocusUi(info);
     opts.sectionFocusEditor.revealFocus(info);
-    opts.onFocusChange?.(info);
     opts.eventBus.emit('section:focus-enter', { info, request });
 
-    if (options?.play !== false) {
+    if (shouldPlay) {
       playFocused(options?.loop);
     }
   };
+
+  const unsubStopped = opts.eventBus.on('playback:stopped', () => {
+    clearSlicePlaybackRemap();
+  });
 
   return {
     enter,
@@ -234,8 +270,10 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
     focusAdjacentSection,
     refresh,
     isActive: () => active,
+    isSlicePlaybackActive: () => slicePlaybackActive,
     getFocusInfo: () => lastInfo,
     dispose: () => {
+      unsubStopped();
       exit();
       opts.sectionFocusEditor.dispose();
     },

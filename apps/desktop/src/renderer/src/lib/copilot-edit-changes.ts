@@ -1,12 +1,13 @@
 import {
   collectBaxDefs,
+  definitionMoved,
   insertDefinitionLine,
   removeDefinitionLine,
   replaceDefinitionLine,
   type BaxDefKind,
 } from './bax-def-index';
 
-export type CopilotEditChangeAction = 'added' | 'updated' | 'removed';
+export type CopilotEditChangeAction = 'added' | 'updated' | 'removed' | 'moved';
 export type CopilotChangeReviewStatus = 'pending' | 'kept' | 'discarded';
 
 export interface CopilotEditChange {
@@ -33,6 +34,7 @@ export function describeCopilotEditChange(change: CopilotEditChange): string {
   const kind = KIND_LABEL[change.kind];
   if (change.action === 'added') return `Added ${kind} \`${change.name}\``;
   if (change.action === 'removed') return `Removed ${kind} \`${change.name}\``;
+  if (change.action === 'moved') return `Moved ${kind} \`${change.name}\``;
   return `Modified ${kind} \`${change.name}\``;
 }
 
@@ -59,6 +61,16 @@ export function collectCopilotEditChanges(previous: string, next: string): Copil
         kind: def.kind,
         name: def.name,
         action: 'updated',
+        previousLine: prev.line,
+        nextLine: def.line,
+        lineNumber: def.lineNumber,
+      });
+    } else if (definitionMoved(previous, prev, next, def)) {
+      changes.push({
+        id: key,
+        kind: def.kind,
+        name: def.name,
+        action: 'moved',
         previousLine: prev.line,
         nextLine: def.line,
         lineNumber: def.lineNumber,
@@ -103,6 +115,15 @@ export function revertCopilotEditChange(
     return replaceDefinitionLine(content, previous) ?? content;
   }
 
+  if (change.action === 'moved') {
+    const previous = baselineDefs.get(change.id);
+    const current = currentDefs.get(change.id);
+    if (!previous || !current) return content;
+    const without = removeDefinitionLine(content, current);
+    if (!without) return content;
+    return insertDefinitionLine(without, previous);
+  }
+
   const previous = baselineDefs.get(change.id);
   if (!previous) return content;
   return insertDefinitionLine(content, previous);
@@ -128,6 +149,9 @@ export function buildLegacyChangeSummary(changes: CopilotEditChange[], notes: st
     }
     if (change.action === 'removed') {
       return `Removed ${KIND_LABEL[change.kind]} \`${change.name}\` — \`${clipLine(change.previousLine)}\``;
+    }
+    if (change.action === 'moved') {
+      return `Moved ${KIND_LABEL[change.kind]} \`${change.name}\` — \`${clipLine(change.nextLine)}\``;
     }
     return `Updated ${KIND_LABEL[change.kind]} \`${change.name}\` — \`${clipLine(change.nextLine)}\` (was: \`${clipLine(change.previousLine)}\`)`;
   });
