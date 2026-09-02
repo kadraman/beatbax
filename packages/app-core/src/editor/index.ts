@@ -5,6 +5,43 @@
 export { createEditor, configureMonaco } from './monaco-setup.js';
 export type { EditorOptions, BeatBaxEditor } from './monaco-setup.js';
 
+export {
+  HIDDEN_MONACO_ACTION_IDS,
+  filterMonacoActionsForPalette,
+  hideIrrelevantMonacoActions,
+  isHiddenMonacoActionId,
+} from './hide-monaco-actions.js';
+
+export {
+  ARRANGEMENT_FIX_LABELS,
+  BEATBAX_CONTEXT_MENU_GROUP,
+  COMMAND_REGISTRY,
+  commandActionUi,
+  contextMenuCommandKeys,
+  formatCommandLabel,
+  keyedCommandKeys,
+} from './command-labels.js';
+export type {
+  CommandContextMenuConfig,
+  CommandLabelContext,
+  CommandMeta,
+  CommandRegistryKey,
+} from './command-labels.js';
+
+export {
+  BEATBAX_CONTEXT_KEYS,
+  computeCommandContextState,
+  resolveGotoDefinitionTarget,
+  setupCommandContext,
+} from './command-context.js';
+export type {
+  BeatBaxContextKey,
+  CommandContextPosition,
+  CommandContextState,
+  CommandFeatureContext,
+  SetupCommandContextOptions,
+} from './command-context.js';
+
 export { registerBeatBaxLanguage, registerNoteEditCommands, transposeCurrentNote } from './beatbax-language.js';
 export { insertHelpSnippetBlock } from './help-snippet-insertion.js';
 

@@ -34,7 +34,7 @@ import { installGlobalErrorHandlers } from '../utils/error-boundary';
 import { KeyboardShortcuts } from '../utils/keyboard-shortcuts';
 import { setupDesktopCopilot, type DesktopCopilotHandle } from './desktop-copilot';
 import { setupDesktopEditor, type DesktopEditorSetupHandle } from './desktop-editor-setup';
-import { handleDesktopExport } from './export-handler';
+import { handleDesktopExport, handleDesktopExportData } from './export-handler';
 import { setupDesktopMenuBar } from './desktop-menu-bar';
 import type { MenuAction } from '../../../shared/electron-api';
 import type { NativeMenuCheckState } from '../../../shared/native-menu-checks';
@@ -472,6 +472,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       showOutput: () => bottomTabs.show('output'),
     });
   };
+
+  const handleExportData = (format: ExportFormat) => handleDesktopExportData(format, getSource);
 
   let newSongWizard: NewSongWizardController | null = null;
   if (capabilities.export) {
@@ -970,6 +972,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       getSource,
       runParse,
       handleExport,
+      handleExportData,
       onAstParsed: () => { /* scale context refreshed inside setup */ },
       toolbar: toolbarRef.current,
       getSongContext: () => lastSongContext,
@@ -987,6 +990,11 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
           { play: payload.play === true, loop: !!payload.loop },
         );
       },
+      isPatternGridOn: () => (
+        Boolean(capabilities.patternGrid)
+        && isFeatureEnabled(FeatureFlag.PATTERN_GRID)
+        && patternGridContainer.style.display !== 'none'
+      ),
     });
     monacoShortcutsDispose = setupDesktopMonacoShortcuts({
       editor: editor.editor,
