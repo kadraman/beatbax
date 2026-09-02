@@ -1,7 +1,8 @@
 import { parse } from '@beatbax/engine/parser';
-import { resolveSong } from '@beatbax/engine/song';
+import { resolveImports, resolveSong } from '@beatbax/engine/song';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
+import { buildImportResolverOptions } from '@beatbax/app-core/import/import-resolver-options';
 import type { ExportManager } from '@beatbax/app-core/export/export-manager';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
@@ -84,6 +85,9 @@ export async function handleDesktopExport(
 /**
  * Return export data as plain text for clipboard operations (F1 → Export: Clipboard…).
  * Supported clipboard formats are text-only (.bax, JSON, FamiTracker text).
+ *
+ * Import kits are merged the same way as {@link ExportManager.export} so local
+ * imports (e.g. `local: kits`) resolve via the open document path / Electron FS.
  */
 export async function handleDesktopExportData(
   format: ExportFormat,
@@ -96,8 +100,13 @@ export async function handleDesktopExportData(
       return source;
     }
 
-    const ast = parse(source);
-    const resolved = resolveSong(ast as any, {});
+    // Match ExportManager: merge kits before resolveSong. Desktop/web
+    // resolveSong uses the browser bundle, where resolveImportsSync always throws.
+    let ast: any = parse(source);
+    if (Array.isArray(ast.imports) && ast.imports.length > 0) {
+      ast = await resolveImports(ast, buildImportResolverOptions());
+    }
+    const resolved = resolveSong(ast, {});
 
     if (format === 'json') {
       return JSON.stringify(resolved, null, 2);

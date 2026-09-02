@@ -10,7 +10,6 @@ import { buildMultiPlaySource } from '../src/editor/command-palette';
 import { setupCommandPalette } from '../src/editor/command-palette';
 import {
   BEATBAX_CONTEXT_MENU_GROUP,
-  COMMAND_REGISTRY,
   contextMenuCommandKeys,
   formatCommandLabel,
 } from '../src/editor/command-labels';

@@ -2,8 +2,22 @@
  * Unit tests for pure BeatBax command context state computation.
  */
 
+const mockParseWithPeggy = jest.fn((source: string) => {
+  const actual = jest.requireActual('@beatbax/engine/parser') as typeof import('@beatbax/engine/parser');
+  return actual.parseWithPeggy(source);
+});
+
+jest.mock('@beatbax/engine/parser', () => {
+  const actual = jest.requireActual('@beatbax/engine/parser');
+  return {
+    ...actual,
+    parseWithPeggy: (source: string) => mockParseWithPeggy(source),
+  };
+});
+
 import {
   computeCommandContextState,
+  resetArrangementFixableCacheForTests,
   resolveGotoDefinitionTarget,
 } from '../src/editor/command-context';
 
@@ -25,6 +39,25 @@ seq main = melody
 channel 1 => inst kick seq main
 play
 `;
+
+const PHASED = `chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=12,down
+pat a = C4
+pat b = E4
+seq lead_intro = a
+seq lead_main = b
+seq drum_intro = a
+seq drum_main = b
+channel 1 => inst lead seq lead_intro lead_main
+channel 4 => inst lead seq drum_intro drum_main
+play
+`;
+
+beforeEach(() => {
+  resetArrangementFixableCacheForTests();
+  mockParseWithPeggy.mockClear();
+});
 
 describe('computeCommandContextState', () => {
   it('detects definition lines and channel lines', () => {
@@ -72,6 +105,21 @@ describe('computeCommandContextState', () => {
     expect(state.onChannelLine).toBe(false);
     expect(state.canGotoDefinition).toBe(false);
     expect(state.hasNamedSymbol).toBe(false);
+  });
+
+  it('caches arrangementFixable so unchanged source is not re-parsed on cursor moves', () => {
+    const first = computeCommandContextState(PHASED, { lineNumber: 1, column: 1 }, false);
+    expect(first.arrangementFixable).toBe(true);
+    expect(mockParseWithPeggy).toHaveBeenCalledTimes(1);
+
+    const second = computeCommandContextState(PHASED, { lineNumber: 10, column: 3 }, true);
+    expect(second.arrangementFixable).toBe(true);
+    expect(mockParseWithPeggy).toHaveBeenCalledTimes(1);
+
+    const edited = `${PHASED}\n# note\n`;
+    const third = computeCommandContextState(edited, { lineNumber: 1, column: 1 }, false);
+    expect(third.arrangementFixable).toBe(true);
+    expect(mockParseWithPeggy).toHaveBeenCalledTimes(2);
   });
 });
 

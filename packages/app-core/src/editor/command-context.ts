@@ -151,15 +151,30 @@ function lineContent(source: string, lineNumber: number): string {
   return lines[lineNumber - 1] ?? '';
 }
 
+/** Last arrangement-fixable result; cursor moves reuse it when the buffer is unchanged. */
+let arrangementFixableCache: { source: string; value: boolean } | null = null;
+
 function isArrangementFixable(source: string): boolean {
-  if (!source.trim()) return false;
-  try {
-    const { ast } = parseWithPeggy(source.replace(/\r\n/g, '\n').replace(/\r/g, '\n'));
-    const layout = detectArrangementLayout(source, ast);
-    return layout === 'monolithic' || layout === 'phased';
-  } catch {
-    return false;
+  if (arrangementFixableCache?.source === source) {
+    return arrangementFixableCache.value;
   }
+  let value = false;
+  if (source.trim()) {
+    try {
+      const { ast } = parseWithPeggy(source.replace(/\r\n/g, '\n').replace(/\r/g, '\n'));
+      const layout = detectArrangementLayout(source, ast);
+      value = layout === 'monolithic' || layout === 'phased';
+    } catch {
+      value = false;
+    }
+  }
+  arrangementFixableCache = { source, value };
+  return value;
+}
+
+/** Test helper: drop the arrangement-fixable source cache. */
+export function resetArrangementFixableCacheForTests(): void {
+  arrangementFixableCache = null;
 }
 
 /**
