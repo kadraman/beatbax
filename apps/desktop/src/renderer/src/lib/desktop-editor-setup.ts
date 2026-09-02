@@ -14,6 +14,7 @@ import { setupGlyphMargin } from '@beatbax/app-core/editor/glyph-margin';
 import { resolveScaleContext } from '@beatbax/app-core/editor/scale-context';
 import { toggleChannelMuted, toggleChannelSoloed } from '@beatbax/app-core/stores/channel.store';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
+import { FeatureFlag, isFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { StatusBar } from '../components/shell/status-bar';
 import type { BottomTabsController } from '../components/shell/tabs';
@@ -35,6 +36,8 @@ export interface DesktopEditorSetupOptions {
   getSource: () => string;
   runParse: (content: string) => void;
   handleExport: (format: ExportFormat) => Promise<void>;
+  /** Optional clipboard export data provider for the command palette. */
+  handleExportData?: (format: ExportFormat) => Promise<string | null>;
   onAstParsed: (ast: unknown) => void;
   toolbar?: DesktopToolbarHandle | null;
   /** Latest resolved song + AST for arrangement-slice command. */
@@ -49,6 +52,8 @@ export interface DesktopEditorSetupOptions {
     play?: boolean;
     loop?: boolean;
   }) => void;
+  /** True when Pattern Grid feature is on and the panel is currently visible. */
+  isPatternGridOn?: () => boolean;
 }
 
 export interface DesktopEditorSetupHandle {
@@ -67,10 +72,12 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
     getSource,
     runParse,
     handleExport,
+    handleExportData,
     onAstParsed,
     toolbar,
     getSongContext,
     onSectionFocusEnter,
+    isPatternGridOn,
   } = options;
   const { eventBus, capabilities, playbackManager } = appContext;
   const monacoEditor = editor.editor;
@@ -203,6 +210,9 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
       editor: monacoEditor,
       getSource,
       onExport: (format) => { void handleExport(format as ExportFormat); },
+      onExportData: handleExportData
+        ? (format) => handleExportData(format as ExportFormat)
+        : undefined,
       onVerify: () => runParse(getSource()),
       onToggleMute: (channelId) => toggleChannelMuted(channelId),
       onToggleSolo: (channelId) => toggleChannelSoloed(channelId),
@@ -216,6 +226,12 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
       },
       getSongContext,
       onSectionFocusEnter,
+      getFeatureContext: () => ({
+        patternGrid: Boolean(isPatternGridOn?.()
+          ?? (Boolean(capabilities.patternGrid) && isFeatureEnabled(FeatureFlag.PATTERN_GRID))),
+        copilot: Boolean(capabilities.copilot) && isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
+        midi: Boolean((window as any).__beatbax_midiStepEntry),
+      }),
       onOutputMessage: (message) => {
         outputPanel.addMessage({
           type: message.type,

@@ -6,6 +6,7 @@
 import { detectArrangementLayout } from '@beatbax/app-core/editor/arrangement-slice';
 import { restructurePhasedSections } from '@beatbax/app-core/editor/arrangement-restructure';
 import { splitMonolithicChannelSeqs } from '@beatbax/app-core/editor/arrangement-monolithic-split';
+import { ARRANGEMENT_FIX_LABELS } from '@beatbax/app-core/editor/command-labels';
 import { parseWithPeggy } from '@beatbax/engine/parser';
 import type { ChatMode } from '@beatbax/app-core/stores/chat.store';
 import {
@@ -35,9 +36,9 @@ const MINIMAL_EDIT_MARKER_PROMPT_RE = /section marker comments|# --- Section \d+
 const ARRANGEMENT_FIX_CONFIRM_RE = /\b(?:yes|yep|yeah|ok(?:ay)?|sure|please\s+run|run\s+(?:it|split|restructure|command|locally)|go\s+ahead|do\s+it|confirm|apply\s+split|split\s+monolithic|restructure\s+phased)\b/i;
 
 const COMMAND_LABELS: Record<ArrangementLayoutFixAction, string> = {
-  split_monolithic: 'BeatBax: Split Monolithic Channel Sequences',
-  restructure_phased: 'BeatBax: Restructure Phased Sections',
-  add_section_markers: 'BeatBax: Add Section Header Comments',
+  split_monolithic: ARRANGEMENT_FIX_LABELS.split_monolithic,
+  restructure_phased: ARRANGEMENT_FIX_LABELS.restructure_phased,
+  add_section_markers: ARRANGEMENT_FIX_LABELS.add_section_markers,
 };
 
 function parseSong(source: string): { ast: any } {

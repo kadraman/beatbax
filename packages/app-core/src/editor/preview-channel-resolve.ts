@@ -83,8 +83,9 @@ const SEQ_LINE_RE = /^\s*seq\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/;
 
 /**
  * Same lookup as {@link findChannelForNamedItem}, from source text.
- * Command-palette Alt+P builds a synthetic `.bax` with regex and does not
- * parse an AST; this keeps that path in sync with CodeLens.
+ * Command-palette preview (Play Selection / explicit name) builds a synthetic
+ * `.bax` with regex and does not parse an AST; this keeps that path in sync
+ * with CodeLens.
  */
 export function findChannelForNamedItemInSource(
   source: string,

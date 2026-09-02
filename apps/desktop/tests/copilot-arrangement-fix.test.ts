@@ -118,7 +118,7 @@ describe('tryApplyArrangementLayoutFix', () => {
     const followUp = tryApplyArrangementLayoutFix(
       applied.song,
       'make the kick louder',
-      'Ran **BeatBax: Restructure Phased Sections** locally — restructured 4 phased section(s). Review and save.',
+      'Ran **Arrange: Restructure Phased Sections into Headers** locally — restructured 4 phased section(s). Review and save.',
     );
     expect(followUp.status).toBe('not_applicable');
   });

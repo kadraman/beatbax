@@ -8,6 +8,11 @@
 
 import { buildMultiPlaySource } from '../src/editor/command-palette';
 import { setupCommandPalette } from '../src/editor/command-palette';
+import {
+  BEATBAX_CONTEXT_MENU_GROUP,
+  contextMenuCommandKeys,
+  formatCommandLabel,
+} from '../src/editor/command-labels';
 import * as monaco from 'monaco-editor';
 
 // ---------------------------------------------------------------------------
@@ -579,6 +584,7 @@ describe('setupCommandPalette — enhanced commands', () => {
   let currentSource: string;
   let currentWord: string | null;
   let currentLine: number;
+  let currentColumn: number;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -588,6 +594,7 @@ describe('setupCommandPalette — enhanced commands', () => {
     currentSource = BASE_SOURCE;
     currentWord = null;
     currentLine = 1;
+    currentColumn = 1;
 
     mockEditor = {
       addAction: jest.fn((descriptor: any) => {
@@ -596,7 +603,7 @@ describe('setupCommandPalette — enhanced commands', () => {
       }),
       getDomNode: jest.fn(() => document.createElement('div')),
       getSelection: jest.fn(() => null),
-      getPosition: jest.fn(() => ({ lineNumber: currentLine, column: 1 })),
+      getPosition: jest.fn(() => ({ lineNumber: currentLine, column: currentColumn })),
       getModel: jest.fn(() => ({
         getValueInRange: jest.fn(() => ''),
         getFullModelRange: jest.fn(() => ({ startLineNumber: 1, startColumn: 1, endLineNumber: 999, endColumn: 1 })),
@@ -627,6 +634,46 @@ describe('setupCommandPalette — enhanced commands', () => {
   });
 
   // ── Navigation ─────────────────────────────────────────────────────────────
+
+  function setCursorOnWord(lineNumber: number, word: string): void {
+    const line = currentSource.split('\n')[lineNumber - 1] ?? '';
+    const idx = line.indexOf(word);
+    expect(idx).toBeGreaterThanOrEqual(0);
+    currentLine = lineNumber;
+    currentColumn = idx + word.length;
+  }
+
+  it('gotoDefinition: jumps to seq from a channel reference', () => {
+    setCursorOnWord(15, 'main');
+    const run = registeredActions.get('beatbax.gotoDefinition');
+    run!();
+    expect(mockEditor.revealLineInCenter).toHaveBeenCalled();
+    expect(mockEditor.setPosition).toHaveBeenCalledWith(expect.objectContaining({ lineNumber: 12 }));
+  });
+
+  it('gotoDefinition: no-op when already on the sequence definition name', () => {
+    setCursorOnWord(12, 'main');
+    const run = registeredActions.get('beatbax.gotoDefinition');
+    run!();
+    expect(mockEditor.revealLineInCenter).not.toHaveBeenCalled();
+  });
+
+  it('gotoDefinition: jumps to subpat from an instrument reference', () => {
+    currentSource = [
+      'chip gameboy',
+      'subpat kick_body =',
+      '  . +0 vol:15 halt',
+      'inst kick type=noise subpat=kick_body',
+      'pat melody = C4',
+      'seq main = melody',
+      'channel 1 => inst kick seq main',
+      'play',
+    ].join('\n');
+    setCursorOnWord(4, 'kick_body');
+    const run = registeredActions.get('beatbax.gotoDefinition');
+    run!();
+    expect(mockEditor.setPosition).toHaveBeenCalledWith(expect.objectContaining({ lineNumber: 2 }));
+  });
 
   it('gotoPatternDef: registered and finds pat on named line', () => {
     currentWord = 'melody';
@@ -667,10 +714,16 @@ describe('setupCommandPalette — enhanced commands', () => {
     expect(registeredActions.has('beatbax.previewPattern')).toBe(true);
   });
 
-  it('previewPattern: builds synthetic source and calls onPlayRaw', () => {
+  it('previewPattern: requires an explicit name (no under-cursor inference)', () => {
     currentWord = 'melody';
     const run = registeredActions.get('beatbax.previewPattern');
     run!();
+    expect(playRawCalls).toHaveLength(0);
+  });
+
+  it('previewPattern: builds synthetic source and calls onPlayRaw', () => {
+    const run = registeredActions.get('beatbax.previewPattern');
+    run!(undefined, 'melody');
     expect(playRawCalls).toHaveLength(1);
     const src = playRawCalls[0][0];
     expect(src).toMatch(/pat __preview__ = C4 E4 G4 C5/);
@@ -687,9 +740,8 @@ describe('setupCommandPalette — enhanced commands', () => {
       'channel 1 => inst gb_lead seq main',
       'play',
     ].join('\n');
-    currentWord = 'melody';
     const run = registeredActions.get('beatbax.previewPattern');
-    run!();
+    run!(undefined, 'melody');
     expect(playRawCalls).toHaveLength(1);
     const src = playRawCalls[0][0];
     expect(src).toMatch(/import "local:lib\/kit.ins"/);
@@ -710,9 +762,8 @@ describe('setupCommandPalette — enhanced commands', () => {
       'channel 3 => inst adv_wave_dark seq wave lock=scale',
       'play',
     ].join('\n');
-    currentWord = 'wave_i';
     const run = registeredActions.get('beatbax.previewPattern');
-    run!();
+    run!(undefined, 'wave_i');
     expect(playRawCalls).toHaveLength(1);
     const src = playRawCalls[0][0];
     expect(src).toMatch(/channel 3 => inst adv_wave_dark seq __preview__/);
@@ -722,9 +773,8 @@ describe('setupCommandPalette — enhanced commands', () => {
 
   it('previewPattern: adds canonical stepsPerBar default when timing is missing', () => {
     currentSource = BASE_SOURCE.replace(/^time 4\n/m, '');
-    currentWord = 'melody';
     const run = registeredActions.get('beatbax.previewPattern');
-    run!();
+    run!(undefined, 'melody');
     expect(playRawCalls).toHaveLength(1);
     const src = playRawCalls[0][0];
     expect(src).toMatch(/^stepsPerBar 4$/m);
@@ -736,9 +786,8 @@ describe('setupCommandPalette — enhanced commands', () => {
   });
 
   it('previewSeq: builds source with preserved definitions and calls onPlayRaw', () => {
-    currentWord = 'main';
     const run = registeredActions.get('beatbax.previewSeq');
-    run!();
+    run!(undefined, 'main');
     expect(playRawCalls).toHaveLength(1);
     const src = playRawCalls[0][0];
     expect(src).toMatch(/channel 1 => inst lead seq main/);
@@ -823,6 +872,15 @@ describe('setupCommandPalette — enhanced commands', () => {
 
   it('swapChannels: registered', () => {
     expect(registeredActions.has('beatbax.swapChannels')).toBe(true);
+  });
+
+  it('mute/solo: quick-pick only (no per-channel palette entries)', () => {
+    expect(registeredActions.has('beatbax.toggleMuteChannel')).toBe(true);
+    expect(registeredActions.has('beatbax.soloChannel')).toBe(true);
+    for (let ch = 1; ch <= 4; ch++) {
+      expect(registeredActions.has(`beatbax.toggleMuteChannel${ch}`)).toBe(false);
+      expect(registeredActions.has(`beatbax.soloChannel${ch}`)).toBe(false);
+    }
   });
 
   // ── Export ─────────────────────────────────────────────────────────────────
@@ -911,9 +969,9 @@ describe('setupCommandPalette — addSelectionToCopilot', () => {
 
     const action = descriptors.get('beatbax.addSelectionToCopilot');
     expect(action).toBeDefined();
-    expect(action.label).toBe('BeatBax: Add Selection to Copilot');
-    expect(action.precondition).toBe('editorHasSelection');
-    expect(action.contextMenuGroupId).toBe('9_beatbax');
+    expect(action.label).toBe(formatCommandLabel('addSelectionToCopilot'));
+    expect(action.precondition).toBe('beatbax.copilot && editorHasSelection');
+    expect(action.contextMenuGroupId).toBe(BEATBAX_CONTEXT_MENU_GROUP);
     expect(action.contextMenuOrder).toBe(0);
 
     action.run();
@@ -922,5 +980,108 @@ describe('setupCommandPalette — addSelectionToCopilot', () => {
       startLine: 143,
       endLine: 143,
     });
+  });
+
+  it('only curated commands expose the BeatBax context-menu group', () => {
+    const descriptors = new Map<string, any>();
+    const mockEditor: any = {
+      addAction: jest.fn((descriptor: any) => {
+        descriptors.set(descriptor.id, descriptor);
+        return { dispose: jest.fn() };
+      }),
+      getDomNode: jest.fn(() => document.createElement('div')),
+      getSelection: jest.fn(() => null),
+      getPosition: jest.fn(() => ({ lineNumber: 1, column: 1 })),
+      getModel: jest.fn(() => ({
+        getValueInRange: jest.fn(() => ''),
+        getFullModelRange: jest.fn(() => ({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 })),
+        getLineCount: jest.fn(() => 1),
+        getLineContent: jest.fn(() => ''),
+        getLineMaxColumn: jest.fn(() => 1),
+        getWordAtPosition: jest.fn(() => null),
+        getValue: jest.fn(() => ''),
+      })),
+      revealLineInCenter: jest.fn(),
+      setPosition: jest.fn(),
+      focus: jest.fn(),
+      trigger: jest.fn(),
+      executeEdits: jest.fn(),
+    };
+
+    setupCommandPalette({
+      editor: mockEditor,
+      getSource: () => '',
+      onExport: jest.fn(),
+      onVerify: jest.fn(),
+      onToggleMute: jest.fn(),
+      onToggleSolo: jest.fn(),
+      onAddSelectionToCopilot: jest.fn(),
+    });
+
+    const expectedIds = new Set(
+      contextMenuCommandKeys().map((key) => `beatbax.${key}`),
+    );
+    const menuIds = [...descriptors.values()]
+      .filter((d) => d.contextMenuGroupId === BEATBAX_CONTEXT_MENU_GROUP)
+      .map((d) => d.id);
+
+    expect(new Set(menuIds)).toEqual(expectedIds);
+    // Niche arrange / help commands must stay palette-only
+    expect(menuIds).not.toContain('beatbax.splitMonolithicSections');
+    expect(menuIds).not.toContain('beatbax.restructurePhasedSections');
+    expect(menuIds).not.toContain('beatbax.addSectionMarkers');
+    expect(menuIds).toContain('beatbax.playArrangementSlice');
+    expect(menuIds).not.toContain('beatbax.instrumentOverride');
+    expect(menuIds).not.toContain('beatbax.showEffectPresets');
+    expect(menuIds).not.toContain('beatbax.verifySong');
+    expect(menuIds).toContain('beatbax.gotoDefinition');
+    expect(menuIds).toContain('beatbax.quickExport');
+    expect(menuIds).toContain('beatbax.listDefinitions');
+    expect(menuIds).not.toContain('beatbax.gotoPatternDef');
+  });
+
+  it('registers only the three approved Monaco keybindings', () => {
+    const descriptors = new Map<string, any>();
+    const mockEditor: any = {
+      addAction: jest.fn((descriptor: any) => {
+        descriptors.set(descriptor.id, descriptor);
+        return { dispose: jest.fn() };
+      }),
+      getDomNode: jest.fn(() => document.createElement('div')),
+      getSelection: jest.fn(() => null),
+      getPosition: jest.fn(() => ({ lineNumber: 1, column: 1 })),
+      getModel: jest.fn(() => ({
+        getValueInRange: jest.fn(() => ''),
+        getFullModelRange: jest.fn(() => ({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 })),
+        getLineCount: jest.fn(() => 1),
+        getLineContent: jest.fn(() => ''),
+        getLineMaxColumn: jest.fn(() => 1),
+        getWordAtPosition: jest.fn(() => null),
+        getValue: jest.fn(() => ''),
+      })),
+      revealLineInCenter: jest.fn(),
+      setPosition: jest.fn(),
+      focus: jest.fn(),
+      trigger: jest.fn(),
+      executeEdits: jest.fn(),
+    };
+
+    setupCommandPalette({
+      editor: mockEditor,
+      getSource: () => '',
+      onExport: jest.fn(),
+      onVerify: jest.fn(),
+      onToggleMute: jest.fn(),
+      onToggleSolo: jest.fn(),
+    });
+
+    const withKeys = [...descriptors.values()].filter(
+      (d) => Array.isArray(d.keybindings) && d.keybindings.length > 0,
+    );
+    expect(withKeys.map((d) => d.id).sort()).toEqual([
+      'beatbax.extractToPattern',
+      'beatbax.gotoPatternDef',
+      'beatbax.quickExport',
+    ].sort());
   });
 });

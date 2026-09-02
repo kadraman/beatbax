@@ -1835,6 +1835,13 @@ setupCommandPalette({
   },
   getSongContext: () => lastSongContext,
   onExportData: handleExportData,
+  getFeatureContext: () => ({
+    patternGrid: Boolean(capabilities.patternGrid)
+      && isFeatureEnabled(FeatureFlag.PATTERN_GRID)
+      && patternGridContainer.style.display !== 'none',
+    copilot: false,
+    midi: Boolean((window as any).__beatbax_midiStepEntry),
+  }),
 });
 }
 

@@ -8,7 +8,6 @@ import {
 } from '@beatbax/app-core/editor/code-actions';
 import { FeatureFlag, isFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
 import {
-  countValidationWarningBadge,
   isValidationProblemsPanelMessage,
   validationIssuePanelType,
 } from '@beatbax/app-core/types/validation';
