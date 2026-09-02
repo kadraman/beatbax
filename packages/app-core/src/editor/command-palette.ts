@@ -5,17 +5,13 @@
  * appear in the Command Palette (F1 / Ctrl+Alt+P) and can be triggered via
  * keyboard shortcuts or programmatically.
  *
- * Commands are grouped into four categories:
- *   BeatBax: Export   — JSON, MIDI, UGE, WAV
- *   BeatBax: Edit     — generate starters, insert transform, format, play selection
- *   BeatBax: Validate — verify / validate song
- *   BeatBax: Channels — mute / solo toggles for channels 1–4
+ * Labels use flat action names or `Category: Command` via {@link commandActionUi}.
+ * A curated subset also appears in the editor right-click context menu.
  *
  * @module editor/command-palette
  */
 
 import * as monaco from 'monaco-editor';
-import { KeyCode, KeyMod } from 'monaco-editor';
 import { parseWithPeggy } from '@beatbax/engine/parser';
 import {
   buildArrangementSliceSource,
@@ -31,6 +27,12 @@ import {
 } from './arrangement-monolithic-split.js';
 import { applyFullDocumentEdit } from './editor-folding.js';
 import { findChannelForNamedItemInSource } from './preview-channel-resolve.js';
+import { commandActionUi, type CommandRegistryKey } from './command-labels.js';
+import {
+  resolveGotoDefinitionTarget,
+  setupCommandContext,
+  type CommandFeatureContext,
+} from './command-context.js';
 import { eventBus } from '../utils/event-bus.js';
 
 // ---------------------------------------------------------------------------
@@ -119,6 +121,12 @@ export interface CommandPaletteOptions {
     source?: string;
     focus?: boolean;
   }) => void;
+
+  /**
+   * Optional feature flags that drive BeatBax command preconditions
+   * (Pattern Grid, Copilot, MIDI step entry).
+   */
+  getFeatureContext?: () => CommandFeatureContext;
 }
 
 // ---------------------------------------------------------------------------
@@ -603,14 +611,45 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     onAddSelectionToCopilot,
     getSongContext,
     onSectionFocusEnter,
+    getFeatureContext,
   } = opts;
 
   const disposables: monaco.IDisposable[] = [];
+  disposables.push(setupCommandContext({
+    editor,
+    getSource,
+    getFeatureContext: () => ({
+      ...getFeatureContext?.(),
+      copilot: Boolean(onAddSelectionToCopilot) && (getFeatureContext?.().copilot ?? true),
+    }),
+  }));
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  function reg(descriptor: monaco.editor.IActionDescriptor): void {
-    disposables.push(editor.addAction(descriptor));
+  /**
+   * Register an action whose label / context-menu membership / keybindings
+   * come from {@link commandActionUi}. Pass the registry key as the first argument.
+   */
+  function reg(
+    key: CommandRegistryKey,
+    descriptor: Omit<
+      monaco.editor.IActionDescriptor,
+      'label' | 'contextMenuGroupId' | 'contextMenuOrder' | 'keybindings'
+    >,
+  ): void {
+    const ui = commandActionUi(key);
+    disposables.push(editor.addAction({
+      ...descriptor,
+      label: ui.label,
+      keybindings: ui.keybindings,
+      ...(ui.contextMenuGroupId
+        ? {
+            contextMenuGroupId: ui.contextMenuGroupId,
+            contextMenuOrder: ui.contextMenuOrder,
+          }
+        : {}),
+      precondition: ui.precondition ?? descriptor.precondition,
+    }));
   }
 
   function runExport(format: ExportFormat): void {
@@ -621,77 +660,67 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
   const editorDom = editor.getDomNode();
 
-  // ── BeatBax: Export ───────────────────────────────────────────────────────
+  // ── Export ───────────────────────────────────────────────────────
 
-  reg({
+  reg('exportJson', {
     id: 'beatbax.exportJson',
-    label: 'BeatBax: Export → JSON',
-    keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyJ],
+
     run: () => runExport('json'),
   });
 
-  reg({
+  reg('exportMidi', {
     id: 'beatbax.exportMidi',
-    label: 'BeatBax: Export → MIDI',
-    keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM],
+
     run: () => runExport('midi'),
   });
 
-  reg({
+  reg('exportUge', {
     id: 'beatbax.exportUge',
-    label: 'BeatBax: Export → UGE (hUGETracker)',
-    keybindings: [],
+
     run: () => runExport('uge'),
   });
 
-  reg({
+  reg('exportWav', {
     id: 'beatbax.exportWav',
-    label: 'BeatBax: Export → WAV',
-    keybindings: [],
+
     run: () => runExport('wav'),
   });
 
-  reg({
+  reg('exportFamitracker', {
     id: 'beatbax.exportFamitracker',
-    label: 'BeatBax: Export → FamiTracker Text (.txt)',
-    keybindings: [],
+
     run: () => runExport('famitracker-text'),
   });
 
-  // ── BeatBax: Validate ─────────────────────────────────────────────────────
+  // ── Validate ─────────────────────────────────────────────────────
 
-  reg({
+  reg('verifySong', {
     id: 'beatbax.verifySong',
-    label: 'BeatBax: Verify / Validate Song',
-    keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV],
-    // Keep in context menu: one slim validate entry is genuinely useful on right-click
-    contextMenuGroupId: '9_beatbax',
-    contextMenuOrder: 5,
+
+
+
     run: () => onVerify(),
   });
 
-  // ── BeatBax: Edit — generate starters ────────────────────────────────────
+  // ── Edit — generate starters ────────────────────────────────────
 
-  reg({
+  reg('generateSampleInst', {
     id: 'beatbax.generateSampleInst',
-    label: 'BeatBax: Generate Sample Instruments',
-    keybindings: [],
+
     run: () => insertAtCursor(editor, SAMPLE_INST_SNIPPET, 'beatbax.generateSampleInst'),
   });
 
-  reg({
+  reg('generateSamplePat', {
     id: 'beatbax.generateSamplePat',
-    label: 'BeatBax: Generate Sample Pattern',
-    keybindings: [],
+
     run: () => insertAtCursor(editor, SAMPLE_PAT_SNIPPET, 'beatbax.generateSamplePat'),
   });
 
-  // ── BeatBax: Edit — insert transform ─────────────────────────────────────
+  // ── Edit — insert transform ─────────────────────────────────────
 
-  reg({
+  reg('insertTransform', {
     id: 'beatbax.insertTransform',
-    label: 'BeatBax: Insert Transform…',
-    keybindings: [],
+
     run: async () => {
       const anchor = editorDom ?? document.body;
       const chosen = await showQuickPick(
@@ -703,16 +732,12 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  // ── BeatBax: Edit — play selection ────────────────────────────────────────
+  // ── Edit — play selection ────────────────────────────────────────
 
   if (onAddSelectionToCopilot) {
-    reg({
+    reg('addSelectionToCopilot', {
       id: 'beatbax.addSelectionToCopilot',
-      label: 'BeatBax: Add Selection to Copilot',
-      keybindings: [],
-      contextMenuGroupId: '9_beatbax',
-      contextMenuOrder: 0,
-      precondition: 'editorHasSelection',
+
       run: () => {
         const selection = editor.getSelection();
         if (!selection || selection.isEmpty()) return;
@@ -735,13 +760,11 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     });
   }
 
-  reg({
+  // Demoted from F1 / right-click / Ctrl+Shift+Space (precondition: false).
+  // Discoverable audition: CodeLens ▶ Preview, Pattern Grid / arrangement slices.
+  reg('playSelection', {
     id: 'beatbax.playSelection',
-    label: 'BeatBax: Play Selected Sequence / Pattern',
-    keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space],
-    // One context-menu entry for quick play-selection
-    contextMenuGroupId: '9_beatbax',
-    contextMenuOrder: 1,
+
     run: () => {
       const selection = editor.getSelection();
       if (!selection) return;
@@ -795,13 +818,14 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('playArrangementSlice', {
     id: 'beatbax.playArrangementSlice',
-    label: 'BeatBax: Play Arrangement Slice at Cursor',
-    keybindings: [],
-    contextMenuGroupId: '9_beatbax',
-    contextMenuOrder: 1.5,
+
     run: () => {
+      if (!getFeatureContext?.().patternGrid) {
+        showToast('Turn on Pattern Grid to play an arrangement slice');
+        return;
+      }
       const model = editor.getModel();
       const position = editor.getPosition();
       if (!model || !position) {
@@ -846,12 +870,11 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('restructurePhasedSections', {
     id: 'beatbax.restructurePhasedSections',
-    label: 'BeatBax: Restructure Phased Sections into Headers',
-    keybindings: [],
-    contextMenuGroupId: '9_beatbax',
-    contextMenuOrder: 1.6,
+
+
+
     run: () => {
       const source = getSource();
       const { ast, ok } = parseEditorSource(source);
@@ -872,12 +895,11 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('addSectionMarkers', {
     id: 'beatbax.addSectionMarkers',
-    label: 'BeatBax: Add Section Header Comments',
-    keybindings: [],
-    contextMenuGroupId: '9_beatbax',
-    contextMenuOrder: 1.65,
+
+
+
     run: () => {
       const source = getSource();
       const { ast, ok } = parseEditorSource(source);
@@ -915,12 +937,11 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('splitMonolithicSections', {
     id: 'beatbax.splitMonolithicSections',
-    label: 'BeatBax: Split Monolithic Channel Sequences',
-    keybindings: [],
-    contextMenuGroupId: '9_beatbax',
-    contextMenuOrder: 1.7,
+
+
+
     run: () => {
       const source = getSource();
       const { ast, ok } = parseEditorSource(source);
@@ -939,12 +960,11 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  // ── BeatBax: Edit — format document ──────────────────────────────────────
+  // ── Edit — format document ──────────────────────────────────────
 
-  reg({
+  reg('formatDocument', {
     id: 'beatbax.formatDocument',
-    label: 'BeatBax: Format BeatBax Document',
-    keybindings: [],
+
     run: () => {
       const model = editor.getModel();
       if (!model) return;
@@ -956,31 +976,11 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  // ── BeatBax: Channels — mute / solo ──────────────────────────────────────
+  // ── Channels — mute / solo (quick-pick) ───────────────────────────────────
 
-  for (let ch = 1; ch <= 4; ch++) {
-    const channelId = ch;
-    reg({
-      id: `beatbax.toggleMuteChannel${channelId}`,
-      label: `BeatBax: Toggle Mute Channel ${channelId}`,
-      keybindings: [],
-      run: () => onToggleMute(channelId),
-    });
-
-    reg({
-      id: `beatbax.soloChannel${channelId}`,
-      label: `BeatBax: Solo Channel ${channelId}`,
-      keybindings: [],
-      run: () => onToggleSolo(channelId),
-    });
-  }
-
-  // ── BeatBax: Channels — quick-pick mute / solo ────────────────────────────
-
-  reg({
+  reg('toggleMuteChannel', {
     id: 'beatbax.toggleMuteChannel',
-    label: 'BeatBax: Toggle Mute Channel…',
-    keybindings: [],
+
     run: async () => {
       const anchor = editorDom ?? document.body;
       const chosen = await showQuickPick(
@@ -992,10 +992,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('soloChannel', {
     id: 'beatbax.soloChannel',
-    label: 'BeatBax: Solo Channel…',
-    keybindings: [],
+
     run: async () => {
       const anchor = editorDom ?? document.body;
       const chosen = await showQuickPick(
@@ -1009,10 +1008,35 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
   // ── Phase 1: Navigation commands ─────────────────────────────────────────
 
-  reg({
+  reg('gotoDefinition', {
+    id: 'beatbax.gotoDefinition',
+    run: () => {
+      const position = editor.getPosition();
+      if (!position) { showToast('No cursor position in editor'); return; }
+      const source = getSource();
+      const target = resolveGotoDefinitionTarget(source, {
+        lineNumber: position.lineNumber,
+        column: position.column,
+      });
+      if (!target) {
+        showToast('No definition to go to from here');
+        return;
+      }
+      const patterns: Record<typeof target.kind, RegExp> = {
+        pat: new RegExp(`^\\s*pat\\s+${escapeRegex(target.name)}\\s*=`),
+        seq: new RegExp(`^\\s*seq\\s+${escapeRegex(target.name)}\\s*=`),
+        inst: new RegExp(`^\\s*inst\\s+${escapeRegex(target.name)}\\s`),
+        subpat: new RegExp(`^\\s*subpat\\s+${escapeRegex(target.name)}\\s*=`),
+      };
+      const line = findLineNumber(source, patterns[target.kind]);
+      if (line < 0) { showToast(`Definition for '${target.name}' not found`); return; }
+      gotoLine(editor, line);
+    },
+  });
+
+  reg('gotoPatternDef', {
     id: 'beatbax.gotoPatternDef',
-    label: 'BeatBax: Go to Pattern Definition',
-    keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyD],
+
     run: () => {
       const word = getWordUnderCursor(editor);
       if (!word || !isValidIdentifier(word)) { showToast('No identifier under cursor'); return; }
@@ -1023,10 +1047,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('gotoSeqDef', {
     id: 'beatbax.gotoSeqDef',
-    label: 'BeatBax: Go to Sequence Definition',
-    keybindings: [],
+
     run: () => {
       const word = getWordUnderCursor(editor);
       if (!word || !isValidIdentifier(word)) { showToast('No identifier under cursor'); return; }
@@ -1037,10 +1060,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('gotoInstDef', {
     id: 'beatbax.gotoInstDef',
-    label: 'BeatBax: Go to Instrument Definition',
-    keybindings: [],
+
     run: () => {
       const word = getWordUnderCursor(editor);
       if (!word || !isValidIdentifier(word)) { showToast('No identifier under cursor'); return; }
@@ -1051,10 +1073,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('findReferences', {
     id: 'beatbax.findReferences',
-    label: 'BeatBax: Find All References',
-    keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF],
+
     run: () => {
       const word = getWordUnderCursor(editor);
       if (!word) { showToast('No identifier under cursor'); return; }
@@ -1078,10 +1099,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('listDefinitions', {
     id: 'beatbax.listDefinitions',
-    label: 'BeatBax: List All Definitions…',
-    keybindings: [],
+
     run: async () => {
       const source = getSource();
       const defs = parseAllDefinitions(source);
@@ -1097,19 +1117,21 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
   });
 
   // ── Phase 2: Audition & Playback commands ─────────────────────────────────
+  // previewPattern / previewSeq stay registered for playFromCursor / explicit
+  // triggers (and tests). Hidden from F1/right-click (precondition: false).
+  // Discoverable audition: CodeLens ▶ Preview, Pattern Grid.
 
-  reg({
+  reg('previewPattern', {
     id: 'beatbax.previewPattern',
-    label: 'BeatBax: Preview Pattern Under Cursor',
-    keybindings: [KeyMod.Alt | KeyCode.KeyP],
-    contextMenuGroupId: '9_beatbax',
-    contextMenuOrder: 2,
     run: (_, patternName?: string) => {
       const source = getSource();
-      const name = typeof patternName === 'string' && patternName.trim()
-        ? patternName.trim()
-        : getWordUnderCursor(editor) ?? '';
-      if (!name || !isValidIdentifier(name)) { showToast('No pattern name under cursor'); return; }
+      // Require an explicit name (Play Selection / playFromCursor / CodeLens).
+      // Do not infer from cursor — that produced confusing previews.
+      const name = typeof patternName === 'string' ? patternName.trim() : '';
+      if (!name || !isValidIdentifier(name)) {
+        showToast('Use CodeLens ▶ Preview to audition a pattern');
+        return;
+      }
 
       // Find pattern body in source
       const lines = source.split('\n');
@@ -1162,16 +1184,16 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('previewSeq', {
     id: 'beatbax.previewSeq',
-    label: 'BeatBax: Preview Sequence Under Cursor',
-    keybindings: [],
+
     run: (_, seqName?: string) => {
       const source = getSource();
-      const name = typeof seqName === 'string' && seqName.trim()
-        ? seqName.trim()
-        : getWordUnderCursor(editor) ?? '';
-      if (!name || !isValidIdentifier(name)) { showToast('No sequence name under cursor'); return; }
+      const name = typeof seqName === 'string' ? seqName.trim() : '';
+      if (!name || !isValidIdentifier(name)) {
+        showToast('Use CodeLens ▶ Preview to audition a sequence');
+        return;
+      }
 
       const lines = source.split('\n');
 
@@ -1209,10 +1231,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('playFromCursor', {
     id: 'beatbax.playFromCursor',
-    label: 'BeatBax: Play from Cursor Position',
-    keybindings: [KeyMod.Alt | KeyMod.Shift | KeyCode.KeyP],
+
     run: () => {
       const source = getSource();
       const pos = editor.getPosition();
@@ -1251,10 +1272,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
   // ── Phase 3: Editing & Organization commands ──────────────────────────────
 
-  reg({
+  reg('duplicatePattern', {
     id: 'beatbax.duplicatePattern',
-    label: 'BeatBax: Duplicate Pattern',
-    keybindings: [],
+
     run: () => {
       const model = editor.getModel();
       if (!model) return;
@@ -1291,12 +1311,11 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('instrumentOverride', {
     id: 'beatbax.instrumentOverride',
-    label: 'BeatBax: Instrument Override…',
-    keybindings: [],
-    contextMenuGroupId: '9_beatbax',
-    contextMenuOrder: 3,
+
+
+
     run: async () => {
       const model = editor.getModel();
       if (!model) return;
@@ -1468,10 +1487,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('duplicateSeq', {
     id: 'beatbax.duplicateSeq',
-    label: 'BeatBax: Duplicate Sequence',
-    keybindings: [],
+
     run: () => {
       const model = editor.getModel();
       if (!model) return;
@@ -1505,10 +1523,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('renameDefinition', {
     id: 'beatbax.renameDefinition',
-    label: 'BeatBax: Rename Definition…',
-    keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR],
+
     run: async () => {
       const model = editor.getModel();
       if (!model) return;
@@ -1549,10 +1566,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('extractToPattern', {
     id: 'beatbax.extractToPattern',
-    label: 'BeatBax: Extract Selection to Pattern',
-    keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE],
+
     run: () => {
       const model = editor.getModel();
       if (!model) return;
@@ -1592,10 +1608,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('sortDefinitions', {
     id: 'beatbax.sortDefinitions',
-    label: 'BeatBax: Sort Definitions…',
-    keybindings: [],
+
     run: () => {
       const model = editor.getModel();
       if (!model) return;
@@ -1646,10 +1661,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
   // ── Phase 4: Analysis & Diagnostics commands ──────────────────────────────
 
-  reg({
+  reg('showUnused', {
     id: 'beatbax.showUnused',
-    label: 'BeatBax: Show Unused Definitions',
-    keybindings: [],
+
     run: async () => {
       const source = getSource();
       if (!source.trim()) { showToast('No source to analyse'); return; }
@@ -1691,10 +1705,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('showPatternInfo', {
     id: 'beatbax.showPatternInfo',
-    label: 'BeatBax: Show Pattern Duration',
-    keybindings: [],
+
     run: async () => {
       const source = getSource();
       const word = getWordUnderCursor(editor);
@@ -1724,10 +1737,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('auditSong', {
     id: 'beatbax.auditSong',
-    label: 'BeatBax: Audit Song for Issues',
-    keybindings: [],
+
     run: async () => {
       const source = getSource();
       if (!source.trim()) { showToast('No source to audit'); return; }
@@ -1817,10 +1829,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
   // ── Phase 5: Channel operations ───────────────────────────────────────────
 
-  reg({
+  reg('copyChannelConfig', {
     id: 'beatbax.copyChannelConfig',
-    label: 'BeatBax: Copy Channel Configuration',
-    keybindings: [],
+
     run: async () => {
       const model = editor.getModel();
       if (!model) return;
@@ -1839,10 +1850,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('swapChannels', {
     id: 'beatbax.swapChannels',
-    label: 'BeatBax: Swap Channel Assignments…',
-    keybindings: [],
+
     run: async () => {
       const model = editor.getModel();
       if (!model) return;
@@ -1899,10 +1909,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
   // ── Phase 5: Export convenience commands ─────────────────────────────────
 
-  reg({
+  reg('exportToClipboard', {
     id: 'beatbax.exportToClipboard',
-    label: 'BeatBax: Export to Clipboard…',
-    keybindings: [],
+
     run: async () => {
       const anchor = editorDom ?? document.body;
       const formats: Array<{ label: string; value: ExportFormat }> = [
@@ -1935,10 +1944,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('quickExport', {
     id: 'beatbax.quickExport',
-    label: 'BeatBax: Quick Export (Last Format)',
-    keybindings: [KeyMod.CtrlCmd | KeyCode.KeyE],
+
     run: () => {
       runExport(lastExportFormat);
       showToast(`Exporting ${lastExportFormat.toUpperCase()}…`);
@@ -1947,12 +1955,11 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
   // ── Phase 5: Reference & Help commands ───────────────────────────────────
 
-  reg({
+  reg('showEffectPresets', {
     id: 'beatbax.showEffectPresets',
-    label: 'BeatBax: Show Effect Presets',
-    keybindings: [],
-    contextMenuGroupId: '9_beatbax',
-    contextMenuOrder: 4,
+
+
+
     run: async () => {
       const model = editor.getModel();
       const pos = editor.getPosition();
@@ -2051,10 +2058,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('showSyntaxHelp', {
     id: 'beatbax.showSyntaxHelp',
-    label: 'BeatBax: Show Syntax Help…',
-    keybindings: [KeyMod.CtrlCmd | KeyCode.KeyH],
+
     run: async () => {
       const anchor = editorDom ?? document.body;
       const topics: Array<{ label: string; value: string }> = [
@@ -2109,12 +2115,11 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  // ── BeatBax: MIDI Step Entry ──────────────────────────────────────────────
+  // ── MIDI Step Entry ──────────────────────────────────────────────
 
-  reg({
+  reg('midiStepEntry.arm', {
     id: 'beatbax.midiStepEntry.arm',
-    label: 'BeatBax: Start MIDI Step Entry',
-    keybindings: [],
+
     run: () => {
       const controller: any = (window as any).__beatbax_midiStepEntry;
       if (!controller) { showToast('MIDI Step Entry not available'); return; }
@@ -2122,10 +2127,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('midiStepEntry.disarm', {
     id: 'beatbax.midiStepEntry.disarm',
-    label: 'BeatBax: Stop MIDI Step Entry',
-    keybindings: [],
+
     run: () => {
       const controller: any = (window as any).__beatbax_midiStepEntry;
       if (!controller) { showToast('MIDI Step Entry not available'); return; }
@@ -2133,10 +2137,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
-  reg({
+  reg('midiStepEntry.toggle', {
     id: 'beatbax.midiStepEntry.toggle',
-    label: 'BeatBax: Toggle MIDI Step Entry',
-    keybindings: [],
+
     run: () => {
       const controller: any = (window as any).__beatbax_midiStepEntry;
       if (!controller) { showToast('MIDI Step Entry not available'); return; }
