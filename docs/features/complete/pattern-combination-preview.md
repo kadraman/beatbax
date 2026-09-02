@@ -34,7 +34,7 @@ Today that is painful:
 | CodeLens `▶ Preview` / `↺ Loop` on `pat` or `seq` | **One** item, one channel. Starting another preview stops the current one.                                                                                                                 |
 | Channel mute / solo                               | Hides whole channels for the **full** song. Does not isolate a section in time.                                                                                                            |
 | Grammar `:mute` / `:rest` on a seq/pat ref        | Silences that item but **keeps its duration**, so the wanted section still starts after silent bars. Every other token on every channel still needs editing.                               |
-| Play Selection (`Ctrl+Shift+Space`)               | Multiple **seq definition** lines can layer on separate channels. Multiple **pats are chained on one channel**. Instrument lookup only sees the **first** `seq` token on a `channel` line. |
+| Play Selection (`beatbax.playSelection`, demoted) | Multiple **seq definition** lines can layer on separate channels. Multiple **pats are chained on one channel**. Instrument lookup only sees the **first** `seq` token on a `channel` line. Surfaces removed; prefer CodeLens / Pattern Grid. |
 | Transport Play                                    | Plays every `channel` line as written.                                                                                                                                                     |
 
 The practical workaround is commenting out other pattern/sequence references on each `channel` line. Songs such as [`songs/gameboy/heroes_call.bax`](../../../songs/gameboy/heroes_call.bax) make that cost obvious:
@@ -90,7 +90,7 @@ That is the same shape as commenting out the other seq tokens, without touching 
 4. While focused: **F5** plays the section; **F8** stops but keeps focus; transport loop toggle loops the slice when playing.
 5. In the editor: **F6** focuses the section at the cursor (uses enclosing `seq` line, not first global pat match); **Esc** exits focus; **Alt+←/→** moves to prev/next section.
 6. **Pat blocks** in channel rows: click navigates to the `pat` definition (unchanged). Click does not enter section focus — use the section lane or F6.
-7. Command palette **BeatBax: Play Arrangement Slice at Cursor** plays the slice at the cursor (cursor-aware anchor resolution).
+7. Command palette **Play Arrangement Slice** plays the slice at the cursor (cursor-aware anchor resolution).
 8. Mixer mute/solo still apply. The editor buffer is never modified.
 
 ### Section focus mode (Desktop)
@@ -161,7 +161,7 @@ Section focus and the Pattern Grid section lane work best when a song's **top-le
 
 **Slice window rule:** focus expands to the **containing top-level channel seq item** (`channelItemIndex`), not arbitrary pat runs inside a long `seq`. Repeated pattern names on the timeline (e.g. `mel_a1` in Theme A and Reprise) are distinct positions; F6 uses cursor context to pick the right occurrence.
 
-**Editor hints:** after parse, info diagnostics on the first `channel` line suggest improvements for phased or monolithic layouts (see `detectArrangementLayout` in app-core). **BeatBax: Restructure Phased Sections into Headers** (command palette) can rewrite channel-grouped phased seq defs into `# --- Section N ---` blocks — opt-in, edits the open buffer only.
+**Editor hints:** after parse, info diagnostics on the first `channel` line suggest improvements for phased or monolithic layouts (see `detectArrangementLayout` in app-core). **Arrange: Restructure Phased Sections into Headers** (command palette) can rewrite channel-grouped phased seq defs into `# --- Section N ---` blocks — opt-in, edits the open buffer only.
 
 First-class freeform support (`section`, `form`, `cat`) is planned in [song-composition-abstractions.md](../song-composition-abstractions.md).
 

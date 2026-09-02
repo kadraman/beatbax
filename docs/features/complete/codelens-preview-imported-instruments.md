@@ -54,7 +54,7 @@ Same-file `inst` lines work because there is no `imports` array, so `resolveSong
 
 Effects fail even earlier: `resolveEffectPreviewInstrument` picks from `ast.insts` by type (`pulse1` > …). After a bare parse that map is empty, so it returns `null` before `resolveSong`.
 
-Command palette Alt+P is a second instance of the same class of bug. It builds a synthetic `.bax` and plays it via `playbackManager.play` (which **does** resolve imports), but [`KEEP_LINES_RE`](../../packages/app-core/src/editor/command-palette.ts) drops `import` lines, and pattern preview only looks for an inline `inst` declaration (falls back to `_tmp`).
+Command-palette synthetic preview (used by explicit `previewPattern` / `previewSeq` triggers) was a second instance of the same class of bug. It builds a synthetic `.bax` and plays it via `playbackManager.play` (which **does** resolve imports), but [`KEEP_LINES_RE`](../../packages/app-core/src/editor/command-palette.ts) dropped `import` lines, and pattern preview only looked for an inline `inst` declaration (falls back to `_tmp`).
 
 ```mermaid
 flowchart LR
@@ -143,7 +143,7 @@ No song-format change. Songs that already import kits start previewing without a
 - [x] All CodeLens preview / loop / effect / inst-note / MIDI-audition triggers use the merged AST.
 - [x] `ensureAudioCtxReady()` still runs before any `await`.
 - [x] Import failure and “no instrument to preview” emit `preview:error` (Output panel), not a silent no-op.
-- [x] `KEEP_LINES_RE` retains `import` lines; pattern Alt+P uses channel inst when there is no inline `inst`.
+- [x] `KEEP_LINES_RE` retains `import` lines; pattern synthetic preview uses channel inst when there is no inline `inst`.
 - [x] Desktop `local:` preview uses the saved document path; web-lite still blocks `local:`.
 - [x] Unit tests + `@beatbax/app-core` patch changeset.
 

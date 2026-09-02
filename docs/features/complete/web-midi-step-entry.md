@@ -206,9 +206,9 @@ Enable transport control for step entry:
 
 Add command-palette commands:
 
-- `BeatBax: Start MIDI Step Entry`
-- `BeatBax: Stop MIDI Step Entry`
-- `BeatBax: Toggle MIDI Step Entry`
+- `MIDI: Start Step Entry`
+- `MIDI: Stop Step Entry`
+- `MIDI: Toggle Step Entry`
 
 #### 5. Settings UI
 

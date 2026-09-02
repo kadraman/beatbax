@@ -136,13 +136,13 @@ The plan below focuses on delivering quick wins first (hover, preview, completio
 
 ### Play Selected Sequence
 
-Allow the user to select text in the editor, right-click and choose "Play Selection as Sequence", or invoke the same action from the command palette.
+> **Demoted.** `beatbax.playSelection` is hidden from F1, right-click, and shortcuts (`precondition: false`). Selection heuristics misfired on instruments, `subpat` lines, and non-pat/seq text. Prefer **CodeLens ▶ Preview** and **Pattern Grid** for audition.
 
-- **Trigger**: text selection (minimum: a `seq` or `pat` identifier) → right-click context menu item "▶ Play Selected Sequence" or command palette "BeatBax: Play Selected Sequence".
-- **Resolution**: read the current selection text; if it is a known `seq` or `pat` name, invoke the existing `beatbax.previewSeq` / `beatbax.previewPattern` command directly. If the selection is raw note tokens (e.g. `C4 E4 G4`), synthesize a temporary `pat __selection__` and preview that.
-- **Monaco API**: `editor.addAction` to register the context-menu entry and command palette entry in one call (each `IActionDescriptor` with a `keybindings` array, a `contextMenuGroupId`, and a `run` callback).
-- **Stop**: a paired "⬛ Stop Preview" action/command calls `beatbax.stopPreview`.
-- **Keyboard shortcut**: `Ctrl+Shift+Space` (or configurable) to play the current selection, `Escape` to stop (already wired in `KeyboardShortcuts`).
+Historical design (handler still registered for tests / internal use):
+
+- **Trigger** (removed from UI): text selection → "Play → Play Selection" / `Ctrl+Shift+Space`.
+- **Resolution**: `seq`/`pat` names or definition lines → preview commands; raw notes → synthetic `pat __sel__`.
+- **Stop**: `Escape` / stop preview (KeyboardShortcuts).
 
 ### Command Palette Expansion
 
@@ -152,20 +152,20 @@ Suggested commands to add:
 
 | Command ID | Title | Category | Notes |
 |---|---|---|---|
-| `beatbax.exportJson` | Export to JSON | BeatBax: Export | Triggers existing export-manager JSON export |
-| `beatbax.exportMidi` | Export to MIDI | BeatBax: Export | Triggers MIDI export |
-| `beatbax.exportUge` | Export to UGE (hUGETracker) | BeatBax: Export | Triggers UGE export |
-| `beatbax.exportWav` | Export to WAV | BeatBax: Export | Triggers WAV render export |
-| `beatbax.playSelection` | Play Selected Sequence / Pattern | BeatBax: Playback | See **Play Selected Sequence** above |
-| `beatbax.stopPreview` | Stop Preview | BeatBax: Playback | Already registered; needs palette title |
-| `beatbax.generateSampleInst` | Generate Sample Instruments | BeatBax: Edit | Inserts a commented block of starter `inst` definitions for all four GB channel types at the cursor |
-| `beatbax.generateSamplePat` | Generate Sample Pattern | BeatBax: Edit | Inserts a starter 4/4 `pat` with placeholder notes |
-| `beatbax.insertTransform` | Insert Transform… | BeatBax: Edit | Quick-pick of transforms (`oct`, `rev`, `slow`, `fast`, `transpose`, `arp`) to insert at cursor |
-| `beatbax.formatDocument` | Format BeatBax Document | BeatBax: Edit | Normalises whitespace, aligns `=` signs in `pat`/`seq`, no semantic changes |
-| `beatbax.verifySong` | Verify / Validate Song | BeatBax: Validate | Re-runs the parser + resolver and shows the Problems panel |
-| `beatbax.toggleMuteChannel` | Toggle Mute Channel… | BeatBax: Channels | Quick-pick of channels 1–4; toggles mute via `ChannelState` |
-| `beatbax.soloChannel` | Solo Channel… | BeatBax: Channels | Quick-pick; solos the chosen channel |
-| `beatbax.openDocs` | Open BeatBax Docs | BeatBax: Help | Opens the help panel or links to docs |
+| `beatbax.exportJson` | Export: JSON | Export | Triggers existing export-manager JSON export |
+| `beatbax.exportMidi` | Export: MIDI | Export | Triggers MIDI export |
+| `beatbax.exportUge` | Export: UGE (hUGETracker) | Export | Triggers UGE export |
+| `beatbax.exportWav` | Export: WAV | Export | Triggers WAV render export |
+| `beatbax.playSelection` | Play Selection | Play | Demoted — use CodeLens / Pattern Grid |
+| `beatbax.stopPreview` | Stop Preview | Play | Already registered; needs palette title |
+| `beatbax.generateSampleInst` | Generate: Sample Instruments | Generate | Inserts a commented block of starter `inst` definitions for all four GB channel types at the cursor |
+| `beatbax.generateSamplePat` | Generate: Sample Pattern | Generate | Inserts a starter 4/4 `pat` with placeholder notes |
+| `beatbax.insertTransform` | Insert Transform… | Edit | Quick-pick of transforms (`oct`, `rev`, `slow`, `fast`, `transpose`, `arp`) to insert at cursor |
+| `beatbax.formatDocument` | Format Document | Edit | Normalises whitespace, aligns `=` signs in `pat`/`seq`, no semantic changes |
+| `beatbax.verifySong` | Validate: Verify Song | Validate | Re-runs the parser + resolver and shows the Problems panel |
+| `beatbax.toggleMuteChannel` | Channel: Toggle Mute… | Channel | Quick-pick of channels 1–4; toggles mute via `ChannelState` |
+| `beatbax.soloChannel` | Channel: Solo… | Channel | Quick-pick; solos the chosen channel |
+| `beatbax.openDocs` | Open BeatBax Docs | Help | Opens the help panel or links to docs |
 
 - **Implementation**: each entry is registered via `editor.addAction(descriptor)` or `editor.addCommand(keybinding, handler)`. Export commands delegate to the existing `ExportManager`.
 - **`generateSampleInst`**: insert a snippet block like:
@@ -177,10 +177,12 @@ Suggested commands to add:
   ```
   at the cursor position using `editor.executeEdits`.
 - **`insertTransform`**: uses `monaco.editor.showQuickPick` (or a lightweight DOM select) to let the user pick a transform, then inserts it at the cursor.
-- **Keybindings** to surface (optional, document them):
-  - `Ctrl+Shift+E` → Export submenu / `beatbax.exportJson`
-  - `Ctrl+Shift+Space` → Play Selection
-  - `Ctrl+Shift+V` → Verify Song
+- **Keybindings** (Monaco BeatBax actions):
+  - `Ctrl/Cmd+Shift+D` → Go to Pattern Definition
+  - `Ctrl/Cmd+Shift+E` → Extract Selection to Pattern
+  - `Ctrl/Cmd+E` → Quick Export (last format)
+  - Verify uses app catalog `Alt+V` (desktop) / `Alt+Shift+V` (web)
+  - Pattern audition: CodeLens ▶ Preview / Pattern Grid (`beatbax.playSelection` demoted — unreliable for inst/subpat/raw selections)
 
 ### Web UI Changes
 
@@ -223,8 +225,8 @@ None required for initial features. If rich editors (piano-roll) are added, ensu
 - [x] Implement `codeLensProvider` for `pat` / `seq` — **done** (`editor/codelens-preview.ts`, 2026-03-11). Provides `▶ Preview`, `↺ Loop`, `⬛ Stop` lenses for patterns and sequences; per-note buttons (`C3`–`C7`) for instruments; live re-parse on each loop iteration; shared `AudioContext` for first-click reliability.
 - [x] Implement `codeLensProvider` per-note instrument preview (`C3`–`C7` buttons above `inst` lines) — **done** (`editor/codelens-preview.ts`, 2026-03-11). Plays single notes on the correct APU channel; auto-stops after 2 s.
 - [x] Add effect preview via CodeLens for `effect` definition lines and hover docs for inline `<effect:…>` tokens. (Phase 1, High) - **done** (2026-03-21): `codelens-preview.ts` — `▶ Preview` / `↺ Loop` / `⬛ Stop` lenses above every `effect Name = …` line. Plays 4 ascending notes (C4 E4 G4 C5) with the preset applied inline, using the best available instrument (pulse1 > pulse2 > wave > noise). `beatbax-language.ts` — added hover docs for all 8 built-in inline effects (`vib`, `port`, `volSlide`, `trem`, `pan`, `echo`, `retrig`, `sweep`) and for the `effect` keyword itself. Commands registered: `beatbax.previewEffect`, `beatbax.loopEffect`.
-- [x] Add play-selected-sequence context menu + command palette action (`beatbax.playSelection`). (Phase 1, Medium) — **done** (`editor/command-palette.ts`, 2026-03-24). Select one or more `pat`/`seq` definition lines and press `Ctrl+Shift+Space`, right-click → **▶ Play Selected Sequence / Pattern**, or use `F1` → *BeatBax: Play Selected Sequence / Pattern*. Single items play directly via the existing CodeLens preview path. Multiple items are distributed round-robin across available channels (chip-aware via `detectMaxChannels`); overflow seqs are merged per channel. Glyph margin tracks which original seq is playing using `sourcePattern` events (`patNames` lookup) with a `noteCount`-boundary fallback — accurate for any pattern format including percussion.
-- [x] Expand command palette with BeatBax-specific commands — export, generate, validate, channel controls. (Phase 1, Medium) — **done** (`editor/command-palette.ts`, 2026-03-24). Registers `BeatBax: Export → JSON/MIDI/UGE/WAV`, `BeatBax: Verify / Validate Song`, `BeatBax: Generate Sample Instruments`, `BeatBax: Generate Sample Pattern`, `BeatBax: Insert Transform…` (quick-pick), `BeatBax: Format BeatBax Document`, `BeatBax: Play Selected Sequence / Pattern`, `BeatBax: Toggle Mute Channel…`, `BeatBax: Solo Channel…`, and per-channel variants for channels 1–4. All appear in the Monaco Command Palette (F1 / Ctrl+Alt+P) and context menu; exported instruments/patterns are UndoRedo-safe via `editor.executeEdits`.
+- [x] Add play-selected-sequence context menu + command palette action (`beatbax.playSelection`). (Phase 1, Medium) — **done** then **demoted** (`command-labels.ts` `precondition: false`). Selection heuristics were unreliable for instruments, `subpat`, and non-pat/seq text. Audition via CodeLens ▶ Preview and Pattern Grid instead. Handler remains registered for tests / internal use.
+- [x] Expand command palette with BeatBax-specific commands — export, generate, validate, channel controls. (Phase 1, Medium) — **done** (`editor/command-palette.ts`, 2026-03-24; labels + curated context menu via `command-labels.ts`). Registers `Export: JSON/MIDI/UGE/WAV`, `Validate: Verify Song`, `Generate: Sample Instruments`, `Generate: Sample Pattern`, `Insert Transform…` (quick-pick), `Format Document`, `Channel: Toggle Mute…`, `Channel: Solo…`. All appear in the Monaco Command Palette (F1 / Ctrl+Alt+P); a curated high-frequency subset also appears in the editor right-click menu. Edits are UndoRedo-safe via `editor.executeEdits`.
 - [x] Implement `semanticTokensProvider` and CSS rules — **done** (`editor/beatbax-language.ts`, 2026-03-23).
 - [x] Add `playbackManager.preview` lightweight API - **done** via CodeLens isolated Player instance and shared Context (`editor/codelens-preview.ts`, 2026-03-11).
 - [x] Wire live playback cursor — **done** via glyph-margin play head tracking (`editor/glyph-margin.ts`, 2026-03-23). Note-by-note token tracking is pushed to Future Enhancements.

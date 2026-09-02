@@ -28,7 +28,7 @@ Import merge now works in these Desktop/web paths:
 |------|:---:|--------|
 | Parse / Problems diagnostics (`createAppContext.emitParse`) | yes | [#170](https://github.com/kadraman/beatbax/issues/170) |
 | Whole-song Play (`PlaybackManager`) | yes | with parse |
-| CodeLens / Alt+P preview | yes | [#176](https://github.com/kadraman/beatbax/pull/176) |
+| CodeLens / synthetic preview | yes | [#176](https://github.com/kadraman/beatbax/pull/176) |
 | CLI `verify` / `play` / `export` | yes | original import work |
 | **Desktop Export menu** (`ExportManager`) | **yes** | **this spec / [#171](https://github.com/kadraman/beatbax/issues/171)** |
 

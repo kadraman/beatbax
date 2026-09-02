@@ -6,6 +6,7 @@
 import * as monaco from 'monaco-editor';
 import { eventBus } from '../utils/event-bus.js';
 import { editorContent, editorDirty } from '../stores/editor.store.js';
+import { hideIrrelevantMonacoActions } from './hide-monaco-actions.js';
 
 export interface EditorOptions {
   /** Container element for the editor */
@@ -106,6 +107,9 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
       strings: false,
     },
   });
+
+  // F1 lists getSupportedActions(); drop Monaco developer / IDE leftovers.
+  hideIrrelevantMonacoActions(editor);
 
   // Debounced or immediate editor:changed emission (delay adjustable at runtime).
   let currentDelay = autoSaveDelay;
