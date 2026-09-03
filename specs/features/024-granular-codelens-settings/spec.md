@@ -7,7 +7,7 @@ authors:
   - "kadraman"
 created: "2026-08-28"
 updated: "2026-09-03"
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/205"
 area: "desktop"
 related:
   - "docs/features/complete/pattern-combination-preview.md"
@@ -92,4 +92,4 @@ Updated master-toggle help text:
 
 ## Tracking
 
-No GitHub issue yet — open one when implementation starts and set `issue` in the frontmatter.
+GitHub issue: https://github.com/kadraman/beatbax/issues/205
