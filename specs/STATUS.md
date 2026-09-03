@@ -25,9 +25,9 @@ Assign the next feature id as **025** (or one past the highest active id below).
 - **019** `desktop-dmc-main-process-ipc` — in-progress — desktop — issue: _none_ — [specs/features/019-desktop-dmc-main-process-ipc/](specs/features/019-desktop-dmc-main-process-ipc/)
 - **020** `spectrum-cpc-arkos-exporter-phase-2` — specified — export — issue: https://github.com/kadraman/beatbax/issues/162 — [specs/features/020-spectrum-cpc-arkos-exporter-phase-2/](specs/features/020-spectrum-cpc-arkos-exporter-phase-2/)
 - **021** `instrument-editor-panel` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/169 — [specs/features/021-instrument-editor-panel/](specs/features/021-instrument-editor-panel/)
-- **022** `motifs-and-loop-templates` — specified — desktop — issue: .github/issues/motifs-and-loop-templates.md — [specs/features/022-motifs-and-loop-templates/](specs/features/022-motifs-and-loop-templates/)
+- **022** `motifs-and-loop-templates` — specified — desktop — issue: _(none)_ — [specs/features/022-motifs-and-loop-templates/](specs/features/022-motifs-and-loop-templates/)
 - **023** `sega-mega-drive-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/193 — [specs/features/023-sega-mega-drive-chip-plugin/](specs/features/023-sega-mega-drive-chip-plugin/)
-- **024** `granular-codelens-settings` — specified — desktop — issue: .github/ISSUES/granular-codelens-settings.md — [specs/features/024-granular-codelens-settings/](specs/features/024-granular-codelens-settings/)
+- **024** `granular-codelens-settings` — specified — desktop — issue: _(none)_ — [specs/features/024-granular-codelens-settings/](specs/features/024-granular-codelens-settings/)
 
 ## Legacy complete (not yet moved into `specs/complete/`)
 

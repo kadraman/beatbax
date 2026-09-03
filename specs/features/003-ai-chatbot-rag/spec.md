@@ -143,12 +143,12 @@ A checkbox in **Settings → AI** enables or disables RAG injection. Disabled by
 
 ## References
 
-- [AI Chatbot Assistant spec](./complete/ai-chatbot-assistant.md) — parent feature document; RAG section describes original motivation
-- [Local Ollama guide](./copilot-local-ollama.md)
-- [CoPilot test scenarios](../copilot-test-scenarios.md)
+- [AI Chatbot Assistant spec](../../../docs/features/complete/ai-chatbot-assistant.md) — parent feature document; RAG section describes original motivation
+- [Local Ollama guide](../017-copilot-local-ollama/spec.md)
+- [CoPilot test scenarios](../../../docs/qa/copilot-test-scenarios.md)
 - [BM25 algorithm](https://en.wikipedia.org/wiki/Okapi_BM25) — term-frequency/IDF scoring
 - [all-MiniLM-L6-v2 via @xenova/transformers](https://huggingface.co/Xenova/all-MiniLM-L6-v2) — client-side ONNX embedding model
 - [Transformers.js docs](https://huggingface.co/docs/transformers.js) — ONNX inference in the browser/Electron renderer
-- [copilot-context.ts](../../apps/desktop/src/renderer/src/lib/copilot-context.ts)
-- [DesktopCopilotPanel.tsx](../../apps/desktop/src/renderer/src/components/panels/DesktopCopilotPanel.tsx)
-- [StorageKey registry](../../packages/app-core/src/utils/local-storage.ts)
+- [copilot-context.ts](../../../apps/desktop/src/renderer/src/lib/copilot-context.ts)
+- [DesktopCopilotPanel.tsx](../../../apps/desktop/src/renderer/src/components/panels/DesktopCopilotPanel.tsx)
+- [StorageKey registry](../../../packages/app-core/src/utils/local-storage.ts)

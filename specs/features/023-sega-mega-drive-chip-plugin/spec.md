@@ -457,7 +457,7 @@ Software macros:
 - `[docs/features/complete/vgm-exporter-plugin.md](complete/vgm-exporter-plugin.md)` — VGM follow-up
 - `[docs/features/complete/vgm-exporter-and-engine-utilities-consolidation.md](complete/vgm-exporter-and-engine-utilities-consolidation.md)` — YM2612 backend note
 - `[docs/features/complete/effects-system.md](complete/effects-system.md)` — YM2612 effect mapping
-- `[docs/contributing/creating-plugins.md](../contributing/creating-plugins.md)` — plugin catalogue (Genesis planned, 10 channels)
+- `[docs/contributing/creating-plugins.md](../../../docs/contributing/creating-plugins.md)` — plugin catalogue (Genesis planned, 10 channels)
 - `[ROADMAP.md](../../ROADMAP.md)` — YM2612 + SN76489 entry
 - `[packages/engine/src/chips/types.ts](../../packages/engine/src/chips/types.ts)` — `instrumentVolumeRange` Genesis example
 - `[packages/ui-tokens/src/channel-meta.ts](../../packages/ui-tokens/src/channel-meta.ts)` — FM 1–6 + PSG labels

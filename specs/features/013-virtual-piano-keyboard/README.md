@@ -1,4 +1,4 @@
-# Virtual Piano Keyboard for Web UI note preview
+# Virtual Piano Keyboard for Desktop note preview
 
 - **ID**: 013
 - **Status**: specified

@@ -7,7 +7,7 @@ authors:
   - "kadraman"
 created: "2026-08-28"
 updated: "2026-09-03"
-issue: ".github/ISSUES/granular-codelens-settings.md"
+issue: ""
 area: "desktop"
 related:
   - "docs/features/complete/pattern-combination-preview.md"
@@ -40,7 +40,7 @@ Preview uses a dedicated player that stops when transport play starts. It does n
 - Transport F5/F8 integration and channel mute/solo on the main mix
 - Editor highlighting of seq blocks and section comments
 
-See [pattern-combination-preview.md](complete/pattern-combination-preview.md).
+See [pattern-combination-preview.md](../../../docs/features/complete/pattern-combination-preview.md).
 
 ### Overlap assessment
 
@@ -92,4 +92,4 @@ Updated master-toggle help text:
 
 ## Tracking
 
-GitHub issue draft: [`.github/ISSUES/granular-codelens-settings.md`](../../.github/ISSUES/granular-codelens-settings.md)
+No GitHub issue yet — open one when implementation starts and set `issue` in the frontmatter.

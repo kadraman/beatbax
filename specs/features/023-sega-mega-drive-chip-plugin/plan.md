@@ -155,7 +155,7 @@ Add during implementation (not part of this documentation-only change):
 - `docs/chips/genesis/interesting_facts.md`
 - `packages/plugins/chip-genesis/README.md`
 - `[ROADMAP.md](../../ROADMAP.md)` — mark YM2612 in progress / done; canonical package name `@beatbax/plugin-chip-genesis` (replace the `plugin-chip-ym2612` suggestion)
-- `[docs/contributing/creating-plugins.md](../contributing/creating-plugins.md)` — status 📋 Planned → implemented
+- `[docs/contributing/creating-plugins.md](../../../docs/contributing/creating-plugins.md)` — status 📋 Planned → implemented
 - `[docs/grammar/metadata-directives.md](../grammar/metadata-directives.md)` — `chip genesis ntsc|pal` on the region-qualifier allow-list
 - This feature document → `docs/features/complete/` when the plugin ships
 

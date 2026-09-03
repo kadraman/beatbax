@@ -442,7 +442,7 @@ SID and SNES must not require Desktop code changes beyond generic widgets once t
 - `[docs/features/complete/web-midi-step-entry.md](complete/web-midi-step-entry.md)`
 - `[docs/features/virtual-piano-keyboard.md](virtual-piano-keyboard.md)`
 - `[docs/features/complete/new-song-wizard.md](complete/new-song-wizard.md)`
-- `[docs/contributing/creating-plugins.md](../contributing/creating-plugins.md)`
+- `[docs/contributing/creating-plugins.md](../../../docs/contributing/creating-plugins.md)`
 - Tracking issue draft: `[.github/ISSUES/instrument-editor-panel.md](../../.github/ISSUES/instrument-editor-panel.md)`
 
 ---

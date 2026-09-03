@@ -7,7 +7,7 @@ authors:
   - "kadraman"
 created: "2026-08-17"
 updated: "2026-09-03"
-issue: ".github/issues/motifs-and-loop-templates.md"
+issue: ""
 area: "desktop"
 related:
   - "docs/features/complete/new-song-wizard.md"
@@ -232,13 +232,12 @@ Reuse synthetic preview / play-selection. If the motif fragment has no `inst`, w
 
 ## References
 
-- Pack workflow: [`packs/gb-adventure-pack/MOTIFS.md`](../../packs/gb-adventure-pack/MOTIFS.md), [`packs/gb-adventure-pack/src/_loop_template.bax`](../../packs/gb-adventure-pack/src/_loop_template.bax)
-- Issue draft: [`.github/issues/motifs-and-loop-templates.md`](../../.github/issues/motifs-and-loop-templates.md)
-- [`docs/features/complete/new-song-wizard.md`](complete/new-song-wizard.md)
-- [`docs/features/complete/instrument-imports.md`](complete/instrument-imports.md)
-- [`docs/features/complete/enhanced-command-palette-commands.md`](complete/enhanced-command-palette-commands.md)
-- [`docs/features/song-composition-abstractions.md`](song-composition-abstractions.md) — `include` is **not** this feature
-- [`docs/features/FEATURE_TEMPLATE.md`](FEATURE_TEMPLATE.md)
+- Pack workflow (external / pack repo): `packs/gb-adventure-pack/MOTIFS.md`, `packs/gb-adventure-pack/src/_loop_template.bax`
+- [`docs/features/complete/new-song-wizard.md`](../../../docs/features/complete/new-song-wizard.md)
+- [`docs/features/complete/instrument-imports.md`](../../../docs/features/complete/instrument-imports.md)
+- [`docs/features/complete/enhanced-command-palette-commands.md`](../../../docs/features/complete/enhanced-command-palette-commands.md)
+- [`docs/features/song-composition-abstractions.md`](../../../docs/features/song-composition-abstractions.md) — `include` is **not** this feature; active SDD: [`008-song-composition-abstractions`](../008-song-composition-abstractions/spec.md)
+- [`docs/features/FEATURE_TEMPLATE.md`](../../../docs/features/FEATURE_TEMPLATE.md)
 
 ## Additional Notes
 

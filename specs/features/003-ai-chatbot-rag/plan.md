@@ -91,7 +91,7 @@ export class RagRetriever {
 
 ### Manual Tests
 
-See [copilot-test-scenarios.md](../copilot-test-scenarios.md) for general Copilot QA. RAG-specific checks:
+See [copilot-test-scenarios.md](../../../docs/qa/copilot-test-scenarios.md) for general Copilot QA. RAG-specific checks:
 
 - Enable RAG and ask "how do I write a drum pattern with kicks and snares?" — verify a graveyard_shift.bax excerpt appears in the assembled prompt (via dev logging or temporary debug UI).
 - Ask about `vib` effect — verify instruments.md vibrato section is retrieved.

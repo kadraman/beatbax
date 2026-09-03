@@ -1,4 +1,4 @@
-# Moved: Virtual Piano Keyboard for Web UI note preview
+# Moved: Virtual Piano Keyboard for Desktop note preview
 
 This feature specification moved to the SDD tree:
 

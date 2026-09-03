@@ -23,7 +23,7 @@ The Pattern Grid already provides a compact per-channel overview and a global pl
 
 ### Relationship to shipped work
 
-**[Pattern Combination Preview](complete/pattern-combination-preview.md)** (complete, issue #189) is **Phase 0** of timeline interaction — not this feature:
+**[Pattern Combination Preview](../../../docs/features/complete/pattern-combination-preview.md)** (complete, issue #189) is **Phase 0** of timeline interaction — not this feature:
 
 | Shipped today (synthetic AST) | This spec (engine seek/loop) |
 | --- | --- |
@@ -34,7 +34,7 @@ The Pattern Grid already provides a compact per-channel overview and a global pl
 
 Desktop section focus may **look** like loop/seek (column highlight, playhead at section start) but it does not implement drag-to-set start, drag loop ranges, or mid-song seek on the unresolved full song. This spec remains the right long-term design for those behaviours.
 
-Shared foundation already in app-core: [`arrangement-slice.ts`](../../packages/app-core/src/editor/arrangement-slice.ts) (`buildChannelTimelines`, step windows, `listArrangementSections`) — seek/loop UI should reuse the same global step coordinate system.
+Shared foundation already in app-core: [`arrangement-slice.ts`](../../../packages/app-core/src/editor/arrangement-slice.ts) (`buildChannelTimelines`, step windows, `listArrangementSections`) — seek/loop UI should reuse the same global step coordinate system.
 
 ---
 

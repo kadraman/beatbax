@@ -11,7 +11,7 @@ issue: ""
 area: "desktop"
 related:
   - "docs/features/complete/ai-chatbot-assistant.md"
-  - "docs/copilot-test-scenarios.md"
+  - "docs/qa/copilot-test-scenarios.md"
 ---
 ## Summary
 
@@ -91,7 +91,7 @@ Restart Ollama after changing context length.
 
 - Copilot **replaces the entire editor** with the model’s ` ```bax ` block.
 - The model must return the **complete song** with your change integrated — not just the changed `pat` line.
-- BeatBax validates parse errors before apply and **blocks incomplete responses** that would wipe most of the song (see [copilot-test-scenarios.md](../copilot-test-scenarios.md)).
+- BeatBax validates parse errors before apply and **blocks incomplete responses** that would wipe most of the song (see [copilot-test-scenarios.md](../../../docs/qa/copilot-test-scenarios.md)).
 - BeatBax waits up to **5 minutes** per request to a local endpoint. The **first request after restarting Ollama** is often slow (model load + 16k context) — a wait of 1–3 minutes is normal on a 7B model. If you see `⚠ AI request timed out`, retry once the model is warm, or check Task Manager that Ollama is using the GPU.
 - Use **Discard** / Ctrl+Z if a bad edit slips through.
 
@@ -113,6 +113,6 @@ Restart Ollama after changing context length.
 
 ## Related docs
 
-- [AI Chatbot Assistant (architecture)](./complete/ai-chatbot-assistant.md)
-- [CoPilot test scenarios](../copilot-test-scenarios.md)
+- [AI Chatbot Assistant (architecture)](../../../docs/features/complete/ai-chatbot-assistant.md)
+- [CoPilot test scenarios](../../../docs/qa/copilot-test-scenarios.md)
 - [Ollama API](https://github.com/ollama/ollama/blob/main/docs/api.md)

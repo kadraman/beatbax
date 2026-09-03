@@ -21,13 +21,13 @@ The goal is to make sync issues visible in the UI instead of requiring manual in
 
 ### Relationship to shipped work
 
-**[Pattern Combination Preview](complete/pattern-combination-preview.md)** (complete) added Desktop Pattern Grid capabilities this inspector should build on:
+**[Pattern Combination Preview](../../../docs/features/complete/pattern-combination-preview.md)** (complete) added Desktop Pattern Grid capabilities this inspector should build on:
 
 - **Section lane** — collapsed seq-level blocks (`listArrangementSections`) for arrangement overview.
 - **Section focus** — column highlight and editor decorations for one time-aligned section; not a diagnostics mode.
-- **Shared timeline model** — [`arrangement-slice.ts`](../../packages/app-core/src/editor/arrangement-slice.ts) already maps channels to `TimedSegment[]` with `startStep` / `endStep`. The inspector's proposed `ResolvedTimelineBlock` should extend or reuse this rather than invent a parallel resolver.
+- **Shared timeline model** — [`arrangement-slice.ts`](../../../packages/app-core/src/editor/arrangement-slice.ts) already maps channels to `TimedSegment[]` with `startStep` / `endStep`. The inspector's proposed `ResolvedTimelineBlock` should extend or reuse this rather than invent a parallel resolver.
 
-Section-level **play** on Desktop is available today via section focus (synthetic AST), not via seek/loop. This inspector spec's "click-to-play or loop selected sections" should treat section focus as the baseline for **section** playback; arbitrary range play/loop remains dependent on [pattern-grid-seek-and-loop.md](pattern-grid-seek-and-loop.md).
+Section-level **play** on Desktop is available today via section focus (synthetic AST), not via seek/loop. This inspector spec's "click-to-play or loop selected sections" should treat section focus as the baseline for **section** playback; arbitrary range play/loop remains dependent on [pattern-grid-seek-and-loop.md](../014-pattern-grid-seek-and-loop/spec.md).
 
 ---
 
@@ -181,7 +181,7 @@ Once the grid has `ResolvedTimelineBlock[]`, it can support:
 
 - Visual length comparisons across channels.
 - Click-to-source navigation from a block to the `pat` or `seq` definition.
-- Section-level play/focus on Desktop (shipped via [pattern-combination-preview](complete/pattern-combination-preview.md)); arbitrary range play/loop once [seek/loop](pattern-grid-seek-and-loop.md) lands.
+- Section-level play/focus on Desktop (shipped via [pattern-combination-preview](../../../docs/features/complete/pattern-combination-preview.md)); arbitrary range play/loop once [seek/loop](../014-pattern-grid-seek-and-loop/spec.md) lands.
 - Export-aware overlays, such as UGE pattern/order boundaries.
 - "Why does this sound out of sync?" diagnostics grounded in the same timeline users hear.
 

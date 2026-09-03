@@ -3,7 +3,7 @@
 - **ID**: 022
 - **Status**: specified
 - **Area**: desktop
-- **Issue**: .github/issues/motifs-and-loop-templates.md
+- **Issue**: _(none yet)_
 - [spec.md](spec.md) — WHAT / WHY
 - [plan.md](plan.md) — HOW
 - [tasks.md](tasks.md) — implementation units

@@ -33,7 +33,7 @@ None required for v1. Keep `__loc`. If statement-range writeback needs end locat
 
 - Game Boy first: full schema (types, fields, macros, waveform, presets).
 - Then NES, SMS, Spectrum-128.
-- Update `[docs/contributing/creating-plugins.md](../contributing/creating-plugins.md)` and the plugin starter template.
+- Update `[docs/contributing/creating-plugins.md](../../../docs/contributing/creating-plugins.md)` and the plugin starter template.
 
 
 
