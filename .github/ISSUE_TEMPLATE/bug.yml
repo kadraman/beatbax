@@ -8,7 +8,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Please fill out the following to help us fix the issue faster.
+        Please fill out the following to help us fix the issue faster. If this bug implies a behavior change, the fix PR must update the linked spec (or add a spec folder).
 
   - type: input
     id: version
@@ -66,3 +66,10 @@ body:
         - Linux
         - Web
         - Other
+
+  - type: input
+    id: related_spec
+    attributes:
+      label: Related specification
+      description: Optional. Path or URL to `specs/.../spec.md` or a legacy `docs/features/` spec.
+      placeholder: specs/features/NNN-slug/spec.md
