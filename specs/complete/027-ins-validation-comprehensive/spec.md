@@ -1,0 +1,186 @@
+---
+title: "ins-validation-comprehensive"
+id: 27
+slug: "ins-validation-comprehensive"
+status: "complete"
+authors:
+  - "kadraman"
+created: "1970-01-01"
+updated: "2026-09-03"
+issue: ""
+area: "language"
+---
+# .ins File Validation - Implementation Summary
+
+## Overview
+
+Implemented comprehensive validation for `.ins` (instrument-library) import files to enforce the rule that **`.ins` files may only contain `inst`, `import`, native `subpat`, and named `effect` declarations**.
+
+## Changes Made
+
+### 1. Validation Function Enhancement
+
+**Files Modified:**
+- [`packages/engine/src/song/importResolver.ts`](../packages/engine/src/song/importResolver.ts) (lines 210-260)
+- [`packages/engine/src/song/importResolver.browser.ts`](../packages/engine/src/song/importResolver.browser.ts) (lines 41-90)
+
+**Implementation:**
+The `validateInsFile` function now checks **all** AST properties and rejects:
+
+#### Playback/Structure Directives:
+- `patterns` (pat definitions)
+- `sequences` (seq definitions)
+- `channels` (channel declarations)
+- `play` (play command)
+
+#### Top-level Scalar Directives:
+- `chip` (chip selection)
+- `bpm` (tempo setting)
+- `volume` (global volume)
+
+#### Metadata Directives:
+- `metadata` (song/metadata - only rejected if non-empty object)
+
+#### Structured Pattern Data:
+- `patternEvents` (parsed pattern event lists)
+- `sequenceItems` (parsed sequence item lists)
+
+#### Unknown Properties:
+- Any property not in the allowed list triggers rejection with `unknown property '<name>'`
+
+### 2. Empty Metadata Object Handling
+
+**Issue:** Parser always creates an empty `metadata: {}` object even for files with no metadata directives.
+
+**Solution:** Changed validation to only reject metadata if it's non-empty:
+```typescript
+if (ast.metadata !== undefined && Object.keys(ast.metadata).length > 0) {
+  disallowed.push('metadata');
+}
+```
+
+This allows .ins files with no metadata directives to pass validation.
+
+### 3. Parser Behavior Documentation
+
+**Historical note (superseded):** At the time of this investigation, `time`, `stepsPerBar`, and `ticksPerStep` were parsed but not stored on the AST.
+
+**Current behavior (see [metadata-directives.md](../../language/metadata-directives.md)):** `stepsPerBar` and deprecated `time` are on the AST (`stepsPerBar` / `time` fields). `ticksPerStep` is parsed, emits a deprecation warning, and is ignored. None of these are valid inside `.ins` imports — validation still rejects them in imported instrument libraries.
+
+### 4. Comment-Only Files
+
+**Issue:** Parser cannot parse completely empty files or comment-only files without any statements.
+
+**Resolution:** 
+- Empty strings (`""`) parse successfully to empty AST
+- Comment-only files fail at parse stage before reaching validation
+- This is acceptable as the parser enforces its own requirements
+
+---
+
+## Test Suite
+
+**File:** [`packages/engine/tests/resolver.imports.ins-validation-comprehensive.test.ts`](../packages/engine/tests/resolver.imports.ins-validation-comprehensive.test.ts)
+
+**Test Coverage:** 13 tests covering:
+
+### Rejected Directives (8 tests):
+1. ✅ `chip` directive
+2. ✅ `bpm` directive
+3. ✅ `volume` directive
+4. ✅ Pattern definitions (`pat`)
+5. ✅ Sequence definitions (`seq`)
+6. ✅ Channel definitions (`channel`)
+7. ✅ Play directive (`play`)
+8. ✅ Song metadata (`song name "..."`)
+
+### Special Cases (3 tests):
+9. ✅ Effect definitions (accepted and merged onto the song AST)
+10. ✅ Multiple disallowed directives
+11. ✅ Empty .ins files
+
+### Valid .ins Files (2 tests):
+12. ✅ Inst declarations only
+13. ✅ Inst + import declarations
+
+---
+
+## Security Impact
+
+This comprehensive validation strengthens the security boundary for `.ins` files:
+
+1. **Prevents Code Injection:** By rejecting `play` directives and channel definitions, imported `.ins` files cannot trigger playback or modify song structure.
+
+2. **Prevents Metadata Pollution:** Song metadata can only be set in the main `.bax` file, not in imports.
+
+3. **Named effect libraries:** Effect presets may be defined in `.ins` files and merge last-wins (a song-local `effect` of the same name still wins). Chip/bpm/pat/play remain rejected.
+
+4. **Clear Error Messages:** When validation fails, users get a specific list of disallowed directives found in the file.
+
+---
+
+## Example Validation Errors
+
+### Invalid .ins File:
+```beatbax
+chip gameboy
+bpm 128
+inst kick type=noise env=15,down
+pat melody = C5 E5 G5
+```
+
+**Error:**
+```
+Invalid .ins file "lib/invalid.ins": .ins files may only contain "inst", "import", "subpat", and "effect" declarations. 
+Found: chip, bpm, patterns
+```
+
+### Valid .ins File:
+```beatbax
+# Drum instruments library
+import "local:lib/shared.ins"
+
+subpat kick_body =
+  .
+  +0 vol:10
+  halt
+
+inst kick type=noise env=15,down subpat=kick_body
+inst snare type=noise env=12,down
+inst hat type=noise env=8,down
+effect drift = vib:3,4
+```
+
+**Result:** ✅ Accepted - contains `import`, `inst`, `subpat`, and `effect` declarations
+
+---
+
+## Limitations & Notes
+
+1. **Parser directives in `.ins` files:** `time`, `stepsPerBar`, and `ticksPerStep` must not appear in `.ins` imports (disallowed like `bpm` / `chip`). Main `.bax` files may use `stepsPerBar`; `time` and `ticksPerStep` are deprecated on the main song only.
+
+2. **Comment-Only Files:** Cannot be parsed due to parser requirements. Empty files work fine.
+
+3. **Empty Metadata:** Parser always creates empty `metadata: {}` object. Validation checks if it's non-empty before rejecting.
+
+---
+
+## Test Results
+
+**Full Test Suite:** ✅ All 256 tests passing
+- **New Tests:** 13 comprehensive validation tests
+- **Existing Tests:** All passing (no regressions)
+
+---
+
+## Files Modified
+
+1. [`packages/engine/src/song/importResolver.ts`](../packages/engine/src/song/importResolver.ts) - Node.js version
+2. [`packages/engine/src/song/importResolver.browser.ts`](../packages/engine/src/song/importResolver.browser.ts) - Browser version
+3. [`packages/engine/tests/resolver.imports.ins-validation-comprehensive.test.ts`](../packages/engine/tests/resolver.imports.ins-validation-comprehensive.test.ts) - Test suite (NEW)
+
+---
+
+## Conclusion
+
+The comprehensive .ins validation implementation successfully enforces the "instruments, imports, subpatterns, and effect presets only" rule across all AST properties, providing strong security guarantees and clear error messages when validation fails.

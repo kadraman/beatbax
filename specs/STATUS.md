@@ -1,6 +1,6 @@
 # Specification status index
 
-Assign the next feature id as **025** (or one past the highest active id below). Process: [README.md](README.md).
+Assign the next feature id as **088** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
@@ -29,76 +29,75 @@ Assign the next feature id as **025** (or one past the highest active id below).
 - **023** `sega-mega-drive-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/193 — [specs/features/023-sega-mega-drive-chip-plugin/](specs/features/023-sega-mega-drive-chip-plugin/)
 - **024** `granular-codelens-settings` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/205 — [specs/features/024-granular-codelens-settings/](specs/features/024-granular-codelens-settings/)
 
-## Legacy complete (not yet moved into `specs/complete/`)
+## Complete (`specs/complete/`)
 
-Still authoritative for shipped behavior. Stubs for migrated in-flight items are listed under Active.
+Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
 
-- [additional-beatbax-modifiers](../docs/features/complete/additional-beatbax-modifiers.md) — `docs/features/complete/additional-beatbax-modifiers.md`
-- [ai-chatbot-assistant](../docs/features/complete/ai-chatbot-assistant.md) — `docs/features/complete/ai-chatbot-assistant.md`
-- [arpeggio-effect](../docs/features/complete/arpeggio-effect.md) — `docs/features/complete/arpeggio-effect.md`
-- [audio-editor-visuals](../docs/features/complete/audio-editor-visuals.md) — `docs/features/complete/audio-editor-visuals.md`
-- [builtin-nes-chip-plugin](../docs/features/complete/builtin-nes-chip-plugin.md) — `docs/features/complete/builtin-nes-chip-plugin.md`
-- [channel-visualizer](../docs/features/complete/channel-visualizer.md) — `docs/features/complete/channel-visualizer.md`
-- [chevrotain-migration](../docs/features/complete/chevrotain-migration.md) — `docs/features/complete/chevrotain-migration.md`
-- [cli-audio-export](../docs/features/complete/cli-audio-export.md) — `docs/features/complete/cli-audio-export.md`
-- [cli-extract-uge-instruments](../docs/features/complete/cli-extract-uge-instruments.md) — `docs/features/complete/cli-extract-uge-instruments.md`
-- [codelens-preview-imported-instruments](../docs/features/complete/codelens-preview-imported-instruments.md) — `docs/features/complete/codelens-preview-imported-instruments.md`
-- `docs/features/complete/daw-channel-mixer.md` — **moved** (see Active)
-- [desktop-client-enhancements](../docs/features/complete/desktop-client-enhancements.md) — `docs/features/complete/desktop-client-enhancements.md`
-- `docs/features/complete/desktop-dmc-main-process-ipc.md` — **moved** (see Active)
-- [desktop-export-imported-instruments](../docs/features/complete/desktop-export-imported-instruments.md) — `docs/features/complete/desktop-export-imported-instruments.md`
-- [desktop-external-file-reload](../docs/features/complete/desktop-external-file-reload.md) — `docs/features/complete/desktop-external-file-reload.md`
-- [desktop-first-client-split](../docs/features/complete/desktop-first-client-split.md) — `docs/features/complete/desktop-first-client-split.md`
-- [desktop-web-ui-retirement](../docs/features/complete/desktop-web-ui-retirement.md) — `docs/features/complete/desktop-web-ui-retirement.md`
-- [dynamic-chip-loading](../docs/features/complete/dynamic-chip-loading.md) — `docs/features/complete/dynamic-chip-loading.md`
-- [editor-interactive-features](../docs/features/complete/editor-interactive-features.md) — `docs/features/complete/editor-interactive-features.md`
-- [effects-system](../docs/features/complete/effects-system.md) — `docs/features/complete/effects-system.md`
-- [electron-desktop-client](../docs/features/complete/electron-desktop-client.md) — `docs/features/complete/electron-desktop-client.md`
-- [engine-entrypoint-runtime-split](../docs/features/complete/engine-entrypoint-runtime-split.md) — `docs/features/complete/engine-entrypoint-runtime-split.md`
-- [enhanced-command-palette-commands](../docs/features/complete/enhanced-command-palette-commands.md) — `docs/features/complete/enhanced-command-palette-commands.md`
-- [exporter-buffer-return-cleanup](../docs/features/complete/exporter-buffer-return-cleanup.md) — `docs/features/complete/exporter-buffer-return-cleanup.md`
-- [exporter_plugin_system](../docs/features/complete/exporter_plugin_system.md) — `docs/features/complete/exporter_plugin_system.md`
-- [extended-ast-types](../docs/features/complete/extended-ast-types.md) — `docs/features/complete/extended-ast-types.md`
-- [famitracker-export](../docs/features/complete/famitracker-export.md) — `docs/features/complete/famitracker-export.md`
-- [gameboy-instrument-macros-policy](../docs/features/complete/gameboy-instrument-macros-policy.md) — `docs/features/complete/gameboy-instrument-macros-policy.md`
-- [gameboy-noise-uge-playback-parity](../docs/features/complete/gameboy-noise-uge-playback-parity.md) — `docs/features/complete/gameboy-noise-uge-playback-parity.md`
-- [gameboy-uge-instrument-subpatterns](../docs/features/complete/gameboy-uge-instrument-subpatterns.md) — `docs/features/complete/gameboy-uge-instrument-subpatterns.md`
-- [ins-validation-comprehensive](../docs/features/complete/ins-validation-comprehensive.md) — `docs/features/complete/ins-validation-comprehensive.md`
-- [instrument-imports](../docs/features/complete/instrument-imports.md) — `docs/features/complete/instrument-imports.md`
-- [instrument-note-mapping-spec](../docs/features/complete/instrument-note-mapping-spec.md) — `docs/features/complete/instrument-note-mapping-spec.md`
-- [migrate-demo-web-ui](../docs/features/complete/migrate-demo-web-ui.md) — `docs/features/complete/migrate-demo-web-ui.md`
-- [monorepo-refactoring](../docs/features/complete/monorepo-refactoring.md) — `docs/features/complete/monorepo-refactoring.md`
-- [move-node-audio-player-into-engine-node](../docs/features/complete/move-node-audio-player-into-engine-node.md) — `docs/features/complete/move-node-audio-player-into-engine-node.md`
-- [nes-apu-chip-plugin](../docs/features/complete/nes-apu-chip-plugin.md) — `docs/features/complete/nes-apu-chip-plugin.md`
-- [new-song-wizard](../docs/features/complete/new-song-wizard.md) — `docs/features/complete/new-song-wizard.md`
-- [parser-error-recovery](../docs/features/complete/parser-error-recovery.md) — `docs/features/complete/parser-error-recovery.md`
-- [parser-improvements-1](../docs/features/complete/parser-improvements-1.md) — `docs/features/complete/parser-improvements-1.md`
-- [pattern-combination-preview](../docs/features/complete/pattern-combination-preview.md) — `docs/features/complete/pattern-combination-preview.md`
-- [peggy-migration-1](../docs/features/complete/peggy-migration-1.md) — `docs/features/complete/peggy-migration-1.md`
-- [peggy-migration-2](../docs/features/complete/peggy-migration-2.md) — `docs/features/complete/peggy-migration-2.md`
-- [per-channel-analyser](../docs/features/complete/per-channel-analyser.md) — `docs/features/complete/per-channel-analyser.md`
-- [playback-via-cli-implementation-notes](../docs/features/complete/playback-via-cli-implementation-notes.md) — `docs/features/complete/playback-via-cli-implementation-notes.md`
-- [playback-via-cli](../docs/features/complete/playback-via-cli.md) — `docs/features/complete/playback-via-cli.md`
-- [plugin-system](../docs/features/complete/plugin-system.md) — `docs/features/complete/plugin-system.md`
-- [pulse-sweep-support](../docs/features/complete/pulse-sweep-support.md) — `docs/features/complete/pulse-sweep-support.md`
-- [refactor-vgm-exporter-and-centralize-utilities](../docs/features/complete/refactor-vgm-exporter-and-centralize-utilities.md) — `docs/features/complete/refactor-vgm-exporter-and-centralize-utilities.md`
-- [remote-imports](../docs/features/complete/remote-imports.md) — `docs/features/complete/remote-imports.md`
-- `docs/features/complete/scale-awareness.md` — **moved** (see Active)
-- [sequence-arrangements](../docs/features/complete/sequence-arrangements.md) — `docs/features/complete/sequence-arrangements.md`
-- [settings-panel](../docs/features/complete/settings-panel.md) — `docs/features/complete/settings-panel.md`
-- [sms-psg-chip-plugin](../docs/features/complete/sms-psg-chip-plugin.md) — `docs/features/complete/sms-psg-chip-plugin.md`
-- [spectrum-cpc-arkos-exporter](../docs/features/complete/spectrum-cpc-arkos-exporter.md) — `docs/features/complete/spectrum-cpc-arkos-exporter.md`
-- [vgm-exporter-and-engine-utilities-consolidation](../docs/features/complete/vgm-exporter-and-engine-utilities-consolidation.md) — `docs/features/complete/vgm-exporter-and-engine-utilities-consolidation.md`
-- [vgm-exporter-plugin](../docs/features/complete/vgm-exporter-plugin.md) — `docs/features/complete/vgm-exporter-plugin.md`
-- [volume_control](../docs/features/complete/volume_control.md) — `docs/features/complete/volume_control.md`
-- [wave-channel-volume-control](../docs/features/complete/wave-channel-volume-control.md) — `docs/features/complete/wave-channel-volume-control.md`
-- [web-audio-loudness-and-meter-display](../docs/features/complete/web-audio-loudness-and-meter-display.md) — `docs/features/complete/web-audio-loudness-and-meter-display.md`
-- [web-midi-step-entry](../docs/features/complete/web-midi-step-entry.md) — `docs/features/complete/web-midi-step-entry.md`
-- [web-ui-migration](../docs/features/complete/web-ui-migration.md) — `docs/features/complete/web-ui-migration.md`
-- [web-ui-refactoring](../docs/features/complete/web-ui-refactoring.md) — `docs/features/complete/web-ui-refactoring.md`
-- [zx-spectrum-128-chip-plugin](../docs/features/complete/zx-spectrum-128-chip-plugin.md) — `docs/features/complete/zx-spectrum-128-chip-plugin.md`
+- **025** `arpeggio-effect` — complete — language — issue: _none_ — [specs/complete/025-arpeggio-effect/](specs/complete/025-arpeggio-effect/)
+- **026** `exporter_plugin_system` — complete — export — issue: https://github.com/kadraman/beatbax/issues/89 — [specs/complete/026-exporter_plugin_system/](specs/complete/026-exporter_plugin_system/)
+- **027** `ins-validation-comprehensive` — complete — language — issue: _none_ — [specs/complete/027-ins-validation-comprehensive/](specs/complete/027-ins-validation-comprehensive/)
+- **028** `instrument-note-mapping-spec` — complete — language — issue: _none_ — [specs/complete/028-instrument-note-mapping-spec/](specs/complete/028-instrument-note-mapping-spec/)
+- **029** `playback-via-cli-implementation-notes` — complete — cli — issue: _none_ — [specs/complete/029-playback-via-cli-implementation-notes/](specs/complete/029-playback-via-cli-implementation-notes/)
+- **030** `volume_control` — complete — language — issue: _none_ — [specs/complete/030-volume_control/](specs/complete/030-volume_control/)
+- **031** `cli-audio-export` — complete — export — issue: https://github.com/kadraman/beatbax/issues/7 — [specs/complete/031-cli-audio-export/](specs/complete/031-cli-audio-export/)
+- **032** `dynamic-chip-loading` — complete — plugin — issue: https://github.com/kadraman/beatbax/issues/3 — [specs/complete/032-dynamic-chip-loading/](specs/complete/032-dynamic-chip-loading/)
+- **033** `effects-system` — complete — language — issue: https://github.com/kadraman/beatbax/issues/5 — [specs/complete/033-effects-system/](specs/complete/033-effects-system/)
+- **034** `migrate-demo-web-ui` — complete — web — issue: https://github.com/kadraman/beatbax/issues/8 — [specs/complete/034-migrate-demo-web-ui/](specs/complete/034-migrate-demo-web-ui/)
+- **035** `monorepo-refactoring` — complete — engine — issue: https://github.com/kadraman/beatbax/issues/9 — [specs/complete/035-monorepo-refactoring/](specs/complete/035-monorepo-refactoring/)
+- **036** `parser-improvements-1` — complete — language — issue: https://github.com/kadraman/beatbax/issues/14 — [specs/complete/036-parser-improvements-1/](specs/complete/036-parser-improvements-1/)
+- **037** `plugin-system` — complete — plugin — issue: https://github.com/kadraman/beatbax/issues/4 — [specs/complete/037-plugin-system/](specs/complete/037-plugin-system/)
+- **038** `pulse-sweep-support` — complete — language — issue: https://github.com/kadraman/beatbax/issues/2 — [specs/complete/038-pulse-sweep-support/](specs/complete/038-pulse-sweep-support/)
+- **039** `sequence-arrangements` — wont-do — language — issue: https://github.com/kadraman/beatbax/issues/10 — [specs/complete/039-sequence-arrangements/](specs/complete/039-sequence-arrangements/)
+- **041** `playback-via-cli` — complete — cli — issue: https://github.com/kadraman/beatbax/issues/11 — [specs/complete/041-playback-via-cli/](specs/complete/041-playback-via-cli/)
+- **042** `wave-channel-volume-control` — complete — export — issue: https://github.com/kadraman/beatbax/issues/15 — [specs/complete/042-wave-channel-volume-control/](specs/complete/042-wave-channel-volume-control/)
+- **043** `extended-ast-types` — complete — language — issue: https://github.com/kadraman/beatbax/issues/24 — [specs/complete/043-extended-ast-types/](specs/complete/043-extended-ast-types/)
+- **044** `chevrotain-migration` — superseded — language — issue: https://github.com/kadraman/beatbax/issues/22 — [specs/complete/044-chevrotain-migration/](specs/complete/044-chevrotain-migration/)
+- **045** `instrument-imports` — complete — language — issue: https://github.com/kadraman/beatbax/issues/23 — [specs/complete/045-instrument-imports/](specs/complete/045-instrument-imports/)
+- **046** `peggy-migration-1` — complete — language — issue: https://github.com/kadraman/beatbax/issues/26 — [specs/complete/046-peggy-migration-1/](specs/complete/046-peggy-migration-1/)
+- **047** `peggy-migration-2` — complete — language — issue: https://github.com/kadraman/beatbax/issues/26 — [specs/complete/047-peggy-migration-2/](specs/complete/047-peggy-migration-2/)
+- **048** `remote-imports` — complete — language — issue: _none_ — [specs/complete/048-remote-imports/](specs/complete/048-remote-imports/)
+- **049** `web-ui-migration` — complete — web — issue: https://github.com/kadraman/beatbax/issues/45 — [specs/complete/049-web-ui-migration/](specs/complete/049-web-ui-migration/)
+- **050** `parser-error-recovery` — complete — language — issue: https://github.com/kadraman/beatbax/issues/67 — [specs/complete/050-parser-error-recovery/](specs/complete/050-parser-error-recovery/)
+- **051** `editor-interactive-features` — complete — desktop — issue: issue: \"https://github.com/kadraman/beatbax/issues/56 — [specs/complete/051-editor-interactive-features/](specs/complete/051-editor-interactive-features/)
+- **052** `ai-chatbot-assistant` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/61 — [specs/complete/052-ai-chatbot-assistant/](specs/complete/052-ai-chatbot-assistant/)
+- **053** `electron-desktop-client` — complete — cli — issue: https://github.com/kadraman/beatbax/issues/69 — [specs/complete/053-electron-desktop-client/](specs/complete/053-electron-desktop-client/)
+- **054** `web-ui-refactoring` — complete — web — issue: https://github.com/kadraman/beatbax/issues/68 — [specs/complete/054-web-ui-refactoring/](specs/complete/054-web-ui-refactoring/)
+- **055** `per-channel-analyser` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/77 — [specs/complete/055-per-channel-analyser/](specs/complete/055-per-channel-analyser/)
+- **056** `audio-editor-visuals` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/73 — [specs/complete/056-audio-editor-visuals/](specs/complete/056-audio-editor-visuals/)
+- **057** `settings-panel` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/78 — [specs/complete/057-settings-panel/](specs/complete/057-settings-panel/)
+- **058** `nes-apu-chip-plugin` — complete — plugin — issue: https://github.com/kadraman/beatbax/issues/83 — [specs/complete/058-nes-apu-chip-plugin/](specs/complete/058-nes-apu-chip-plugin/)
+- **059** `channel-visualizer` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/88 — [specs/complete/059-channel-visualizer/](specs/complete/059-channel-visualizer/)
+- **061** `famitracker-export` — complete — export — issue: https://github.com/kadraman/beatbax/issues/94 — [specs/complete/061-famitracker-export/](specs/complete/061-famitracker-export/)
+- **062** `enhanced-command-palette-commands` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/96 — [specs/complete/062-enhanced-command-palette-commands/](specs/complete/062-enhanced-command-palette-commands/)
+- **063** `sms-psg-chip-plugin` — complete — plugin — issue: https://github.com/kadraman/beatbax/issues/98 — [specs/complete/063-sms-psg-chip-plugin/](specs/complete/063-sms-psg-chip-plugin/)
+- **064** `vgm-exporter-plugin` — complete — export — issue: https://github.com/kadraman/beatbax/issues/99 — [specs/complete/064-vgm-exporter-plugin/](specs/complete/064-vgm-exporter-plugin/)
+- **065** `web-midi-step-entry` — complete — web — issue: https://github.com/kadraman/beatbax/issues/100 — [specs/complete/065-web-midi-step-entry/](specs/complete/065-web-midi-step-entry/)
+- **066** `new-song-wizard` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/106 — [specs/complete/066-new-song-wizard/](specs/complete/066-new-song-wizard/)
+- **067** `engine-entrypoint-runtime-split` — complete — engine — issue: TBD — [specs/complete/067-engine-entrypoint-runtime-split/](specs/complete/067-engine-entrypoint-runtime-split/)
+- **068** `refactor-vgm-exporter-and-centralize-utilities` — complete — export — issue: https://github.com/kadraman/beatbax/issues/105 — [specs/complete/068-refactor-vgm-exporter-and-centralize-utilities/](specs/complete/068-refactor-vgm-exporter-and-centralize-utilities/)
+- **069** `vgm-exporter-and-engine-utilities-consolidation` — complete — export — issue: https://github.com/kadraman/beatbax/issues/105 — [specs/complete/069-vgm-exporter-and-engine-utilities-consolidation/](specs/complete/069-vgm-exporter-and-engine-utilities-consolidation/)
+- **070** `gameboy-instrument-macros-policy` — complete — docs — issue: _none_ — [specs/complete/070-gameboy-instrument-macros-policy/](specs/complete/070-gameboy-instrument-macros-policy/)
+- **071** `move-node-audio-player-into-engine-node` — complete — engine — issue: TBD — [specs/complete/071-move-node-audio-player-into-engine-node/](specs/complete/071-move-node-audio-player-into-engine-node/)
+- **072** `zx-spectrum-128-chip-plugin` — complete — plugin — issue: https://github.com/kadraman/beatbax/issues/108 — [specs/complete/072-zx-spectrum-128-chip-plugin/](specs/complete/072-zx-spectrum-128-chip-plugin/)
+- **073** `additional-beatbax-modifiers` — complete — language — issue: _none_ — [specs/complete/073-additional-beatbax-modifiers/](specs/complete/073-additional-beatbax-modifiers/)
+- **074** `builtin-nes-chip-plugin` — complete — plugin — issue: https://github.com/kadraman/beatbax/issues/127 — [specs/complete/074-builtin-nes-chip-plugin/](specs/complete/074-builtin-nes-chip-plugin/)
+- **075** `spectrum-cpc-arkos-exporter` — complete — export — issue: https://github.com/kadraman/beatbax/issues/130 — [specs/complete/075-spectrum-cpc-arkos-exporter/](specs/complete/075-spectrum-cpc-arkos-exporter/)
+- **076** `desktop-first-client-split` — complete — cli — issue: https://github.com/kadraman/beatbax/issues/136 — [specs/complete/076-desktop-first-client-split/](specs/complete/076-desktop-first-client-split/)
+- **077** `web-audio-loudness-and-meter-display` — complete — cli — issue: https://github.com/kadraman/beatbax/issues/135 — [specs/complete/077-web-audio-loudness-and-meter-display/](specs/complete/077-web-audio-loudness-and-meter-display/)
+- **078** `desktop-client-enhancements` — complete — cli — issue: _none_ — [specs/complete/078-desktop-client-enhancements/](specs/complete/078-desktop-client-enhancements/)
+- **079** `desktop-web-ui-retirement` — complete — web — issue: _none_ — [specs/complete/079-desktop-web-ui-retirement/](specs/complete/079-desktop-web-ui-retirement/)
+- **080** `exporter-buffer-return-cleanup` — complete — export — issue: https://github.com/kadraman/beatbax/issues/152 — [specs/complete/080-exporter-buffer-return-cleanup/](specs/complete/080-exporter-buffer-return-cleanup/)
+- **081** `gameboy-noise-uge-playback-parity` — complete — export — issue: https://github.com/kadraman/beatbax/issues/149 — [specs/complete/081-gameboy-noise-uge-playback-parity/](specs/complete/081-gameboy-noise-uge-playback-parity/)
+- **082** `gameboy-uge-instrument-subpatterns` — complete — export — issue: https://github.com/kadraman/beatbax/issues/150 — [specs/complete/082-gameboy-uge-instrument-subpatterns/](specs/complete/082-gameboy-uge-instrument-subpatterns/)
+- **083** `desktop-export-imported-instruments` — complete — export — issue: https://github.com/kadraman/beatbax/issues/171 — [specs/complete/083-desktop-export-imported-instruments/](specs/complete/083-desktop-export-imported-instruments/)
+- **084** `codelens-preview-imported-instruments` — complete — language — issue: https://github.com/kadraman/beatbax/issues/175 — [specs/complete/084-codelens-preview-imported-instruments/](specs/complete/084-codelens-preview-imported-instruments/)
+- **085** `desktop-external-file-reload` — complete — desktop — issue: _none_ — [specs/complete/085-desktop-external-file-reload/](specs/complete/085-desktop-external-file-reload/)
+- **086** `cli-extract-uge-instruments` — complete — export — issue: https://github.com/kadraman/beatbax/issues/185 — [specs/complete/086-cli-extract-uge-instruments/](specs/complete/086-cli-extract-uge-instruments/)
+- **087** `pattern-combination-preview` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/189 — [specs/complete/087-pattern-combination-preview/](specs/complete/087-pattern-combination-preview/)
 
-## Legacy archive (not yet moved into `specs/archive/`)
+## Archive (`specs/archive/`)
 
-- [gameboy-plugin-extraction](../docs/features/archive/gameboy-plugin-extraction.md) — `docs/features/archive/gameboy-plugin-extraction.md`
-- [sequence-arrangements-spec](../docs/features/archive/sequence-arrangements-spec.md) — `docs/features/archive/sequence-arrangements-spec.md`
+Historical only — not authoritative for current behavior.
+
+- **040** `sequence-arrangements-spec` — superseded — language — issue: https://github.com/kadraman/beatbax/issues/10 — [specs/archive/040-sequence-arrangements-spec/](specs/archive/040-sequence-arrangements-spec/)
+- **060** `gameboy-plugin-extraction` — superseded — plugin — issue: _none_ — [specs/archive/060-gameboy-plugin-extraction/](specs/archive/060-gameboy-plugin-extraction/)

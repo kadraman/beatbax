@@ -51,4 +51,4 @@ Implementation PRs for `enhancement` / `spec` issues MUST link `spec.md` (and th
 3. The **active** feature folder (do not load all of `complete/` by default)
 4. [STATUS.md](STATUS.md) to find related shipped specs, then open only those paths
 
-Shipped specs under `docs/features/complete/` remain authoritative until they are moved into `specs/complete/`.
+Shipped specs under `specs/complete/` remain authoritative for implemented behavior. Use [STATUS.md](STATUS.md) to find them — do not load the entire complete tree by default.

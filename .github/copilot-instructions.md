@@ -32,8 +32,9 @@ Copilot MUST follow these rules strictly:
   - `/specs/constitution.md` is binding
   - `/specs/global/` defines cross-cutting contracts
   - `/specs/features/` defines in-flight feature behavior and scope
-  - `/specs/complete/` (and legacy `/docs/features/complete/` until migrated) defines shipped behavior
+  - `/specs/complete/` defines shipped behavior (`/specs/archive/` is historical only)
   - `/docs/**/*.md` is user-facing / contributor documentation, not a substitute for specs
+  - Legacy stubs under `/docs/features/complete/` and `/docs/features/archive/` redirect to `specs/`
 
 - **Specifications first**
   - Do not invent language features or behavior
@@ -44,7 +45,6 @@ Copilot MUST follow these rules strictly:
 - **Feature gating**
   - Only implement features that are:
     - specified under `/specs/features/` or `/specs/complete/`, **or**
-    - still documented in legacy `/docs/features/complete/`, **or**
     - explicitly approved by the user
 
 If essential information is missing, **ask before implementing**.
