@@ -3,4 +3,6 @@ contact_links:
   - name: Questions & Discussions
     url: https://github.com/kadraman/beatbax/discussions
     about: Please ask questions here instead of opening issues
-`
+  - name: How we specify work
+    url: https://github.com/kadraman/beatbax/blob/main/specs/README.md
+    about: Spec-driven development process (constitution, spec, plan, tasks)

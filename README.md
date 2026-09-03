@@ -102,10 +102,12 @@ beatbax/
 │   ├── app-core/     # Shared client logic
 │   ├── cli/          # @beatbax/cli
 │   └── plugins/      # Chip + exporter plugins
+├── specs/            # Spec-driven development (constitution, global, features)
 ├── songs/            # Example .bax songs
 └── docs/             # In-repo technical notes (site docs live on beatbax.com)
 ```
 
+Engineering changes follow [specs/README.md](specs/README.md). See also [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 ## Development
 
 ```bash
