@@ -5,8 +5,15 @@ Thanks for your interest in contributing! This short guide explains the preferre
 - Keep changes small and focused. One feature or bugfix per PR.
 - Add unit tests for parser/expansion behavior when changing parsing or pattern code.
 - Ensure all tests pass locally before opening a PR: `npm test`.
-
 - For quick iterative testing while developing, prefer `npm run cli:dev` (fast, no-build runner).
+
+Spec-driven development
+
+- Engineering behavior is specified under [`specs/`](specs/README.md). Read the [constitution](specs/constitution.md) before changing language, AST, ISM, scheduler, or plugins.
+- Workflow: GitHub Feature or Spec issue → `specs/features/NNN-slug/spec.md` → `plan.md` (Constitution Check) → `tasks.md` → implementation PR.
+- Assign the next `NNN` from [`specs/STATUS.md`](specs/STATUS.md). Link the issue in spec frontmatter before implementation.
+- User-facing composer docs stay in [`docs/`](docs/). Do not add new feature specs under `docs/features/`.
+- Templates: [`specs/_templates/`](specs/_templates/). GitHub issue forms: `.github/ISSUE_TEMPLATE/`.
 
 Branching and PRs
 

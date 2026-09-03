@@ -3,8 +3,14 @@ description: Request a new feature or improvement
 title: "[Feature]: "
 labels:
   - enhancement
+  - needs-spec
 
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Product intake. A maintainer or agent will create `specs/features/NNN-slug/` and comment the path on this issue. See [specs/README.md](https://github.com/kadraman/beatbax/blob/main/specs/README.md).
+
   - type: textarea
     id: problem
     attributes:
@@ -20,6 +26,43 @@ body:
       required: true
 
   - type: textarea
+    id: success
+    attributes:
+      label: Success criteria
+      description: How we will know this is done. Measurable outcomes preferred.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surfaces
+    attributes:
+      label: Affected surfaces
+      multiple: true
+      options:
+        - Desktop
+        - Web-lite
+        - CLI
+        - Engine
+        - Language
+        - Chip plugin
+        - Export plugin
+        - Docs
+    validations:
+      required: true
+
+  - type: textarea
+    id: nongoals
+    attributes:
+      label: Non-goals / out of scope
+      description: What this request explicitly does not include.
+
+  - type: textarea
     id: alternatives
     attributes:
       label: Alternatives considered
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related issues or specs
+      description: GitHub issue URLs or paths under `specs/` / `docs/features/`.

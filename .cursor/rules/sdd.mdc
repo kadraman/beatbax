@@ -1,0 +1,10 @@
+---
+description: Spec-driven development — constitution, specs/ tree, no invented syntax
+alwaysApply: true
+---
+
+Engineering source of truth is `specs/` (constitution, `specs/global/`, active `specs/features/NNN-slug/`). Process: `specs/README.md`. Index: `specs/STATUS.md`.
+
+Do not invent language syntax or features. Do not infer unspecified behavior from code alone. Ask if a spec is missing.
+
+PRs that change language or user-visible behavior must link `spec.md` (and `plan.md` / `tasks.md` for feature work).

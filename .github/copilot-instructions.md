@@ -28,18 +28,23 @@ Copilot must treat BeatBax as a **production‑quality system**, not a prototype
 
 Copilot MUST follow these rules strictly:
 
-- **Documentation is authoritative**
-  - `/docs/**/*.md` defines the source of truth
-  - `/docs/features/*.md` defines feature behavior and scope
+- **Specifications are authoritative**
+  - `/specs/constitution.md` is binding
+  - `/specs/global/` defines cross-cutting contracts
+  - `/specs/features/` defines in-flight feature behavior and scope
+  - `/specs/complete/` (and legacy `/docs/features/complete/` until migrated) defines shipped behavior
+  - `/docs/**/*.md` is user-facing / contributor documentation, not a substitute for specs
 
 - **Specifications first**
   - Do not invent language features or behavior
   - Do not infer intent from code alone
   - Always align implementations with documented specs
+  - Process: `/specs/README.md` (spec → plan → tasks). Index: `/specs/STATUS.md`
 
 - **Feature gating**
   - Only implement features that are:
-    - documented in `/docs/features/`, **or**
+    - specified under `/specs/features/` or `/specs/complete/`, **or**
+    - still documented in legacy `/docs/features/complete/`, **or**
     - explicitly approved by the user
 
 If essential information is missing, **ask before implementing**.
@@ -206,10 +211,10 @@ Copilot MUST:
 
 ## Workflow Reminder
 
-1. Read `/docs/features/`
-2. Implement incrementally
+1. Read `/specs/constitution.md`, relevant `/specs/global/` files, and the active feature folder (see `/specs/STATUS.md`)
+2. Implement incrementally from `tasks.md`
 3. Add tests
-4. Update docs if behavior changes
+4. Update specs and user-facing docs if behavior changes
 5. Ensure all tests pass
 
 BeatBax values **correctness, determinism, and long‑term maintainability** over speed.

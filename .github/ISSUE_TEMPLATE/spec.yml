@@ -1,0 +1,65 @@
+name: Specification
+description: Start or attach an engineering specification (language, AST, plugin, contract)
+title: "[Spec]: "
+labels:
+  - spec
+  - needs-spec
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this when the change is already an engineering spec, not a vague product idea. Process: [specs/README.md](https://github.com/kadraman/beatbax/blob/main/specs/README.md). Constitution: [specs/constitution.md](https://github.com/kadraman/beatbax/blob/main/specs/constitution.md).
+
+  - type: input
+    id: slug
+    attributes:
+      label: Feature slug
+      description: kebab-case folder name (without NNN- prefix)
+      placeholder: hot-reload
+    validations:
+      required: true
+
+  - type: input
+    id: related_issue
+    attributes:
+      label: Related feature or bug issue
+      description: GitHub issue URL, if any
+      placeholder: https://github.com/kadraman/beatbax/issues/N
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - language
+        - engine
+        - desktop
+        - web
+        - cli
+        - plugin
+        - export
+        - docs
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and requirements
+      description: What and why. User stories and MUST requirements. No implementation detail.
+    validations:
+      required: true
+
+  - type: textarea
+    id: nongoals
+    attributes:
+      label: Non-goals
+    validations:
+      required: true
+
+  - type: textarea
+    id: constitution
+    attributes:
+      label: Constitution risks
+      description: AST/ISM/scheduler, plugins, determinism, invented syntax. Optional if none.

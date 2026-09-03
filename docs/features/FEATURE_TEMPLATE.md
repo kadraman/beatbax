@@ -1,40 +1,9 @@
----
-title: "<TITLE_OF_FEATURE>"
-status: proposed
-authors: ["<AUTHOR>"]
-created: <DATE_CREATED>
-issue: "<LINK_TO_GITHUB_ISSUE>"
----
+# Feature spec template (moved)
 
-## Summary
+Use the templates in [`specs/_templates/`](../../specs/_templates/):
 
-## Problem Statement
+- [spec.md](../../specs/_templates/spec.md) — WHAT / WHY
+- [plan.md](../../specs/_templates/plan.md) — HOW + Constitution Check
+- [tasks.md](../../specs/_templates/tasks.md) — implementation units
 
-## Proposed Solution
-### Summary
-### Example Syntax
-### Example Usage
-
-## Implementation Plan
-### AST Changes
-### Parser Changes
-### CLI Changes
-### Web UI Changes
-### Export Changes
-### Documentation Updates
-
-## Testing Strategy
-### Unit Tests
-### Integration Tests
-
-## Migration Path
-
-## Implementation Checklist
-
-## Future Enhancements
-
-## Open Questions
-
-## References
-
-## Additional Notes
+Process: [`specs/README.md`](../../specs/README.md).
