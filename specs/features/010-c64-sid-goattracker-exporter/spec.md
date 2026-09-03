@@ -8,7 +8,7 @@ authors:
   - "GitHub Copilot"
 created: "2026-05-30"
 updated: "2026-09-03"
-issue: "<LINK_TO_GITHUB_ISSUE>"
+issue: "https://github.com/kadraman/beatbax/issues/200"
 area: "export"
 ---
 ## Summary

@@ -3,7 +3,7 @@
 - **ID**: 017
 - **Status**: in-progress
 - **Area**: desktop
-- **Issue**: _none_
+- **Issue**: https://github.com/kadraman/beatbax/issues/202
 - [spec.md](spec.md) — WHAT / WHY
 - [plan.md](plan.md) — HOW
 - [tasks.md](tasks.md) — implementation units
