@@ -26,5 +26,5 @@ Capability gating: `packages/app-core/src/client-profile.ts`. Do not use Node.js
 ## Pointers
 
 - [DEVNOTES.md](../../DEVNOTES.md)
-- Shipped split: [docs/features/complete/desktop-first-client-split.md](../../docs/features/complete/desktop-first-client-split.md)
+- Shipped split: [specs/complete/076-desktop-first-client-split/spec.md](../complete/076-desktop-first-client-split/spec.md)
 - Export architecture: [docs/exports/export-architecture.md](../../docs/exports/export-architecture.md)

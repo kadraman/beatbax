@@ -18,7 +18,7 @@
 
 ## Pointers
 
-- Chip plugin spec (shipped): [docs/features/complete/plugin-system.md](../../docs/features/complete/plugin-system.md)
-- Exporter plugin spec (shipped): [docs/features/complete/exporter_plugin_system.md](../../docs/features/complete/exporter_plugin_system.md)
+- Chip plugin spec (shipped): [specs/complete/037-plugin-system/spec.md](../complete/037-plugin-system/spec.md)
+- Exporter plugin spec (shipped): [specs/complete/026-exporter_plugin_system/spec.md](../complete/026-exporter_plugin_system/spec.md)
 - Authoring guide: [docs/contributing/creating-plugins.md](../../docs/contributing/creating-plugins.md)
-- Dynamic loading (shipped): [docs/features/complete/dynamic-chip-loading.md](../../docs/features/complete/dynamic-chip-loading.md)
+- Dynamic loading (shipped): [specs/complete/032-dynamic-chip-loading/spec.md](../complete/032-dynamic-chip-loading/spec.md)

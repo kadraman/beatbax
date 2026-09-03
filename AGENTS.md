@@ -6,7 +6,7 @@ BeatBax is a production-quality live-coding language and toolchain for chiptune.
 
 1. [specs/constitution.md](specs/constitution.md)
 2. [specs/global/](specs/global/)
-3. The **active** feature under [specs/features/](specs/features/) (or a shipped spec under [specs/complete/](specs/complete/) / legacy [docs/features/complete/](docs/features/complete/) when changing that behavior)
+3. The **active** feature under [specs/features/](specs/features/) (or a shipped spec under [specs/complete/](specs/complete/) when changing that behavior; [specs/archive/](specs/archive/) is historical only)
 4. User-facing docs in [docs/](docs/) (grammar, chips, exports, QA)
 5. Code
 
@@ -24,6 +24,6 @@ Index: [specs/STATUS.md](specs/STATUS.md). Process: [specs/README.md](specs/READ
 
 ## Do not
 
-- Load every file under `docs/features/complete/` or `specs/complete/` by default.
+- Load every file under `specs/complete/` or `specs/archive/` by default.
 - Soften validation to hide invalid songs.
 - Depend on plugins from core, or change AST/ISM/scheduler from a plugin.
