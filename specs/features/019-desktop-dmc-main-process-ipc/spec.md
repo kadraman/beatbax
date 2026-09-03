@@ -7,7 +7,7 @@ authors:
   - "kadraman"
 created: "2026-07-15"
 updated: "2026-09-03"
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/203"
 area: "desktop"
 related:
   - "docs/features/complete/electron-desktop-client.md"

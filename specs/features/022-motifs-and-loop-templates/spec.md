@@ -7,7 +7,7 @@ authors:
   - "kadraman"
 created: "2026-08-17"
 updated: "2026-09-03"
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/204"
 area: "desktop"
 related:
   - "docs/features/complete/new-song-wizard.md"

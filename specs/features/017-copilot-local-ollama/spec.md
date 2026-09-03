@@ -7,7 +7,7 @@ authors:
   - "kadraman"
 created: "2026-07-11"
 updated: "2026-09-03"
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/202"
 area: "desktop"
 related:
   - "docs/features/complete/ai-chatbot-assistant.md"
