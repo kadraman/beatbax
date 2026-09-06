@@ -19,7 +19,7 @@ export type {
 } from './parser/ast.js';
 
 // ─── Plugin system ────────────────────────────────────────────────────────────
-export type { ChipPlugin, ChipChannelBackend, ValidationError, SongValidationContext, ChipSongContext, ChipNewSongWizard } from './chips/types.js';
+export type { ChipPlugin, ChipChannelBackend, ValidationError, SongValidationContext, ChipSongContext, ChipNewSongWizard, ChipInstrumentEditor } from './chips/types.js';
 export { ChipRegistry, chipRegistry, gameboyPlugin, getSongValidationIssues } from './chips/index.js';
 export type { ExporterPlugin, ExportOptions, ExportPayload, ExporterUIContribution } from './export/types.js';
 export {
@@ -38,6 +38,7 @@ export {
   NOTE_SEMITONES,
   noteToMidi,
   midiToNote,
+  listInstrumentNoteOptions,
   midiToFreq,
   midiToFreqForNote,
   type ParsedMacro,
@@ -46,4 +47,8 @@ export {
   macroValue,
   advanceMacro,
   makeMacroState,
+  formatMacro,
 } from './util/music.js';
+export { listUgeNoteOptions } from './chips/gameboy/noiseNote.js';
+export { serializeInstrument, parseInstrumentBody, formatInstrumentFieldValue } from './instruments/serialize.js';
+export { generateWaveformPreset, samplesToHex } from './instruments/waveform.js';

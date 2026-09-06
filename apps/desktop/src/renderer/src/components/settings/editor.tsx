@@ -63,15 +63,27 @@ export function EditorSettingsSection(): React.JSX.Element {
   const isRefreshingDevicesRef = useRef(false);
 
   const refreshDevices = useCallback(async (force = false): Promise<void> => {
-    if (isRefreshingDevicesRef.current) return;
+    if (isRefreshingDevicesRef.current && !force) return;
     isRefreshingDevicesRef.current = true;
     setRefreshStatus('Refreshing MIDI devices...');
     try {
       const controller = midiController();
-      await controller?.requestMidiAccess?.(force);
+      const accessErr = await controller?.requestMidiAccess?.(force);
+      if (typeof accessErr === 'string' && accessErr) {
+        setRefreshStatus(accessErr);
+        setDevices([]);
+        return;
+      }
       const nextDevices: MidiDevice[] = controller?.listDevices?.() ?? [];
       let selectedId = settingMidiInputDevice.get();
-      if (selectedId && !nextDevices.some((device) => device.id === selectedId)) {
+      // Only clear a saved selection when we successfully enumerated devices and
+      // the saved id is truly absent. An empty list often means access is not
+      // ready yet (e.g. after HMR) — wiping would forget a still-valid device.
+      if (
+        selectedId
+        && nextDevices.length > 0
+        && !nextDevices.some((device) => device.id === selectedId)
+      ) {
         selectedId = '';
         if (controller?.setDeviceById) {
           controller.setDeviceById('');
@@ -88,6 +100,9 @@ export function EditorSettingsSection(): React.JSX.Element {
           ? `Found 1 MIDI device. Last checked ${checkedAt}.`
           : `Found ${nextDevices.length} MIDI devices. Last checked ${checkedAt}.`,
       );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setRefreshStatus(`MIDI refresh failed: ${msg}`);
     } finally {
       isRefreshingDevicesRef.current = false;
     }

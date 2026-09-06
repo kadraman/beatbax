@@ -1,7 +1,7 @@
 # Instrument Editor Panel (Desktop)
 
 - **ID**: 021
-- **Status**: specified
+- **Status**: in-progress
 - **Area**: desktop
 - **Issue**: https://github.com/kadraman/beatbax/issues/169
 - [spec.md](spec.md) — WHAT / WHY

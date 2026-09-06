@@ -7,7 +7,6 @@ Assign the next feature id as **088** (one past the highest id below). Process: 
 - **001** `hot-reload` — specified — engine — issue: https://github.com/kadraman/beatbax/issues/6 — [specs/features/001-hot-reload/](specs/features/001-hot-reload/)
 - **002** `vscode-plugin` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/21 — [specs/features/002-vscode-plugin/](specs/features/002-vscode-plugin/)
 - **003** `ai-chatbot-rag` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/66 — [specs/features/003-ai-chatbot-rag/](specs/features/003-ai-chatbot-rag/)
-- **004** `daw-channel-mixer` — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/75 — [specs/features/004-daw-channel-mixer/](specs/features/004-daw-channel-mixer/)
 - **005** `plugin-starter-template` — in-progress — plugin — issue: https://github.com/kadraman/beatbax/issues/86 — [specs/features/005-plugin-starter-template/](specs/features/005-plugin-starter-template/)
 - **006** `midi-importer` — specified — engine — issue: https://github.com/kadraman/beatbax/issues/101 — [specs/features/006-midi-importer/](specs/features/006-midi-importer/)
 - **007** `scale-awareness` — specified — language — issue: https://github.com/kadraman/beatbax/issues/102 — [specs/features/007-scale-awareness/](specs/features/007-scale-awareness/)
@@ -24,7 +23,7 @@ Assign the next feature id as **088** (one past the highest id below). Process: 
 - **018** `performance-mode-video-recording` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/192 — [specs/features/018-performance-mode-video-recording/](specs/features/018-performance-mode-video-recording/)
 - **019** `desktop-dmc-main-process-ipc` — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/203 — [specs/features/019-desktop-dmc-main-process-ipc/](specs/features/019-desktop-dmc-main-process-ipc/)
 - **020** `spectrum-cpc-arkos-exporter-phase-2` — specified — export — issue: https://github.com/kadraman/beatbax/issues/162 — [specs/features/020-spectrum-cpc-arkos-exporter-phase-2/](specs/features/020-spectrum-cpc-arkos-exporter-phase-2/)
-- **021** `instrument-editor-panel` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/169 — [specs/features/021-instrument-editor-panel/](specs/features/021-instrument-editor-panel/)
+- **021** `instrument-editor-panel` — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/169 — [specs/features/021-instrument-editor-panel/](specs/features/021-instrument-editor-panel/)
 - **022** `motifs-and-loop-templates` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/204 — [specs/features/022-motifs-and-loop-templates/](specs/features/022-motifs-and-loop-templates/)
 - **023** `sega-mega-drive-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/193 — [specs/features/023-sega-mega-drive-chip-plugin/](specs/features/023-sega-mega-drive-chip-plugin/)
 - **024** `granular-codelens-settings` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/205 — [specs/features/024-granular-codelens-settings/](specs/features/024-granular-codelens-settings/)
@@ -33,6 +32,7 @@ Assign the next feature id as **088** (one past the highest id below). Process: 
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
 
+- **004** `daw-channel-mixer` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/75 — [specs/complete/004-daw-channel-mixer/](specs/complete/004-daw-channel-mixer/)
 - **025** `arpeggio-effect` — complete — language — issue: _none_ — [specs/complete/025-arpeggio-effect/](specs/complete/025-arpeggio-effect/)
 - **026** `exporter_plugin_system` — complete — export — issue: https://github.com/kadraman/beatbax/issues/89 — [specs/complete/026-exporter_plugin_system/](specs/complete/026-exporter_plugin_system/)
 - **027** `ins-validation-comprehensive` — complete — language — issue: _none_ — [specs/complete/027-ins-validation-comprehensive/](specs/complete/027-ins-validation-comprehensive/)

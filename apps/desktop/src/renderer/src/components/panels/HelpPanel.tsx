@@ -107,6 +107,7 @@ const HELP_SECTIONS: Section[] = [
     title: 'Instruments',
     content: [
       { kind: 'text', text: 'Instrument definitions are chip-specific. Load a song or type `chip <name>` to see documentation for the active chip instrument types.' },
+      { kind: 'text', text: 'Desktop: enable Settings → Features → Instrument Editor for a graphical panel (waveforms, macros, templates, mini keyboard). Edits write back to the `inst` line in the open file.' },
       {
         kind: 'snippet',
         label: 'Inline instrument switch in a pattern',

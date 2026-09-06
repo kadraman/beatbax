@@ -45,6 +45,24 @@ export type {
 export { registerBeatBaxLanguage, registerNoteEditCommands, transposeCurrentNote } from './beatbax-language.js';
 export { insertHelpSnippetBlock } from './help-snippet-insertion.js';
 
+export {
+  fieldApplies,
+  resolveInstrumentEditorSchema,
+  resolvePreviewChannel,
+  fallbackInstrumentEditor,
+} from './instrument-editor-schema.js';
+export {
+  collectLocalInstNames,
+  replaceInstLine,
+  insertInstLine,
+  deleteInstLine,
+  uniqueInstName,
+  isValidInstName,
+  renameInstrumentInSource,
+  instIsReferenced,
+  splitTrailingComment,
+} from './instrument-editor-writeback.js';
+
 export { setupBeatDecorations } from './beat-decorations.js';
 export {
   createDiagnosticsManager,

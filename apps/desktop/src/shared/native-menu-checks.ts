@@ -10,6 +10,7 @@ export type NativeMenuCheckAction =
   | 'view:toggle-channel-mixer'
   | 'view:toggle-song-visualizer'
   | 'view:toggle-pattern-grid'
+  | 'view:toggle-instrument-editor'
   | 'view:toggle-ai-assistant'
   | 'view:toggle-wrap-text'
   | 'view:toggle-fold-all';
@@ -30,6 +31,7 @@ export const DEFAULT_NATIVE_MENU_CHECK_STATE: NativeMenuCheckState = {
   'view:toggle-channel-mixer': { checked: false },
   'view:toggle-song-visualizer': { checked: false },
   'view:toggle-pattern-grid': { checked: false },
+  'view:toggle-instrument-editor': { checked: false, enabled: false },
   'view:toggle-ai-assistant': { checked: false },
   'view:toggle-wrap-text': { checked: false },
   'view:toggle-fold-all': { checked: false },

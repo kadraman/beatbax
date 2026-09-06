@@ -79,6 +79,10 @@ const myPlugin: ChipPlugin = {
     helpSections: [{ id: 'instruments', title: 'Instruments (My Chip)', content: [] }],
   },
 
+  // Optional: Desktop Instrument Editor schema (no React). Host renders widgets.
+  // See "Instrument Editor schema" below.
+  // instrumentEditor: { types: [...], fields: [...], macros: [...], presets: [...] },
+
   // Optional: New Song modal metadata/templates for this chip
   newSongWizard: {
     metadata: {
@@ -108,6 +112,23 @@ const myPlugin: ChipPlugin = {
   },
 };
 ```
+
+### Instrument Editor schema
+
+Chip plugins may declare `instrumentEditor` so Desktop can edit `inst` lines graphically. The host renders generic widgets from this schema; **do not ship React** from a plugin.
+
+- `types` — instrument type ids, labels, and `previewChannel` for CodeLens / mini-keyboard preview
+- `fields` — scalar properties (`enum`, `text`, `int`, `bool`, `sample`, `note`, `uge_note`) with optional `whenType`
+  - `note` — BeatBax scientific pitch picker (`C4`, `C#5`, …)
+  - `uge_note` — hUGETracker display notes (`C-6` … `C-9`); host quotes sharps on writeback
+- `macros` — graphable envelopes (`vol_env`, `arp_env`, …); `kind: 'hardware'` is documentation only
+- `waveform` — optional draw/hex wavetable (Game Boy wave)
+- `presets` — `content` is an `inst` body snippet (no `inst name` prefix required)
+- `constraints` — short copy shown in the panel (not a second validator)
+
+If `instrumentEditor` is omitted, Desktop falls back to `CHIP_INSTRUMENT_META` in app-core. Writeback still goes through `validateInstrument` on the plugin.
+
+Game Boy, NES, SMS, and Spectrum 128 ship schemas as examples (`instrument-editor.ts` next to each plugin).
 
 ### `ChipChannelBackend`
 

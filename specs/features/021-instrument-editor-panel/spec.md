@@ -2,7 +2,7 @@
 title: "Instrument Editor Panel (Desktop)"
 id: 21
 slug: "instrument-editor-panel"
-status: "specified"
+status: "in-progress"
 authors:
   - "kadraman"
 created: "2026-08-15"
@@ -255,7 +255,7 @@ Layout (top → bottom):
 3. **Type + chip fields** — schema-driven controls (duty, env, sweep, noise width, volume, sample ref, …). Hidden fields follow `whenType`.
 4. **Visual waveform** — only if the schema defines `waveform` and the current type matches. hUGE-style draw canvas: nibble bars, live hex / `wave=[…]` readout, shape presets, optional play-while-drawing.
 5. **Macro graphs** — one row per supported macro for the current type; click-drag to set values; loop marker (`|n`); empty row omits the field.
-6. **Preview bar** — mini piano (ships the virtual-keyboard idea in this panel), hold-to-play, existing MIDI input when enabled.
+6. **Preview bar** — mini piano (ships the virtual-keyboard idea in this panel), hold-to-play, existing MIDI input when enabled, plus a compact MIDI enable/device strip (shared with Settings).
 
 Constraint notes from the plugin (AY global envelope, SMS attenuation direction, GB wave volume steps) appear as inline hints, not as a second validation engine.
 
@@ -268,7 +268,7 @@ Constraint notes from the plugin (AY global envelope, SMS attenuation direction,
 | Click `inst` line in editor | Select that instrument in the panel                                                                                                             |
 | New                         | Insert a new `inst` line from the default plugin preset for the current type                                                                    |
 | Duplicate                   | Copy fields to a unique name (`lead2`, …) and insert after the original                                                                         |
-| Rename                      | Rewrite the definition name and offer to update `channel … inst` / inline `inst` references (v1: definition only + warning if still referenced) |
+| Rename                      | Dialog renames the definition; checkbox (on by default) rewrites all other instances of that name in the editor |
 | Delete                      | Remove the `inst` line; warn if still referenced                                                                                                |
 
 
@@ -346,13 +346,16 @@ Preview must use the same engine path as CodeLens (`[startInstNotePreview](../..
 
 | Input                    | Behaviour                                                                                                                                          |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Mini-keyboard click/hold | Note-on for that pitch; note-off on release (or timeout if the chip has no sustain)                                                                |
-| Computer-key mapping     | Same notes as the virtual-keyboard proposal                                                                                                        |
-| MIDI note-on / note-off  | Same preview when MIDI input is enabled (`[midi-step-entry-controller.ts](../../apps/desktop/src/renderer/src/lib/midi-step-entry-controller.ts)`) |
+| Mini-keyboard click/hold | Note-on with sustain until release (`stopInstPreview`); long safety timeout                                                                      |
+| Computer-key mapping     | Same as mini-keyboard (hold-to-play); Z/X change octave                                                                                          |
+| MIDI note-on / note-off  | Same sustain preview when Instruments tab is focused (`midi-step-entry-controller.ts`)                                                           |
+| CodeLens note buttons    | ≈2 s oneshot (unchanged)                                                                                                                         |
 | Play-while-drawing       | Retrigger last preview pitch (default C4)                                                                                                          |
 
 
 Active key highlighting is shared across mouse, computer keys, and MIDI. MIDI step-entry (inserting tokens into `pat` lines) is unchanged; when the Instruments tab is focused, MIDI prefers **audition** over step entry unless Record is armed.
+
+The Preview section includes a compact **MIDI enable / device / refresh** strip bound to the same settings atoms and `MidiStepEntryController` as Settings → Editor (step-entry options stay in Settings only).
 
 This panel is the first ship vehicle for the mini keyboard described in `[virtual-piano-keyboard.md](virtual-piano-keyboard.md)`. Scale-aware key styling may reuse scale-awareness data but is optional for v1.
 
@@ -397,7 +400,6 @@ SID and SNES must not require Desktop code changes beyond generic widgets once t
 - Game Boy `subpat` tracker-row editor (empty rows, jumps, `fx:`).
 - Shared wavetable bank (only if language support is added; not implied by hUGE).
 - Optional plugin widget slots for SID combined-wave, SNES BRR encode picker.
-- Rename that rewrites all `inst` references.
 - In-place editing of `.ins` libraries.
 - Generate `CHIP_INSTRUMENT_META` from `instrumentEditor` so hover/complete stay in sync.
 - Scale-aware mini-keyboard styling (`[virtual-piano-keyboard.md](virtual-piano-keyboard.md)`).
@@ -418,16 +420,15 @@ SID and SNES must not require Desktop code changes beyond generic widgets once t
 
 ## Open Questions
 
-1. Rename v1: definition-only + warning, or also rewrite `channel` / inline references?
+1. ~~Rename v1: definition-only + warning, or also rewrite `channel` / inline references?~~
+   **Resolved:** in-panel rename dialog; checkbox (default on) rewrites all other instances of the name in the editor.
 
->  definition-only + warning
->
-> 1. Should play-while-drawing be on by default (hUGE does) or behind a toggle?
->  on by default with a toggle
-> 2. After all first-party chips ship schemas, should `CHIP_INSTRUMENT_META` be deleted in the same milestone or a follow-up?
->   > follow-up
-> 3. Hold-to-play vs fixed 2 s CodeLens timeout for the mini keyboard — prefer hold-to-play when the chip can sustain.
->   > hold-to-play with the existing 2 s safety timeout.
+2. Should play-while-drawing be on by default (hUGE does) or behind a toggle?
+   > on by default with a toggle
+3. After all first-party chips ship schemas, should `CHIP_INSTRUMENT_META` be deleted in the same milestone or a follow-up?
+   > follow-up
+4. Hold-to-play vs fixed 2 s CodeLens timeout for the mini keyboard — prefer hold-to-play when the chip can sustain.
+   > **Resolved:** mini-keyboard / MIDI use hold-to-play (`sustain: true`) until note-off, with a long safety timeout. CodeLens note buttons stay ≈2 s oneshot.
 
 ---
 

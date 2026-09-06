@@ -43,6 +43,7 @@ import { validateSpectrumInstrument, SPECTRUM_TYPES } from './validate.js';
 import { validateSong as validateSpectrumSong } from './validate-song.js';
 import { spectrumUIContributions } from './ui-contributions.js';
 import { spectrumSongWizard } from './songWizard.js';
+import { spectrumInstrumentEditor } from './instrument-editor.js';
 import type { RegisterIntent } from './register-intent.js';
 import { AY_CHANNEL_PEAK } from './ay-volume.js';
 
@@ -146,6 +147,7 @@ const spectrumPlugin: SpectrumChipPlugin = {
   instrumentVolumeRange: { min: 0, max: 15 },
   uiContributions: spectrumUIContributions,
   newSongWizard: spectrumSongWizard,
+  instrumentEditor: spectrumInstrumentEditor,
 
   validateInstrument(inst: InstrumentNode) {
     return validateSpectrumInstrument(inst);
