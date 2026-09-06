@@ -51,4 +51,4 @@ export {
 } from './util/music.js';
 export { listUgeNoteOptions } from './chips/gameboy/noiseNote.js';
 export { serializeInstrument, parseInstrumentBody, formatInstrumentFieldValue } from './instruments/serialize.js';
-export { generateWaveformPreset, samplesToHex } from './instruments/waveform.js';
+export { generateWaveformPreset, samplesToHex, parseWaveHexInput } from './instruments/waveform.js';

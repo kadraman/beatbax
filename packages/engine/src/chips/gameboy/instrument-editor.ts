@@ -10,10 +10,10 @@ export const gameboyInstrumentEditor: ChipInstrumentEditor = {
   fields: [
     // Type-defining controls first (appear immediately after Type in the panel).
     { name: 'duty', label: 'Duty', widget: 'enum', values: ['12.5', '12', '25', '50', '75'], whenType: ['pulse1', 'pulse2'] },
-    { name: 'volume', label: 'Wave volume', widget: 'enum', values: ['0', '25', '50', '100'], whenType: 'wave' },
+    { name: 'volume', label: 'Wave volume', widget: 'enum', values: ['0', '25', '50', '100'], whenType: 'wave', hint: 'Hardware output-level steps (0 / 25 / 50 / 100), not a 0–15 envelope' },
     { name: 'width', label: 'Noise width', widget: 'enum', values: ['7', '15'], whenType: 'noise' },
-    { name: 'env', label: 'Envelope', widget: 'text', whenType: ['pulse1', 'pulse2', 'noise'], hint: 'e.g. 12,down or 12,down,1' },
-    { name: 'sweep', label: 'Sweep', widget: 'text', whenType: 'pulse1', hint: 'Hardware sweep (pulse1)' },
+    { name: 'env', label: 'Envelope', widget: 'envelope', max: 7, whenType: ['pulse1', 'pulse2', 'noise'], hint: 'Hardware volume envelope' },
+    { name: 'sweep', label: 'Sweep', widget: 'sweep', whenType: 'pulse1', hint: 'Hardware frequency sweep (pulse1)' },
     { name: 'uge_note', label: 'UGE note', widget: 'uge_note', whenType: 'noise', hint: 'hUGETracker noise note (C-3…C-9); controls NR43 clock' },
     { name: 'gm', label: 'GM program', widget: 'int', min: 0, max: 127 },
     { name: 'note', label: 'Default note', widget: 'note', hint: 'Pitch used when the instrument name is a hit token' },
@@ -32,7 +32,6 @@ export const gameboyInstrumentEditor: ChipInstrumentEditor = {
     max: 15,
     hexImport: true,
     draw: true,
-    playWhileDrawing: true,
     whenType: 'wave',
     presets: [
       { id: 'sine', label: 'Sine', samples: 'sine' },
@@ -45,8 +44,5 @@ export const gameboyInstrumentEditor: ChipInstrumentEditor = {
     { id: 'pluck-lead', label: 'Pluck lead', type: 'pulse1', content: 'type=pulse1 duty=50 env=12,down gm=81' },
     { id: 'wave-bass', label: 'Wave bass', type: 'wave', content: 'type=wave wave=[0,5,11,15,15,15,15,15,11,5,0,0,0,0,0,0,0,0,6,8,8,8,8,8,8,8,8,6,0,0,0,0] volume=100 gm=39' },
     { id: 'noise-kick', label: 'Noise kick', type: 'noise', content: 'type=noise gb:width=7 uge_note=C-6 vol_env=[15,12,8,4] pitch_env=[0,-2,-4,-6]' },
-  ],
-  constraints: [
-    { id: 'wave-volume', when: 'type=wave', message: 'Wave volume is 0 / 25 / 50 / 100 (hardware steps), not a 0–15 envelope.' },
   ],
 };

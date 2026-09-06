@@ -52,6 +52,21 @@ export {
   fallbackInstrumentEditor,
 } from './instrument-editor-schema.js';
 export {
+  parseHardwareEnvelope,
+  formatHardwareEnvelope,
+  parseHardwareSweep,
+  formatHardwareSweep,
+  simulateGBEnvelope,
+  simulateHardwareSweep,
+  renderEnvelopeSparkline,
+} from './envelope-preview.js';
+export type {
+  HardwareEnvelopeParams,
+  HardwareSweepParams,
+  EnvelopeDirection,
+  SweepDirection,
+} from './envelope-preview.js';
+export {
   collectLocalInstNames,
   replaceInstLine,
   insertInstLine,

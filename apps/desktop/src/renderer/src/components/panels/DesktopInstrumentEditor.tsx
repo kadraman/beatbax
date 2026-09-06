@@ -20,10 +20,12 @@ import {
   listUgeNoteOptions,
   parseInstrumentBody,
   parseMacro,
+  parseWaveHexInput,
   parseWaveTable,
   samplesToHex,
   serializeInstrument,
   type ChipInstrumentEditor,
+  type ChipInstrumentFieldDef,
   type ChipInstrumentMacroDef,
   type InstrumentNode,
   type ValidationError,
@@ -40,6 +42,16 @@ import {
   replaceInstLine,
   uniqueInstName,
 } from '@beatbax/app-core/editor/instrument-editor-writeback';
+import {
+  formatHardwareEnvelope,
+  formatHardwareSweep,
+  parseHardwareEnvelope,
+  parseHardwareSweep,
+  simulateGBEnvelope,
+  simulateHardwareSweep,
+  type EnvelopeDirection,
+  type SweepDirection,
+} from '@beatbax/app-core/editor/envelope-preview';
 import { icon } from '../../utils/icons';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 import { useStoreValue } from '../../hooks/useStoreValue';
@@ -52,12 +64,16 @@ import {
 
 const BEATBAX_NOTE_OPTIONS = listInstrumentNoteOptions();
 const UGE_NOTE_OPTIONS = listUgeNoteOptions();
-const COMPACT_PROP_NAMES = new Set(['note', 'uge_note', 'gm']);
+const DEFAULT_PROP_NAMES = new Set(['note', 'uge_note', 'gm']);
 
-function isCompactPropField(field: { name: string; widget: string }): boolean {
-  return COMPACT_PROP_NAMES.has(field.name)
+function isDefaultPropField(field: { name: string; widget: string }): boolean {
+  return DEFAULT_PROP_NAMES.has(field.name)
     || field.widget === 'note'
     || field.widget === 'uge_note';
+}
+
+function isHardwarePropField(field: { name: string; widget: string }): boolean {
+  return field.widget === 'envelope' || field.widget === 'sweep' || field.name === 'env_period';
 }
 
 function CompactPropField({
@@ -75,11 +91,11 @@ function CompactPropField({
 }): React.JSX.Element {
   return (
     <label
-      className={`bb-inst-editor__compact-field${disabled ? ' is-disabled' : ''}`}
+      className={`bb-inst-editor__ctrl-pair${disabled ? ' is-disabled' : ''}`}
       htmlFor={id}
       title={hint}
     >
-      <span className="bb-inst-editor__compact-label">{label}</span>
+      <span className="bb-inst-editor__ctrl-pair-label">{label}</span>
       {children}
     </label>
   );
@@ -214,7 +230,6 @@ function DesktopInstrumentEditor({
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<InstrumentNode>({});
   const [errors, setErrors] = useState<ValidationError[]>([]);
-  const [playWhileDrawing, setPlayWhileDrawing] = useState(true);
   const [activeNote, setActiveNote] = useState<string | null>(null);
   const [pianoOctave, setPianoOctave] = useState(4);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -240,17 +255,21 @@ function DesktopInstrumentEditor({
   const selectedLocal = selected ? localNames.has(selected) : false;
   const fieldOrder = schema.fields.map((f) => f.name);
 
-  const loadInst = useCallback((name: string, nextAst = ast, opts?: { focus?: boolean }) => {
+  const loadInst = useCallback((name: string, nextAst = ast, opts?: { focus?: boolean; reveal?: boolean }) => {
     setSelected(name);
     setDraft(cloneInst(nextAst?.insts?.[name]));
     setErrors([]);
-    revealInst(name, { focus: opts?.focus !== false, reveal: true });
+    const focus = opts?.focus === true;
+    // Only scroll/focus when explicitly requested (dropdown, Locate, New, CodeLens).
+    // Never jump the editor on passive selection sync.
+    const reveal = opts?.reveal === true || focus;
+    revealInst(name, { focus, reveal });
   }, [ast, revealInst]);
 
   useImperativeHandle(panelRef, () => ({
     show: () => {},
     hide: () => {},
-    selectInstrument: (name) => loadInst(name, ast, { focus: false }),
+    selectInstrument: (name) => loadInst(name, ast, { reveal: false, focus: false }),
     getSelectedName: () => selectedRef.current,
     setAst: (next) => {
       setAst(next);
@@ -560,7 +579,7 @@ function DesktopInstrumentEditor({
     patch({ [name]: next });
   };
 
-  const renderCompactField = (field: (typeof visibleFields)[number]) => {
+  const renderDefaultField = (field: ChipInstrumentFieldDef) => {
     const value = formatInstrumentFieldValue(field.name, draft[field.name]);
     const fieldId = `bb-inst-field-${field.name}`;
     if (field.widget === 'note' || field.widget === 'uge_note') {
@@ -576,7 +595,7 @@ function DesktopInstrumentEditor({
         >
           <select
             id={fieldId}
-            className="bb-settings-select bb-inst-editor__compact-control"
+            className="bb-settings-select bb-inst-editor__hw-dir"
             disabled={!selectedLocal}
             value={value}
             onChange={(e) => clearOrSetField(field.name, e.target.value)}
@@ -599,7 +618,7 @@ function DesktopInstrumentEditor({
       >
         <input
           id={fieldId}
-          className="bb-settings-number bb-inst-editor__compact-control"
+          className="bb-settings-number"
           disabled={!selectedLocal}
           type="number"
           min={field.min ?? 0}
@@ -611,7 +630,7 @@ function DesktopInstrumentEditor({
     );
   };
 
-  const renderMainField = (field: (typeof visibleFields)[number]) => {
+  const renderVoiceField = (field: ChipInstrumentFieldDef) => {
     const raw = draft[field.name];
     const value = formatInstrumentFieldValue(field.name, raw);
     const fieldId = `bb-inst-field-${field.name}`;
@@ -657,31 +676,11 @@ function DesktopInstrumentEditor({
     );
   };
 
-  /** Preserve schema field order; emit note/gm/uge_note as one compact row where they appear. */
-  const propertyFieldNodes: React.ReactNode[] = [];
-  for (let i = 0; i < visibleFields.length; ) {
-    const field = visibleFields[i]!;
-    if (isCompactPropField(field)) {
-      const group: typeof visibleFields = [];
-      while (i < visibleFields.length && isCompactPropField(visibleFields[i]!)) {
-        group.push(visibleFields[i]!);
-        i += 1;
-      }
-      propertyFieldNodes.push(
-        <div
-          key={`compact-${group.map((f) => f.name).join('-')}`}
-          className="bb-inst-editor__compact-row"
-          role="group"
-          aria-label="Note and program"
-        >
-          {group.map(renderCompactField)}
-        </div>,
-      );
-      continue;
-    }
-    propertyFieldNodes.push(renderMainField(field));
-    i += 1;
-  }
+  const envelopeField = visibleFields.find((f) => f.widget === 'envelope');
+  const sweepField = visibleFields.find((f) => f.widget === 'sweep');
+  const voiceFields = visibleFields.filter((f) => !isHardwarePropField(f) && !isDefaultPropField(f));
+  const defaultFields = visibleFields.filter(isDefaultPropField);
+  const siblingPeriod = Number(formatInstrumentFieldValue('env_period', draft.env_period));
 
   return (
     <div className={`bb-inst-editor${renameOpen ? ' is-dialog-open' : ''}`} ref={bodyRef}>
@@ -713,6 +712,19 @@ function DesktopInstrumentEditor({
           disabled={!selectedLocal}
           onClick={onRename}
           dangerouslySetInnerHTML={{ __html: icon('pencil', 'w-3.5 h-3.5') }}
+        />
+        <button
+          type="button"
+          className="bb-inst-editor__toolbar-btn"
+          aria-label="Show in editor"
+          title="Show this instrument in the editor"
+          aria-disabled={!selected ? 'true' : undefined}
+          disabled={!selected}
+          onClick={() => {
+            if (!selected) return;
+            revealInst(selected, { focus: true, reveal: true });
+          }}
+          dangerouslySetInnerHTML={{ __html: icon('arrows-pointing-in', 'w-3.5 h-3.5') }}
         />
         <button
           type="button"
@@ -896,7 +908,12 @@ function DesktopInstrumentEditor({
                 ))}
               </select>
             </div>
-            {propertyFieldNodes}
+            <PropertiesFieldsTabs
+              voiceFields={voiceFields}
+              defaultFields={defaultFields}
+              renderVoiceField={renderVoiceField}
+              renderDefaultField={renderDefaultField}
+            />
 
             {schema.constraints?.filter((c) => {
               if (!c.when) return true;
@@ -907,6 +924,31 @@ function DesktopInstrumentEditor({
               <NoteText key={c.id}>{c.message}</NoteText>
             ))}
 
+            <HardwareEnvSweepSection
+              envelope={envelopeField}
+              sweep={sweepField}
+              envelopeValue={envelopeField ? draft[envelopeField.name] : undefined}
+              sweepValue={sweepField ? draft[sweepField.name] : undefined}
+              periodSibling={Boolean(envelopeField && visibleFields.some((f) => f.name === 'env_period'))}
+              siblingPeriod={Number.isFinite(siblingPeriod) ? siblingPeriod : 0}
+              disabled={!selectedLocal}
+              onEnvelopeChange={(next) => {
+                if (!envelopeField) return;
+                if (next == null) patch({ [envelopeField.name]: undefined });
+                else patch({ [envelopeField.name]: next });
+              }}
+              onSweepChange={(next) => {
+                if (!sweepField) return;
+                if (next == null) patch({ [sweepField.name]: undefined });
+                else patch({ [sweepField.name]: next });
+              }}
+              onSiblingPeriodChange={
+                envelopeField && visibleFields.some((f) => f.name === 'env_period')
+                  ? (p) => patch({ env_period: String(p) })
+                  : undefined
+              }
+            />
+
             {waveDef ? (
               <WaveformCanvas
                 samples={waveSamples}
@@ -916,10 +958,7 @@ function DesktopInstrumentEditor({
                 quiet={Boolean(quietWave)}
                 onChange={(samples) => {
                   patch({ [waveDef.field]: samples });
-                  if (playWhileDrawing) playNote(lastPreviewNote.current);
                 }}
-                playWhileDrawing={playWhileDrawing}
-                onTogglePlay={setPlayWhileDrawing}
               />
             ) : null}
 
@@ -967,6 +1006,574 @@ function DesktopInstrumentEditor({
   );
 }
 
+function ShapePreviewCanvas({
+  levels,
+  maxLevel,
+  className,
+}: {
+  levels: number[];
+  maxLevel: number;
+  className?: string;
+}): React.JSX.Element {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    const bg = getComputedStyle(canvas).getPropertyValue('--bb-inst-wave-bg').trim() || '#1a1a1a';
+    const stroke = getComputedStyle(canvas).getPropertyValue('--bb-inst-env-stroke').trim() || '#6ee7b7';
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+    if (!levels.length) return;
+    const range = maxLevel || 1;
+    const n = levels.length;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const x = (i / Math.max(1, n - 1)) * (w - 2) + 1;
+      const y = h - 2 - ((Math.max(0, levels[i]!) / range) * (h - 4));
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = stroke;
+    for (let i = 0; i < n; i++) {
+      const x = (i / Math.max(1, n - 1)) * (w - 2) + 1;
+      const y = h - 2 - ((Math.max(0, levels[i]!) / range) * (h - 4));
+      ctx.beginPath();
+      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }, [levels, maxLevel]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={280}
+      height={56}
+      className={className ?? 'bb-inst-editor__shape-canvas'}
+      aria-hidden
+    />
+  );
+}
+
+function CtrlPair({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <label className="bb-inst-editor__ctrl-pair" htmlFor={id}>
+      <span className="bb-inst-editor__ctrl-pair-label">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function PropertiesFieldsTabs({
+  voiceFields,
+  defaultFields,
+  renderVoiceField,
+  renderDefaultField,
+}: {
+  voiceFields: ChipInstrumentFieldDef[];
+  defaultFields: ChipInstrumentFieldDef[];
+  renderVoiceField: (field: ChipInstrumentFieldDef) => React.ReactNode;
+  renderDefaultField: (field: ChipInstrumentFieldDef) => React.ReactNode;
+}): React.JSX.Element | null {
+  type PropTab = 'voice' | 'defaults';
+  const tabs = useMemo(() => {
+    const next: Array<{ id: PropTab; label: string }> = [];
+    if (voiceFields.length) next.push({ id: 'voice', label: 'Voice' });
+    if (defaultFields.length) next.push({ id: 'defaults', label: 'Defaults' });
+    return next;
+  }, [voiceFields.length, defaultFields.length]);
+
+  const [activeId, setActiveId] = useState<PropTab | null>(null);
+  useEffect(() => {
+    if (!tabs.length) {
+      setActiveId(null);
+      return;
+    }
+    setActiveId((cur) => (
+      cur && tabs.some((t) => t.id === cur) ? cur : tabs[0]!.id
+    ));
+  }, [tabs]);
+
+  if (!tabs.length || !activeId) return null;
+
+  return (
+    <div className="bb-inst-editor__props-panel">
+      {tabs.length > 1 ? (
+        <div className="bb-inst-editor__macro-tabs" role="tablist" aria-label="Instrument properties">
+          {tabs.map((tab) => {
+            const selected = tab.id === activeId;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                className={`bb-inst-editor__macro-tab${selected ? ' is-active' : ''}`}
+                onClick={() => setActiveId(tab.id)}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      <div
+        className="bb-inst-editor__macro"
+        role="tabpanel"
+        aria-label={activeId === 'voice' ? 'Voice properties' : 'Default note and program'}
+      >
+        {activeId === 'voice' ? (
+          <div className="bb-inst-editor__props-voice">
+            {voiceFields.map(renderVoiceField)}
+          </div>
+        ) : (
+          <div
+            className="bb-inst-editor__macro-controls"
+            role="group"
+            aria-label="Default note and program"
+          >
+            {defaultFields.map(renderDefaultField)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function hwFieldDefined(value: unknown): boolean {
+  if (value == null || value === '') return false;
+  return true;
+}
+
+function HardwareEnvSweepSection({
+  envelope,
+  sweep,
+  envelopeValue,
+  sweepValue,
+  periodSibling,
+  siblingPeriod,
+  disabled,
+  onEnvelopeChange,
+  onSweepChange,
+  onSiblingPeriodChange,
+}: {
+  envelope?: ChipInstrumentFieldDef;
+  sweep?: ChipInstrumentFieldDef;
+  envelopeValue: unknown;
+  sweepValue: unknown;
+  periodSibling: boolean;
+  siblingPeriod: number;
+  disabled: boolean;
+  onEnvelopeChange: (csv: string | undefined) => void;
+  onSweepChange: (csv: string | undefined) => void;
+  onSiblingPeriodChange?: (period: number) => void;
+}): React.JSX.Element | null {
+  type HwTab = 'envelope' | 'sweep';
+  const items = useMemo(() => {
+    const next: Array<{ id: HwTab; label: string; hint?: string }> = [];
+    if (envelope) next.push({ id: 'envelope', label: envelope.label, hint: envelope.hint });
+    if (sweep) next.push({ id: 'sweep', label: sweep.label, hint: sweep.hint });
+    return next;
+  }, [envelope, sweep]);
+
+  const defined = useMemo(
+    () => items.filter((item) => (
+      item.id === 'envelope' ? hwFieldDefined(envelopeValue) : hwFieldDefined(sweepValue)
+    )),
+    [items, envelopeValue, sweepValue],
+  );
+  const available = useMemo(
+    () => items.filter((item) => (
+      item.id === 'envelope' ? !hwFieldDefined(envelopeValue) : !hwFieldDefined(sweepValue)
+    )),
+    [items, envelopeValue, sweepValue],
+  );
+
+  const [activeId, setActiveId] = useState<HwTab | null>(null);
+  useEffect(() => {
+    if (!defined.length) {
+      setActiveId(null);
+      return;
+    }
+    setActiveId((cur) => (
+      cur && defined.some((d) => d.id === cur) ? cur : defined[0]!.id
+    ));
+  }, [defined]);
+
+  if (!items.length) return null;
+
+  const active = defined.find((d) => d.id === activeId) ?? defined[0] ?? null;
+
+  const addEnvelope = () => {
+    onEnvelopeChange(formatHardwareEnvelope({ level: 12, direction: 'down', period: 1 }));
+    setActiveId('envelope');
+  };
+  const addSweep = () => {
+    onSweepChange(formatHardwareSweep({ time: 7, direction: 'down', shift: 3 }));
+    setActiveId('sweep');
+  };
+
+  return (
+    <div className="bb-inst-editor__hw-section">
+      <div className="bb-inst-editor__macros-header">
+        <SectionHeading>Hardware</SectionHeading>
+        {available.length ? (
+          <div className="bb-inst-editor__macro-add" role="group" aria-label="Add hardware envelope or sweep">
+            {available.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="bb-inst-editor__macro-add-btn"
+                disabled={disabled}
+                title={disabled ? undefined : `Add ${item.label}`}
+                aria-label={`Add ${item.label}`}
+                onClick={() => {
+                  if (disabled) return;
+                  if (item.id === 'envelope') addEnvelope();
+                  else addSweep();
+                }}
+              >
+                <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      {defined.length && active ? (
+        <div className="bb-inst-editor__macro-panel">
+          <div className="bb-inst-editor__macro-tabs" role="tablist" aria-label="Hardware envelope and sweep">
+            {defined.map((item) => {
+              const selected = item.id === active.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  className={`bb-inst-editor__macro-tab${selected ? ' is-active' : ''}`}
+                  onClick={() => setActiveId(item.id)}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+          {active.id === 'envelope' && envelope ? (
+            <EnvelopeEditor
+              hint={envelope.hint}
+              disabled={disabled}
+              value={envelopeValue}
+              periodMax={envelope.max ?? 7}
+              periodSibling={periodSibling}
+              siblingPeriod={siblingPeriod}
+              onChange={onEnvelopeChange}
+              onSiblingPeriodChange={onSiblingPeriodChange}
+              onRemove={disabled ? undefined : () => {
+                onEnvelopeChange(undefined);
+                onSiblingPeriodChange?.(0);
+              }}
+            />
+          ) : null}
+          {active.id === 'sweep' && sweep ? (
+            <SweepEditor
+              hint={sweep.hint}
+              disabled={disabled}
+              value={sweepValue}
+              onChange={onSweepChange}
+              onRemove={disabled ? undefined : () => onSweepChange(undefined)}
+            />
+          ) : null}
+        </div>
+      ) : (
+        <NoteText>
+          {available.length
+            ? `No hardware ${available.map((a) => a.label.toLowerCase()).join(' or ')} yet.`
+            : 'No hardware envelope or sweep.'}
+        </NoteText>
+      )}
+    </div>
+  );
+}
+
+function EnvelopeEditor({
+  hint,
+  disabled,
+  value,
+  periodMax,
+  periodSibling,
+  siblingPeriod,
+  onChange,
+  onSiblingPeriodChange,
+  onRemove,
+}: {
+  hint?: string;
+  disabled: boolean;
+  value: unknown;
+  periodMax: number;
+  periodSibling: boolean;
+  siblingPeriod: number;
+  onChange: (csv: string | undefined) => void;
+  onSiblingPeriodChange?: (period: number) => void;
+  onRemove?: () => void;
+}): React.JSX.Element {
+  const parsed = parseHardwareEnvelope(value);
+  const invalid = value != null && value !== '' && !parsed;
+  const level = parsed?.level ?? 12;
+  const direction: EnvelopeDirection = parsed?.direction ?? 'down';
+  const packedPeriod = parsed?.period ?? 1;
+  const period = periodSibling
+    ? Math.max(0, Math.min(periodMax, Number.isFinite(siblingPeriod) ? siblingPeriod : 1))
+    : Math.max(0, Math.min(periodMax, packedPeriod));
+
+  const commit = (next: { level: number; direction: EnvelopeDirection; period: number }) => {
+    if (next.direction === 'flat') {
+      onChange(formatHardwareEnvelope({ level: next.level, direction: 'flat', period: 0 }));
+      if (periodSibling) onSiblingPeriodChange?.(0);
+      return;
+    }
+    if (periodSibling) {
+      onChange(`${next.level},${next.direction}`);
+      onSiblingPeriodChange?.(next.period);
+    } else {
+      onChange(formatHardwareEnvelope(next));
+    }
+  };
+
+  if (invalid) {
+    return (
+      <div className="bb-inst-editor__macro" title={hint}>
+        <NoteText>Unrecognized envelope — fix or replace.</NoteText>
+        <div className="bb-inst-editor__macro-add">
+          <button
+            type="button"
+            className="bb-inst-editor__macro-add-btn"
+            disabled={disabled}
+            onClick={() => commit({ level: 12, direction: 'down', period: 1 })}
+          >
+            <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
+            <span>Reset to 12,down</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const preview = simulateGBEnvelope(
+    { level, direction, period: direction === 'flat' ? 0 : period },
+    32,
+  );
+
+  return (
+    <div className="bb-inst-editor__macro" title={hint}>
+      <div className="bb-inst-editor__macro-controls">
+        <CtrlPair id="bb-hw-env-level" label="Level">
+          <input
+            id="bb-hw-env-level"
+            className="bb-settings-number"
+            type="number"
+            min={0}
+            max={15}
+            disabled={disabled}
+            value={level}
+            onChange={(e) => commit({
+              level: Math.max(0, Math.min(15, Number(e.target.value) || 0)),
+              direction,
+              period,
+            })}
+          />
+        </CtrlPair>
+        <CtrlPair id="bb-hw-env-dir" label="Dir">
+          <select
+            id="bb-hw-env-dir"
+            className="bb-settings-select bb-inst-editor__hw-dir"
+            disabled={disabled}
+            value={direction}
+            onChange={(e) => commit({
+              level,
+              direction: e.target.value as EnvelopeDirection,
+              period,
+            })}
+          >
+            <option value="down">down</option>
+            <option value="up">up</option>
+            <option value="flat">flat</option>
+          </select>
+        </CtrlPair>
+        <CtrlPair id="bb-hw-env-period" label="Period">
+          <input
+            id="bb-hw-env-period"
+            className="bb-settings-number"
+            type="number"
+            min={0}
+            max={periodMax}
+            disabled={disabled || direction === 'flat'}
+            value={direction === 'flat' ? 0 : period}
+            onChange={(e) => commit({
+              level,
+              direction,
+              period: Math.max(0, Math.min(periodMax, Number(e.target.value) || 0)),
+            })}
+          />
+        </CtrlPair>
+        {onRemove ? (
+          <button
+            type="button"
+            className="bb-settings-btn-secondary bb-inst-editor__macro-remove"
+            title="Remove envelope"
+            aria-label="Remove envelope"
+            onClick={onRemove}
+          >
+            <span dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }} />
+          </button>
+        ) : null}
+      </div>
+      <ShapePreviewCanvas levels={preview} maxLevel={15} />
+      <NoteText>
+        {direction === 'flat' || period === 0
+          ? 'Constant volume (no ramp).'
+          : `Hardware ramp · ${direction} every ${period} tick${period === 1 ? '' : 's'}.`}
+      </NoteText>
+    </div>
+  );
+}
+
+function SweepEditor({
+  hint,
+  disabled,
+  value,
+  onChange,
+  onRemove,
+}: {
+  hint?: string;
+  disabled: boolean;
+  value: unknown;
+  onChange: (csv: string | undefined) => void;
+  onRemove?: () => void;
+}): React.JSX.Element {
+  const parsed = parseHardwareSweep(value);
+  const invalid = value != null && value !== '' && !parsed;
+  const time = parsed?.time ?? 7;
+  const direction: SweepDirection = parsed?.direction ?? 'down';
+  const shift = parsed?.shift ?? 3;
+
+  const commit = (next: { time: number; direction: SweepDirection; shift: number }) => {
+    onChange(formatHardwareSweep(next));
+  };
+
+  if (invalid) {
+    return (
+      <div className="bb-inst-editor__macro" title={hint}>
+        <NoteText>Unrecognized sweep — fix or replace.</NoteText>
+        <div className="bb-inst-editor__macro-add">
+          <button
+            type="button"
+            className="bb-inst-editor__macro-add-btn"
+            disabled={disabled}
+            onClick={() => commit({ time: 7, direction: 'down', shift: 3 })}
+          >
+            <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
+            <span>Reset to 7,down,3</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const ratios = simulateHardwareSweep({ time, direction, shift }, 16);
+
+  return (
+    <div className="bb-inst-editor__macro" title={hint}>
+      <div className="bb-inst-editor__macro-controls">
+        <CtrlPair id="bb-hw-sweep-time" label="Time">
+          <input
+            id="bb-hw-sweep-time"
+            className="bb-settings-number"
+            type="number"
+            min={0}
+            max={7}
+            disabled={disabled}
+            value={time}
+            onChange={(e) => commit({
+              time: Math.max(0, Math.min(7, Number(e.target.value) || 0)),
+              direction,
+              shift,
+            })}
+          />
+        </CtrlPair>
+        <CtrlPair id="bb-hw-sweep-dir" label="Dir">
+          <select
+            id="bb-hw-sweep-dir"
+            className="bb-settings-select bb-inst-editor__hw-dir"
+            disabled={disabled}
+            value={direction}
+            onChange={(e) => commit({
+              time,
+              direction: e.target.value as SweepDirection,
+              shift,
+            })}
+          >
+            <option value="down">down</option>
+            <option value="up">up</option>
+          </select>
+        </CtrlPair>
+        <CtrlPair id="bb-hw-sweep-shift" label="Shift">
+          <input
+            id="bb-hw-sweep-shift"
+            className="bb-settings-number"
+            type="number"
+            min={0}
+            max={7}
+            disabled={disabled}
+            value={shift}
+            onChange={(e) => commit({
+              time,
+              direction,
+              shift: Math.max(0, Math.min(7, Number(e.target.value) || 0)),
+            })}
+          />
+        </CtrlPair>
+        {onRemove ? (
+          <button
+            type="button"
+            className="bb-settings-btn-secondary bb-inst-editor__macro-remove"
+            title="Remove sweep"
+            aria-label="Remove sweep"
+            onClick={onRemove}
+          >
+            <span dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }} />
+          </button>
+        ) : null}
+      </div>
+      <ShapePreviewCanvas
+        levels={ratios.map((r) => r * 15)}
+        maxLevel={15}
+      />
+      <NoteText>
+        {time === 0
+          ? 'Sweep off (time 0).'
+          : `Frequency ${direction} · time ${time}, shift ${shift}.`}
+      </NoteText>
+    </div>
+  );
+}
+
 function WaveformCanvas({
   samples,
   def,
@@ -974,8 +1581,6 @@ function WaveformCanvas({
   hex,
   quiet,
   onChange,
-  playWhileDrawing,
-  onTogglePlay,
 }: {
   samples: number[];
   def: NonNullable<ChipInstrumentEditor['waveform']>;
@@ -983,12 +1588,16 @@ function WaveformCanvas({
   hex: string;
   quiet: boolean;
   onChange: (samples: number[]) => void;
-  playWhileDrawing: boolean;
-  onTogglePlay: (v: boolean) => void;
 }): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const painting = useRef(false);
   const lastIdx = useRef(-1);
+  const hexFocused = useRef(false);
+  const [hexDraft, setHexDraft] = useState(hex);
+
+  useEffect(() => {
+    if (!hexFocused.current) setHexDraft(hex);
+  }, [hex]);
 
   const paintAt = (ev: ReactPointerEvent<HTMLCanvasElement>, shift: boolean) => {
     const canvas = canvasRef.current;
@@ -1037,15 +1646,15 @@ function WaveformCanvas({
     }
   }, [samples, def]);
 
+  const applyHexDraft = (raw: string, normalizeField: boolean) => {
+    const parsed = parseWaveHexInput(raw, def.length);
+    if (normalizeField) setHexDraft(parsed.hex);
+    onChange(parsed.samples);
+  };
+
   return (
     <div className="bb-inst-editor__wave">
       <SectionHeading>Waveform</SectionHeading>
-      <ToggleRow
-        checked={playWhileDrawing}
-        disabled={disabled}
-        label="Play while drawing"
-        onChange={onTogglePlay}
-      />
       <canvas
         ref={canvasRef}
         width={320}
@@ -1055,10 +1664,7 @@ function WaveformCanvas({
         onPointerMove={(e) => { if (painting.current) paintAt(e, e.shiftKey); }}
         onPointerUp={() => { painting.current = false; }}
       />
-      <div className="bb-inst-editor__wave-meta">
-        <code className="bb-inst-editor__hex">{hex}</code>
-        {quiet ? <NoteText>Peak is below max — wavetable may sound quiet.</NoteText> : null}
-      </div>
+      {quiet ? <NoteText>Peak is below max — wavetable may sound quiet.</NoteText> : null}
       <div className="bb-inst-editor__wave-presets">
         {(def.presets ?? []).map((p) => (
           <button
@@ -1067,30 +1673,48 @@ function WaveformCanvas({
             className="bb-settings-btn-secondary"
             disabled={disabled}
             onClick={() => {
-              const samples = typeof p.samples === 'string'
+              const next = typeof p.samples === 'string'
                 ? generateWaveformPreset(p.samples, def.length, def.min, def.max)
                 : p.samples.slice(0, def.length);
-              onChange(samples);
+              onChange(next);
             }}
           >
             {p.label}
           </button>
         ))}
       </div>
-      <div className="bb-settings-row">
-        <label className="bb-settings-label" htmlFor="bb-inst-wave-hex">Hex</label>
-        <input
-          id="bb-inst-wave-hex"
-          className="bb-settings-text bb-inst-editor__grow"
-          disabled={disabled || !def.hexImport}
-          defaultValue={hex}
-          key={hex}
-          onBlur={(e) => {
-            const v = e.target.value.trim();
-            if (/^[0-9A-Fa-f]{32}$/.test(v)) onChange(parseWaveTable(v));
-          }}
-        />
-      </div>
+      {def.hexImport ? (
+        <label className="bb-inst-editor__hex-field" htmlFor="bb-inst-wave-hex">
+          <span className="bb-inst-editor__ctrl-pair-label">Hex</span>
+          <input
+            id="bb-inst-wave-hex"
+            className="bb-settings-text bb-inst-editor__hex-input"
+            disabled={disabled}
+            spellCheck={false}
+            autoComplete="off"
+            maxLength={def.length}
+            value={hexDraft}
+            onFocus={() => { hexFocused.current = true; }}
+            onChange={(e) => {
+              const cleaned = e.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, def.length);
+              setHexDraft(cleaned);
+              applyHexDraft(cleaned, false);
+            }}
+            onBlur={(e) => {
+              hexFocused.current = false;
+              applyHexDraft(e.target.value, true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            title="32-nibble hUGETracker hex — short values pad with 0; canvas updates as you type"
+            aria-label="Wavetable hex"
+          />
+        </label>
+      ) : null}
     </div>
   );
 }
@@ -1117,22 +1741,23 @@ function MacroSection({
     () => macros.filter((m) => !macroIsDefined(draft, m.name)),
     [macros, draft],
   );
-  const definedKey = defined.map((m) => m.name).join(',');
-  const [active, setActive] = useState<string | null>(null);
+  const [activeName, setActiveName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!defined.length) {
-      setActive(null);
+      setActiveName(null);
       return;
     }
-    setActive((cur) => (cur && defined.some((m) => m.name === cur) ? cur : defined[0].name));
-  }, [defined, definedKey]);
+    setActiveName((cur) => (
+      cur && defined.some((m) => m.name === cur) ? cur : defined[0]!.name
+    ));
+  }, [defined]);
 
   if (!macros.length) return null;
 
-  const activeDef = defined.find((m) => m.name === active) ?? null;
-  const parsed = activeDef ? parseMacro(draft[activeDef.name]) : null;
   const supportedLabels = macros.map((m) => m.label).join(', ');
+  const active = defined.find((m) => m.name === activeName) ?? defined[0] ?? null;
+  const activeParsed = active ? parseMacro(draft[active.name]) : null;
 
   return (
     <div className="bb-inst-editor__macros">
@@ -1155,7 +1780,7 @@ function MacroSection({
                 onClick={() => {
                   if (disabled) return;
                   onChange(macro.name, defaultMacroExample(macro));
-                  setActive(macro.name);
+                  setActiveName(macro.name);
                 }}
               >
                 <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
@@ -1168,20 +1793,40 @@ function MacroSection({
 
       {lockReason ? <NoteText>{lockReason}</NoteText> : null}
 
-      {defined.length ? (
-        <div className="bb-inst-editor__macro-tabs" role="tablist" aria-label="Instrument macros">
-          {defined.map((macro) => (
-            <button
-              key={macro.name}
-              type="button"
-              role="tab"
-              aria-selected={macro.name === active}
-              className={`bb-inst-editor__macro-tab${macro.name === active ? ' is-active' : ''}`}
-              onClick={() => setActive(macro.name)}
-            >
-              {macro.label}{macro.kind === 'hardware' ? ' · hw' : ''}
-            </button>
-          ))}
+      {defined.length && active && activeParsed ? (
+        <div className="bb-inst-editor__macro-panel">
+          <div className="bb-inst-editor__macro-tabs" role="tablist" aria-label="Defined macros">
+            {defined.map((macro) => {
+              const selected = macro.name === active.name;
+              return (
+                <button
+                  key={macro.name}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  className={`bb-inst-editor__macro-tab${selected ? ' is-active' : ''}`}
+                  onClick={() => setActiveName(macro.name)}
+                >
+                  {macro.label}
+                  {macro.kind === 'hardware' ? <span className="bb-inst-editor__macro-hw">hw</span> : null}
+                </button>
+              );
+            })}
+          </div>
+          <MacroRow
+            def={active}
+            values={activeParsed.values}
+            loopPoint={activeParsed.loopPoint}
+            disabled={disabled}
+            onChange={(values, loopPoint) => {
+              if (!values.length) {
+                onChange(active.name, undefined);
+                return;
+              }
+              onChange(active.name, macroToFieldText(values, loopPoint));
+            }}
+            onRemove={disabled ? undefined : () => onChange(active.name, undefined)}
+          />
         </div>
       ) : !lockReason ? (
         <NoteText>
@@ -1189,23 +1834,6 @@ function MacroSection({
             ? `No macros defined yet. Supported on this type: ${supportedLabels}.`
             : 'No macros defined.'}
         </NoteText>
-      ) : null}
-
-      {activeDef && parsed ? (
-        <MacroRow
-          def={activeDef}
-          values={parsed.values}
-          loopPoint={parsed.loopPoint}
-          disabled={disabled}
-          onChange={(values, loopPoint) => {
-            if (!values.length) {
-              onChange(activeDef.name, undefined);
-              return;
-            }
-            onChange(activeDef.name, macroToFieldText(values, loopPoint));
-          }}
-          onRemove={disabled ? undefined : () => onChange(activeDef.name, undefined)}
-        />
       ) : null}
     </div>
   );
@@ -1226,32 +1854,75 @@ function MacroRow({
   onChange: (values: number[], loopPoint: number) => void;
   onRemove?: () => void;
 }): React.JSX.Element {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const painting = useRef(false);
+  const lastIdx = useRef(-1);
+  const valuesRef = useRef(values);
+  const loopRef = useRef(loopPoint);
+  valuesRef.current = values;
+  loopRef.current = loopPoint;
+
   const length = Math.max(1, values.length || 8);
   const display = values.length ? values : new Array(length).fill(def.signed ? 0 : def.min);
+  const range = def.max - def.min || 1;
+  const zeroPct = def.signed ? ((0 - def.min) / range) * 100 : null;
+
+  const paintAt = (clientX: number, clientY: number, shift: boolean) => {
+    const track = trackRef.current;
+    if (!track || disabled) return;
+    const rect = track.getBoundingClientRect();
+    const n = display.length;
+    const idx = Math.max(0, Math.min(n - 1, Math.floor(((clientX - rect.left) / rect.width) * n)));
+    const nextVal = Math.round(def.max - ((clientY - rect.top) / rect.height) * range);
+    const clamped = Math.max(def.min, Math.min(def.max, nextVal));
+    const next = (valuesRef.current.length ? valuesRef.current : display).slice();
+    while (next.length < n) next.push(def.signed ? 0 : def.min);
+    if (shift && lastIdx.current >= 0) {
+      const from = lastIdx.current;
+      const fromVal = next[from] ?? clamped;
+      const a = Math.min(from, idx);
+      const b = Math.max(from, idx);
+      for (let i = a; i <= b; i++) {
+        const t = b === a ? 1 : (i - from) / (idx - from || 1);
+        next[i] = Math.round(fromVal + (clamped - fromVal) * Math.abs(t));
+      }
+    } else {
+      next[idx] = clamped;
+    }
+    lastIdx.current = idx;
+    onChange(next, loopRef.current);
+  };
+
+  const points = display.map((v, i) => {
+    const x = ((i + 0.5) / display.length) * 100;
+    const y = 100 - ((v - def.min) / range) * 100;
+    return `${x},${y}`;
+  }).join(' ');
+
   return (
     <div className="bb-inst-editor__macro" title={def.hint}>
       <div className="bb-inst-editor__macro-head">
-        <div className="bb-settings-row bb-inst-editor__macro-controls">
-          <label className="bb-settings-label" htmlFor={`bb-macro-len-${def.name}`}>Len</label>
-          <input
-            id={`bb-macro-len-${def.name}`}
-            className="bb-settings-number"
-            type="number"
-            min={1}
-            max={64}
-            disabled={disabled}
-            value={values.length}
-            onChange={(e) => {
-              const n = Math.max(0, Number(e.target.value) || 0);
-              if (n === 0) { onChange([], -1); return; }
-              const next = display.slice(0, n);
-              while (next.length < n) next.push(def.signed ? 0 : def.min);
-              onChange(next, loopPoint >= n ? n - 1 : loopPoint);
-            }}
-          />
+        <div className="bb-inst-editor__macro-controls">
+          <CtrlPair id={`bb-macro-len-${def.name}`} label="Len">
+            <input
+              id={`bb-macro-len-${def.name}`}
+              className="bb-settings-number"
+              type="number"
+              min={1}
+              max={64}
+              disabled={disabled}
+              value={values.length}
+              onChange={(e) => {
+                const n = Math.max(0, Number(e.target.value) || 0);
+                if (n === 0) { onChange([], -1); return; }
+                const next = display.slice(0, n);
+                while (next.length < n) next.push(def.signed ? 0 : def.min);
+                onChange(next, loopPoint >= n ? n - 1 : loopPoint);
+              }}
+            />
+          </CtrlPair>
           {def.loop ? (
-            <>
-              <label className="bb-settings-label" htmlFor={`bb-macro-loop-${def.name}`}>Loop</label>
+            <CtrlPair id={`bb-macro-loop-${def.name}`} label="Loop">
               <input
                 id={`bb-macro-loop-${def.name}`}
                 className="bb-settings-number"
@@ -1262,7 +1933,7 @@ function MacroRow({
                 value={loopPoint}
                 onChange={(e) => onChange(values, Number(e.target.value))}
               />
-            </>
+            </CtrlPair>
           ) : null}
           {onRemove ? (
             <button
@@ -1273,30 +1944,39 @@ function MacroRow({
               onClick={onRemove}
             >
               <span dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }} />
-              Remove
             </button>
           ) : null}
         </div>
         {def.hint ? <NoteText>{def.hint}</NoteText> : null}
       </div>
-      <div className="bb-inst-editor__macro-bars">
+      <div
+        ref={trackRef}
+        className={`bb-inst-editor__macro-bars${def.signed ? ' is-signed' : ''}${disabled ? ' is-disabled' : ''}`}
+        onPointerDown={(e) => {
+          if (disabled) return;
+          painting.current = true;
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+          paintAt(e.clientX, e.clientY, e.shiftKey);
+        }}
+        onPointerMove={(e) => {
+          if (!painting.current) return;
+          paintAt(e.clientX, e.clientY, e.shiftKey);
+        }}
+        onPointerUp={() => { painting.current = false; lastIdx.current = -1; }}
+      >
+        {zeroPct != null ? (
+          <div className="bb-inst-editor__macro-zero" style={{ bottom: `${zeroPct}%` }} />
+        ) : null}
+        <svg className="bb-inst-editor__macro-poly" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+          <polyline fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" points={points} />
+        </svg>
         {display.map((v, i) => {
-          const pct = ((v - def.min) / (def.max - def.min || 1)) * 100;
+          const pct = ((v - def.min) / range) * 100;
           return (
-            <button
+            <div
               key={i}
-              type="button"
-              disabled={disabled}
-              className={i === loopPoint ? 'is-loop' : ''}
-              style={{ height: `${Math.max(8, pct)}%` }}
-              onClick={(e) => {
-                const rect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
-                const y = e.clientY - rect.top;
-                const nextVal = Math.round(def.max - (y / rect.height) * (def.max - def.min));
-                const next = display.slice();
-                next[i] = Math.max(def.min, Math.min(def.max, nextVal));
-                onChange(next, loopPoint);
-              }}
+              className={`bb-inst-editor__macro-bar${i === loopPoint ? ' is-loop' : ''}`}
+              style={{ height: `${Math.max(4, pct)}%` }}
             />
           );
         })}

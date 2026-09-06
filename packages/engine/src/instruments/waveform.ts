@@ -37,3 +37,15 @@ export function generateWaveformPreset(
 export function samplesToHex(samples: number[]): string {
   return samples.map((n) => Math.max(0, Math.min(15, n | 0)).toString(16).toUpperCase()).join('');
 }
+
+/**
+ * Parse a typed/pasted wavetable hex string for the Instrument Editor.
+ * Accepts 0–`length` hex nibbles (non-hex characters stripped); pads with `0`
+ * and truncates to `length`. Empty input yields a silent table.
+ */
+export function parseWaveHexInput(raw: string, length = 32): { samples: number[]; hex: string } {
+  const nibbles = String(raw ?? '').replace(/[^0-9A-Fa-f]/g, '').slice(0, length);
+  const padded = nibbles.toUpperCase().padEnd(length, '0');
+  const samples = padded.split('').map((c) => parseInt(c, 16));
+  return { samples, hex: padded };
+}

@@ -297,7 +297,16 @@ export interface ChipInstrumentTypeDef {
   previewChannel: number;
 }
 
-export type ChipInstrumentWidget = 'enum' | 'int' | 'bool' | 'text' | 'sample' | 'note' | 'uge_note';
+export type ChipInstrumentWidget =
+  | 'enum'
+  | 'int'
+  | 'bool'
+  | 'text'
+  | 'sample'
+  | 'note'
+  | 'uge_note'
+  | 'envelope'
+  | 'sweep';
 
 export interface ChipInstrumentFieldDef {
   name: string;
@@ -305,6 +314,7 @@ export interface ChipInstrumentFieldDef {
   widget: ChipInstrumentWidget;
   values?: string[];
   min?: number;
+  /** For int widgets, and for `envelope` as max hardware period (GB 7 / NES 15). */
   max?: number;
   whenType?: string | string[];
   hint?: string;

@@ -12,7 +12,7 @@ export const nesInstrumentEditor: ChipInstrumentEditor = {
     // Type-defining controls first (appear immediately after Type in the panel).
     { name: 'duty', label: 'Duty', widget: 'enum', values: ['12', '12.5', '25', '50', '75'], whenType: ['pulse1', 'pulse2'] },
     { name: 'sample', label: 'DMC sample', widget: 'sample', whenType: 'dmc', hint: '@nes/name, local:path, or https://…' },
-    { name: 'env', label: 'Envelope', widget: 'text', whenType: ['pulse1', 'pulse2', 'noise'] },
+    { name: 'env', label: 'Envelope', widget: 'envelope', max: 15, whenType: ['pulse1', 'pulse2', 'noise'] },
     { name: 'env_period', label: 'Env period', widget: 'int', min: 0, max: 15, whenType: ['pulse1', 'pulse2', 'noise'] },
     { name: 'vol', label: 'Volume', widget: 'int', min: 0, max: 15, whenType: ['pulse1', 'pulse2', 'noise'] },
     { name: 'sweep_en', label: 'Sweep enable', widget: 'bool', whenType: ['pulse1', 'pulse2'] },

@@ -389,6 +389,8 @@ export class MidiStepEntryService {
   isUseNoteDuration(): boolean { return this.useNoteDuration; }
   isArmed(): boolean { return this.armed; }
   getDeviceId(): string { return this._deviceId; }
+  /** True once navigator.requestMIDIAccess has resolved (including late after timeout). */
+  hasMidiAccess(): boolean { return this.midiAccess != null; }
 
   // ── MIDI access ────────────────────────────────────────────────────────────
 
@@ -408,6 +410,11 @@ export class MidiStepEntryService {
     if (!MidiStepEntryService.isSupported()) {
       return 'Web MIDI is not supported in this browser. Try Chrome or Edge.';
     }
+    // Reuse an existing grant. Calling requestMIDIAccess again (esp. on Windows)
+    // can hang, time out, then replace midiAccess and orphan the attached input.
+    if (this.midiAccess) {
+      return null;
+    }
     try {
       const accessPromise = (navigator as any).requestMIDIAccess({ sysex: false }) as Promise<MidiAccess>;
       // Chromium/Electron can leave this pending forever (esp. Windows MIDI backends).
@@ -422,8 +429,13 @@ export class MidiStepEntryService {
         accessPromise.then(
           (midiAccess) => {
             if (settled) {
-              // Late success after timeout — still keep the access for a later refresh.
+              // Late success after timeout — keep access and re-bind the selected input
+              // so midimessage listeners are not left on an orphaned MidiAccess.
+              const keepId = this._deviceId;
               this.midiAccess = midiAccess;
+              if (keepId) {
+                this.setDevice(keepId);
+              }
               return;
             }
             settled = true;
@@ -444,6 +456,10 @@ export class MidiStepEntryService {
     } catch (err: any) {
       const msg = err?.message ?? String(err);
       log.warn('MIDI access denied:', msg);
+      // Late grant may still arrive; avoid the misleading "permission denied" label for timeouts.
+      if (String(msg).includes('timed out')) {
+        return `MIDI access timed out after 5s (will keep trying in the background)`;
+      }
       return `MIDI permission denied: ${msg}`;
     }
   }

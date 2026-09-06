@@ -7,10 +7,11 @@
 - [x] T001 `ChipInstrumentEditor` types + `instrumentEditor?` on `ChipPlugin`; Game Boy schema + presets.
 - [x] T002 Desktop panel shell: right tab, feature flag, instrument list, selection from editor.
 - [x] T003 Schema-driven field widgets + write-valid-only source writeback.
-- [x] T004 Waveform canvas (Game Boy first): draw, hex, presets, play-while-drawing.
+- [x] T004 Waveform canvas (Game Boy first): draw, hex paste, presets; audition via Preview strip.
 - [x] T005 Macro graphs with loop markers.
 - [x] T006 Plugin presets + copy-from song instrument.
 - [x] T007 Mini keyboard + MIDI audition + live preview.
 - [x] T008 NES / SMS / Spectrum schemas (and constraint copy).
 - [x] T009 Tests: schema, serialize round-trip, panel units.
 - [x] T010 Plugin author docs + Help blurb.
+- [x] T011 Hardware `envelope` / `sweep` widgets + live previews; macro tabs with click/drag paint and signed baselines.

@@ -39,6 +39,8 @@ function inferWidget(name: string, values?: string[]): ChipInstrumentWidget {
   if (name === 'uge_note') return 'uge_note';
   if (name === 'note') return 'note';
   if (name === 'sweep_en' || name === 'tone' || name === 'tone_mix' || name === 'env_bass') return 'bool';
+  if (name === 'env') return 'envelope';
+  if (name === 'sweep') return 'sweep';
   if (name === 'gm' || name === 'vol' || name === 'volume' || name === 'env_period') return 'int';
   return 'text';
 }
