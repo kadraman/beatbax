@@ -127,10 +127,25 @@ export class MidiStepEntryController {
   async requestMidiAccess(force = false): Promise<string | null> {
     if (this._accessGranted && !force) return null;
 
+    const adoptExistingAccess = (): boolean => {
+      if (!this.service.hasMidiAccess() && this.service.listDevices().length === 0) return false;
+      this._accessGranted = true;
+      const savedDevice = settingMidiInputDevice.get();
+      if (savedDevice && this.service.getDeviceId() !== savedDevice) {
+        const deviceErr = this.service.setDevice(savedDevice);
+        if (deviceErr && this.service.listDevices().length > 0) {
+          settingMidiInputDevice.set('');
+          this.service.setDevice('');
+        }
+      }
+      return true;
+    };
+
     // Wait out any in-flight attempt (service times out hung requestMIDIAccess).
     if (this._accessRequest) {
       await this._accessRequest;
       if (this._accessGranted && !force) return null;
+      if (adoptExistingAccess() && !force) return null;
       if (!force) return null;
     }
 
@@ -139,13 +154,25 @@ export class MidiStepEntryController {
       return 'Web MIDI is not supported in this browser. Try Chrome or Edge.';
     }
 
+    // Late grant from a prior timed-out request may already be present.
+    if (!force && adoptExistingAccess()) return null;
+
     let accessError: string | null = null;
     this._accessRequest = (async () => {
       const err = await this.service.requestAccess();
       if (err) {
+        if (adoptExistingAccess()) {
+          accessError = null;
+          return;
+        }
         this._accessGranted = false;
         accessError = err;
-        this.opts.onWarning?.(err);
+        // Timeouts are often followed by a late grant or Refresh — do not spam Problems.
+        if (!String(err).toLowerCase().includes('timed out')) {
+          this.opts.onWarning?.(err);
+        } else {
+          log.warn(err);
+        }
         return;
       }
 

@@ -207,7 +207,7 @@ Waveform drawing writes `wave=` as a 32-entry array (preferred) or a 32-nibble h
 ### Example usage
 
 1. User opens a Game Boy song and enables **Instruments** (View menu or Panels dropdown).
-2. Clicking `inst bass type=wave …` in the editor focuses that instrument in the panel.
+2. Choosing `bass` in the Instrument dropdown (or **Show in editor**) reveals that `inst` line in Monaco.
 3. User draws a triangle-like wavetable, sets volume to 100%, and holds C2 on the mini keyboard to preview.
 4. User adds a `vol_env` decay graph. The `inst` line is rewritten at `__loc`.
 5. User clicks **New**, picks the plugin preset “Pluck lead”, renames it, and copies macros from `wah`.
@@ -220,7 +220,8 @@ New right-pane tab **Instruments**, same chrome as Help / Visualizer / Copilot (
 
 - View menu + Panels dropdown toggle (`group: 'side'`)
 - Feature flag `INSTRUMENT_EDITOR` (Experimental, default **off**), matching Pattern Grid
-- Clicking an `inst` definition line, or a new CodeLens **Edit**, opens the tab and selects that instrument
+- CodeLens **Edit** on an `inst` line opens the tab, selects that instrument, and reveals the line; Monaco cursor motion does not drive selection/reveal
+- Toolbar **Show in editor** and the Instrument dropdown also reveal/highlight the selected definition
 
 Layout (top → bottom):
 
@@ -235,13 +236,18 @@ Layout (top → bottom):
 │ Template: [Plugin presets ▾] [Copy from ▾]  │
 ├─────────────────────────────────────────────┤
 │ Name  [bass]     Type [wave ▾]              │
-│ volume [100 ▾]   gm [39]                    │
+│ [Voice] [Defaults]                          │
+│ volume [100 ▾]                              │
+├─────────────────────────────────────────────┤
+│ Hardware  [+ Envelope] [+ Sweep]            │
+│ [Envelope] [Sweep]   … preview …            │
 ├─────────────────────────────────────────────┤
 │ Waveform                                    │
 │  15 ▆▆▆▆                                    │
 │     ▆    ▆                                  │
-│   0──────────── 32   hex: 05BFF…            │
+│   0──────────── 32                          │
 │ [Sine] [Square] [Saw] [Triangle]            │
+│ Hex [0478ABBB98620246…]                     │
 ├─────────────────────────────────────────────┤
 │ vol_env   ▂▄▆█▆▄▂________   loop |          │
 │ pitch_env (empty)                           │
@@ -252,20 +258,22 @@ Layout (top → bottom):
 
 1. **Instrument list** — names from the current AST; New / Duplicate / Rename / Delete.
 2. **Template picker** — plugin presets + copy from another song instrument.
-3. **Type + chip fields** — schema-driven controls (duty, env, sweep, noise width, volume, sample ref, …). Hidden fields follow `whenType`.
-4. **Visual waveform** — only if the schema defines `waveform` and the current type matches. hUGE-style draw canvas: nibble bars, live hex / `wave=[…]` readout, shape presets, optional play-while-drawing.
-5. **Macro graphs** — one row per supported macro for the current type; click-drag to set values; loop marker (`|n`); empty row omits the field.
+3. **Type + chip fields** — Name and Type stay always visible. Remaining scalar fields use **Voice** / **Defaults** tabs (same tab chrome as Hardware/Macros): Voice holds type-gated chip controls (duty, width, volume, sample, …); Defaults holds Default note, GM program, and UGE note. Hidden fields follow `whenType`. Hardware `env` / `sweep` use a separate **Hardware** section with dedicated `envelope` / `sweep` widgets (parametric controls + live shape preview), not freehand text.
+4. **Visual waveform** — only if the schema defines `waveform` and the current type matches. hUGE-style draw canvas: nibble bars, editable hex paste field, shape presets. Audition via the Preview keyboard / MIDI strip (no play-while-drawing).
+5. **Macro graphs** — defined macros appear as tabs (one graph visible at a time); click/drag (Shift-drag line) to paint values; signed macros show a zero baseline and polyline overlay; loop marker (`|n`); empty sequence omits the field. Undefined macros appear as Add chips.
 6. **Preview bar** — mini piano (ships the virtual-keyboard idea in this panel), hold-to-play, existing MIDI input when enabled, plus a compact MIDI enable/device strip (shared with Settings).
 
-Constraint notes from the plugin (AY global envelope, SMS attenuation direction, GB wave volume steps) appear as inline hints, not as a second validation engine.
+Constraint notes from the plugin (AY global envelope, SMS attenuation direction, NES triangle volume) appear as inline hints when they warn about behaviour that is not obvious from the control itself. Facts already encoded in the widget (e.g. Game Boy wave `volume` steps `0`/`25`/`50`/`100`) use the field `hint` (panel tooltip) and chip `hoverDocs` / Monaco hover instead of a permanent note.
 
 ### Selection and list actions
 
 
 | Action                      | Behaviour                                                                                                                                       |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Click list row              | Load that instrument; reveal its `inst` line in Monaco                                                                                          |
-| Click `inst` line in editor | Select that instrument in the panel                                                                                                             |
+| Instrument dropdown         | Load that instrument; reveal and highlight its `inst` line in Monaco                                                                            |
+| Show in editor (toolbar)    | Reveal and focus the selected instrument’s `inst` line without changing fields                                                                  |
+| CodeLens **Edit** on `inst` | Open the Instruments tab, select that instrument, and reveal its line                                                                           |
+| Cursor in Monaco            | Does **not** change Instrument Editor selection or scroll (avoids jerky text selection)                                                         |
 | New                         | Insert a new `inst` line from the default plugin preset for the current type                                                                    |
 | Duplicate                   | Copy fields to a unique name (`lead2`, …) and insert after the original                                                                         |
 | Rename                      | Dialog renames the definition; checkbox (on by default) rewrites all other instances of that name in the editor |
@@ -276,9 +284,23 @@ Imported instruments (`import "local:…"` / remote) are listed read-only in v1,
 
 ---
 
+## Hardware envelope and sweep
+
+Game Boy / NES hardware envelopes are **parametric** (not freehand step sequences). Envelope and sweep share one **Hardware** section (same pattern as macros):
+
+- Dashed **Add** chips for undefined fields (`+ Envelope`, `+ Sweep`)
+- Tabs to switch between defined fields; compact Level/Dir/Period or Time/Dir/Shift controls; trash removes the active field
+- Live ramp / trajectory preview canvas
+- GB packs period into `env=` CSV; NES keeps `env_period=` as a sibling (edited in the envelope control row)
+- NES continues to use discrete `sweep_*` bool/int/enum fields outside this section when present
+
+Source syntax is unchanged (`env=12,down,1`, `sweep=7,down,3`). Undefined fields use a dashed Add chip; defined fields use the same compact control row + trash remove as macros. Invalid strings show a reset affordance.
+
+---
+
 ## Visual waveforms
 
-Reference: [hUGETracker Waves tab](https://superdisk.github.io/hUGETracker/hUGETracker/tabs/waves.html) — draw a 32-sample 4-bit waveform with the mouse, with a live hex string and optional play-while-drawing.
+Reference: [hUGETracker Waves tab](https://superdisk.github.io/hUGETracker/hUGETracker/tabs/waves.html) — draw a 32-sample 4-bit waveform with the mouse and edit/paste a 32-nibble hex string. Audition uses the panel Preview keyboard / MIDI (not play-while-drawing).
 
 BeatBax stores `wave=` **per instrument**, not as hUGETracker’s 16-slot global wave bank. v1 does **not** invent a shared wave table. Copy-from-instrument and shape presets cover reuse.
 
@@ -286,13 +308,11 @@ Canvas behaviour:
 
 - One column per sample; height maps `min`–`max` (GB: 0–15)
 - Click/drag sets sample values; Shift-drag draws a line between points
-- Live readout: 32-nibble hex **and** decimal array
-- Pasting a valid 32-char hex string (`parseWaveTable`) updates the canvas
+- Single full-width Hex field (32-nibble hUGE string); canvas updates as you type; short values pad with `0` to length on apply/blur
 - Shape presets fill the table (sine, square, saw, triangle, plus plugin-supplied tables)
-- Play-while-drawing retriggers a short preview on the last drawn sample change (throttled)
 - Peak hint if `max(samples) < schema.max` (quiet wavetable), matching the grammar guide
 
-Game Boy `volume=` (0 / 25 / 50 / 100) stays a field widget beside the canvas — it is an output-level selector, not part of the wavetable.
+Game Boy `volume=` (0 / 25 / 50 / 100) stays a Voice-tab field — it is an output-level selector, not part of the wavetable.
 
 Chips without `waveform` in the schema hide this section entirely (NES, SMS, Spectrum).
 
@@ -302,13 +322,15 @@ Chips without `waveform` in the schema hide this section entirely (NES, SMS, Spe
 
 Macros already use `[v0,v1,…|loopPoint]` with `loopPoint = -1` meaning one-shot / hold last value (`[parseMacro](../../packages/engine/src/audio)` / chip backends). The graph editor is a visual view of that same string.
 
-Per macro row:
+Per defined macro (selected via tabs when more than one is present):
 
-- Horizontal sequence of steps; vertical axis is `min`–`max` (signed macros centre on 0)
-- Click/drag to paint values; length control to grow/shrink the sequence
+- Horizontal sequence of steps; vertical axis is `min`–`max` (signed macros centre on 0 with a zero baseline)
+- Click/drag to paint values; Shift-drag draws a line between steps; length control grows/shrinks the sequence
+- Light polyline overlay connects step tops so the envelope shape reads clearly
 - Loop marker at index `n` writes `|n`; no marker omits the pipe
 - Empty sequence removes the field from the `inst` line
 - Hardware macros show the plugin `hint` (AY `vol_env` is global R11–R13; SMS `vol_env` is attenuation)
+- Add chips create a new macro and switch to its tab
 
 Supported in v1 via schema (not a host hardcode):
 
@@ -382,7 +404,7 @@ Imported instruments: copy-into-song inserts a new local `inst` line; the import
 
 | Chip            | Waveform                            | Macros                                               | Notable fields                                                                       | Plugin notes                                                           |
 | --------------- | ----------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| Game Boy        | Yes — 32×4-bit `wave=`              | `vol_env`, `pitch_env`, `duty_env`, `arp_env`        | duty, env, sweep (pulse1), volume (wave), width, `uge_note`, `subpat` (read-only v1) | Wave volume is 0/25/50/100 selector                                    |
+| Game Boy        | Yes — 32×4-bit `wave=`              | `vol_env`, `pitch_env`, `duty_env`, `arp_env`        | duty, env, sweep (pulse1), volume (wave), width, `uge_note`, `subpat` (read-only v1) | Wave `volume` is 0/25/50/100 (hint + hoverDocs)                        |
 | NES             | No                                  | `vol_env`, `duty_env`, `arp_env`, `pitch_env`        | duty, env, sweep_*, DMC `sample`                                                     | Triangle: warn that volume macros do not apply; DMC uses sample picker |
 | SMS             | No                                  | `vol_env`, `arp_env`, `pitch_env`, `noise_rate_env`  | vol (attenuation), noise_mode, noise_rate, gg_pan                                    | `instrumentVolumeRange.isAttenuation`                                  |
 | Spectrum / AY   | No                                  | `vol_env` (hardware, global), `arp_env`, `pitch_env` | vol, tone, tone_mix, noise_rate, env_bass                                            | Constraint: one `vol_env` / `env_bass` at a time                       |
@@ -423,8 +445,8 @@ SID and SNES must not require Desktop code changes beyond generic widgets once t
 1. ~~Rename v1: definition-only + warning, or also rewrite `channel` / inline references?~~
    **Resolved:** in-panel rename dialog; checkbox (default on) rewrites all other instances of the name in the editor.
 
-2. Should play-while-drawing be on by default (hUGE does) or behind a toggle?
-   > on by default with a toggle
+2. ~~Should play-while-drawing be on by default (hUGE does) or behind a toggle?~~
+   **Resolved:** omitted in v1 — Preview keyboard / MIDI already audition the instrument; play-while-drawing stacked loud oneshots and duplicated hex UI.
 3. After all first-party chips ship schemas, should `CHIP_INSTRUMENT_META` be deleted in the same milestone or a follow-up?
    > follow-up
 4. Hold-to-play vs fixed 2 s CodeLens timeout for the mini keyboard — prefer hold-to-play when the chip can sustain.

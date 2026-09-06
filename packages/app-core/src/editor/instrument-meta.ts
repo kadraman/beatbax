@@ -24,7 +24,7 @@ export const CHIP_INSTRUMENT_META: Record<string, ChipInstrumentMeta> = {
       env: { detail: 'Envelope e.g. 12,down or gb:12,down,1' },
       wave: { detail: '32-sample wavetable array' },
       sweep: { detail: 'Hardware sweep (pulse1)' },
-      volume: { values: ['0', '25', '50', '100'], detail: 'Wave channel volume' },
+      volume: { values: ['0', '25', '50', '100'], detail: 'Wave hardware output level (0 / 25 / 50 / 100), not a 0–15 envelope' },
       width: { values: ['7', '15'], detail: 'Noise width mode' },
       pitch_env: { detail: 'Pitch macro → UGE subpattern offsets, e.g. [0,-2,-4,-6]' },
       vol_env: { detail: 'Volume macro → UGE subpattern Cxy, e.g. [15,12,8,4]' },

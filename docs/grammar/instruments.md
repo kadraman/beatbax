@@ -1,6 +1,6 @@
 # Instruments Reference
 
-Desktop can edit `inst` lines graphically (Settings → Features → Instrument Editor). The language syntax below is unchanged; the panel writes the same fields back into source.
+Desktop can edit `inst` lines graphically (Settings → Features → Instrument Editor). The language syntax below is unchanged; the panel writes the same fields back into source. Hardware `env` / `sweep` appear as parametric controls with a live shape preview; software macros (`vol_env`, …) are editable bar graphs (click/drag), one tab per defined macro.
 
 ## Pulse (Duty)
 

@@ -1,6 +1,6 @@
 import { parse } from '../src/parser/index.js';
 import { serializeInstrument, parseInstrumentBody, formatInstrumentFieldValue } from '../src/instruments/serialize.js';
-import { generateWaveformPreset, samplesToHex } from '../src/instruments/waveform.js';
+import { generateWaveformPreset, samplesToHex, parseWaveHexInput } from '../src/instruments/waveform.js';
 import { formatMacro, parseMacro } from '../src/util/music.js';
 import { gameboyPlugin } from '../src/chips/gameboy/plugin.js';
 import { nesPlugin } from '../src/chips/nes/plugin.js';
@@ -68,6 +68,20 @@ describe('waveform presets', () => {
     expect(Math.min(...sine)).toBeGreaterThanOrEqual(0);
     expect(samplesToHex(sine)).toHaveLength(32);
   });
+
+  it('pads short hex input with zeros and strips non-hex', () => {
+    const short = parseWaveHexInput('89A', 32);
+    expect(short.hex).toBe(`89A${'0'.repeat(29)}`);
+    expect(short.samples).toEqual([8, 9, 10, ...new Array(29).fill(0)]);
+
+    const spaced = parseWaveHexInput('ab cd', 8);
+    expect(spaced.hex).toBe('ABCD0000');
+    expect(spaced.samples).toEqual([10, 11, 12, 13, 0, 0, 0, 0]);
+
+    const empty = parseWaveHexInput('', 4);
+    expect(empty.hex).toBe('0000');
+    expect(empty.samples).toEqual([0, 0, 0, 0]);
+  });
 });
 
 describe('formatMacro', () => {
@@ -83,5 +97,16 @@ describe('chip instrumentEditor schemas', () => {
     expect(gameboyPlugin.instrumentEditor?.types.map((t) => t.id)).toEqual(['pulse1', 'pulse2', 'wave', 'noise']);
     expect(nesPlugin.instrumentEditor?.waveform).toBeUndefined();
     expect(nesPlugin.instrumentEditor?.types.some((t) => t.id === 'dmc')).toBe(true);
+  });
+
+  it('uses envelope/sweep widgets for hardware GB/NES fields', () => {
+    const gbEnv = gameboyPlugin.instrumentEditor?.fields.find((f) => f.name === 'env');
+    const gbSweep = gameboyPlugin.instrumentEditor?.fields.find((f) => f.name === 'sweep');
+    const nesEnv = nesPlugin.instrumentEditor?.fields.find((f) => f.name === 'env');
+    expect(gbEnv?.widget).toBe('envelope');
+    expect(gbSweep?.widget).toBe('sweep');
+    expect(nesEnv?.widget).toBe('envelope');
+    expect(gameboyPlugin.instrumentEditor?.macros.some((m) => m.name === 'vol_env')).toBe(true);
+    expect(nesPlugin.instrumentEditor?.macros.some((m) => m.signed)).toBe(true);
   });
 });

@@ -134,6 +134,14 @@ const hoverDocs: Record<string, string> = {
     '- Use `volume=` (`0` · `25` · `50` · `100`) to set the hardware output-level selector.',
   ].join('\n\n'),
 
+  volume: [
+    '**Wave volume** — Game Boy wave-channel hardware output-level selector (NR32).',
+    '```\ninst bass type=wave volume=100 wave=[…]\n```',
+    'Valid values: `0` · `25` · `50` · `100` (not a 0–15 envelope like pulse/noise `env=`).',
+    '- `0` — mute · `25` — quiet · `50` — medium · `100` — full (default)',
+    'Takes effect when the note is retriggered or the instrument changes; it does not reshape an already-sounding note mid-hold.',
+  ].join('\n\n'),
+
   noise: 'Game Boy Noise channel — LFSR-based noise generator with envelope (NR41–NR44). Use `width=7` (metallic) or `width=15` (full/broad). Optional `pitch_env` / `vol_env` macros (or `subpat=`) become UGE instrument subpatterns.',
 
   pitch_env: [

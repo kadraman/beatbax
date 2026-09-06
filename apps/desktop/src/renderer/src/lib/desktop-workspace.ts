@@ -792,10 +792,10 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   syncInstrumentMidiAudition();
 
   cleanups.push(
-    eventBus.on('instrument-editor:open', ({ name }) => {
+    eventBus.on('instrument-editor:open', () => {
       if (!isInstrumentEditorAllowed(capabilities)) return;
+      // Panel also listens and loads/reveals the named instrument.
       eventBus.emit('panel:toggled', { panel: 'instrument-editor', visible: true });
-      instrumentEditor?.selectInstrument(name);
     }),
     eventBus.on('song:loaded', () => {
       clearSectionFocus();
@@ -1100,14 +1100,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       getSectionFocusController: () => sectionFocusController,
       onStatus: (message) => statusBar?.setStatus(message),
     });
-    editor.editor.onDidChangeCursorPosition((e) => {
-      const model = editor.editor.getModel();
-      if (!model) return;
-      const line = model.getLineContent(e.position.lineNumber);
-      const m = line.match(/^\s*inst\s+([A-Za-z0-9_-]+)\b/);
-      if (m && isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR) && rightTabs.tabOpen.instruments) {
-        instrumentEditor?.selectInstrument(m[1]);
-      }
+    editor.editor.onDidChangeCursorPosition(() => {
       syncInstrumentMidiAudition();
     });
     refreshEditorViewPrefs();
