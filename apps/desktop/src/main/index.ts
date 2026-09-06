@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeImage, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, nativeImage, shell, ipcMain, session } from 'electron';
 import { existsSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
@@ -26,6 +26,32 @@ let detachWindowStateEvents: (() => void) | null = null;
 const isMac = process.platform === 'darwin';
 const APP_DISPLAY_NAME = 'BeatBax';
 const DEV_ICON_PATH = join(__dirname, '../../resources/icon.png');
+
+// Disable WinRT MIDI before any other app init. Must run before app ready.
+// Chromium's WinRT backend can leave navigator.requestMIDIAccess() pending forever.
+if (process.platform === 'win32') {
+  const existing = app.commandLine.getSwitchValue('disable-features');
+  const features = new Set(
+    existing
+      ? existing.split(',').map((f) => f.trim()).filter(Boolean)
+      : [],
+  );
+  features.add('MidiManagerWinrt');
+  app.commandLine.appendSwitch('disable-features', [...features].join(','));
+}
+
+function installMidiPermissionHandlers(targetSession: Electron.Session): void {
+  targetSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    if (permission === 'midi' || permission === 'midiSysex') {
+      callback(true);
+      return;
+    }
+    callback(false);
+  });
+  targetSession.setPermissionCheckHandler((_wc, permission) => {
+    return permission === 'midi' || permission === 'midiSysex';
+  });
+}
 
 if (is.dev) {
   app.setName(APP_DISPLAY_NAME);
@@ -190,6 +216,11 @@ async function createWindow(): Promise<void> {
     console.error('Renderer failed to load:', code, description, url);
   });
 
+  // Web MIDI requires explicit session permission handlers in Electron.
+  // Without these, navigator.requestMIDIAccess() can hang indefinitely
+  // (Chromium waits for a prompt that never appears).
+  installMidiPermissionHandlers(mainWindow.webContents.session);
+
   mainWindow.on('ready-to-show', () => {
     configureMacDevDockIcon();
     mainWindow?.show();
@@ -231,6 +262,7 @@ if (!app.requestSingleInstanceLock()) {
 app.whenReady().then(async () => {
   configureMacDevDockIcon();
   electronApp.setAppUserModelId('com.beatbax.desktop');
+  installMidiPermissionHandlers(session.defaultSession);
 
   // Packaged macOS: copy examples to Documents so File → Open can open them
   // (NSOpenPanel cannot navigate into BeatBax.app/Contents/Resources/songs).

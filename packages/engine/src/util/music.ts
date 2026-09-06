@@ -38,6 +38,16 @@ export function midiToNote(n: number): string {
 }
 
 /**
+ * BeatBax `note=` picker values (scientific pitch, sharps only).
+ * Default range C1–B8 covers typical chiptune / percussion hits.
+ */
+export function listInstrumentNoteOptions(minMidi = 24, maxMidi = 107): string[] {
+  const out: string[] = [];
+  for (let midi = minMidi; midi <= maxMidi; midi++) out.push(midiToNote(midi));
+  return out;
+}
+
+/**
  * Convert MIDI note number to frequency (Hz) using equal temperament.
  * A4 (MIDI 69) = 440 Hz
  * f = 440 * 2^((n - 69) / 12)
@@ -99,6 +109,16 @@ export function parseMacro(raw: unknown): ParsedMacro | null {
   if (values.length === 0) return null;
   if (loopPoint >= values.length) loopPoint = values.length - 1;
   return { values, loopPoint };
+}
+
+/** Format a macro as `[v0,v1,…]` or `[v0,v1,…|loopPoint]`. Omits the pipe when there is no loop. */
+export function formatMacro(macro: ParsedMacro | number[] | null | undefined): string | null {
+  if (macro == null) return null;
+  const values = Array.isArray(macro) ? macro : macro.values;
+  if (!values.length) return null;
+  const loopPoint = Array.isArray(macro) ? -1 : macro.loopPoint;
+  if (loopPoint >= 0) return `[${values.join(',')}|${loopPoint}]`;
+  return `[${values.join(',')}]`;
 }
 
 /**

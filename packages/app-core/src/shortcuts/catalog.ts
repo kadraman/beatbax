@@ -208,6 +208,16 @@ export const SHORTCUT_CATALOG: readonly ShortcutDefinition[] = [
     requiresCapability: 'patternGrid',
     requiresFeatureFlag: 'feature.patternGrid',
   },
+  {
+    id: 'view.toggleInstrumentEditor',
+    description: 'Toggle Instrument Editor',
+    category: 'View',
+    profiles: ['desktop-full'],
+    binding: { key: 'i', ctrl: true, alt: true },
+    allowInInput: true,
+    requiresCapability: 'advancedEditor',
+    requiresFeatureFlag: 'feature.instrumentEditor',
+  },
 
   {
     id: 'patternGrid.exitSectionFocus',

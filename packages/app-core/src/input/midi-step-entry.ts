@@ -409,7 +409,36 @@ export class MidiStepEntryService {
       return 'Web MIDI is not supported in this browser. Try Chrome or Edge.';
     }
     try {
-      this.midiAccess = await (navigator as any).requestMIDIAccess({ sysex: false });
+      const accessPromise = (navigator as any).requestMIDIAccess({ sysex: false }) as Promise<MidiAccess>;
+      // Chromium/Electron can leave this pending forever (esp. Windows MIDI backends).
+      // Bound the wait so Settings/refresh UI cannot stick on "Refreshing…".
+      const access = await new Promise<MidiAccess>((resolve, reject) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          reject(new Error('MIDI access timed out after 5s'));
+        }, 5000);
+        accessPromise.then(
+          (midiAccess) => {
+            if (settled) {
+              // Late success after timeout — still keep the access for a later refresh.
+              this.midiAccess = midiAccess;
+              return;
+            }
+            settled = true;
+            clearTimeout(timer);
+            resolve(midiAccess);
+          },
+          (err) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            reject(err);
+          },
+        );
+      });
+      this.midiAccess = access;
       log.info('MIDI access granted. Inputs:', this.midiAccess!.inputs.size);
       return null;
     } catch (err: any) {
@@ -563,12 +592,19 @@ export class MidiStepEntryService {
   private _handleNoteOff(midiNote: number): void {
     const noteName = midiNoteToName(midiNote);
 
-    if (this.armed && this.auditionNotes) {
+    if (!this.armed) {
+      // Idle / Instruments-tab audition: end hold-to-play on key release.
+      this.callbacks.onAuditionStop?.(noteName);
+      this._noteOnTimes.delete(midiNote);
+      return;
+    }
+
+    if (this.auditionNotes) {
       this.callbacks.onAuditionStop?.(noteName);
     }
 
     // When useNoteDuration is enabled, entry happens on note-off using the held duration
-    if (!this.armed || !this.useNoteDuration) {
+    if (!this.useNoteDuration) {
       this._noteOnTimes.delete(midiNote);
       return;
     }

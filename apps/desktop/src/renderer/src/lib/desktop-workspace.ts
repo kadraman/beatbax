@@ -2,17 +2,19 @@ import { countValidationWarningBadge } from '@beatbax/app-core/types/validation'
 import type { AppContext, ParsePipelineHooks } from '@beatbax/app-core';
 import { isParseSuccessValid } from '@beatbax/app-core/parse/parse-validity';
 import { insertHelpSnippetBlock, type BeatBaxEditor } from '@beatbax/app-core/editor';
+import { triggerInstNotePreview, stopInstPreview } from '@beatbax/app-core/editor/codelens-preview';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import { loadExampleSong } from './load-example-song';
 import { sanitizeFilename } from '@beatbax/app-core/export/download-helper';
 import { TransportControls } from '@beatbax/app-core/playback/transport-controls';
 import { ensureChannels } from '@beatbax/app-core/stores/channel.store';
-import { settingDefaultBpm, settingSongArtist, settingShowSongVisualizer, settingShowChannelMixer, settingShowPatternGrid } from '@beatbax/app-core/stores/settings.store';
+import { settingDefaultBpm, settingSongArtist, settingShowSongVisualizer, settingShowChannelMixer, settingShowPatternGrid, settingShowInstrumentEditor } from '@beatbax/app-core/stores/settings.store';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { shouldShowLegacySongVisualizerTab } from '@beatbax/app-core/utils/song-visualizer-panel';
 import { shouldShowChannelMixer } from '@beatbax/app-core/utils/channel-mixer-panel';
 import { shouldShowPatternGrid } from '@beatbax/app-core/utils/pattern-grid-panel';
+import { isInstrumentEditorAllowed, shouldShowInstrumentEditor } from '@beatbax/app-core/utils/instrument-editor-panel';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { buildBottomTabs, buildRightTabs } from '../components/shell/tabs';
 import {
@@ -47,12 +49,14 @@ import { settingAutoSave, settingFoldComments, settingShowToolbar, settingShowTr
 import { blurChromeFocus, focusWorkspaceEditor, suppressChromeTabFocus } from './desktop-focus';
 import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
 import { createDesktopHelpPanel, type DesktopHelpPanelHandle } from '../components/panels/HelpPanel';
+import { createDesktopInstrumentEditor, type DesktopInstrumentEditorHandle } from '../components/panels/DesktopInstrumentEditor';
 import { createDesktopSettingsModal, noopDesktopSettingsModal, type DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
 import { createDesktopPatternGrid, type DesktopPatternGridHandle, type ArrangementSlicePlayRequest } from '../components/panels/DesktopPatternGrid';
 import { createSectionFocusController, type SectionFocusController } from './section-focus-controller';
 import { setupSectionFocusEditor } from './section-focus-editor';
 import { setupSectionFocusOverlay } from './section-focus-overlay';
 import { setupPatternNavFlash } from './pattern-nav-flash';
+import { setupInstrumentEditorNav } from './instrument-editor-nav';
 import { createDesktopSongVisualizer, type DesktopSongVisualizerHandle } from '../components/panels/DesktopSongVisualizer';
 import { createDesktopChannelMixer, type DesktopChannelMixerHandle } from '../components/panels/DesktopChannelMixer';
 import { createDesktopToolbar, type DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
@@ -180,6 +184,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   });
   cleanups.push(() => sectionFocusOverlay.dispose());
   const patternNavFlash = setupPatternNavFlash(getEditor, () => getEditor()?.getValue() ?? '');
+  const instrumentEditorNav = setupInstrumentEditorNav(getEditor);
   let sectionFocusController: SectionFocusController | null = null;
 
   const enterSectionSlice = (request: ArrangementSlicePlayRequest) => {
@@ -211,7 +216,20 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       if (tab !== 'problems') problemsPanel?.dismissQuickFixMenu();
     },
   });
-  const rightTabs = buildRightTabs(rightPane, layout);
+
+  const rightTabs = buildRightTabs(rightPane, layout, {
+    onActiveTabChange: (tab) => {
+      const midi = (window as any).__beatbax_midiStepEntry;
+      midi?.setInstrumentAuditionOnly?.(tab === 'instruments' && !midi.isArmed?.());
+    },
+  });
+
+  const syncInstrumentMidiAudition = (): void => {
+    const midi = (window as any).__beatbax_midiStepEntry;
+    midi?.setInstrumentAuditionOnly?.(
+      rightTabs.activeTab === 'instruments' && !midi.isArmed?.(),
+    );
+  };
 
   const problemsContainer = bottomTabs.tabContents.problems;
   const outputLogsContainer = bottomTabs.tabContents.output;
@@ -235,6 +253,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         transportVisible: transportBar?.isVisible?.() ?? true,
         channelMixerVisible: channelMixerRef.current?.isVisible?.() ?? false,
         patternGridVisible: patternGridContainer.style.display !== 'none',
+        instrumentEditorVisible: (rightTabs.tabOpen.instruments ?? false) && layout.isRightPaneVisible(),
         aiOpen: rightTabs.tabOpen.ai ?? false,
       };
     },
@@ -274,6 +293,10 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       'view:toggle-pattern-grid': {
         checked: state.patternGridVisible,
         enabled: isFeatureEnabled(FeatureFlag.PATTERN_GRID),
+      },
+      'view:toggle-instrument-editor': {
+        checked: state.instrumentEditorVisible,
+        enabled: isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR),
       },
       'view:toggle-ai-assistant': {
         checked: state.aiOpen && state.rightPaneVisible,
@@ -352,6 +375,35 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   const helpContainer = document.createElement('div');
   helpContainer.style.cssText = 'flex:1 1 0;overflow:hidden;display:flex;flex-direction:column;';
   rightTabs.tabContents.help!.appendChild(helpContainer);
+
+  const instrumentsContainer = document.createElement('div');
+  instrumentsContainer.style.cssText = 'flex:1 1 0;overflow:hidden;display:flex;flex-direction:column;';
+  rightTabs.tabContents.instruments?.appendChild(instrumentsContainer);
+
+  let instrumentEditor: DesktopInstrumentEditorHandle | null = null;
+  if (rightTabs.tabContents.instruments) {
+    instrumentEditor = createDesktopInstrumentEditor(instrumentsContainer, {
+      eventBus,
+      getSource: () => getEditor()?.getValue() ?? '',
+      applySource: (next) => {
+        const editor = getEditor();
+        if (!editor) return;
+        editor.setValue(next);
+      },
+      revealInst: (name, opts) => {
+        // setValue clears decorations — defer so the model is updated first.
+        queueMicrotask(() => {
+          instrumentEditorNav.sync(name, {
+            focus: opts?.focus === true,
+            reveal: opts?.reveal !== false && name != null,
+          });
+        });
+      },
+      previewNote: (instName, note) => triggerInstNotePreview(instName, note, { sustain: true }),
+      stopPreview: () => stopInstPreview(),
+      isMidiRecordArmed: () => (window as any).__beatbax_midiStepEntry?.isArmed?.() ?? false,
+    });
+  }
 
   const ks = new KeyboardShortcuts();
   const settingsModal = capabilities.settingsPanel
@@ -690,6 +742,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       case 'pattern-grid':
         eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: !s.patternGridVisible });
         break;
+      case 'instrument-editor':
+        eventBus.emit('panel:toggled', { panel: 'instrument-editor', visible: !s.instrumentEditorVisible });
+        break;
     }
     statusBar?.refreshPanelsMenu();
   };
@@ -729,9 +784,19 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       if (!sectionFocusController?.isActive()) return false;
       return sectionFocusController.playFocused();
     },
+    getInstrumentAuditionTarget: () => {
+      if (rightTabs.activeTab !== 'instruments') return null;
+      return instrumentEditor?.getSelectedName?.() ?? null;
+    },
   });
+  syncInstrumentMidiAudition();
 
   cleanups.push(
+    eventBus.on('instrument-editor:open', ({ name }) => {
+      if (!isInstrumentEditorAllowed(capabilities)) return;
+      eventBus.emit('panel:toggled', { panel: 'instrument-editor', visible: true });
+      instrumentEditor?.selectInstrument(name);
+    }),
     eventBus.on('song:loaded', () => {
       clearSectionFocus();
       lastSongContext = null;
@@ -763,6 +828,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
           return;
         }
         if (song && patternGrid) patternGrid.setSong(song, layoutAst);
+        instrumentEditor?.setAst(layoutAst);
         if (song) lastSongContext = { song, ast: layoutAst };
         else lastSongContext = null;
         if (sectionFocusController?.isActive()) {
@@ -876,6 +942,13 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         patternGridContainer.style.display = visible ? '' : 'none';
         settingShowPatternGrid.set(visible);
       }
+      if (panel === 'instrument-editor') {
+        if (visible && !isInstrumentEditorAllowed(capabilities)) return;
+        if (visible) rightTabs.show('instruments');
+        else rightTabs.close('instruments');
+        settingShowInstrumentEditor.set(visible);
+        syncInstrumentMidiAudition();
+      }
       statusBar?.refreshPanelsMenu();
       requestMacMenuRefresh();
     }),
@@ -887,6 +960,10 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       if (flag === FeatureFlag.PATTERN_GRID) {
         settingShowPatternGrid.set(enabled);
         eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: enabled });
+      }
+      if (flag === FeatureFlag.INSTRUMENT_EDITOR) {
+        settingShowInstrumentEditor.set(enabled);
+        eventBus.emit('panel:toggled', { panel: 'instrument-editor', visible: enabled });
       }
       if (flag === FeatureFlag.SONG_VISUALIZER) {
         settingShowSongVisualizer.set(enabled);
@@ -944,6 +1021,15 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     else rightTabs.close('channels');
     settingShowSongVisualizer.set(showLegacy);
   }
+  if (isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR) && shouldShowInstrumentEditor(capabilities)) {
+    rightTabs.ensureOpen('instruments');
+    if (restoredRightTab === 'instruments') rightTabs.show('instruments');
+    settingShowInstrumentEditor.set(true);
+  } else {
+    rightTabs.close('instruments');
+    settingShowInstrumentEditor.set(false);
+  }
+  syncInstrumentMidiAudition();
   if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
     window.setTimeout(() => {
       copilot?.show({ activate: restoredRightTab === 'ai' });
@@ -954,6 +1040,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   menuBar?.seedPanelVisible({
     help: rightTabs.tabOpen.help,
     'song-visualizer': rightTabs.tabOpen.channels && isFeatureEnabled(FeatureFlag.SONG_VISUALIZER),
+    'instrument-editor': rightTabs.tabOpen.instruments && isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR),
     'ai-assistant': copilot?.isVisible() ?? false,
   });
 
@@ -1013,6 +1100,16 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       getSectionFocusController: () => sectionFocusController,
       onStatus: (message) => statusBar?.setStatus(message),
     });
+    editor.editor.onDidChangeCursorPosition((e) => {
+      const model = editor.editor.getModel();
+      if (!model) return;
+      const line = model.getLineContent(e.position.lineNumber);
+      const m = line.match(/^\s*inst\s+([A-Za-z0-9_-]+)\b/);
+      if (m && isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR) && rightTabs.tabOpen.instruments) {
+        instrumentEditor?.selectInstrument(m[1]);
+      }
+      syncInstrumentMidiAudition();
+    });
     refreshEditorViewPrefs();
     focusWorkspaceEditor(editor);
     bottomTabs.expandPane();
@@ -1030,11 +1127,13 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     patternGrid?.dispose();
     sectionFocusController?.dispose();
     patternNavFlash.dispose();
+    instrumentEditorNav.dispose();
     disposeMenuBar?.();
     problemsPanel.dispose();
     outputPanel.dispose();
     shortcutsPanel.dispose();
     helpPanel?.dispose();
+    instrumentEditor?.dispose();
     statusBar?.dispose();
     transportBar.dispose();
     ks.dispose();
@@ -1060,6 +1159,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       'view:toggle-channel-mixer': 'channel-mixer',
       'view:toggle-song-visualizer': 'song-visualizer',
       'view:toggle-pattern-grid': 'pattern-grid',
+      'view:toggle-instrument-editor': 'instrument-editor',
       'view:toggle-ai-assistant': 'ai-assistant',
     };
 

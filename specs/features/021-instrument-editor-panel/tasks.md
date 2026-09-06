@@ -2,19 +2,15 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md)
 
-Migrated checklist (normalize to `Tnnn` format as work proceeds):
-
 ## Implementation Checklist
 
-1. `ChipInstrumentEditor` types + `instrumentEditor?` on `ChipPlugin`; Game Boy schema + presets.
-2. Desktop panel shell: right tab, feature flag, instrument list, selection from editor.
-3. Schema-driven field widgets + write-valid-only source writeback.
-4. Waveform canvas (Game Boy first): draw, hex, presets, play-while-drawing.
-5. Macro graphs with loop markers.
-6. Plugin presets + copy-from song instrument.
-7. Mini keyboard + MIDI audition + live preview.
-8. NES / SMS / Spectrum schemas (and constraint copy).
-9. Tests: schema, serialize round-trip, panel units, desktop e2e.
-10. Plugin author docs + Help blurb.
-
----
+- [x] T001 `ChipInstrumentEditor` types + `instrumentEditor?` on `ChipPlugin`; Game Boy schema + presets.
+- [x] T002 Desktop panel shell: right tab, feature flag, instrument list, selection from editor.
+- [x] T003 Schema-driven field widgets + write-valid-only source writeback.
+- [x] T004 Waveform canvas (Game Boy first): draw, hex, presets, play-while-drawing.
+- [x] T005 Macro graphs with loop markers.
+- [x] T006 Plugin presets + copy-from song instrument.
+- [x] T007 Mini keyboard + MIDI audition + live preview.
+- [x] T008 NES / SMS / Spectrum schemas (and constraint copy).
+- [x] T009 Tests: schema, serialize round-trip, panel units.
+- [x] T010 Plugin author docs + Help blurb.

@@ -154,6 +154,7 @@ function buildMacViewMenu(
       toggle('Channel Mixer', 'view:toggle-channel-mixer', accel('view.toggleChannelMixer')),
       toggle('Song Visualizer', 'view:toggle-song-visualizer', accel('view.showSongVisualizer')),
       toggle('Pattern Grid', 'view:toggle-pattern-grid', accel('view.togglePatternGrid')),
+      toggle('Instruments', 'view:toggle-instrument-editor', accel('view.toggleInstrumentEditor')),
       { type: 'separator' },
       toggle('AI Assistant', 'view:toggle-ai-assistant', accel('tools.toggleCopilot')),
       { type: 'separator' },

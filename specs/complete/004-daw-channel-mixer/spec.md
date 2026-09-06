@@ -2,7 +2,7 @@
 title: "DAW-Style Horizontal Channel Mixer with VU Meters"
 id: 4
 slug: "daw-channel-mixer"
-status: "in-progress"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-04-04"
@@ -120,18 +120,20 @@ If `getChannelAnalyser` returns `null` (engine not running, OfflineAudioContext 
 
 ## Acceptance Criteria
 
-- [ ] Horizontal channel strips rendered at the bottom of the app, one per channel.
-- [ ] Each strip shows channel name, colour accent, mute/solo buttons, and instrument name.
-- [ ] Pattern/sequence readouts are shown in the Song Visualizer panel, not in DawMixer strips.
-- [ ] VU meter animates in real time during playback; shows idle (all bars unlit) when stopped.
-- [ ] Peak-hold segment lingers for ~1.5 s then falls.
-- [ ] Volume fader present but locked (greyed-out) for chips that dont support it.
-- [ ] Mixer strip height is user-adjustable via drag; state persists in `localStorage`.
-- [ ] Collapse/expand toggle: collapsed mode shows only channel label + VU meter.
-- [ ] View menu item `Ctrl+Shift+M` toggles mixer visibility; state persists.
-- [ ] All existing mute/solo behaviour (channel store, pattern grid, glyph margin) continues to work via `channelStates` store — no behaviour regression.
-- [ ] Supports Dark and Light-mode styles.
-- [ ] No TypeScript errors; existing tests continue to pass.
+Shipped as `DesktopChannelMixer` on Desktop (`#bb-mixer-host`), using `getChannelAnalyserData` from the per-channel analyser.
+
+- [x] Horizontal channel strips rendered at the bottom of the app, one per channel.
+- [x] Each strip shows channel name, colour accent, mute/solo buttons, and instrument name.
+- [x] Pattern/sequence readouts are shown in the Song Visualizer panel, not in DawMixer strips.
+- [x] VU meter animates in real time during playback; shows idle (all bars unlit) when stopped.
+- [x] Peak-hold segment lingers for ~1.5 s then falls.
+- [x] Volume fader present but locked (greyed-out) for chips that dont support it.
+- [x] Mixer strip height is user-adjustable via drag; state persists in `localStorage`.
+- [x] Collapse/expand toggle: collapsed mode shows only channel label + VU meter.
+- [x] View menu item `Ctrl+Shift+M` toggles mixer visibility; state persists.
+- [x] All existing mute/solo behaviour (channel store, pattern grid, glyph margin) continues to work via `channelStates` store — no behaviour regression.
+- [x] Supports Dark and Light-mode styles.
+- [x] No TypeScript errors; existing tests continue to pass.
 
 ---
 

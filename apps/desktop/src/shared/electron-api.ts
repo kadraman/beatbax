@@ -55,6 +55,7 @@ export type MenuAction =
   | 'view:toggle-channel-mixer'
   | 'view:toggle-song-visualizer'
   | 'view:toggle-pattern-grid'
+  | 'view:toggle-instrument-editor'
   | 'view:toggle-ai-assistant'
   | 'view:toggle-wrap-text'
   | 'view:toggle-fold-all'

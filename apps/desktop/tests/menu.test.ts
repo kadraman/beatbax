@@ -187,6 +187,7 @@ describe('desktop native menu', () => {
       'view:toggle-channel-mixer': { checked: false, enabled: true },
       'view:toggle-song-visualizer': { checked: false, enabled: true },
       'view:toggle-pattern-grid': { checked: false, enabled: true },
+      'view:toggle-instrument-editor': { checked: false, enabled: false },
       'view:toggle-ai-assistant': { checked: false, enabled: true },
       'view:toggle-wrap-text': { checked: true },
       'view:toggle-fold-all': { checked: false },
@@ -209,9 +210,11 @@ describe('desktop native menu', () => {
     const toolbar = viewMenu.find((item) => item.label === 'Toolbar')!;
     const transport = viewMenu.find((item) => item.label === 'Transport Bar')!;
     const patternGrid = viewMenu.find((item) => item.label === 'Pattern Grid')!;
+    const instruments = viewMenu.find((item) => item.label === 'Instruments')!;
 
     expect(toolbar.accelerator).toBe('CmdOrCtrl+Shift+B');
     expect(transport.accelerator).toBe('CmdOrCtrl+Shift+R');
     expect(patternGrid.accelerator).toBe('CmdOrCtrl+Shift+G');
+    expect(instruments.accelerator).toBe('CmdOrCtrl+Alt+I');
   });
 });

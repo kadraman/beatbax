@@ -2,8 +2,6 @@
 
 This feature specification moved to the SDD tree:
 
-**[`specs/features/004-daw-channel-mixer/`](../../../specs/features/004-daw-channel-mixer/)**
+**[`specs/complete/004-daw-channel-mixer/`](../../../specs/complete/004-daw-channel-mixer/)**
 
-- [spec.md](../../../specs/features/004-daw-channel-mixer/spec.md)
-- [plan.md](../../../specs/features/004-daw-channel-mixer/plan.md)
-- [tasks.md](../../../specs/features/004-daw-channel-mixer/tasks.md)
+- [spec.md](../../../specs/complete/004-daw-channel-mixer/spec.md)

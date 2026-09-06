@@ -39,6 +39,7 @@ import { smsUIContributions } from './ui-contributions.js';
 import { smsVolSlideEffect } from './volSlide.js';
 import { setSmsClockRegion } from './periodTables.js';
 import { smsSongWizard } from './songWizard.js';
+import { smsInstrumentEditor } from './instrument-editor.js';
 import { SMS_MIX_GAIN } from './mixer.js';
 
 const SMS_METER_DISPLAY_GAIN = {
@@ -56,6 +57,7 @@ const smsPlugin: ChipPlugin = {
   instrumentVolumeRange: { min: 0, max: 15, isAttenuation: true }, // 0=loudest, 15=silent
   uiContributions: smsUIContributions,
   newSongWizard: smsSongWizard,
+  instrumentEditor: smsInstrumentEditor,
 
   getMeterDisplayGain(channelIndex: number): number {
     switch (channelIndex) {

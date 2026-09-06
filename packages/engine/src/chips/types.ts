@@ -279,6 +279,77 @@ export interface ChipNewSongWizard {
   consoleVariants?: ChipConsoleVariant[];
 }
 
+// ─── Instrument editor schema (Desktop host widgets) ───────────────────────────
+
+export interface ChipInstrumentEditor {
+  types: ChipInstrumentTypeDef[];
+  fields: ChipInstrumentFieldDef[];
+  macros: ChipInstrumentMacroDef[];
+  waveform?: ChipInstrumentWaveformDef;
+  presets: ChipInstrumentPreset[];
+  constraints?: ChipInstrumentConstraintNote[];
+}
+
+export interface ChipInstrumentTypeDef {
+  id: string;
+  label: string;
+  /** 1-based hardware channel used for preview. */
+  previewChannel: number;
+}
+
+export type ChipInstrumentWidget = 'enum' | 'int' | 'bool' | 'text' | 'sample' | 'note' | 'uge_note';
+
+export interface ChipInstrumentFieldDef {
+  name: string;
+  label: string;
+  widget: ChipInstrumentWidget;
+  values?: string[];
+  min?: number;
+  max?: number;
+  whenType?: string | string[];
+  hint?: string;
+}
+
+export interface ChipInstrumentMacroDef {
+  name: string;
+  label: string;
+  min: number;
+  max: number;
+  signed?: boolean;
+  loop?: boolean;
+  whenType?: string | string[];
+  kind?: 'hardware' | 'software';
+  hint?: string;
+}
+
+export type ChipWaveformShape = 'sine' | 'square' | 'saw' | 'triangle';
+
+export interface ChipInstrumentWaveformDef {
+  field: string;
+  length: number;
+  min: number;
+  max: number;
+  hexImport?: boolean;
+  draw?: boolean;
+  playWhileDrawing?: boolean;
+  whenType?: string | string[];
+  presets?: Array<{ id: string; label: string; samples: number[] | ChipWaveformShape }>;
+}
+
+export interface ChipInstrumentPreset {
+  id: string;
+  label: string;
+  type: string;
+  /** Single `inst` line body (no `inst <name>` prefix). */
+  content: string;
+}
+
+export interface ChipInstrumentConstraintNote {
+  id: string;
+  when?: string;
+  message: string;
+}
+
 // ─── Plugin ───────────────────────────────────────────────────────────────────
 
 /**
@@ -471,4 +542,11 @@ export interface ChipPlugin {
    * instead of hard-coded chip-specific defaults.
    */
   newSongWizard?: ChipNewSongWizard;
+
+  /**
+   * Optional Desktop Instrument Editor schema. Plugins declare types, fields,
+   * macros, waveform config, and presets; the host renders generic widgets.
+   * Plugins MUST NOT ship React UI in this object.
+   */
+  instrumentEditor?: ChipInstrumentEditor;
 }
