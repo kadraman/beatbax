@@ -60,6 +60,7 @@ function formatScalar(value: unknown): string | null {
     return /[\s#]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
   }
   if (Array.isArray(value)) {
+    if (value.length === 0) return null;
     const macro = parseMacro(value);
     return macro ? formatMacro(macro) : `[${value.join(',')}]`;
   }
@@ -86,6 +87,7 @@ function formatValue(key: string, value: unknown): { key: string; text: string }
     return { key, text: formatMacro(macro)! };
   }
   if (key === 'wave' && Array.isArray(value)) {
+    if (value.length === 0) return null;
     return { key, text: `[${value.join(',')}]` };
   }
   const text = formatScalar(value);
@@ -152,9 +154,16 @@ export function parseInstrumentBody(content: string): InstrumentNode {
       value = value.slice(1, -1);
     }
     if (value.startsWith('[') && value.endsWith(']')) {
-      const inner = value.slice(1, -1);
+      const inner = value.slice(1, -1).trim();
       const pipe = inner.lastIndexOf('|');
-      (node as Record<string, unknown>)[key] = pipe >= 0 ? value : inner.split(',').map(s => Number(s.trim()));
+      if (pipe >= 0) {
+        (node as Record<string, unknown>)[key] = value;
+      } else if (!inner) {
+        // `[]` must stay empty — `''.split(',')` would yield `['']` → `[0]`.
+        (node as Record<string, unknown>)[key] = [];
+      } else {
+        (node as Record<string, unknown>)[key] = inner.split(',').map(s => Number(s.trim()));
+      }
     } else {
       (node as Record<string, unknown>)[key] = value;
     }

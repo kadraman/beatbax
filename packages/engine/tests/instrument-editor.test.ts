@@ -58,6 +58,16 @@ describe('parseInstrumentBody', () => {
     expect(node.duty).toBe('50');
     expect(node.env).toBe('12,down');
   });
+
+  it('treats empty list values as empty arrays, not [0]', () => {
+    const node = parseInstrumentBody('type=wave wave=[] vol_env=[]');
+    expect(node.wave).toEqual([]);
+    expect(node.vol_env).toEqual([]);
+    const line = serializeInstrument('bass', node);
+    expect(line).toBe('inst bass type=wave');
+    expect(line).not.toContain('wave=');
+    expect(line).not.toContain('vol_env=');
+  });
 });
 
 describe('waveform presets', () => {

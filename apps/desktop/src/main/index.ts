@@ -41,15 +41,17 @@ if (process.platform === 'win32') {
 }
 
 function installMidiPermissionHandlers(targetSession: Electron.Session): void {
+  // Grant MIDI only — BeatBax calls requestMIDIAccess({ sysex: false }).
+  // Do not allow midiSysex; that widens device access without a current need.
   targetSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    if (permission === 'midi' || permission === 'midiSysex') {
+    if (permission === 'midi') {
       callback(true);
       return;
     }
     callback(false);
   });
   targetSession.setPermissionCheckHandler((_wc, permission) => {
-    return permission === 'midi' || permission === 'midiSysex';
+    return permission === 'midi';
   });
 }
 
