@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type Ref,
 } from 'react';
 import { createPortal, flushSync } from 'react-dom';
@@ -61,6 +62,7 @@ import {
   settingMidiInputDevice,
   settingMidiInputEnabled,
 } from '@beatbax/app-core/stores/settings.store';
+import { focusInstrumentEditorPanel, shouldHandleInstrumentPreviewKey } from '../../lib/instrument-editor-keys';
 
 const BEATBAX_NOTE_OPTIONS = listInstrumentNoteOptions();
 const UGE_NOTE_OPTIONS = listUgeNoteOptions();
@@ -260,11 +262,18 @@ function DesktopInstrumentEditor({
     setDraft(cloneInst(nextAst?.insts?.[name]));
     setErrors([]);
     const focus = opts?.focus === true;
-    // Only scroll/focus when explicitly requested (dropdown, Locate, New, CodeLens).
+    // Reveal/highlight on explicit requests (dropdown, New, CodeLens).
     // Never jump the editor on passive selection sync.
+    // Only "Show in editor" focuses Monaco — otherwise A–J would type into source.
     const reveal = opts?.reveal === true || focus;
     revealInst(name, { focus, reveal });
   }, [ast, revealInst]);
+
+  const restorePanelFocus = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      focusInstrumentEditorPanel(bodyRef.current);
+    });
+  }, []);
 
   useImperativeHandle(panelRef, () => ({
     show: () => {},
@@ -322,9 +331,10 @@ function DesktopInstrumentEditor({
 
   useEffect(() => {
     return eventBus.on('instrument-editor:open', ({ name }) => {
-      loadInst(name, ast, { focus: true });
+      loadInst(name, ast, { reveal: true, focus: false });
+      restorePanelFocus();
     });
-  }, [ast, eventBus, loadInst]);
+  }, [ast, eventBus, loadInst, restorePanelFocus]);
 
   useEffect(() => {
     return eventBus.on('instrument-editor:audition', ({ note }) => {
@@ -350,7 +360,6 @@ function DesktopInstrumentEditor({
     const { next: source, ok } = replaceInstLine(getSource(), selected, next, fieldOrder);
     if (ok) {
       applySource(source);
-      // setValue clears decorations — refresh highlight without stealing panel focus.
       revealInst(selected, { focus: false, reveal: false });
     }
   }, [applySource, chip, fieldOrder, getSource, revealInst, selected, selectedLocal]);
@@ -372,7 +381,8 @@ function DesktopInstrumentEditor({
     setSelected(name);
     setDraft(parseInstrumentBody(body));
     setErrors([]);
-    revealInst(name, { focus: true, reveal: true });
+    revealInst(name, { focus: false, reveal: true });
+    restorePanelFocus();
   };
 
   const onDuplicate = () => {
@@ -386,7 +396,8 @@ function DesktopInstrumentEditor({
     );
     applySource(next);
     setSelected(name);
-    revealInst(name, { focus: true, reveal: true });
+    revealInst(name, { focus: false, reveal: true });
+    restorePanelFocus();
   };
 
   const onDelete = () => {
@@ -439,7 +450,8 @@ function DesktopInstrumentEditor({
     applySource(next);
     setSelected(nextName);
     closeRename();
-    revealInst(nextName, { focus: true, reveal: true });
+    revealInst(nextName, { focus: false, reveal: true });
+    restorePanelFocus();
   };
 
   useEffect(() => {
@@ -513,7 +525,8 @@ function DesktopInstrumentEditor({
     );
     applySource(next);
     setSelected(name);
-    revealInst(name, { focus: true, reveal: true });
+    revealInst(name, { focus: false, reveal: true });
+    restorePanelFocus();
   };
 
   const playNote = (note: string) => {
@@ -534,9 +547,7 @@ function DesktopInstrumentEditor({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA')) return;
-      if (!bodyRef.current?.closest('.bb-right-tab-content--active')) return;
+      if (!shouldHandleInstrumentPreviewKey(e, bodyRef.current)) return;
       const key = e.key.toLowerCase();
       if (key === 'z' || key === 'x') {
         if (e.type === 'keydown' && !e.repeat) {
@@ -683,7 +694,11 @@ function DesktopInstrumentEditor({
   const siblingPeriod = Number(formatInstrumentFieldValue('env_period', draft.env_period));
 
   return (
-    <div className={`bb-inst-editor${renameOpen ? ' is-dialog-open' : ''}`} ref={bodyRef}>
+    <div
+      className={`bb-inst-editor${renameOpen ? ' is-dialog-open' : ''}`}
+      ref={bodyRef}
+      tabIndex={-1}
+    >
       <div className="bb-inst-editor__toolbar" role="toolbar" aria-label="Instrument actions">
         <button
           type="button"
@@ -829,7 +844,9 @@ function DesktopInstrumentEditor({
             onChange={(e) => {
               const name = e.target.value;
               if (!name) return;
-              loadInst(name, ast, { focus: true });
+              loadInst(name, ast, { reveal: true, focus: false });
+              e.currentTarget.blur();
+              restorePanelFocus();
             }}
           >
             {!pickerNames.length ? <option value="">No instruments</option> : null}
@@ -1079,6 +1096,45 @@ function CtrlPair({
   );
 }
 
+/** Same label+control column as {@link CtrlPair} so icon buttons sit on the input baseline. */
+function CtrlPairAction({ children }: { children: ReactNode }): React.JSX.Element {
+  return (
+    <div className="bb-inst-editor__ctrl-pair bb-inst-editor__ctrl-pair--action">
+      <span className="bb-inst-editor__ctrl-pair-label" aria-hidden="true">&nbsp;</span>
+      {children}
+    </div>
+  );
+}
+
+/** Defined tabs and remaining Add chips on one row. */
+function MacroChipStrip({
+  tablistLabel,
+  tabs,
+  addGroupLabel,
+  addButtons,
+}: {
+  tablistLabel: string;
+  tabs?: ReactNode;
+  addGroupLabel?: string;
+  addButtons?: ReactNode;
+}): React.JSX.Element | null {
+  if (!tabs && !addButtons) return null;
+  return (
+    <div className="bb-inst-editor__macro-strip">
+      {tabs ? (
+        <div className="bb-inst-editor__macro-tabs" role="tablist" aria-label={tablistLabel}>
+          {tabs}
+        </div>
+      ) : null}
+      {addButtons ? (
+        <div className="bb-inst-editor__macro-add" role="group" aria-label={addGroupLabel}>
+          {addButtons}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function PropertiesFieldsTabs({
   voiceFields,
   defaultFields,
@@ -1232,49 +1288,47 @@ function HardwareEnvSweepSection({
     <div className="bb-inst-editor__hw-section">
       <div className="bb-inst-editor__macros-header">
         <SectionHeading>Hardware</SectionHeading>
-        {available.length ? (
-          <div className="bb-inst-editor__macro-add" role="group" aria-label="Add hardware envelope or sweep">
-            {available.map((item) => (
+        <MacroChipStrip
+          tablistLabel="Hardware envelope and sweep"
+          tabs={defined.length ? defined.map((item) => {
+            const selected = item.id === active?.id;
+            return (
               <button
                 key={item.id}
                 type="button"
-                className="bb-inst-editor__macro-add-btn"
-                disabled={disabled}
-                title={disabled ? undefined : `Add ${item.label}`}
-                aria-label={`Add ${item.label}`}
-                onClick={() => {
-                  if (disabled) return;
-                  if (item.id === 'envelope') addEnvelope();
-                  else addSweep();
-                }}
+                role="tab"
+                aria-selected={selected}
+                className={`bb-inst-editor__macro-tab${selected ? ' is-active' : ''}`}
+                onClick={() => setActiveId(item.id)}
               >
-                <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
-                <span>{item.label}</span>
+                {item.label}
               </button>
-            ))}
-          </div>
-        ) : null}
+            );
+          }) : undefined}
+          addGroupLabel="Add hardware envelope or sweep"
+          addButtons={available.length ? available.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="bb-inst-editor__macro-add-btn"
+              disabled={disabled}
+              title={disabled ? undefined : `Add ${item.label}`}
+              aria-label={`Add ${item.label}`}
+              onClick={() => {
+                if (disabled) return;
+                if (item.id === 'envelope') addEnvelope();
+                else addSweep();
+              }}
+            >
+              <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
+              <span>{item.label}</span>
+            </button>
+          )) : undefined}
+        />
       </div>
 
       {defined.length && active ? (
         <div className="bb-inst-editor__macro-panel">
-          <div className="bb-inst-editor__macro-tabs" role="tablist" aria-label="Hardware envelope and sweep">
-            {defined.map((item) => {
-              const selected = item.id === active.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  className={`bb-inst-editor__macro-tab${selected ? ' is-active' : ''}`}
-                  onClick={() => setActiveId(item.id)}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
           {active.id === 'envelope' && envelope ? (
             <EnvelopeEditor
               hint={envelope.hint}
@@ -1301,13 +1355,7 @@ function HardwareEnvSweepSection({
             />
           ) : null}
         </div>
-      ) : (
-        <NoteText>
-          {available.length
-            ? `No hardware ${available.map((a) => a.label.toLowerCase()).join(' or ')} yet.`
-            : 'No hardware envelope or sweep.'}
-        </NoteText>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -1433,15 +1481,17 @@ function EnvelopeEditor({
           />
         </CtrlPair>
         {onRemove ? (
-          <button
-            type="button"
-            className="bb-settings-btn-secondary bb-inst-editor__macro-remove"
-            title="Remove envelope"
-            aria-label="Remove envelope"
-            onClick={onRemove}
-          >
-            <span dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }} />
-          </button>
+          <CtrlPairAction>
+            <button
+              type="button"
+              className="bb-settings-btn-secondary bb-inst-editor__macro-remove"
+              title="Remove envelope"
+              aria-label="Remove envelope"
+              onClick={onRemove}
+            >
+              <span dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }} />
+            </button>
+          </CtrlPairAction>
         ) : null}
       </div>
       <ShapePreviewCanvas levels={preview} maxLevel={15} />
@@ -1550,15 +1600,17 @@ function SweepEditor({
           />
         </CtrlPair>
         {onRemove ? (
-          <button
-            type="button"
-            className="bb-settings-btn-secondary bb-inst-editor__macro-remove"
-            title="Remove sweep"
-            aria-label="Remove sweep"
-            onClick={onRemove}
-          >
-            <span dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }} />
-          </button>
+          <CtrlPairAction>
+            <button
+              type="button"
+              className="bb-settings-btn-secondary bb-inst-editor__macro-remove"
+              title="Remove sweep"
+              aria-label="Remove sweep"
+              onClick={onRemove}
+            >
+              <span dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }} />
+            </button>
+          </CtrlPairAction>
         ) : null}
       </div>
       <ShapePreviewCanvas
@@ -1755,7 +1807,6 @@ function MacroSection({
 
   if (!macros.length) return null;
 
-  const supportedLabels = macros.map((m) => m.label).join(', ');
   const active = defined.find((m) => m.name === activeName) ?? defined[0] ?? null;
   const activeParsed = active ? parseMacro(draft[active.name]) : null;
 
@@ -1763,56 +1814,54 @@ function MacroSection({
     <div className="bb-inst-editor__macros">
       <div className="bb-inst-editor__macros-header">
         <SectionHeading>Macros</SectionHeading>
-        {available.length ? (
-          <div className="bb-inst-editor__macro-add" role="group" aria-label="Add macro">
-            {available.map((macro) => (
+        <MacroChipStrip
+          tablistLabel="Defined macros"
+          tabs={defined.length ? defined.map((macro) => {
+            const selected = macro.name === active?.name;
+            return (
               <button
                 key={macro.name}
                 type="button"
-                className="bb-inst-editor__macro-add-btn"
-                title={
-                  disabled
-                    ? (lockReason ?? `Add ${macro.label} macro`)
-                    : `Add ${macro.label} macro`
-                }
-                aria-label={`Add ${macro.label} macro`}
-                disabled={disabled}
-                onClick={() => {
-                  if (disabled) return;
-                  onChange(macro.name, defaultMacroExample(macro));
-                  setActiveName(macro.name);
-                }}
+                role="tab"
+                aria-selected={selected}
+                className={`bb-inst-editor__macro-tab${selected ? ' is-active' : ''}`}
+                onClick={() => setActiveName(macro.name)}
               >
-                <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
-                <span>{macro.label}</span>
+                {macro.label}
+                {macro.kind === 'hardware' ? <span className="bb-inst-editor__macro-hw">hw</span> : null}
               </button>
-            ))}
-          </div>
-        ) : null}
+            );
+          }) : undefined}
+          addGroupLabel="Add macro"
+          addButtons={available.length ? available.map((macro) => (
+            <button
+              key={macro.name}
+              type="button"
+              className="bb-inst-editor__macro-add-btn"
+              title={
+                disabled
+                  ? (lockReason ?? `Add ${macro.label} macro`)
+                  : `Add ${macro.label} macro`
+              }
+              aria-label={`Add ${macro.label} macro`}
+              disabled={disabled}
+              onClick={() => {
+                if (disabled) return;
+                onChange(macro.name, defaultMacroExample(macro));
+                setActiveName(macro.name);
+              }}
+            >
+              <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
+              <span>{macro.label}</span>
+            </button>
+          )) : undefined}
+        />
       </div>
 
       {lockReason ? <NoteText>{lockReason}</NoteText> : null}
 
       {defined.length && active && activeParsed ? (
         <div className="bb-inst-editor__macro-panel">
-          <div className="bb-inst-editor__macro-tabs" role="tablist" aria-label="Defined macros">
-            {defined.map((macro) => {
-              const selected = macro.name === active.name;
-              return (
-                <button
-                  key={macro.name}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  className={`bb-inst-editor__macro-tab${selected ? ' is-active' : ''}`}
-                  onClick={() => setActiveName(macro.name)}
-                >
-                  {macro.label}
-                  {macro.kind === 'hardware' ? <span className="bb-inst-editor__macro-hw">hw</span> : null}
-                </button>
-              );
-            })}
-          </div>
           <MacroRow
             def={active}
             values={activeParsed.values}
@@ -1828,12 +1877,6 @@ function MacroSection({
             onRemove={disabled ? undefined : () => onChange(active.name, undefined)}
           />
         </div>
-      ) : !lockReason ? (
-        <NoteText>
-          {available.length
-            ? `No macros defined yet. Supported on this type: ${supportedLabels}.`
-            : 'No macros defined.'}
-        </NoteText>
       ) : null}
     </div>
   );
@@ -1936,15 +1979,17 @@ function MacroRow({
             </CtrlPair>
           ) : null}
           {onRemove ? (
-            <button
-              type="button"
-              className="bb-settings-btn-secondary bb-inst-editor__macro-remove"
-              title={`Remove ${def.label} macro`}
-              aria-label={`Remove ${def.label} macro`}
-              onClick={onRemove}
-            >
-              <span dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }} />
-            </button>
+            <CtrlPairAction>
+              <button
+                type="button"
+                className="bb-settings-btn-secondary bb-inst-editor__macro-remove"
+                title={`Remove ${def.label} macro`}
+                aria-label={`Remove ${def.label} macro`}
+                onClick={onRemove}
+              >
+                <span dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }} />
+              </button>
+            </CtrlPairAction>
           ) : null}
         </div>
         {def.hint ? <NoteText>{def.hint}</NoteText> : null}

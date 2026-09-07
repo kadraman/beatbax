@@ -6,7 +6,7 @@ status: "in-progress"
 authors:
   - "kadraman"
 created: "2026-08-15"
-updated: "2026-09-03"
+updated: "2026-09-07"
 issue: "https://github.com/kadraman/beatbax/issues/169"
 area: "desktop"
 related:
@@ -207,7 +207,7 @@ Waveform drawing writes `wave=` as a 32-entry array (preferred) or a 32-nibble h
 ### Example usage
 
 1. User opens a Game Boy song and enables **Instruments** (View menu or Panels dropdown).
-2. Choosing `bass` in the Instrument dropdown (or **Show in editor**) reveals that `inst` line in Monaco.
+2. Choosing `bass` in the Instrument dropdown reveals and highlights that `inst` line in Monaco without moving keyboard focus; **Show in editor** also focuses the line.
 3. User draws a triangle-like wavetable, sets volume to 100%, and holds C2 on the mini keyboard to preview.
 4. User adds a `vol_env` decay graph. The `inst` line is rewritten at `__loc`.
 5. User clicks **New**, picks the plugin preset “Pluck lead”, renames it, and copies macros from `wah`.
@@ -220,7 +220,7 @@ New right-pane tab **Instruments**, same chrome as Help / Visualizer / Copilot (
 
 - View menu + Panels dropdown toggle (`group: 'side'`)
 - Feature flag `INSTRUMENT_EDITOR` (Experimental, default **off**), matching Pattern Grid
-- CodeLens **Edit** on an `inst` line opens the tab, selects that instrument, and reveals the line; Monaco cursor motion does not drive selection/reveal
+- CodeLens **Edit** on an `inst` line opens the tab, selects that instrument, and reveals the line without focusing Monaco; Monaco cursor motion does not drive selection/reveal
 - Toolbar **Show in editor** and the Instrument dropdown also reveal/highlight the selected definition
 
 Layout (top → bottom):
@@ -260,7 +260,7 @@ Layout (top → bottom):
 2. **Template picker** — plugin presets + copy from another song instrument.
 3. **Type + chip fields** — Name and Type stay always visible. Remaining scalar fields use **Voice** / **Defaults** tabs (same tab chrome as Hardware/Macros): Voice holds type-gated chip controls (duty, width, volume, sample, …); Defaults holds Default note, GM program, and UGE note. Hidden fields follow `whenType`. Hardware `env` / `sweep` use a separate **Hardware** section with dedicated `envelope` / `sweep` widgets (parametric controls + live shape preview), not freehand text.
 4. **Visual waveform** — only if the schema defines `waveform` and the current type matches. hUGE-style draw canvas: nibble bars, editable hex paste field, shape presets. Audition via the Preview keyboard / MIDI strip (no play-while-drawing).
-5. **Macro graphs** — defined macros appear as tabs (one graph visible at a time); click/drag (Shift-drag line) to paint values; signed macros show a zero baseline and polyline overlay; loop marker (`|n`); empty sequence omits the field. Undefined macros appear as Add chips.
+5. **Macro graphs** — defined macros appear as tabs on the same row as dashed **Add** chips for remaining macros (one graph visible at a time); click/drag (Shift-drag line) to paint values; signed macros show a zero baseline and polyline overlay; loop marker (`|n`); empty sequence omits the field.
 6. **Preview bar** — mini piano (ships the virtual-keyboard idea in this panel), hold-to-play, existing MIDI input when enabled, plus a compact MIDI enable/device strip (shared with Settings).
 
 Constraint notes from the plugin (AY global envelope, SMS attenuation direction, NES triangle volume) appear as inline hints when they warn about behaviour that is not obvious from the control itself. Facts already encoded in the widget (e.g. Game Boy wave `volume` steps `0`/`25`/`50`/`100`) use the field `hint` (panel tooltip) and chip `hoverDocs` / Monaco hover instead of a permanent note.
@@ -270,9 +270,9 @@ Constraint notes from the plugin (AY global envelope, SMS attenuation direction,
 
 | Action                      | Behaviour                                                                                                                                       |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Instrument dropdown         | Load that instrument; reveal and highlight its `inst` line in Monaco                                                                            |
-| Show in editor (toolbar)    | Reveal and focus the selected instrument’s `inst` line without changing fields                                                                  |
-| CodeLens **Edit** on `inst` | Open the Instruments tab, select that instrument, and reveal its line                                                                           |
+| Instrument dropdown         | Load that instrument; reveal and highlight its `inst` line in Monaco **without focusing the editor**. Keyboard focus returns to the panel so A–J / Z/X preview immediately. |
+| Show in editor (toolbar)    | Reveal and **focus** the selected instrument’s `inst` line without changing fields (the explicit way to type in source)                         |
+| CodeLens **Edit** on `inst` | Open the Instruments tab, select that instrument, reveal its line, and keep keyboard focus on the panel                                         |
 | Cursor in Monaco            | Does **not** change Instrument Editor selection or scroll (avoids jerky text selection)                                                         |
 | New                         | Insert a new `inst` line from the default plugin preset for the current type                                                                    |
 | Duplicate                   | Copy fields to a unique name (`lead2`, …) and insert after the original                                                                         |
@@ -288,8 +288,8 @@ Imported instruments (`import "local:…"` / remote) are listed read-only in v1,
 
 Game Boy / NES hardware envelopes are **parametric** (not freehand step sequences). Envelope and sweep share one **Hardware** section (same pattern as macros):
 
-- Dashed **Add** chips for undefined fields (`+ Envelope`, `+ Sweep`)
-- Tabs to switch between defined fields; compact Level/Dir/Period or Time/Dir/Shift controls; trash removes the active field
+- Dashed **Add** chips for undefined fields (`+ Envelope`, `+ Sweep`) share one row with tabs for defined fields
+- Compact Level/Dir/Period or Time/Dir/Shift controls; trash removes the active field
 - Live ramp / trajectory preview canvas
 - GB packs period into `env=` CSV; NES keeps `env_period=` as a sibling (edited in the envelope control row)
 - NES continues to use discrete `sweep_*` bool/int/enum fields outside this section when present
@@ -330,7 +330,7 @@ Per defined macro (selected via tabs when more than one is present):
 - Loop marker at index `n` writes `|n`; no marker omits the pipe
 - Empty sequence removes the field from the `inst` line
 - Hardware macros show the plugin `hint` (AY `vol_env` is global R11–R13; SMS `vol_env` is attenuation)
-- Add chips create a new macro and switch to its tab
+- Add chips sit on the same row as defined-macro tabs and create a new macro (then switch to its tab)
 
 Supported in v1 via schema (not a host hardcode):
 
@@ -369,7 +369,7 @@ Preview must use the same engine path as CodeLens (`[startInstNotePreview](../..
 | Input                    | Behaviour                                                                                                                                          |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Mini-keyboard click/hold | Note-on with sustain until release (`stopInstPreview`); long safety timeout                                                                      |
-| Computer-key mapping     | Same as mini-keyboard (hold-to-play); Z/X change octave                                                                                          |
+| Computer-key mapping     | Same as mini-keyboard (hold-to-play); Z/X change octave. Applies while the Instruments tab is active and focus is not in a panel field or Monaco. Selecting an instrument from the dropdown restores panel focus so preview keys do not type into source. |
 | MIDI note-on / note-off  | Same sustain preview when Instruments tab is focused (`midi-step-entry-controller.ts`)                                                           |
 | CodeLens note buttons    | ≈2 s oneshot (unchanged)                                                                                                                         |
 | Play-while-drawing       | Retrigger last preview pitch (default C4)                                                                                                          |
@@ -388,7 +388,7 @@ This panel is the first ship vehicle for the mini keyboard described in `[virtua
 `.bax` text remains the source of truth. The panel is a structured editor over one `inst` statement.
 
 - Parser already stores `props.__loc` on each instrument (`[parseInstRhs](../../packages/engine/src/parser/peggy/index.ts)`).
-- Writeback replaces that line (or the statement range) in Monaco.
+- Writeback replaces that line (or the statement range) in Monaco as an **undoable** edit (`executeEdits`, not `setValue`). Undo/Redo (toolbar, Edit menu, Ctrl/Cmd+Z) restores the previous `inst` line, so adding or removing an Envelope, Sweep, or macro tab is reversible. The panel resyncs from the parsed AST after undo.
 - Preserve trailing comments on the same line.
 - Pretty-print: human `env=12,down` rather than JSON objects when equivalent; arrays as `[0,1,2,…]`; macros as `[15,12,8,4]` or `[0,4,7|0]`.
 - **Write-valid-only (v1):** run `validateInstrument` before writeback. Invalid edits stay in panel state, show plugin messages, and do not touch source until valid.

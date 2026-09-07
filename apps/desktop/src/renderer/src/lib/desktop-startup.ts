@@ -18,6 +18,8 @@ function isMenuAction(value: string): value is MenuAction {
     'playback:stop',
     'edit:find',
     'edit:replace',
+    'edit:undo',
+    'edit:redo',
     'view:command-palette',
     'view:toggle-output',
     'view:toggle-problems',

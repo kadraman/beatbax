@@ -107,8 +107,8 @@ function buildMacEditMenu(handlers: AppMenuHandlers): MenuItemConstructorOptions
   return {
     label: 'Edit',
     submenu: [
-      { role: 'undo' },
-      { role: 'redo' },
+      { label: 'Undo', accelerator: accel('edit.undo'), click: () => sendMenuAction(handlers, 'edit:undo') },
+      { label: 'Redo', accelerator: 'Cmd+Shift+Z', click: () => sendMenuAction(handlers, 'edit:redo') },
       { type: 'separator' },
       { role: 'cut' },
       { role: 'copy' },

@@ -15,3 +15,6 @@
 - [x] T009 Tests: schema, serialize round-trip, panel units.
 - [x] T010 Plugin author docs + Help blurb.
 - [x] T011 Hardware `envelope` / `sweep` widgets + live previews; macro tabs with click/drag paint and signed baselines.
+- [x] T012 Instrument dropdown / New / CodeLens reveal the `inst` line without focusing Monaco; restore panel focus so A–J preview. **Show in editor** remains the focus-source action.
+- [x] T013 Hardware and Macros: defined tabs and remaining Add chips share one row.
+- [x] T014 Instrument Editor writeback uses undoable Monaco edits so Add Envelope/Sweep/macro can be undone.

@@ -1,7 +1,7 @@
 import { countValidationWarningBadge } from '@beatbax/app-core/types/validation';
 import type { AppContext, ParsePipelineHooks } from '@beatbax/app-core';
 import { isParseSuccessValid } from '@beatbax/app-core/parse/parse-validity';
-import { insertHelpSnippetBlock, type BeatBaxEditor } from '@beatbax/app-core/editor';
+import { insertHelpSnippetBlock, applyUndoableReplace, type BeatBaxEditor } from '@beatbax/app-core/editor';
 import { triggerInstNotePreview, stopInstPreview } from '@beatbax/app-core/editor/codelens-preview';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import { loadExampleSong } from './load-example-song';
@@ -386,12 +386,12 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       eventBus,
       getSource: () => getEditor()?.getValue() ?? '',
       applySource: (next) => {
-        const editor = getEditor();
-        if (!editor) return;
-        editor.setValue(next);
+        const monacoEditor = getEditor()?.editor;
+        if (!monacoEditor) return;
+        applyUndoableReplace(monacoEditor, 'instrument-editor', next);
       },
       revealInst: (name, opts) => {
-        // setValue clears decorations — defer so the model is updated first.
+        // Writeback is undoable executeEdits — refresh the highlight after the model updates.
         queueMicrotask(() => {
           instrumentEditorNav.sync(name, {
             focus: opts?.focus === true,
@@ -1194,6 +1194,12 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         break;
       case 'edit:replace':
         monacoInst()?.trigger('menu', 'editor.action.startFindReplaceAction', null);
+        break;
+      case 'edit:undo':
+        monacoInst()?.trigger('menu', 'undo', null);
+        break;
+      case 'edit:redo':
+        monacoInst()?.trigger('menu', 'redo', null);
         break;
       case 'view:command-palette':
         monacoInst()?.focus();
