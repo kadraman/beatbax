@@ -44,6 +44,7 @@ export type {
 
 export { registerBeatBaxLanguage, registerNoteEditCommands, transposeCurrentNote } from './beatbax-language.js';
 export { insertHelpSnippetBlock } from './help-snippet-insertion.js';
+export { applyUndoableReplace } from './undoable-replace.js';
 
 export {
   fieldApplies,

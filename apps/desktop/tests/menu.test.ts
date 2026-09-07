@@ -92,6 +92,26 @@ describe('desktop native menu', () => {
     expect(mockWindow.webContents.send).not.toHaveBeenCalled();
   });
 
+  it('routes macOS Edit Undo/Redo to Monaco instead of Chromium native undo', () => {
+    if (!isMac) return;
+
+    const template = createMenuTemplate([], handlers());
+    const editMenu = findTopLevelMenu(template, 'Edit').submenu as MenuItemConstructorOptions[];
+    const undo = editMenu.find((item) => item.label === 'Undo')!;
+    const redo = editMenu.find((item) => item.label === 'Redo')!;
+
+    expect(undo.role).toBeUndefined();
+    expect(redo.role).toBeUndefined();
+    expect(undo.accelerator).toBe('CmdOrCtrl+Z');
+    expect(redo.accelerator).toBe('Cmd+Shift+Z');
+
+    undo.click?.({} as any, mockWindow, {} as any);
+    redo.click?.({} as any, mockWindow, {} as any);
+
+    expect(onMenuAction).toHaveBeenCalledWith('edit:undo');
+    expect(onMenuAction).toHaveBeenCalledWith('edit:redo');
+  });
+
   it('includes Auto Save as a checkbox in the File menu', () => {
     const template = createMenuTemplate([], handlers(), {
       ...DEFAULT_NATIVE_MENU_CHECK_STATE,

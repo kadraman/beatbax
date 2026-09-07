@@ -8715,6 +8715,9 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   font-size: 12px;
   color: var(--bb-fg, #d4d4d4);
 }
+.bb-inst-editor:focus {
+  outline: none;
+}
 .bb-inst-editor.is-dialog-open .bb-inst-editor__body {
   /* Avoid a body scrollbar stealing width while the rename dialog is up. */
   overflow: hidden;
@@ -9090,26 +9093,45 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-inst-editor__macros-header {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: stretch;
+  gap: 6px;
 }
 .bb-inst-editor__macros-header .bb-settings-heading {
   margin: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.bb-inst-editor__macro-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+  width: 100%;
+}
+.bb-inst-editor__macro-strip .bb-inst-editor__macro-tabs,
+.bb-inst-editor__macro-strip .bb-inst-editor__macro-add {
+  /* Flatten so defined tabs and Add chips wrap as one row of chips. */
+  display: contents;
 }
 .bb-inst-editor__macro-add {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 4px;
 }
 .bb-inst-editor__macro-add-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 24px;
   padding: 3px 8px;
   border: 1px dashed #555;
   border-radius: 3px;
   background: transparent;
   color: #bbb;
   font-size: 11px;
+  line-height: 1.2;
   cursor: pointer;
 }
 .bb-inst-editor__macro-add-btn:hover:not(:disabled) {
@@ -9134,18 +9156,21 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-inst-editor__macro-tabs {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
 }
 .bb-inst-editor__macro-tab {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  min-height: 24px;
+  padding: 3px 10px;
   border: 1px solid #444;
   border-radius: 3px;
   background: #1e1e1e;
   color: #bbb;
   font-size: 11px;
+  line-height: 1.2;
   cursor: pointer;
 }
 .bb-inst-editor__macro-tab:hover {
@@ -9196,29 +9221,49 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-inst-editor__ctrl-pair {
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 3px;
   min-width: 0;
   flex: 0 0 auto;
+  margin: 0;
 }
 .bb-inst-editor__ctrl-pair.is-disabled {
   opacity: 0.55;
 }
 .bb-inst-editor__ctrl-pair-label {
+  display: block;
+  height: 14px;
   font-size: 11px;
-  line-height: 1.2;
+  line-height: 14px;
   color: #bbb;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
+.bb-inst-editor__ctrl-pair .bb-settings-number,
+.bb-inst-editor__ctrl-pair .bb-settings-select,
+.bb-inst-editor__macro-remove {
+  box-sizing: border-box;
+  height: 26px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 24px;
+}
 .bb-inst-editor__ctrl-pair .bb-settings-number {
   width: 3.25rem;
+  padding: 0 6px;
 }
 .bb-inst-editor__ctrl-pair .bb-settings-select,
 .bb-inst-editor__ctrl-pair .bb-inst-editor__hw-dir {
   width: auto;
   min-width: 4.5rem;
-  font-size: 12px;
-  padding: 4px 6px;
+  padding: 0 22px 0 8px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #2d2d2d;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23ccc' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 10px 6px;
 }
 .bb-inst-editor__props-panel {
   display: flex;
@@ -9237,10 +9282,8 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  margin-left: 0;
-  padding: 4px 6px;
-  min-width: 0;
-  align-self: flex-end;
+  width: 26px;
+  padding: 0;
 }
 .bb-inst-editor__macro-remove svg {
   display: block;
@@ -9469,6 +9512,11 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 }
 [data-theme="light"] .bb-inst-editor__ctrl-pair-label {
   color: #666;
+}
+[data-theme="light"] .bb-inst-editor__ctrl-pair .bb-settings-select,
+[data-theme="light"] .bb-inst-editor__ctrl-pair .bb-inst-editor__hw-dir {
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23666' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
 }
 [data-theme="light"] .bb-inst-editor__picker { border-bottom-color: #ddd; }
 [data-theme="light"] .bb-inst-editor__wave-canvas { background: #f3f3f3; border-color: #ccc; }
