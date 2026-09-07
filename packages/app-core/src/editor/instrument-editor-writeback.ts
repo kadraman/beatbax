@@ -110,7 +110,7 @@ function escapeRegExp(value: string): string {
  * Rename an `inst` definition. When `updateReferences` is true, also rewrites
  * other occurrences of that identifier in the song (channel `inst` clauses,
  * inline `inst(…)`, and bare hit-token uses). Other `inst` definition lines
- * are left unchanged.
+ * are left unchanged. Trailing / full-line comments are not rewritten.
  */
 export function renameInstrumentInSource(
   source: string,
@@ -126,26 +126,37 @@ export function renameInstrumentInSource(
 
   const esc = escapeRegExp(oldName);
   const lines = source.split(/\r?\n/);
-  lines[idx] = lines[idx].replace(new RegExp(`^(\\s*inst\\s+)${esc}\\b`), `$1${newName}`);
+  const { code: defCode, comment: defComment } = splitTrailingComment(lines[idx]);
+  const nextDef = defCode.replace(new RegExp(`^(\\s*inst\\s+)${esc}\\b`), `$1${newName}`);
+  lines[idx] = defComment ? `${nextDef} ${defComment}` : nextDef;
 
   if (options?.updateReferences) {
     const tokenRe = new RegExp(`\\b${esc}\\b`, 'g');
     for (let i = 0; i < lines.length; i++) {
       if (i === idx) continue;
       if (/^\s*inst\s+/.test(lines[i])) continue;
-      lines[i] = lines[i].replace(tokenRe, newName);
+      const { code, comment } = splitTrailingComment(lines[i]);
+      if (!code) continue; // full-line comment — leave unchanged
+      const nextCode = code.replace(tokenRe, newName);
+      lines[i] = comment ? `${nextCode} ${comment}` : nextCode;
     }
   }
 
   return { next: lines.join('\n'), ok: true };
 }
 
+/**
+ * True when `name` appears outside `inst` definition lines (channel `inst`
+ * clauses, inline `inst(…)`, or bare hit-token uses in pat/subpat bodies).
+ * Comment text is ignored.
+ */
 export function instIsReferenced(source: string, name: string): boolean {
-  const re = new RegExp(`\\binst(?:\\s+|\\()${escapeRegExp(name)}\\b`);
-  const lines = source.split(/\r?\n/);
-  for (const line of lines) {
+  if (!name) return false;
+  const tokenRe = new RegExp(`\\b${escapeRegExp(name)}\\b`);
+  for (const line of source.split(/\r?\n/)) {
     if (/^\s*inst\s+/.test(line)) continue;
-    if (re.test(line)) return true;
+    const { code } = splitTrailingComment(line);
+    if (code && tokenRe.test(code)) return true;
   }
   return false;
 }

@@ -24,7 +24,7 @@ jest.mock('../src/utils/local-storage', () => ({
 import { getCapabilities } from '../src/client-profile';
 import { FeatureFlag, setFeatureEnabled } from '../src/utils/feature-flags';
 import { isInstrumentEditorAllowed, shouldShowInstrumentEditor } from '../src/utils/instrument-editor-panel';
-import { uniqueInstName, splitTrailingComment, collectLocalInstNames, insertInstLine, deleteInstLine, renameInstrumentInSource } from '../src/editor/instrument-editor-writeback';
+import { uniqueInstName, splitTrailingComment, collectLocalInstNames, insertInstLine, deleteInstLine, renameInstrumentInSource, instIsReferenced } from '../src/editor/instrument-editor-writeback';
 import { fieldApplies, fallbackInstrumentEditor } from '../src/editor/instrument-editor-schema';
 
 const desktop = getCapabilities('desktop-full');
@@ -101,6 +101,42 @@ describe('writeback helpers', () => {
       'pat a = inst(pluck) C4 . pluck',
       '',
     ].join('\n'));
+  });
+
+  it('does not rewrite instrument names inside comments when updating references', () => {
+    const src = [
+      'chip gameboy',
+      'inst lead type=pulse1  # was lead',
+      '# prefer lead for melody',
+      'channel 1 => inst lead seq main  # lead solo',
+      'pat a = inst(lead) C4',
+      '',
+    ].join('\n');
+    const { next, ok } = renameInstrumentInSource(src, 'lead', 'pluck', { updateReferences: true });
+    expect(ok).toBe(true);
+    expect(next).toBe([
+      'chip gameboy',
+      'inst pluck type=pulse1 # was lead',
+      '# prefer lead for melody',
+      'channel 1 => inst pluck seq main # lead solo',
+      'pat a = inst(pluck) C4',
+      '',
+    ].join('\n'));
+  });
+
+  it('detects channel, inline, and bare hit-token references', () => {
+    const base = [
+      'chip gameboy',
+      'inst lead type=pulse1',
+      'inst snare type=noise',
+      '',
+    ].join('\n');
+    expect(instIsReferenced(base, 'lead')).toBe(false);
+    expect(instIsReferenced(`${base}channel 1 => inst lead seq main\n`, 'lead')).toBe(true);
+    expect(instIsReferenced(`${base}pat a = inst(lead) C4\n`, 'lead')).toBe(true);
+    expect(instIsReferenced(`${base}pat drums = kick . snare . kick\n`, 'snare')).toBe(true);
+    expect(instIsReferenced(`${base}# snare fills\npat a = C4\n`, 'snare')).toBe(false);
+    expect(instIsReferenced(`${base}pat a = C4  # snare later\n`, 'snare')).toBe(false);
   });
 });
 
