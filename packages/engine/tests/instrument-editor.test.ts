@@ -113,10 +113,28 @@ describe('chip instrumentEditor schemas', () => {
     const gbEnv = gameboyPlugin.instrumentEditor?.fields.find((f) => f.name === 'env');
     const gbSweep = gameboyPlugin.instrumentEditor?.fields.find((f) => f.name === 'sweep');
     const nesEnv = nesPlugin.instrumentEditor?.fields.find((f) => f.name === 'env');
+    const nesSweep = nesPlugin.instrumentEditor?.fields.find((f) => f.name === 'sweep');
     expect(gbEnv?.widget).toBe('envelope');
     expect(gbSweep?.widget).toBe('sweep');
+    expect(gbSweep?.storage).toBeUndefined();
     expect(nesEnv?.widget).toBe('envelope');
+    expect(nesEnv?.storage).toBe('discrete');
+    expect(nesSweep?.widget).toBe('sweep');
+    expect(nesSweep?.storage).toBe('discrete');
     expect(gameboyPlugin.instrumentEditor?.macros.some((m) => m.name === 'vol_env')).toBe(true);
     expect(nesPlugin.instrumentEditor?.macros.some((m) => m.signed)).toBe(true);
+  });
+
+  it('aligns NES schema fields with validateInstrument language names', () => {
+    const names = new Set(nesPlugin.instrumentEditor?.fields.map((f) => f.name));
+    expect(names.has('dmc_sample')).toBe(true);
+    expect(names.has('sample')).toBe(false);
+    expect(names.has('linear')).toBe(true);
+    expect(names.has('noise_mode')).toBe(true);
+    expect(names.has('noise_period')).toBe(true);
+    expect(names.has('dmc_rate')).toBe(true);
+    expect(names.has('dmc_loop')).toBe(true);
+    expect(names.has('dmc_level')).toBe(true);
+    expect(names.has('sweep_en')).toBe(false);
   });
 });
