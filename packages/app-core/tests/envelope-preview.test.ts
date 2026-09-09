@@ -1,6 +1,8 @@
 import {
   formatHardwareEnvelope,
   formatHardwareSweep,
+  discreteSweepPatchFromCsv,
+  discreteSweepValueFromDraft,
   parseHardwareEnvelope,
   parseHardwareSweep,
   simulateGBEnvelope,
@@ -87,6 +89,44 @@ describe('parseHardwareSweep / simulateHardwareSweep', () => {
     const steps = simulateHardwareSweep({ time: 1, direction: 'down', shift: 1 }, 3, 1000);
     expect(steps[0]).toBe(1);
     expect(steps[1]).toBeLessThan(1);
+  });
+});
+
+describe('discrete NES sweep storage', () => {
+  it('reads enabled sweep_* into packed CSV for the Hardware editor', () => {
+    expect(discreteSweepValueFromDraft({
+      sweep_en: 'true',
+      sweep_period: '4',
+      sweep_dir: 'up',
+      sweep_shift: '2',
+    })).toBe('4,up,2');
+    expect(discreteSweepValueFromDraft({ sweep_en: 'false' })).toBeUndefined();
+    expect(discreteSweepValueFromDraft({})).toBeUndefined();
+  });
+
+  it('writes Hardware editor CSV onto discrete sweep_* props', () => {
+    expect(discreteSweepPatchFromCsv('5,down,1')).toEqual({
+      sweep_en: 'true',
+      sweep_period: '5',
+      sweep_shift: '1',
+      sweep_dir: 'down',
+    });
+    expect(discreteSweepPatchFromCsv(undefined)).toEqual({
+      sweep_en: undefined,
+      sweep_period: undefined,
+      sweep_shift: undefined,
+      sweep_dir: undefined,
+    });
+  });
+
+  it('clamps NES period into 1–7 when packing/unpacking', () => {
+    expect(discreteSweepValueFromDraft({
+      sweep_en: true,
+      sweep_period: '0',
+      sweep_dir: 'down',
+      sweep_shift: '3',
+    })).toBe('1,down,3');
+    expect(discreteSweepPatchFromCsv('0,up,2').sweep_period).toBe('1');
   });
 });
 

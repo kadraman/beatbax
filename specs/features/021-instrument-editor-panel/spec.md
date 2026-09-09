@@ -131,7 +131,7 @@ export interface ChipInstrumentTypeDef {
   previewChannel: number;
 }
 
-export type ChipInstrumentWidget = 'enum' | 'int' | 'bool' | 'text' | 'sample';
+export type ChipInstrumentWidget = 'enum' | 'int' | 'bool' | 'text' | 'sample' | 'note' | 'uge_note' | 'envelope' | 'sweep';
 
 export interface ChipInstrumentFieldDef {
   name: string;               // 'duty' | 'env' | 'sweep' | 'volume' | …
@@ -143,6 +143,12 @@ export interface ChipInstrumentFieldDef {
   /** Show only when the instrument type matches (e.g. type=wave). */
   whenType?: string | string[];
   hint?: string;
+  /**
+   * How composite `envelope` / `sweep` widgets persist on the `inst` line.
+   * - `csv` (default): packed prop (`env=…`, `sweep=…`) — Game Boy
+   * - `discrete`: sibling props (`env`+`env_period`, or `sweep_en`/`sweep_period`/`sweep_shift`/`sweep_dir`) — NES
+   */
+  storage?: 'csv' | 'discrete';
 }
 
 export interface ChipInstrumentMacroDef {
@@ -291,10 +297,12 @@ Game Boy / NES hardware envelopes are **parametric** (not freehand step sequence
 - Dashed **Add** chips for undefined fields (`+ Envelope`, `+ Sweep`) share one row with tabs for defined fields
 - Compact Level/Dir/Period or Time/Dir/Shift controls; trash removes the active field
 - Live ramp / trajectory preview canvas
-- GB packs period into `env=` CSV; NES keeps `env_period=` as a sibling (edited in the envelope control row)
-- NES continues to use discrete `sweep_*` bool/int/enum fields outside this section when present
+- Composite widgets declare persistence via `storage` on the field def:
+  - `csv` (default): packed props — GB `env=12,down,1`, `sweep=7,down,3`
+  - `discrete`: sibling props — NES `env` + `env_period`, and NES `sweep_en` / `sweep_period` / `sweep_shift` / `sweep_dir` (Hardware Sweep tab still uses the shared Time/Dir/Shift editor; writeback never invents a packed `sweep=` for NES)
+- Plugins that omit `widget: 'sweep'` do not show a Sweep tab
 
-Source syntax is unchanged (`env=12,down,1`, `sweep=7,down,3`). Undefined fields use a dashed Add chip; defined fields use the same compact control row + trash remove as macros. Invalid strings show a reset affordance.
+Source syntax is unchanged (`env=12,down,1`, `sweep=7,down,3`, or NES `sweep_en=true sweep_period=7 …`). Undefined fields use a dashed Add chip; defined fields use the same compact control row + trash remove as macros. Invalid strings show a reset affordance.
 
 ---
 
@@ -405,7 +413,7 @@ Imported instruments: copy-into-song inserts a new local `inst` line; the import
 | Chip            | Waveform                            | Macros                                               | Notable fields                                                                       | Plugin notes                                                           |
 | --------------- | ----------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
 | Game Boy        | Yes — 32×4-bit `wave=`              | `vol_env`, `pitch_env`, `duty_env`, `arp_env`        | duty, env, sweep (pulse1), volume (wave), width, `uge_note`, `subpat` (read-only v1) | Wave `volume` is 0/25/50/100 (hint + hoverDocs)                        |
-| NES             | No                                  | `vol_env`, `duty_env`, `arp_env`, `pitch_env`        | duty, env, sweep_*, DMC `sample`                                                     | Triangle: warn that volume macros do not apply; DMC uses sample picker |
+| NES             | No                                  | `vol_env`, `duty_env`, `arp_env`, `pitch_env`        | duty, env (+`env_period`), Hardware Sweep via discrete `sweep_*`, triangle `linear`, noise `noise_mode`/`noise_period`, DMC `dmc_sample`/`dmc_rate`/`dmc_loop`/`dmc_level` | Triangle: warn that volume macros do not apply; DMC uses sample picker; `storage: 'discrete'` on env/sweep |
 | SMS             | No                                  | `vol_env`, `arp_env`, `pitch_env`, `noise_rate_env`  | vol (attenuation), noise_mode, noise_rate, gg_pan                                    | `instrumentVolumeRange.isAttenuation`                                  |
 | Spectrum / AY   | No                                  | `vol_env` (hardware, global), `arp_env`, `pitch_env` | vol, tone, tone_mix, noise_rate, env_bass                                            | Constraint: one `vol_env` / `env_bass` at a time                       |
 | SID (proposed)  | Optional pulse-width visual later   | Schema-ready                                         | waveform, pw, ADSR                                                                   | Plugin fills schema when the chip lands                                |

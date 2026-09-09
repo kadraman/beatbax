@@ -111,6 +111,62 @@ export function formatHardwareSweep(params: HardwareSweepParams): string {
   return `${time},${params.direction},${shift}`;
 }
 
+/** NES APU sweep props written by the Instrument Editor when `storage: 'discrete'`. */
+export const DISCRETE_SWEEP_PROP_NAMES = [
+  'sweep_en',
+  'sweep_period',
+  'sweep_shift',
+  'sweep_dir',
+] as const;
+
+function truthyFlag(value: unknown): boolean {
+  return value === true || value === 'true' || value === '1';
+}
+
+/**
+ * Build a packed sweep CSV from NES discrete props for the Hardware Sweep editor.
+ * Returns undefined when sweep is not enabled (Add chip shown).
+ */
+export function discreteSweepValueFromDraft(
+  draft: Record<string, unknown>,
+): string | undefined {
+  if (!truthyFlag(draft.sweep_en)) return undefined;
+  const periodRaw = Number(draft.sweep_period);
+  // NES validates sweep_period 1–7 when enabled; clamp into that range for the editor.
+  const time = Math.max(1, Math.min(7, Number.isFinite(periodRaw) ? periodRaw : 7));
+  const dirStr = String(draft.sweep_dir ?? 'down').toLowerCase();
+  const direction: SweepDirection = dirStr === 'up' ? 'up' : 'down';
+  const shiftRaw = Number(draft.sweep_shift);
+  const shift = Math.max(0, Math.min(7, Number.isFinite(shiftRaw) ? shiftRaw : 3));
+  return formatHardwareSweep({ time, direction, shift });
+}
+
+/**
+ * Map Hardware Sweep editor CSV (or clear) onto NES discrete `sweep_*` props.
+ * Cleared fields are set to `undefined` so writeback omits them.
+ */
+export function discreteSweepPatchFromCsv(
+  csv: string | undefined,
+): Record<string, string | undefined> {
+  if (csv == null || csv === '') {
+    return {
+      sweep_en: undefined,
+      sweep_period: undefined,
+      sweep_shift: undefined,
+      sweep_dir: undefined,
+    };
+  }
+  const parsed = parseHardwareSweep(csv);
+  if (!parsed) return {};
+  const time = Math.max(1, Math.min(7, Number.isFinite(parsed.time) ? parsed.time : 7));
+  return {
+    sweep_en: 'true',
+    sweep_period: String(time),
+    sweep_shift: String(parsed.shift),
+    sweep_dir: parsed.direction,
+  };
+}
+
 /**
  * Simulate a Game Boy NR5x-style hardware envelope.
  * One array entry per envelope tick (~1/64 s on GB).

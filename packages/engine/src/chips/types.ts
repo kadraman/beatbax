@@ -318,6 +318,12 @@ export interface ChipInstrumentFieldDef {
   max?: number;
   whenType?: string | string[];
   hint?: string;
+  /**
+   * How composite `envelope` / `sweep` widgets persist on the `inst` line.
+   * - `csv` (default): single packed prop (`env=12,down,1`, `sweep=7,down,3`) — Game Boy.
+   * - `discrete`: sibling props (`env`+`env_period`, or `sweep_en`/`sweep_period`/`sweep_shift`/`sweep_dir`) — NES.
+   */
+  storage?: 'csv' | 'discrete';
 }
 
 export interface ChipInstrumentMacroDef {

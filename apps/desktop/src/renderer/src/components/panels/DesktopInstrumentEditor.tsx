@@ -44,6 +44,8 @@ import {
   uniqueInstName,
 } from '@beatbax/app-core/editor/instrument-editor-writeback';
 import {
+  discreteSweepPatchFromCsv,
+  discreteSweepValueFromDraft,
   formatHardwareEnvelope,
   formatHardwareSweep,
   parseHardwareEnvelope,
@@ -255,7 +257,17 @@ function DesktopInstrumentEditor({
     ? [...instNames, selected]
     : instNames;
   const selectedLocal = selected ? localNames.has(selected) : false;
-  const fieldOrder = schema.fields.map((f) => f.name);
+  const fieldOrder = useMemo(() => {
+    const order: string[] = [];
+    for (const f of schema.fields) {
+      if (f.widget === 'sweep' && f.storage === 'discrete') {
+        order.push('sweep_en', 'sweep_period', 'sweep_shift', 'sweep_dir');
+      } else {
+        order.push(f.name);
+      }
+    }
+    return order;
+  }, [schema.fields]);
 
   const loadInst = useCallback((name: string, nextAst = ast, opts?: { focus?: boolean; reveal?: boolean }) => {
     setSelected(name);
@@ -945,25 +957,49 @@ function DesktopInstrumentEditor({
               envelope={envelopeField}
               sweep={sweepField}
               envelopeValue={envelopeField ? draft[envelopeField.name] : undefined}
-              sweepValue={sweepField ? draft[sweepField.name] : undefined}
-              periodSibling={Boolean(envelopeField && visibleFields.some((f) => f.name === 'env_period'))}
+              sweepValue={
+                sweepField
+                  ? (sweepField.storage === 'discrete'
+                    ? discreteSweepValueFromDraft(draft as Record<string, unknown>)
+                    : draft[sweepField.name])
+                  : undefined
+              }
+              periodSibling={Boolean(
+                envelopeField
+                && (envelopeField.storage === 'discrete'
+                  || visibleFields.some((f) => f.name === 'env_period')),
+              )}
               siblingPeriod={Number.isFinite(siblingPeriod) ? siblingPeriod : 0}
               disabled={!selectedLocal}
               onEnvelopeChange={(next) => {
                 if (!envelopeField) return;
-                if (next == null) patch({ [envelopeField.name]: undefined });
-                else patch({ [envelopeField.name]: next });
+                if (next == null) {
+                  const cleared: Record<string, unknown> = { [envelopeField.name]: undefined };
+                  if (envelopeField.storage === 'discrete' || visibleFields.some((f) => f.name === 'env_period')) {
+                    cleared.env_period = undefined;
+                  }
+                  patch(cleared);
+                } else {
+                  patch({ [envelopeField.name]: next });
+                }
               }}
               onSweepChange={(next) => {
                 if (!sweepField) return;
+                if (sweepField.storage === 'discrete') {
+                  patch(discreteSweepPatchFromCsv(next));
+                  return;
+                }
                 if (next == null) patch({ [sweepField.name]: undefined });
                 else patch({ [sweepField.name]: next });
               }}
               onSiblingPeriodChange={
-                envelopeField && visibleFields.some((f) => f.name === 'env_period')
+                envelopeField
+                && (envelopeField.storage === 'discrete'
+                  || visibleFields.some((f) => f.name === 'env_period'))
                   ? (p) => patch({ env_period: String(p) })
                   : undefined
               }
+              sweepPeriodMin={sweepField?.storage === 'discrete' ? 1 : 0}
             />
 
             {waveDef ? (
@@ -1227,6 +1263,7 @@ function HardwareEnvSweepSection({
   onEnvelopeChange,
   onSweepChange,
   onSiblingPeriodChange,
+  sweepPeriodMin = 0,
 }: {
   envelope?: ChipInstrumentFieldDef;
   sweep?: ChipInstrumentFieldDef;
@@ -1238,6 +1275,8 @@ function HardwareEnvSweepSection({
   onEnvelopeChange: (csv: string | undefined) => void;
   onSweepChange: (csv: string | undefined) => void;
   onSiblingPeriodChange?: (period: number) => void;
+  /** NES discrete sweep validates period 1–7; GB packed sweep allows 0–7. */
+  sweepPeriodMin?: number;
 }): React.JSX.Element | null {
   type HwTab = 'envelope' | 'sweep';
   const items = useMemo(() => {
@@ -1280,7 +1319,8 @@ function HardwareEnvSweepSection({
     setActiveId('envelope');
   };
   const addSweep = () => {
-    onSweepChange(formatHardwareSweep({ time: 7, direction: 'down', shift: 3 }));
+    const time = Math.max(sweepPeriodMin, 7);
+    onSweepChange(formatHardwareSweep({ time, direction: 'down', shift: 3 }));
     setActiveId('sweep');
   };
 
@@ -1341,7 +1381,6 @@ function HardwareEnvSweepSection({
               onSiblingPeriodChange={onSiblingPeriodChange}
               onRemove={disabled ? undefined : () => {
                 onEnvelopeChange(undefined);
-                onSiblingPeriodChange?.(0);
               }}
             />
           ) : null}
@@ -1350,6 +1389,7 @@ function HardwareEnvSweepSection({
               hint={sweep.hint}
               disabled={disabled}
               value={sweepValue}
+              periodMin={sweepPeriodMin}
               onChange={onSweepChange}
               onRemove={disabled ? undefined : () => onSweepChange(undefined)}
             />
@@ -1508,23 +1548,29 @@ function SweepEditor({
   hint,
   disabled,
   value,
+  periodMin = 0,
   onChange,
   onRemove,
 }: {
   hint?: string;
   disabled: boolean;
   value: unknown;
+  periodMin?: number;
   onChange: (csv: string | undefined) => void;
   onRemove?: () => void;
 }): React.JSX.Element {
   const parsed = parseHardwareSweep(value);
   const invalid = value != null && value !== '' && !parsed;
-  const time = parsed?.time ?? 7;
+  const defaultTime = Math.max(periodMin, 7);
+  const time = Math.max(periodMin, parsed?.time ?? defaultTime);
   const direction: SweepDirection = parsed?.direction ?? 'down';
   const shift = parsed?.shift ?? 3;
 
   const commit = (next: { time: number; direction: SweepDirection; shift: number }) => {
-    onChange(formatHardwareSweep(next));
+    onChange(formatHardwareSweep({
+      ...next,
+      time: Math.max(periodMin, Math.min(7, next.time)),
+    }));
   };
 
   if (invalid) {
@@ -1536,10 +1582,10 @@ function SweepEditor({
             type="button"
             className="bb-inst-editor__macro-add-btn"
             disabled={disabled}
-            onClick={() => commit({ time: 7, direction: 'down', shift: 3 })}
+            onClick={() => commit({ time: defaultTime, direction: 'down', shift: 3 })}
           >
             <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
-            <span>Reset to 7,down,3</span>
+            <span>Reset to {defaultTime},down,3</span>
           </button>
         </div>
       </div>
@@ -1556,12 +1602,12 @@ function SweepEditor({
             id="bb-hw-sweep-time"
             className="bb-settings-number"
             type="number"
-            min={0}
+            min={periodMin}
             max={7}
             disabled={disabled}
             value={time}
             onChange={(e) => commit({
-              time: Math.max(0, Math.min(7, Number(e.target.value) || 0)),
+              time: Math.max(periodMin, Math.min(7, Number(e.target.value) || periodMin)),
               direction,
               shift,
             })}
