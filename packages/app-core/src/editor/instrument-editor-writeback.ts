@@ -48,10 +48,121 @@ function instDefNameRe(name: string): RegExp {
   return new RegExp(`^\\s*inst\\s+${escapeRegExp(name)}(?![${IDENT_CHAR}])`);
 }
 
-/** Whole-token match for an instrument identifier in pattern/channel text. */
+/** Whole-token match for an instrument identifier (not a prefix of a longer ident). */
 function instNameTokenRe(name: string, flags = ''): RegExp {
   const esc = escapeRegExp(name);
   return new RegExp(`(?<![${IDENT_CHAR}])${esc}(?![${IDENT_CHAR}])`, flags);
+}
+
+/** Statement keywords that are not pat-shorthand (`name = …`). */
+const STATEMENT_PREFIX_RE = /^(chip|bpm|volume|time|stepsPerBar|ticksPerStep|scale|song|import|inst|effect|subpat|pat|seq|channel|play|export)\b/;
+
+function isPatternLine(code: string): boolean {
+  const t = code.trimStart();
+  if (/^pat\b/.test(t)) return true;
+  if (STATEMENT_PREFIX_RE.test(t)) return false;
+  return /^[A-Za-z_][A-Za-z0-9_-]*\s*=/.test(t);
+}
+
+/**
+ * Rewrite only real instrument references: `inst name`, `inst(name)`, `inst(name,N)`,
+ * and bare hit tokens in a pattern RHS. Skip declarations (`subpat name =`, `pat name =`,
+ * `seq name =`), `subpat=` links, and quoted values.
+ */
+function rewriteInstrumentRefsInCode(code: string, oldName: string, newName: string): string {
+  if (!oldName || oldName === newName) return code;
+  if (isPatternLine(code)) {
+    const { head, tail } = splitAtFirstUnquotedEquals(code);
+    const nextHead = rewriteInstFormsInCode(head, oldName, newName);
+    if (tail == null) return nextHead;
+    return nextHead + rewriteInstFormsInCode(tail, oldName, newName, { bareHits: true });
+  }
+  return rewriteInstFormsInCode(code, oldName, newName);
+}
+
+function lineHasInstrumentRef(code: string, name: string): boolean {
+  return rewriteInstrumentRefsInCode(code, name, `${name}_`) !== code;
+}
+
+function splitAtFirstUnquotedEquals(code: string): { head: string; tail: string | null } {
+  let i = 0;
+  while (i < code.length) {
+    if (code.startsWith('"""', i)) {
+      const end = code.indexOf('"""', i + 3);
+      if (end < 0) return { head: code, tail: null };
+      i = end + 3;
+      continue;
+    }
+    const ch = code[i]!;
+    if (ch === '"' || ch === "'") {
+      const end = code.indexOf(ch, i + 1);
+      if (end < 0) return { head: code, tail: null };
+      i = end + 1;
+      continue;
+    }
+    if (ch === '=') return { head: code.slice(0, i + 1), tail: code.slice(i + 1) };
+    i += 1;
+  }
+  return { head: code, tail: null };
+}
+
+function rewriteInstFormsInCode(
+  code: string,
+  oldName: string,
+  newName: string,
+  opts?: { bareHits?: boolean },
+): string {
+  let out = '';
+  let i = 0;
+  let atLineStart = true;
+  while (i < code.length) {
+    if (code.startsWith('"""', i)) {
+      const end = code.indexOf('"""', i + 3);
+      if (end < 0) return out + code.slice(i);
+      out += code.slice(i, end + 3);
+      i = end + 3;
+      atLineStart = false;
+      continue;
+    }
+    const ch = code[i]!;
+    if (ch === '"' || ch === "'") {
+      const end = code.indexOf(ch, i + 1);
+      if (end < 0) return out + code.slice(i);
+      out += code.slice(i, end + 1);
+      i = end + 1;
+      atLineStart = false;
+      continue;
+    }
+    let j = i + 1;
+    while (j < code.length && code[j] !== '"' && code[j] !== "'" && !code.startsWith('"""', j)) j++;
+    out += rewriteInstFormsUnquoted(code.slice(i, j), oldName, newName, {
+      skipLeadingInstDef: atLineStart,
+      bareHits: opts?.bareHits === true,
+    });
+    i = j;
+    atLineStart = false;
+  }
+  return out;
+}
+
+function rewriteInstFormsUnquoted(
+  text: string,
+  oldName: string,
+  newName: string,
+  opts: { skipLeadingInstDef: boolean; bareHits: boolean },
+): string {
+  const esc = escapeRegExp(oldName);
+  const bound = `(?![${IDENT_CHAR}])`;
+  let next = text.replace(new RegExp(`\\binst\\((\\s*)${esc}${bound}`, 'g'), `inst($1${newName}`);
+  next = next.replace(new RegExp(`\\binst(\\s+)${esc}${bound}`, 'g'), (match, ws: string, offset: number) => {
+    const before = next.slice(0, offset);
+    if (opts.skipLeadingInstDef && /^\s*$/.test(before)) return match;
+    return `inst${ws}${newName}`;
+  });
+  if (opts.bareHits) {
+    next = next.replace(instNameTokenRe(oldName, 'g'), newName);
+  }
+  return next;
 }
 
 export function findInstLineIndex(source: string, name: string): number {
@@ -171,9 +282,10 @@ function escapeRegExp(value: string): string {
 
 /**
  * Rename an `inst` definition. When `updateReferences` is true, also rewrites
- * other occurrences of that identifier in the song (channel `inst` clauses,
- * inline `inst(…)`, and bare hit-token uses). Other `inst` definition lines
- * are left unchanged. Trailing / full-line comments are not rewritten.
+ * instrument-reference syntax: channel `inst` clauses, inline `inst(…)` /
+ * `inst name`, seq `:inst(name)`, and bare hit tokens in pattern bodies.
+ * Declarations (`subpat`/`pat`/`seq`/`effect` names), `subpat=` links, quoted
+ * values, and comments are left unchanged.
  */
 export function renameInstrumentInSource(
   source: string,
@@ -198,13 +310,11 @@ export function renameInstrumentInSource(
   lines[idx] = defComment ? `${nextDef} ${defComment}` : nextDef;
 
   if (options?.updateReferences) {
-    const tokenRe = instNameTokenRe(oldName, 'g');
     for (let i = 0; i < lines.length; i++) {
       if (i === idx) continue;
-      if (/^\s*inst\s+/.test(lines[i]!)) continue;
       const { code, comment } = splitTrailingComment(lines[i]!);
       if (!code) continue; // full-line comment — leave unchanged
-      const nextCode = code.replace(tokenRe, newName);
+      const nextCode = rewriteInstrumentRefsInCode(code, oldName, newName);
       lines[i] = comment ? `${nextCode} ${comment}` : nextCode;
     }
   }
@@ -213,17 +323,17 @@ export function renameInstrumentInSource(
 }
 
 /**
- * True when `name` appears outside `inst` definition lines (channel `inst`
- * clauses, inline `inst(…)`, or bare hit-token uses in pat/subpat bodies).
- * Comment text is ignored.
+ * True when `name` is used as instrument-reference syntax (channel `inst`
+ * clauses, inline `inst(…)`, or bare hit tokens in pattern bodies).
+ * The `inst` definition, other declarations, `subpat=` links, quoted values,
+ * and comments do not count.
  */
 export function instIsReferenced(source: string, name: string): boolean {
   if (!name) return false;
-  const tokenRe = instNameTokenRe(name);
   for (const line of source.split(/\r?\n/)) {
-    if (/^\s*inst\s+/.test(line)) continue;
+    if (instDefNameRe(name).test(line)) continue;
     const { code } = splitTrailingComment(line);
-    if (code && tokenRe.test(code)) return true;
+    if (code && lineHasInstrumentRef(code, name)) return true;
   }
   return false;
 }

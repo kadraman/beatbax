@@ -290,6 +290,7 @@ async function startInstNotePreview(
   rawAst: any,
   onDone: () => void,
   options?: InstNotePreviewOptions,
+  isCancelled?: () => boolean,
 ): Promise<PreviewState | null> {
   const channelId = instChannelId(instName, rawAst);
   const sustain = options?.sustain === true;
@@ -316,11 +317,18 @@ async function startInstNotePreview(
     return null;
   }
 
+  if (isCancelled?.()) return null;
+
   let player: Player;
   try {
     player = new Player(_sharedCtx ?? undefined);
     await player.playAST(songModel as any);
   } catch {
+    return null;
+  }
+
+  if (isCancelled?.()) {
+    try { player.stop(); } catch (_e) { /* ignore */ }
     return null;
   }
 
@@ -688,6 +696,8 @@ export function setupCodeLensPreview(
 
   let hasValidParse = false;
   let previewState: PreviewState | null = null;
+  /** Bumped by {@link stopPreview} so in-flight starts cannot assign a player after release. */
+  let previewGeneration = 0;
 
   // Simple change-event emitter for the CodeLens provider to subscribe to
   type ProviderListener = (e: any) => any;
@@ -696,8 +706,44 @@ export function setupCodeLensPreview(
   let providerInstance: monaco.languages.CodeLensProvider;
   const notifyChange = () => changeListeners.forEach(l => l(providerInstance));
 
+  function previewIsCurrent(generation: number): boolean {
+    return generation === previewGeneration;
+  }
+
+  /** Stop a player that was created after the generation was invalidated (never assigned). */
+  function abandonUnassignedPreview(state: PreviewState | null): void {
+    if (!state) return;
+    clearTimeout(state.stopTimer);
+    state.cancelLoop?.();
+    state.player.onComplete = undefined;
+    try { state.player.stop(); } catch (_e) { /* ignore */ }
+  }
+
+  function beginPreview(): number {
+    stopPreview();
+    return previewGeneration;
+  }
+
+  function assignPreviewIfCurrent(
+    generation: number,
+    state: PreviewState | null,
+    failMessage: string,
+  ): void {
+    if (!previewIsCurrent(generation)) {
+      abandonUnassignedPreview(state);
+      return;
+    }
+    if (!state) {
+      failPreview(failMessage);
+      return;
+    }
+    previewState = state;
+    notifyChange();
+  }
+
   // ── Stop any running preview ──────────────────────────────────────────────
   function stopPreview(): void {
+    previewGeneration += 1;
     if (!previewState) return;
     clearTimeout(previewState.stopTimer);
     previewState.cancelLoop?.();
@@ -718,26 +764,26 @@ export function setupCodeLensPreview(
   _previewTrigger = async (patternName: string) => {
     ensureAudioCtxReady(); // synchronous — must stay before any await
     if (previewState?.key === `pat:${patternName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
     const rawAst = await astForPreview();
-    if (!rawAst) return;
+    if (!previewIsCurrent(generation) || !rawAst) return;
     const state = await startPatternPreview(patternName, rawAst, () => {
       previewState = null;
       notifyChange();
     });
-    if (!state) {
-      failPreview(`Preview unavailable: no instrument found for pattern '${patternName}'.`);
-      return;
-    }
-    previewState = state;
-    notifyChange();
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: no instrument found for pattern '${patternName}'.`,
+    );
   };
 
   _instNotePreviewTrigger = async (instName: string, note: string, options?: InstNotePreviewOptions) => {
     ensureAudioCtxReady(); // synchronous — must stay before any await
-    stopPreview(); // always stop current note and restart (allows re-clicking same note)
+    const generation = beginPreview(); // always stop current note and restart (allows re-clicking same note)
+    const isCancelled = () => !previewIsCurrent(generation);
     const rawAst = await astForPreview();
-    if (!rawAst) return;
+    if (isCancelled() || !rawAst) return;
 
     const instDef = rawAst.insts?.[instName];
     if (!instDef) {
@@ -757,30 +803,33 @@ export function setupCodeLensPreview(
       try {
         await plugin?.resolveSampleAsset?.(instDef.dmc_sample);
       } catch (err: unknown) {
+        if (isCancelled()) return;
         const message = err instanceof Error ? err.message : String(err);
         failPreview(`Preview unavailable: ${message}`);
         return;
       }
+      if (isCancelled()) return;
     }
 
+    if (isCancelled()) return;
     const state = await startInstNotePreview(instName, note, rawAst, () => {
       previewState = null;
       notifyChange();
-    }, options);
-    if (!state) {
-      failPreview(`Preview unavailable: instrument '${instName}' is not defined.`);
-      return;
-    }
-    previewState = state;
-    notifyChange();
+    }, options, isCancelled);
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: instrument '${instName}' is not defined.`,
+    );
   };
 
   _stepEntryAuditionTrigger = async (lineText: string, note: string) => {
     ensureAudioCtxReady(); // synchronous — must stay before any await
-    stopPreview();
+    const generation = beginPreview();
+    const isCancelled = () => !previewIsCurrent(generation);
 
     const rawAst = await astForPreview(true);
-    if (!rawAst) return;
+    if (isCancelled() || !rawAst) return;
 
     const instName = resolveAuditionInstrumentForLine(lineText, rawAst);
     if (!instName) {
@@ -796,41 +845,42 @@ export function setupCodeLensPreview(
       return;
     }
 
+    if (isCancelled()) return;
     const state = await startInstNotePreview(instName, note, rawAst, () => {
       previewState = null;
       notifyChange();
-    });
-    if (!state) {
-      failPreview(`Preview unavailable: instrument '${instName}' is not defined.`);
-      return;
-    }
-    previewState = state;
-    notifyChange();
+    }, undefined, isCancelled);
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: instrument '${instName}' is not defined.`,
+    );
   };
 
   _loopTrigger = async (patternName: string) => {
     ensureAudioCtxReady(); // synchronous — must stay before any await
     if (previewState?.key === `loop:${patternName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
 
     let cancelled = false;
     const cancel = () => { cancelled = true; };
 
     // Each iteration re-parses the source so live edits are picked up.
     async function playNext(): Promise<void> {
-      if (cancelled) return;
+      if (cancelled || !previewIsCurrent(generation)) return;
       const rawAst = await astForPreview();
-      if (!rawAst || cancelled) return;
+      if (!rawAst || cancelled || !previewIsCurrent(generation)) return;
       // One-shot guard prevents double-fire if both timer and onComplete fire.
       let fired = false;
       const onIterationDone = () => {
-        if (fired || cancelled) return;
+        if (fired || cancelled || !previewIsCurrent(generation)) return;
         fired = true;
         void playNext();
       };
       const state = await startPatternPreview(patternName, rawAst, onIterationDone);
-      if (!state || cancelled) {
-        if (!state && !cancelled) {
+      if (!state || cancelled || !previewIsCurrent(generation)) {
+        abandonUnassignedPreview(state);
+        if (!state && !cancelled && previewIsCurrent(generation)) {
           failPreview(`Preview unavailable: no instrument found for pattern '${patternName}'.`);
         }
         return;
@@ -847,42 +897,42 @@ export function setupCodeLensPreview(
   _seqPreviewTrigger = async (seqName: string) => {
     ensureAudioCtxReady();
     if (previewState?.key === `seq:${seqName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
     const rawAst = await astForPreview();
-    if (!rawAst) return;
+    if (!previewIsCurrent(generation) || !rawAst) return;
     const state = await startSeqPreview(seqName, rawAst, () => {
       previewState = null;
       notifyChange();
     });
-    if (!state) {
-      failPreview(`Preview unavailable: no instrument found for sequence '${seqName}'.`);
-      return;
-    }
-    previewState = state;
-    notifyChange();
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: no instrument found for sequence '${seqName}'.`,
+    );
   };
 
   _seqLoopTrigger = async (seqName: string) => {
     ensureAudioCtxReady();
     if (previewState?.key === `seq-loop:${seqName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
 
     let cancelled = false;
     const cancel = () => { cancelled = true; };
 
     async function playNext(): Promise<void> {
-      if (cancelled) return;
+      if (cancelled || !previewIsCurrent(generation)) return;
       const rawAst = await astForPreview();
-      if (!rawAst || cancelled) return;
+      if (!rawAst || cancelled || !previewIsCurrent(generation)) return;
       let fired = false;
       const onIterationDone = () => {
-        if (fired || cancelled) return;
+        if (fired || cancelled || !previewIsCurrent(generation)) return;
         fired = true;
         void playNext();
       };
       const state = await startSeqPreview(seqName, rawAst, onIterationDone);
-      if (!state || cancelled) {
-        if (!state && !cancelled) {
+      if (!state || cancelled || !previewIsCurrent(generation)) {
+        abandonUnassignedPreview(state);
+        if (!state && !cancelled && previewIsCurrent(generation)) {
           failPreview(`Preview unavailable: no instrument found for sequence '${seqName}'.`);
         }
         return;
@@ -899,60 +949,59 @@ export function setupCodeLensPreview(
   _effectPreviewTrigger = async (effectName: string) => {
     ensureAudioCtxReady();
     if (previewState?.key === `effect:${effectName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
     const rawAst = await astForPreview();
-    if (!rawAst) return;
+    if (!previewIsCurrent(generation) || !rawAst) return;
     const state = await startEffectPreview(effectName, rawAst, () => {
       previewState = null;
       notifyChange();
     });
-    if (!state) {
-      failPreview(`Preview unavailable: no instrument found for effect '${effectName}'.`);
-      return;
-    }
-    previewState = state;
-    notifyChange();
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: no instrument found for effect '${effectName}'.`,
+    );
   };
 
   _effectSlowPreviewTrigger = async (effectName: string) => {
     ensureAudioCtxReady();
     if (previewState?.key === `effect-slow:${effectName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
     const rawAst = await astForPreview();
-    if (!rawAst) return;
+    if (!previewIsCurrent(generation) || !rawAst) return;
     const state = await startEffectPreview(effectName, rawAst, () => {
       previewState = null;
       notifyChange();
     }, { stepsOverride: 16, keyPrefix: 'effect-slow' });
-    if (!state) {
-      failPreview(`Preview unavailable: no instrument found for effect '${effectName}'.`);
-      return;
-    }
-    previewState = state;
-    notifyChange();
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: no instrument found for effect '${effectName}'.`,
+    );
   };
 
   _effectLoopTrigger = async (effectName: string) => {
     ensureAudioCtxReady();
     if (previewState?.key === `effect-loop:${effectName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
 
     let cancelled = false;
     const cancel = () => { cancelled = true; };
 
     async function playNext(): Promise<void> {
-      if (cancelled) return;
+      if (cancelled || !previewIsCurrent(generation)) return;
       const rawAst = await astForPreview();
-      if (!rawAst || cancelled) return;
+      if (!rawAst || cancelled || !previewIsCurrent(generation)) return;
       let fired = false;
       const onIterationDone = () => {
-        if (fired || cancelled) return;
+        if (fired || cancelled || !previewIsCurrent(generation)) return;
         fired = true;
         void playNext();
       };
       const state = await startEffectPreview(effectName, rawAst, onIterationDone);
-      if (!state || cancelled) {
-        if (!state && !cancelled) {
+      if (!state || cancelled || !previewIsCurrent(generation)) {
+        abandonUnassignedPreview(state);
+        if (!state && !cancelled && previewIsCurrent(generation)) {
           failPreview(`Preview unavailable: no instrument found for effect '${effectName}'.`);
         }
         return;

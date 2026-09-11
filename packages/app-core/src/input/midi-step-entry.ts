@@ -41,6 +41,9 @@ const MIDI_NOTE_OFF = 0x80;
 const MIDI_CHANNEL_MASK = 0x0f;
 const MIDI_TYPE_MASK    = 0xf0;
 
+/** Bound wait for hung Chromium/Electron `requestMIDIAccess` (especially Windows). */
+export const MIDI_ACCESS_TIMEOUT_MS = 5000;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 /** Duration to emit with each inserted note. 'inherit' = no explicit duration suffix. */
@@ -353,6 +356,10 @@ export function snapMidiToPitchClasses(midiPitch: number, allowedPitchClasses: S
  */
 export class MidiStepEntryService {
   private midiAccess: MidiAccess | null = null;
+  /** In-flight `navigator.requestMIDIAccess()`; reused so Refresh cannot start a second browser request. */
+  private _pendingAccess: Promise<MidiAccess> | null = null;
+  /** Incremented to ignore late grants from a retired request (dispose, or a later retry). */
+  private _accessEpoch = 0;
   private selectedInput: MidiInput | null = null;
   private armed = false;
   private _deviceId: string = '';
@@ -416,40 +423,13 @@ export class MidiStepEntryService {
       return null;
     }
     try {
-      const accessPromise = (navigator as any).requestMIDIAccess({ sysex: false }) as Promise<MidiAccess>;
+      const { accessPromise, epoch } = this._beginAccessRequest();
       // Chromium/Electron can leave this pending forever (esp. Windows MIDI backends).
       // Bound the wait so Settings/refresh UI cannot stick on "Refreshing…".
-      const access = await new Promise<MidiAccess>((resolve, reject) => {
-        let settled = false;
-        const timer = setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          reject(new Error('MIDI access timed out after 5s'));
-        }, 5000);
-        accessPromise.then(
-          (midiAccess) => {
-            if (settled) {
-              // Late success after timeout — keep access and re-bind the selected input
-              // so midimessage listeners are not left on an orphaned MidiAccess.
-              const keepId = this._deviceId;
-              this.midiAccess = midiAccess;
-              if (keepId) {
-                this.setDevice(keepId);
-              }
-              return;
-            }
-            settled = true;
-            clearTimeout(timer);
-            resolve(midiAccess);
-          },
-          (err) => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timer);
-            reject(err);
-          },
-        );
-      });
+      const access = await this._awaitAccess(accessPromise, epoch);
+      if (this._accessEpoch !== epoch) {
+        return 'MIDI access request was superseded.';
+      }
       this.midiAccess = access;
       log.info('MIDI access granted. Inputs:', this.midiAccess!.inputs.size);
       return null;
@@ -459,6 +439,9 @@ export class MidiStepEntryService {
       // Late grant may still arrive; avoid the misleading "permission denied" label for timeouts.
       if (String(msg).includes('timed out')) {
         return `MIDI access timed out after 5s (will keep trying in the background)`;
+      }
+      if (String(msg).includes('superseded')) {
+        return 'MIDI access request was superseded.';
       }
       return `MIDI permission denied: ${msg}`;
     }
@@ -535,6 +518,7 @@ export class MidiStepEntryService {
 
   /** Close the MIDI connection and release all resources. */
   dispose(): void {
+    this._retireAccessRequest();
     this._detachInput();
     this.midiAccess = null;
     this.armed = false;
@@ -542,6 +526,78 @@ export class MidiStepEntryService {
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
+
+  /**
+   * Start or reuse the current browser MIDI permission request.
+   * A timed-out wrapper must not call `requestMIDIAccess` again while the
+   * first promise is still pending — a late first grant would overwrite a
+   * newer `midiAccess` and rebind listeners.
+   */
+  private _beginAccessRequest(): { accessPromise: Promise<MidiAccess>; epoch: number } {
+    if (!this._pendingAccess) {
+      this._accessEpoch += 1;
+      this._pendingAccess = (navigator as any).requestMIDIAccess({ sysex: false }) as Promise<MidiAccess>;
+    }
+    return { accessPromise: this._pendingAccess, epoch: this._accessEpoch };
+  }
+
+  /** Ignore late grants from a prior `requestMIDIAccess` after dispose or a replacement request. */
+  private _retireAccessRequest(): void {
+    this._accessEpoch += 1;
+    this._pendingAccess = null;
+  }
+
+  private _awaitAccess(accessPromise: Promise<MidiAccess>, epoch: number): Promise<MidiAccess> {
+    return new Promise<MidiAccess>((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error(`MIDI access timed out after ${MIDI_ACCESS_TIMEOUT_MS / 1000}s`));
+      }, MIDI_ACCESS_TIMEOUT_MS);
+      accessPromise.then(
+        (midiAccess) => {
+          if (this._pendingAccess === accessPromise) {
+            this._pendingAccess = null;
+          }
+          if (this._accessEpoch !== epoch) {
+            if (!settled) {
+              settled = true;
+              clearTimeout(timer);
+              reject(new Error('MIDI access request was superseded'));
+            }
+            return;
+          }
+          if (settled) {
+            // Late success after timeout — keep access and re-bind the selected input
+            // so midimessage listeners are not left on an orphaned MidiAccess.
+            this._adoptAccess(midiAccess);
+            return;
+          }
+          settled = true;
+          clearTimeout(timer);
+          resolve(midiAccess);
+        },
+        (err) => {
+          if (this._pendingAccess === accessPromise) {
+            this._pendingAccess = null;
+          }
+          if (settled || this._accessEpoch !== epoch) return;
+          settled = true;
+          clearTimeout(timer);
+          reject(err);
+        },
+      );
+    });
+  }
+
+  private _adoptAccess(midiAccess: MidiAccess): void {
+    const keepId = this._deviceId;
+    this.midiAccess = midiAccess;
+    if (keepId) {
+      this.setDevice(keepId);
+    }
+  }
 
   private _attachInput(): void {
     if (!this.selectedInput) return;

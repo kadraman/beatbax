@@ -522,6 +522,14 @@ describe('NES DMC sample resolution', () => {
     await expect(resolveDMCSample('local:../../../etc/passwd')).rejects.toThrow();
   });
 
+  test('Node rejects absolute local: refs outside cwd', async () => {
+    const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
+    jest.spyOn(process, 'cwd').mockReturnValue('/repo');
+    await expect(resolveDMCSample('local:/etc/passwd')).rejects.toThrow(
+      /outside the saved song directory and process working directory/,
+    );
+  });
+
   test('local: path with spaces resolves when percent-encoded', async () => {
     const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
     const samplePath = join(process.cwd(), 'tmp', 'chip nes sample.dmc');
@@ -617,6 +625,87 @@ describe('NES DMC sample resolution', () => {
     expect(samples).toBeInstanceOf(Float32Array);
     expect(samples.length).toBe(8);
   });
+
+  test('desktop FS bridge rejects absolute local: refs outside song/cwd', async () => {
+    const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
+    jest.spyOn(process, 'cwd').mockReturnValue('/repo');
+    const readFileSync = jest.fn(() => {
+      throw new Error('IPC readFileSync must not run for an escaped absolute path');
+    });
+    (globalThis as any).localStorage = {
+      getItem: (key: string) => (
+        key === 'beatbax:editor.lastDocumentPath' ? '/repo/songs/nes/song.bax' : null
+      ),
+    };
+    (globalThis as any).window = {
+      electronAPI: {
+        existsSync: () => true,
+        readFileSync,
+      },
+    };
+
+    await expect(resolveDMCSample('local:/etc/passwd')).rejects.toThrow(
+      /outside the saved song directory and process working directory/,
+    );
+    expect(readFileSync).not.toHaveBeenCalled();
+  });
+
+  test('desktop FS bridge allows an absolute local: ref inside the song directory', async () => {
+    const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
+    const allowed = '/repo/songs/nes/kick.dmc';
+    (globalThis as any).localStorage = {
+      getItem: (key: string) => (
+        key === 'beatbax:editor.lastDocumentPath' ? '/repo/songs/nes/song.bax' : null
+      ),
+    };
+    (globalThis as any).window = {
+      electronAPI: {
+        existsSync: (p: string) => p.replace(/\\/g, '/') === allowed,
+        readFileSync: (p: string, encoding?: string) => {
+          expect(p.replace(/\\/g, '/')).toBe(allowed);
+          expect(encoding).toBe('base64');
+          return Buffer.from([0xff]).toString('base64');
+        },
+      },
+    };
+
+    const samples = await resolveDMCSample('local:/repo/songs/nes/kick.dmc');
+    expect(samples).toBeInstanceOf(Float32Array);
+    expect(samples.length).toBe(8);
+  });
+
+  test('desktop FS bridge reads relative local: samples from main-process cwd when the song is elsewhere', async () => {
+    const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
+    jest.spyOn(process, 'cwd').mockReturnValue('/unrelated/renderer-cwd');
+    const found = '/repo/assets/foo.dmc';
+    const probed: string[] = [];
+    (globalThis as any).localStorage = {
+      getItem: (key: string) => (
+        key === 'beatbax:editor.lastDocumentPath' ? '/music/songs/tune.bax' : null
+      ),
+    };
+    (globalThis as any).window = {
+      electronAPI: {
+        getCwd: () => '/repo',
+        existsSync: (p: string) => {
+          const n = p.replace(/\\/g, '/');
+          probed.push(n);
+          return n === found;
+        },
+        readFileSync: (p: string, encoding?: string) => {
+          expect(p.replace(/\\/g, '/')).toBe(found);
+          expect(encoding).toBe('base64');
+          return Buffer.from([0xff]).toString('base64');
+        },
+      },
+    };
+
+    const samples = await resolveDMCSample('local:assets/foo.dmc');
+    expect(samples).toBeInstanceOf(Float32Array);
+    expect(samples.length).toBe(8);
+    expect(probed).toContain(found);
+    expect(probed).not.toContain('/unrelated/renderer-cwd/assets/foo.dmc');
+  });
 });
 
 // ─── Instrument validation ────────────────────────────────────────────────────
@@ -697,6 +786,13 @@ describe('NES instrument validation', () => {
     const errors = validateNesInstrument({ type: 'dmc', dmc_sample: 'local:../../etc/passwd' });
     const traversalError = errors.find(e => e.message.includes('path traversal'));
     expect(traversalError).toBeDefined();
+  });
+
+  test('rejects absolute DMC local: sample paths', () => {
+    const unix = validateNesInstrument({ type: 'dmc', dmc_sample: 'local:/etc/passwd' });
+    expect(unix.some((e) => e.field === 'dmc_sample' && /absolute/i.test(e.message))).toBe(true);
+    const windows = validateNesInstrument({ type: 'dmc', dmc_sample: 'local:C:/Windows/win.ini' });
+    expect(windows.some((e) => e.field === 'dmc_sample' && /absolute/i.test(e.message))).toBe(true);
   });
 
   test('rejects dmc_rate > 15', () => {

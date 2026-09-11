@@ -100,6 +100,20 @@ export function resolvePreviewChannel(
   return Math.min(channelId, maxChannel);
 }
 
+/** Encode a local sample path the same way `formatDmcInstrumentLine` does (`encodeURI`). */
+function encodeLocalSamplePath(path: string): string {
+  return encodeURI(path);
+}
+
+/** Inverse of `encodeLocalSamplePath` for the sample-widget text field. */
+function decodeLocalSamplePath(path: string): string {
+  try {
+    return decodeURI(path);
+  } catch {
+    return path;
+  }
+}
+
 export type InstrumentSampleScheme = 'bundled' | 'local' | 'https' | 'github';
 
 export const INSTRUMENT_SAMPLE_SCHEMES: ReadonlyArray<{
@@ -151,7 +165,7 @@ export function parseInstrumentSampleRef(
     return { scheme: 'bundled', remainder: value.slice(prefix.length) };
   }
   if (value.startsWith('local:')) {
-    return { scheme: 'local', remainder: value.slice('local:'.length) };
+    return { scheme: 'local', remainder: decodeLocalSamplePath(value.slice('local:'.length)) };
   }
   if (value.startsWith('https://')) {
     return { scheme: 'https', remainder: value.slice('https://'.length) };
@@ -182,7 +196,9 @@ export function formatInstrumentSampleRef(
       return name ? `${prefix}${name}` : '';
     }
     case 'local':
-      return `local:${rest.replace(/^local:/, '')}`;
+      // Percent-encode spaces so parseInstRhs cannot split `My Samples/kick.dmc`
+      // into extra inst properties. DMC resolve already decodeURI()s local: paths.
+      return `local:${encodeLocalSamplePath(rest.replace(/^local:/, ''))}`;
     case 'https':
       return `https://${rest.replace(/^https?:\/\//, '')}`;
     case 'github':

@@ -32,6 +32,31 @@ channel 1 => inst lead pat a
     expect(formatInstrumentFieldValue('env', '15,flat')).toBe('15,flat');
   });
 
+  it('round-trips a quoted local dmc_sample path that contains spaces', () => {
+    const line = serializeInstrument('kick', {
+      type: 'dmc',
+      dmc_rate: 15,
+      dmc_loop: false,
+      dmc_sample: 'local:My Samples/kick.dmc',
+    });
+    expect(line).toContain('dmc_sample="local:My Samples/kick.dmc"');
+    const ast = parse(`chip nes\n${line}\npat a = C3\nchannel 5 => inst kick pat a\n`);
+    expect(ast.insts.kick.dmc_sample).toBe('local:My Samples/kick.dmc');
+    expect(Object.keys(ast.insts.kick).filter((k) => k.includes('Samples'))).toEqual([]);
+  });
+
+  it('quotes https dmc_sample refs so // is not treated as a comment', () => {
+    const line = serializeInstrument('bass', {
+      type: 'dmc',
+      dmc_rate: 7,
+      dmc_loop: false,
+      dmc_sample: 'https://example.com/samples/bass.dmc',
+    });
+    expect(line).toContain('dmc_sample="https://example.com/samples/bass.dmc"');
+    const ast = parse(`chip nes\n${line}\npat a = C3\nchannel 5 => inst bass pat a\n`);
+    expect(ast.insts.bass.dmc_sample).toBe('https://example.com/samples/bass.dmc');
+  });
+
   it('quotes sharp note values so # is not treated as a comment', () => {
     const line = serializeInstrument('lead', { type: 'pulse1', note: 'C#4' });
     expect(line).toContain('note="C#4"');
@@ -62,6 +87,14 @@ describe('parseInstrumentBody', () => {
     expect(node.type).toBe('pulse1');
     expect(node.duty).toBe('50');
     expect(node.env).toBe('12,down');
+  });
+
+  it('keeps quoted sample paths with spaces as one field', () => {
+    const node = parseInstrumentBody(
+      'type=dmc dmc_rate=15 dmc_sample="local:My Samples/kick.dmc"',
+    );
+    expect(node.dmc_sample).toBe('local:My Samples/kick.dmc');
+    expect(node).not.toHaveProperty('Samples/kick.dmc"');
   });
 
   it('treats empty list values as empty arrays, not [0]', () => {

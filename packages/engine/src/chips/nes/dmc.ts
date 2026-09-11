@@ -15,7 +15,13 @@ import type { InstrumentNode } from '../../parser/ast.js';
 import { DMC_RATE_TABLE, getDmcRateTable, NES_CLOCK } from './periodTables.js';
 import { NES_MIX_GAIN } from './mixer.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
-import { dirnameLocalPath, isAbsoluteLocalPath, joinLocalPath, toPosixPath } from '../../import/localImportPath.js';
+import {
+  dirnameLocalPath,
+  isAbsoluteLocalPath,
+  isResolvedWithinAllowedDirs,
+  joinLocalPath,
+  toPosixPath,
+} from '../../import/localImportPath.js';
 
 interface DesktopRemoteAssetRequest {
   url: string;
@@ -27,6 +33,8 @@ interface DesktopElectronApi {
   fetchRemoteAsset?: (request: DesktopRemoteAssetRequest) => Promise<unknown>;
   readFileSync?: (targetPath: string, encoding?: string) => string;
   existsSync?: (targetPath: string) => boolean;
+  /** Main-process cwd. Renderer `process.cwd()` is not the Desktop contract root. */
+  getCwd?: () => string;
 }
 
 // ─── GitHub URL resolution ─────────────────────────────────────────────────────
@@ -117,6 +125,48 @@ function lastDocumentPath(): string | null {
   }
 }
 
+/** Process cwd when available (Node). Avoid a static Node `process` import. */
+function processCwd(): string | null {
+  try {
+    const cwd = (globalThis as { process?: { cwd?: () => string } }).process?.cwd?.();
+    return typeof cwd === 'string' && cwd.length > 0 ? toPosixPath(cwd) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Prefer main-process cwd from the Desktop bridge; fall back to renderer/Node `process.cwd()`. */
+function desktopCwd(api?: DesktopElectronApi | null): string | null {
+  if (typeof api?.getCwd === 'function') {
+    try {
+      const cwd = api.getCwd();
+      if (typeof cwd === 'string' && cwd.length > 0 && isAbsoluteLocalPath(cwd)) {
+        return toPosixPath(cwd);
+      }
+    } catch {
+      // fall through
+    }
+  }
+  return processCwd();
+}
+
+/** Saved-song directory and process cwd — the only roots Desktop may read via IPC. */
+function desktopLocalRoots(api?: DesktopElectronApi | null): string[] {
+  const roots: string[] = [];
+  const doc = lastDocumentPath();
+  if (doc) roots.push(dirnameLocalPath(doc));
+  const cwd = desktopCwd(api);
+  if (cwd) roots.push(cwd);
+  return roots;
+}
+
+function assertLocalSampleWithinRoots(ref: string, absPath: string, roots: string[]): void {
+  if (isResolvedWithinAllowedDirs(absPath, roots)) return;
+  throw new Error(
+    `NES DMC: absolute 'local:' sample reference '${ref}' is outside the saved song directory and process working directory`,
+  );
+}
+
 function collectDesktopLocalCandidates(rel: string, api: DesktopElectronApi): string[] {
   const candidates: string[] = [];
   const seen = new Set<string>();
@@ -127,8 +177,10 @@ function collectDesktopLocalCandidates(rel: string, api: DesktopElectronApi): st
     candidates.push(n);
   };
 
+  const roots = desktopLocalRoots(api);
+
   if (isAbsoluteLocalPath(rel)) {
-    add(rel);
+    if (isResolvedWithinAllowedDirs(rel, roots)) add(rel);
     return candidates;
   }
 
@@ -143,6 +195,13 @@ function collectDesktopLocalCandidates(rel: string, api: DesktopElectronApi): st
     }
   }
 
+  // Desktop contract: also resolve relative to main-process cwd (not renderer cwd).
+  const cwd = desktopCwd(api);
+  if (cwd) {
+    const fromCwd = joinLocalPath(cwd, rel);
+    if (isResolvedWithinAllowedDirs(fromCwd, roots)) add(fromCwd);
+  }
+
   return candidates;
 }
 
@@ -150,6 +209,9 @@ function resolveDesktopLocalSamplePath(ref: string, api: DesktopElectronApi & {
   existsSync: (targetPath: string) => boolean;
 }): string {
   const rel = toPosixPath(decodeLocalSamplePath(ref));
+  if (isAbsoluteLocalPath(rel)) {
+    assertLocalSampleWithinRoots(ref, rel, desktopLocalRoots(api));
+  }
   const candidates = collectDesktopLocalCandidates(rel, api);
   for (const candidate of candidates) {
     if (desktopFileExists(api, candidate)) return candidate;
@@ -188,6 +250,11 @@ async function readLocalSampleBytes(ref: string): Promise<Uint8Array> {
       throw new Error(`NES DMC: desktop local sample read failed for '${ref}'`);
     }
     return bytesFromBase64(encoded);
+  }
+
+  if (isAbsoluteLocalPath(normalized)) {
+    const cwd = processCwd();
+    assertLocalSampleWithinRoots(ref, normalized, cwd ? [cwd] : []);
   }
 
   const { readFileSync } = await import('fs');

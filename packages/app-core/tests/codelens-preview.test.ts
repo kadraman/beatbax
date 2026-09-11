@@ -26,7 +26,11 @@ import {
   parseAndResolveForPreview,
   resolveEffectPreviewInstrument,
   setupCodeLensPreview,
+  triggerInstNotePreview,
+  stopInstPreview,
 } from '../src/editor/codelens-preview';
+import { Player } from '@beatbax/engine/audio/playback';
+import { chipRegistry } from '@beatbax/engine/chips';
 import * as monaco from 'monaco-editor';
 
 describe('CodeLens Preview provider', () => {
@@ -34,6 +38,9 @@ describe('CodeLens Preview provider', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     eventBus = new EventBus();
+    (monaco.languages.registerCodeLensProvider as jest.Mock)
+      .mockReset()
+      .mockReturnValue({ dispose: jest.fn() });
   });
 
   it('registers a CodeLens provider and produces lenses after parse:success', () => {
@@ -41,6 +48,7 @@ describe('CodeLens Preview provider', () => {
     let capturedProvider: any = null;
     (monaco.languages.registerCodeLensProvider as jest.Mock).mockImplementation((lang: string, prov: any) => {
       capturedProvider = prov;
+      return { dispose: jest.fn() };
     });
 
     const source = [
@@ -221,5 +229,102 @@ describe('CodeLens Preview provider', () => {
     const ast = await parseAndResolveForPreview('import "local:missing.ins"\n', eventBus);
     expect(ast).toBeNull();
     expect(messages[0]).toMatch(/Import failed: file not found/);
+  });
+
+  describe('hold-to-play cancellation', () => {
+    const mockEditor: any = {};
+    const leadAst = {
+      imports: [{ source: 'local:kit.ins' }],
+      insts: { lead: { type: 'pulse1' } },
+      chip: 'gameboy',
+    };
+    const resolvedLeadAst = {
+      imports: [],
+      insts: { lead: { type: 'pulse1' } },
+      chip: 'gameboy',
+    };
+
+    afterEach(() => {
+      delete (window as unknown as { electronAPI?: unknown }).electronAPI;
+      const nes = chipRegistry.get('nes') as { resolveSampleAsset?: unknown };
+      delete nes.resolveSampleAsset;
+    });
+
+    it('does not start a player if stopPreview runs during astForPreview', async () => {
+      const playAST = jest.spyOn(Player.prototype, 'playAST');
+      let finishImports!: (ast: typeof resolvedLeadAst) => void;
+      mockParse.mockReturnValue(leadAst);
+      mockResolveImports.mockImplementation(
+        () => new Promise((resolve) => { finishImports = resolve; }),
+      );
+
+      setupCodeLensPreview(mockEditor, eventBus as any, () => 'inst lead type=pulse1');
+      triggerInstNotePreview('lead', 'C4', { sustain: true });
+      stopInstPreview();
+      finishImports(resolvedLeadAst);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(playAST).not.toHaveBeenCalled();
+      playAST.mockRestore();
+    });
+
+    it('does not start a player if stopPreview runs during DMC sample resolve', async () => {
+      const playAST = jest.spyOn(Player.prototype, 'playAST');
+      let finishSample!: () => void;
+      const sampleStarted = new Promise<void>((resolveStarted) => {
+        const nes = chipRegistry.get('nes') as { resolveSampleAsset?: (ref: string) => Promise<void> };
+        nes.resolveSampleAsset = jest.fn(() => {
+          resolveStarted();
+          return new Promise<void>((resolve) => { finishSample = resolve; });
+        });
+      });
+      (window as any).electronAPI = { readFileSync: jest.fn() };
+      mockParse.mockReturnValue({
+        imports: [],
+        insts: { kick: { type: 'dmc', dmc_sample: 'local:kick.dmc' } },
+        chip: 'nes',
+      });
+      mockResolveImports.mockImplementation(async (ast: any) => ast);
+
+      setupCodeLensPreview(mockEditor, eventBus as any, () => 'inst kick type=dmc');
+      triggerInstNotePreview('kick', 'C4', { sustain: true });
+      await sampleStarted;
+
+      stopInstPreview();
+      finishSample();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(playAST).not.toHaveBeenCalled();
+      playAST.mockRestore();
+    });
+
+    it('stops a player created after release during playAST', async () => {
+      const stop = jest.spyOn(Player.prototype, 'stop');
+      let finishPlay!: () => void;
+      const playAST = jest.spyOn(Player.prototype, 'playAST');
+      const playStarted = new Promise<void>((resolveStarted) => {
+        playAST.mockImplementation(() => {
+          resolveStarted();
+          return new Promise<void>((resolve) => { finishPlay = resolve; });
+        });
+      });
+      mockParse.mockReturnValue(resolvedLeadAst);
+      mockResolveImports.mockImplementation(async (ast: any) => ast);
+
+      setupCodeLensPreview(mockEditor, eventBus as any, () => 'inst lead type=pulse1');
+      triggerInstNotePreview('lead', 'C4', { sustain: true });
+      await playStarted;
+
+      stopInstPreview();
+      finishPlay();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(stop).toHaveBeenCalled();
+      playAST.mockRestore();
+      stop.mockRestore();
+    });
   });
 });

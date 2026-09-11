@@ -252,6 +252,55 @@ describe('writeback helpers', () => {
     expect(instIsReferenced(`${base}pat drums = kick . snare . kick\n`, 'snare')).toBe(true);
     expect(instIsReferenced(`${base}# snare fills\npat a = C4\n`, 'snare')).toBe(false);
     expect(instIsReferenced(`${base}pat a = C4  # snare later\n`, 'snare')).toBe(false);
+    expect(instIsReferenced(`${base}subpat lead = . halt\n`, 'lead')).toBe(false);
+    expect(instIsReferenced(`${base}inst kit type=noise subpat=lead\n`, 'lead')).toBe(false);
+    expect(instIsReferenced(`${base}seq lead = melody\n`, 'lead')).toBe(false);
+  });
+
+  it('does not rename subpat declarations or subpat= links when updating references', () => {
+    const src = [
+      'chip gameboy',
+      'subpat lead = . -10 halt',
+      'inst lead type=pulse1 duty=50 subpat=lead',
+      'inst kit type=noise subpat=lead',
+      'channel 1 => inst lead seq main',
+      'pat a = inst(lead) C4 . lead',
+      'seq main = verse:inst(lead)',
+      '',
+    ].join('\n');
+    const { next, ok } = renameInstrumentInSource(src, 'lead', 'pluck', { updateReferences: true });
+    expect(ok).toBe(true);
+    expect(next).toBe([
+      'chip gameboy',
+      'subpat lead = . -10 halt',
+      'inst pluck type=pulse1 duty=50 subpat=lead',
+      'inst kit type=noise subpat=lead',
+      'channel 1 => inst pluck seq main',
+      'pat a = inst(pluck) C4 . pluck',
+      'seq main = verse:inst(pluck)',
+      '',
+    ].join('\n'));
+  });
+
+  it('does not rewrite quoted values or pat/seq declaration names', () => {
+    const src = [
+      'chip nes',
+      'inst lead type=dmc dmc_sample="local:lead/kick.dmc"',
+      'pat lead = inst(lead) C4',
+      'seq lead = lead',
+      'song title "lead"',
+      '',
+    ].join('\n');
+    const { next, ok } = renameInstrumentInSource(src, 'lead', 'pluck', { updateReferences: true });
+    expect(ok).toBe(true);
+    expect(next).toBe([
+      'chip nes',
+      'inst pluck type=dmc dmc_sample="local:lead/kick.dmc"',
+      'pat lead = inst(pluck) C4',
+      'seq lead = lead',
+      'song title "lead"',
+      '',
+    ].join('\n'));
   });
 
   it('finds subpat definition lines by name', () => {
@@ -306,6 +355,10 @@ describe('instrument sample ref scheme/value', () => {
       scheme: 'local',
       remainder: 'samples/kick.dmc',
     });
+    expect(parseInstrumentSampleRef('local:My%20Samples/kick.dmc', 'nes')).toEqual({
+      scheme: 'local',
+      remainder: 'My Samples/kick.dmc',
+    });
     expect(parseInstrumentSampleRef('https://example.com/kick.dmc', 'nes')).toEqual({
       scheme: 'https',
       remainder: 'example.com/kick.dmc',
@@ -320,6 +373,12 @@ describe('instrument sample ref scheme/value', () => {
   it('composes scheme + remainder without duplicating prefixes', () => {
     expect(formatInstrumentSampleRef('bundled', 'kick', 'nes')).toBe('@nes/kick');
     expect(formatInstrumentSampleRef('local', 'samples/kick.dmc', 'nes')).toBe('local:samples/kick.dmc');
+    expect(formatInstrumentSampleRef('local', 'My Samples/kick.dmc', 'nes')).toBe(
+      'local:My%20Samples/kick.dmc',
+    );
+    expect(parseInstrumentSampleRef('local:My%20Samples/kick.dmc', 'nes').remainder).toBe(
+      'My Samples/kick.dmc',
+    );
     expect(formatInstrumentSampleRef('https', 'https://example.com/kick.dmc', 'nes')).toBe(
       'https://example.com/kick.dmc',
     );

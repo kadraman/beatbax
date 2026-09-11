@@ -59,6 +59,7 @@ const electronAPI: ElectronAPI = {
   createAIChatCompletion: (request) => ipcRenderer.invoke(IPC_CHANNELS.AI_CHAT_COMPLETION, request),
   cancelAIChatCompletion: () => ipcRenderer.invoke(IPC_CHANNELS.AI_CANCEL_CHAT_COMPLETION),
   getVersion: () => ipcRenderer.sendSync(IPC_CHANNELS.GET_VERSION),
+  getCwd: () => ipcRenderer.sendSync(IPC_CHANNELS.GET_CWD) as string,
   getPlatform: () => process.platform,
   openRecentFile: (filePath: string) => {
     ipcRenderer.send(IPC_CHANNELS.OPEN_RECENT_FILE, filePath);
