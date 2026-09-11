@@ -5,6 +5,12 @@
 import type { InstrumentNode } from '@beatbax/engine';
 import { serializeInstrument } from '@beatbax/engine';
 
+/**
+ * Peggy `IdentChar` — `[A-Za-z0-9_\-]`. Word-boundary `\b` is wrong here because
+ * `-` is not a JS word char, so names ending in `-` never get a trailing `\b`.
+ */
+const IDENT_CHAR = 'A-Za-z0-9_-';
+
 export function splitTrailingComment(line: string): { code: string; comment: string } {
   let depth = 0;
   let quote: string | null = null;
@@ -30,15 +36,39 @@ export function splitTrailingComment(line: string): { code: string; comment: str
 export function collectLocalInstNames(source: string): Set<string> {
   const names = new Set<string>();
   for (const line of source.split(/\r?\n/)) {
-    const m = line.match(/^\s*inst\s+([A-Za-z0-9_-]+)\b/);
-    if (m) names.add(m[1]);
+    // Peggy Identifier; stop at first non-IdentChar (no `\b`).
+    const m = line.match(new RegExp(`^\\s*inst\\s+([A-Za-z_][${IDENT_CHAR}]*)`));
+    if (m) names.add(m[1]!);
   }
   return names;
 }
 
+/** `inst <name>` at line start; name ends at Peggy IdentChar boundary. */
+function instDefNameRe(name: string): RegExp {
+  return new RegExp(`^\\s*inst\\s+${escapeRegExp(name)}(?![${IDENT_CHAR}])`);
+}
+
+/** Whole-token match for an instrument identifier in pattern/channel text. */
+function instNameTokenRe(name: string, flags = ''): RegExp {
+  const esc = escapeRegExp(name);
+  return new RegExp(`(?<![${IDENT_CHAR}])${esc}(?![${IDENT_CHAR}])`, flags);
+}
+
 export function findInstLineIndex(source: string, name: string): number {
   const lines = source.split(/\r?\n/);
-  const re = new RegExp(`^\\s*inst\\s+${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+  const re = instDefNameRe(name);
+  return lines.findIndex((line) => re.test(line));
+}
+
+/** `subpat <name>` at line start; name ends at Peggy IdentChar boundary. */
+function subpatDefNameRe(name: string): RegExp {
+  return new RegExp(`^\\s*subpat\\s+${escapeRegExp(name)}(?![${IDENT_CHAR}])`);
+}
+
+export function findSubpatLineIndex(source: string, name: string): number {
+  if (!name) return -1;
+  const lines = source.split(/\r?\n/);
+  const re = subpatDefNameRe(name);
   return lines.findIndex((line) => re.test(line));
 }
 
@@ -51,7 +81,7 @@ export function replaceInstLine(
   const lines = source.split(/\r?\n/);
   const idx = findInstLineIndex(source, name);
   if (idx < 0) return { next: source, ok: false };
-  const { comment } = splitTrailingComment(lines[idx]);
+  const { comment } = splitTrailingComment(lines[idx]!);
   const serialized = serializeInstrument(name, node, { fieldOrder });
   lines[idx] = comment ? `${serialized} ${comment}` : serialized;
   return { next: lines.join('\n'), ok: true };
@@ -68,7 +98,7 @@ export function insertInstLine(source: string, serialized: string, afterName?: s
   }
   let lastInst = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (/^\s*inst\s+/.test(lines[i])) lastInst = i;
+    if (/^\s*inst\s+/.test(lines[i]!)) lastInst = i;
   }
   if (lastInst >= 0) {
     lines.splice(lastInst + 1, 0, serialized);
@@ -88,6 +118,38 @@ export function deleteInstLine(source: string, name: string): string {
   return lines.join('\n');
 }
 
+/**
+ * Insert a copy of the persisted `inst` definition under a unique name.
+ * Uses the source line (not panel draft) so invalid withheld edits are not written.
+ */
+export function duplicateInstLine(
+  source: string,
+  name: string,
+  existing?: Set<string>,
+): { next: string; newName: string; body: string; ok: boolean } {
+  const idx = findInstLineIndex(source, name);
+  if (idx < 0) return { next: source, newName: name, body: '', ok: false };
+
+  const names = existing ?? collectLocalInstNames(source);
+  const lines = source.split(/\r?\n/);
+  const { code } = splitTrailingComment(lines[idx]!);
+  const newName = uniqueInstName(name, names);
+  const nextCode = code.replace(
+    new RegExp(`^(\\s*inst\\s+)${escapeRegExp(name)}(?![${IDENT_CHAR}])`),
+    `$1${newName}`,
+  );
+  if (nextCode === code) return { next: source, newName: name, body: '', ok: false };
+
+  const bodyMatch = nextCode.match(/^\s*inst\s+\S+\s+(.*)$/);
+  const body = (bodyMatch?.[1] ?? '').trim();
+  return {
+    next: insertInstLine(source, nextCode.trim(), name),
+    newName,
+    body,
+    ok: true,
+  };
+}
+
 export function uniqueInstName(base: string, existing: Set<string>): string {
   if (!existing.has(base)) return base;
   let n = 2;
@@ -95,9 +157,10 @@ export function uniqueInstName(base: string, existing: Set<string>): string {
   return `${base}${n}`;
 }
 
-const INST_NAME_RE = /^[A-Za-z0-9_-]+$/;
+/** Peggy `Identifier` — `[A-Za-z_][A-Za-z0-9_\-]*` (grammar.peggy). */
+const INST_NAME_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 
-/** True when `name` is a valid `inst` identifier. */
+/** True when `name` is a valid `inst` identifier (Peggy Identifier). */
 export function isValidInstName(name: string): boolean {
   return INST_NAME_RE.test(name);
 }
@@ -124,18 +187,22 @@ export function renameInstrumentInSource(
   const idx = findInstLineIndex(source, oldName);
   if (idx < 0) return { next: source, ok: false };
 
-  const esc = escapeRegExp(oldName);
   const lines = source.split(/\r?\n/);
-  const { code: defCode, comment: defComment } = splitTrailingComment(lines[idx]);
-  const nextDef = defCode.replace(new RegExp(`^(\\s*inst\\s+)${esc}\\b`), `$1${newName}`);
+  const { code: defCode, comment: defComment } = splitTrailingComment(lines[idx]!);
+  const nextDef = defCode.replace(
+    new RegExp(`^(\\s*inst\\s+)${escapeRegExp(oldName)}(?![${IDENT_CHAR}])`),
+    `$1${newName}`,
+  );
+  // Fail closed if the def token did not rewrite (e.g. stale `\b` boundaries).
+  if (nextDef === defCode) return { next: source, ok: false };
   lines[idx] = defComment ? `${nextDef} ${defComment}` : nextDef;
 
   if (options?.updateReferences) {
-    const tokenRe = new RegExp(`\\b${esc}\\b`, 'g');
+    const tokenRe = instNameTokenRe(oldName, 'g');
     for (let i = 0; i < lines.length; i++) {
       if (i === idx) continue;
-      if (/^\s*inst\s+/.test(lines[i])) continue;
-      const { code, comment } = splitTrailingComment(lines[i]);
+      if (/^\s*inst\s+/.test(lines[i]!)) continue;
+      const { code, comment } = splitTrailingComment(lines[i]!);
       if (!code) continue; // full-line comment — leave unchanged
       const nextCode = code.replace(tokenRe, newName);
       lines[i] = comment ? `${nextCode} ${comment}` : nextCode;
@@ -152,7 +219,7 @@ export function renameInstrumentInSource(
  */
 export function instIsReferenced(source: string, name: string): boolean {
   if (!name) return false;
-  const tokenRe = new RegExp(`\\b${escapeRegExp(name)}\\b`);
+  const tokenRe = instNameTokenRe(name);
   for (const line of source.split(/\r?\n/)) {
     if (/^\s*inst\s+/.test(line)) continue;
     const { code } = splitTrailingComment(line);

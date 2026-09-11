@@ -18,7 +18,7 @@ export const smsInstrumentEditor: ChipInstrumentEditor = {
   ],
   macros: [
     { name: 'vol_env', label: 'Volume', min: 0, max: 15, loop: true, kind: 'software', hint: 'Attenuation sequence; 0 = loudest' },
-    { name: 'arp_env', label: 'Arpeggio', min: -24, max: 24, signed: true, loop: true, kind: 'software' },
+    { name: 'arp_env', label: 'Arpeggio', min: -24, max: 24, signed: true, loop: true, kind: 'software', whenType: ['tone1', 'tone2', 'tone3'] },
     { name: 'pitch_env', label: 'Pitch', min: -24, max: 24, signed: true, loop: true, kind: 'software' },
     { name: 'noise_rate_env', label: 'Noise rate', min: 0, max: 3, loop: true, whenType: 'noise', kind: 'software' },
   ],

@@ -40,18 +40,18 @@ if (process.platform === 'win32') {
   app.commandLine.appendSwitch('disable-features', [...features].join(','));
 }
 
+function isMidiPermission(permission: string): boolean {
+  // Chromium asks for `midiSysex` even when requestMIDIAccess({ sysex: false }).
+  // JS still gets sysexEnabled=false; denying midiSysex blocks all Web MIDI.
+  return permission === 'midi' || permission === 'midiSysex';
+}
+
 function installMidiPermissionHandlers(targetSession: Electron.Session): void {
-  // Grant MIDI only — BeatBax calls requestMIDIAccess({ sysex: false }).
-  // Do not allow midiSysex; that widens device access without a current need.
   targetSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    if (permission === 'midi') {
-      callback(true);
-      return;
-    }
-    callback(false);
+    callback(isMidiPermission(permission));
   });
   targetSession.setPermissionCheckHandler((_wc, permission) => {
-    return permission === 'midi';
+    return isMidiPermission(permission);
   });
 }
 

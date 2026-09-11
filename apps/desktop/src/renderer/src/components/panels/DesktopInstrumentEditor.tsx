@@ -21,10 +21,9 @@ import {
   listUgeNoteOptions,
   parseInstrumentBody,
   parseMacro,
+  normalizeWaveSamples,
   parseWaveHexInput,
-  parseWaveTable,
   samplesToHex,
-  serializeInstrument,
   type ChipInstrumentEditor,
   type ChipInstrumentFieldDef,
   type ChipInstrumentMacroDef,
@@ -32,10 +31,22 @@ import {
   type ValidationError,
 } from '@beatbax/engine';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
-import { fieldApplies, resolveInstrumentEditorSchema } from '@beatbax/app-core/editor/instrument-editor-schema';
+import {
+  bundledSamplePrefix,
+  fieldApplies,
+  formatInstrumentSampleRef,
+  INSTRUMENT_SAMPLE_SCHEMES,
+  listBundledSampleNames,
+  parseInstrumentSampleRef,
+  resolveInstrumentEditorSchema,
+  sampleRemainderForSchemeChange,
+  type InstrumentSampleScheme,
+} from '@beatbax/app-core/editor/instrument-editor-schema';
 import {
   collectLocalInstNames,
   deleteInstLine,
+  duplicateInstLine,
+  findSubpatLineIndex,
   insertInstLine,
   instIsReferenced,
   isValidInstName,
@@ -105,6 +116,105 @@ function CompactPropField({
   );
 }
 
+const SAMPLE_VALUE_PLACEHOLDER: Record<InstrumentSampleScheme, string> = {
+  bundled: '',
+  local: 'path/to/sample.dmc',
+  https: 'example.com/sample.dmc',
+  github: 'user/repo/path.dmc',
+};
+
+function InstrumentSampleField({
+  chip,
+  disabled,
+  field,
+  value,
+  onChange,
+}: {
+  chip: string;
+  disabled: boolean;
+  field: ChipInstrumentFieldDef;
+  value: string;
+  onChange: (next: string) => void;
+}): React.JSX.Element {
+  const parsed = parseInstrumentSampleRef(value, chip);
+  const names = listBundledSampleNames(chip);
+  const [emptyScheme, setEmptyScheme] = useState<InstrumentSampleScheme>(parsed.scheme);
+  const scheme = value.trim() ? parsed.scheme : emptyScheme;
+  const remainder = parsed.remainder;
+  const schemeOptions = names.length > 0 || scheme === 'bundled'
+    ? INSTRUMENT_SAMPLE_SCHEMES
+    : INSTRUMENT_SAMPLE_SCHEMES.filter((s) => s.id !== 'bundled');
+  const nameOpts = remainder && scheme === 'bundled' && !names.includes(remainder)
+    ? [remainder, ...names]
+    : names;
+  const fieldId = `bb-inst-field-${field.name}`;
+  const schemeId = `${fieldId}-scheme`;
+  const prefixHint = scheme === 'bundled'
+    ? bundledSamplePrefix(chip)
+    : scheme === 'https'
+      ? 'https://'
+      : `${scheme}:`;
+
+  const commit = (nextScheme: InstrumentSampleScheme, nextRemainder: string) => {
+    onChange(formatInstrumentSampleRef(nextScheme, nextRemainder, chip));
+  };
+
+  return (
+    <div className="bb-settings-row bb-inst-editor__sample-row" title={field.hint}>
+      <span className="bb-settings-label" id={`${fieldId}-label`}>{field.label}</span>
+      <div className="bb-inst-editor__sample-controls" role="group" aria-labelledby={`${fieldId}-label`}>
+        <select
+          id={schemeId}
+          className="bb-settings-select bb-inst-editor__sample-scheme"
+          disabled={disabled}
+          value={scheme}
+          title={prefixHint}
+          aria-label={`${field.label} scheme`}
+          onChange={(e) => {
+            const next = e.target.value as InstrumentSampleScheme;
+            const nextRemainder = sampleRemainderForSchemeChange(scheme, next, remainder, chip);
+            setEmptyScheme(next);
+            commit(next, nextRemainder);
+          }}
+        >
+          {schemeOptions.map((opt) => (
+            <option key={opt.id} value={opt.id}>{opt.label}</option>
+          ))}
+        </select>
+        {scheme === 'bundled' ? (
+          <select
+            id={fieldId}
+            className="bb-settings-select bb-inst-editor__sample-value"
+            disabled={disabled}
+            value={remainder}
+            aria-label={`${field.label} bundled name`}
+            onChange={(e) => commit('bundled', e.target.value)}
+          >
+            <option value="">—</option>
+            {nameOpts.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            id={fieldId}
+            className="bb-settings-text bb-inst-editor__sample-value"
+            disabled={disabled}
+            type="text"
+            value={remainder}
+            placeholder={SAMPLE_VALUE_PLACEHOLDER[scheme]}
+            aria-label={`${field.label} value`}
+            onChange={(e) => {
+              setEmptyScheme(scheme);
+              commit(scheme, e.target.value);
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Sensible default `inst` name from chip type (never the keyword `inst`). */
 function defaultNewInstBaseName(type: string | undefined): string {
   switch ((type ?? '').toLowerCase()) {
@@ -167,6 +277,8 @@ export interface DesktopInstrumentEditorOptions {
   getSource: () => string;
   applySource: (next: string) => void;
   revealInst: (name: string | null, opts?: { focus?: boolean; reveal?: boolean }) => void;
+  /** Reveal/focus a `subpat` definition without changing the selected-inst highlight. */
+  revealSubpat?: (name: string) => void;
   previewNote: (instName: string, note: string) => void;
   stopPreview: () => void;
   isMidiRecordArmed?: () => boolean;
@@ -227,6 +339,7 @@ function DesktopInstrumentEditor({
   getSource,
   applySource,
   revealInst,
+  revealSubpat,
   previewNote,
   stopPreview,
 }: Props): React.JSX.Element {
@@ -383,9 +496,14 @@ function DesktopInstrumentEditor({
   const instType = String(draft.type ?? schema.types[0]?.id ?? '');
 
   const onNew = () => {
-    const preset = schema.presets[0];
-    const body = preset?.content ?? `type=${schema.types[0]?.id ?? 'pulse1'}`;
-    const type = preset?.type ?? schema.types[0]?.id;
+    // Default plugin preset for the current type (not always presets[0]).
+    const currentType = instType || schema.types[0]?.id;
+    const preset = currentType
+      ? schema.presets.find((p) => p.type === currentType)
+      : schema.presets[0];
+    const body = preset?.content
+      ?? (currentType ? `type=${currentType}` : `type=${schema.types[0]?.id ?? 'pulse1'}`);
+    const type = preset?.type ?? currentType ?? schema.types[0]?.id;
     const name = uniqueInstName(defaultNewInstBaseName(type), localNames);
     const serialized = `inst ${name} ${body.replace(/^inst\s+\S+\s+/i, '')}`;
     const afterName = selectedLocal && selected ? selected : undefined;
@@ -398,17 +516,16 @@ function DesktopInstrumentEditor({
   };
 
   const onDuplicate = () => {
-    if (!selected) return;
-    const name = uniqueInstName(selected, localNames);
-    const { next } = replaceInstLine(
-      insertInstLine(getSource(), serializeInstrument(name, { ...draft }), selected),
-      name,
-      { ...draft, __loc: undefined },
-      fieldOrder,
-    );
+    if (!selected || !selectedLocal) return;
+    // Copy the persisted source line — not the panel draft — so invalid edits
+    // withheld by write-valid-only never land in the document.
+    const { next, newName, body, ok } = duplicateInstLine(getSource(), selected, localNames);
+    if (!ok) return;
     applySource(next);
-    setSelected(name);
-    revealInst(name, { focus: false, reveal: true });
+    setSelected(newName);
+    setDraft(parseInstrumentBody(body));
+    setErrors([]);
+    revealInst(newName, { focus: false, reveal: true });
     restorePanelFocus();
   };
 
@@ -446,16 +563,15 @@ function DesktopInstrumentEditor({
       return;
     }
     if (!isValidInstName(nextName)) {
-      setRenameError('Use letters, digits, underscore, or hyphen only.');
+      setRenameError('Must start with a letter or underscore; then letters, digits, underscore, or hyphen.');
       return;
     }
     if (localNames.has(nextName)) {
       setRenameError(`Name '${nextName}' is already used.`);
       return;
     }
-    const synced = replaceInstLine(getSource(), selected, draft, fieldOrder);
-    if (!synced.ok) return;
-    const { next, ok } = renameInstrumentInSource(synced.next, selected, nextName, {
+    // Rename the persisted source line only — do not flush an invalid draft.
+    const { next, ok } = renameInstrumentInSource(getSource(), selected, nextName, {
       updateReferences: renameUpdateRefs,
     });
     if (!ok) return;
@@ -586,7 +702,7 @@ function DesktopInstrumentEditor({
     ? schema.waveform
     : undefined;
   const waveSamples = waveDef
-    ? parseWaveTable(draft[waveDef.field] ?? new Array(waveDef.length).fill(0))
+    ? normalizeWaveSamples(draft[waveDef.field], waveDef.length, waveDef.min, waveDef.max)
     : [];
   const subpatSet = typeof draft.subpat === 'string' && draft.subpat.trim().length > 0;
   const quietWave = waveDef && waveSamples.length && Math.max(...waveSamples) < waveDef.max;
@@ -669,6 +785,47 @@ function DesktopInstrumentEditor({
         />
       );
     }
+    if (field.widget === 'sample') {
+      return (
+        <InstrumentSampleField
+          key={`${selected ?? ''}:${field.name}`}
+          chip={chip}
+          disabled={!selectedLocal}
+          field={field}
+          value={value}
+          onChange={(next) => clearOrSetField(field.name, next)}
+        />
+      );
+    }
+    if (field.name === 'subpat') {
+      const subpatName = typeof raw === 'string' ? raw.trim() : value.trim();
+      const subpatLine = subpatName ? findSubpatLineIndex(getSource(), subpatName) : -1;
+      const canReveal = Boolean(subpatName && subpatLine >= 0 && revealSubpat);
+      const revealHelp = canReveal
+        ? `Show subpat ${subpatName} in the source editor`
+        : `No subpat ${subpatName} definition in this file`;
+      return (
+        <div className="bb-settings-row bb-inst-editor__subpat-row" key={field.name}>
+          <span className="bb-settings-label" id={`${fieldId}-label`} title={field.hint}>{field.label}</span>
+          <div className="bb-inst-editor__subpat-controls" role="group" aria-labelledby={`${fieldId}-label`}>
+            <span className="bb-inst-editor__subpat-name" id={fieldId}>{subpatName || '—'}</span>
+            {subpatName ? (
+              <button
+                type="button"
+                className="bb-inst-editor__toolbar-btn bb-inst-editor__subpat-link"
+                disabled={!canReveal}
+                title={revealHelp}
+                aria-label={revealHelp}
+                onClick={() => {
+                  if (canReveal && subpatName) revealSubpat?.(subpatName);
+                }}
+                dangerouslySetInnerHTML={{ __html: icon('arrows-pointing-in', 'w-3.5 h-3.5') }}
+              />
+            ) : null}
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="bb-settings-row" key={field.name} title={field.hint}>
         <label className="bb-settings-label" htmlFor={fieldId}>{field.label}</label>
@@ -687,7 +844,7 @@ function DesktopInstrumentEditor({
           <input
             id={fieldId}
             className={field.widget === 'int' ? 'bb-settings-number' : 'bb-settings-text bb-inst-editor__grow'}
-            disabled={!selectedLocal || field.name === 'subpat'}
+            disabled={!selectedLocal}
             type={field.widget === 'int' ? 'number' : 'text'}
             min={field.min}
             max={field.max}
@@ -971,7 +1128,7 @@ function DesktopInstrumentEditor({
               )}
               siblingPeriod={Number.isFinite(siblingPeriod) ? siblingPeriod : 0}
               disabled={!selectedLocal}
-              onEnvelopeChange={(next) => {
+              onEnvelopeChange={(next, siblingPeriodValue) => {
                 if (!envelopeField) return;
                 if (next == null) {
                   const cleared: Record<string, unknown> = { [envelopeField.name]: undefined };
@@ -979,9 +1136,14 @@ function DesktopInstrumentEditor({
                     cleared.env_period = undefined;
                   }
                   patch(cleared);
-                } else {
-                  patch({ [envelopeField.name]: next });
+                  return;
                 }
+                // One patch: sequential patches both spread the same stale draft.
+                const partial: Record<string, unknown> = { [envelopeField.name]: next };
+                if (siblingPeriodValue !== undefined) {
+                  partial.env_period = String(siblingPeriodValue);
+                }
+                patch(partial);
               }}
               onSweepChange={(next) => {
                 if (!sweepField) return;
@@ -992,13 +1154,6 @@ function DesktopInstrumentEditor({
                 if (next == null) patch({ [sweepField.name]: undefined });
                 else patch({ [sweepField.name]: next });
               }}
-              onSiblingPeriodChange={
-                envelopeField
-                && (envelopeField.storage === 'discrete'
-                  || visibleFields.some((f) => f.name === 'env_period'))
-                  ? (p) => patch({ env_period: String(p) })
-                  : undefined
-              }
               sweepPeriodMin={sweepField?.storage === 'discrete' ? 1 : 0}
             />
 
@@ -1022,7 +1177,7 @@ function DesktopInstrumentEditor({
                 !selectedLocal
                   ? 'Imported instruments are read-only. Copy into the song to edit macros.'
                   : subpatSet
-                    ? `Software macros are supported, but editing is locked while native subpattern “${String(draft.subpat)}” is set.`
+                    ? 'Software macros are locked while subpat is set.'
                     : null
               }
               macros={schema.macros.filter((m) => fieldApplies(m.whenType, instType))}
@@ -1262,7 +1417,6 @@ function HardwareEnvSweepSection({
   disabled,
   onEnvelopeChange,
   onSweepChange,
-  onSiblingPeriodChange,
   sweepPeriodMin = 0,
 }: {
   envelope?: ChipInstrumentFieldDef;
@@ -1272,9 +1426,9 @@ function HardwareEnvSweepSection({
   periodSibling: boolean;
   siblingPeriod: number;
   disabled: boolean;
-  onEnvelopeChange: (csv: string | undefined) => void;
+  /** Optional second arg writes discrete `env_period` in the same parent patch. */
+  onEnvelopeChange: (csv: string | undefined, siblingPeriod?: number) => void;
   onSweepChange: (csv: string | undefined) => void;
-  onSiblingPeriodChange?: (period: number) => void;
   /** NES discrete sweep validates period 1–7; GB packed sweep allows 0–7. */
   sweepPeriodMin?: number;
 }): React.JSX.Element | null {
@@ -1315,7 +1469,12 @@ function HardwareEnvSweepSection({
   const active = defined.find((d) => d.id === activeId) ?? defined[0] ?? null;
 
   const addEnvelope = () => {
-    onEnvelopeChange(formatHardwareEnvelope({ level: 12, direction: 'down', period: 1 }));
+    const defaults = { level: 12, direction: 'down' as const, period: 1 };
+    if (periodSibling) {
+      onEnvelopeChange(`${defaults.level},${defaults.direction}`, defaults.period);
+    } else {
+      onEnvelopeChange(formatHardwareEnvelope(defaults));
+    }
     setActiveId('envelope');
   };
   const addSweep = () => {
@@ -1378,7 +1537,6 @@ function HardwareEnvSweepSection({
               periodSibling={periodSibling}
               siblingPeriod={siblingPeriod}
               onChange={onEnvelopeChange}
-              onSiblingPeriodChange={onSiblingPeriodChange}
               onRemove={disabled ? undefined : () => {
                 onEnvelopeChange(undefined);
               }}
@@ -1408,7 +1566,6 @@ function EnvelopeEditor({
   periodSibling,
   siblingPeriod,
   onChange,
-  onSiblingPeriodChange,
   onRemove,
 }: {
   hint?: string;
@@ -1417,8 +1574,8 @@ function EnvelopeEditor({
   periodMax: number;
   periodSibling: boolean;
   siblingPeriod: number;
-  onChange: (csv: string | undefined) => void;
-  onSiblingPeriodChange?: (period: number) => void;
+  /** When `periodSibling`, pass discrete `env_period` so the parent can patch both at once. */
+  onChange: (csv: string | undefined, siblingPeriod?: number) => void;
   onRemove?: () => void;
 }): React.JSX.Element {
   const parsed = parseHardwareEnvelope(value);
@@ -1432,13 +1589,13 @@ function EnvelopeEditor({
 
   const commit = (next: { level: number; direction: EnvelopeDirection; period: number }) => {
     if (next.direction === 'flat') {
-      onChange(formatHardwareEnvelope({ level: next.level, direction: 'flat', period: 0 }));
-      if (periodSibling) onSiblingPeriodChange?.(0);
+      const csv = formatHardwareEnvelope({ level: next.level, direction: 'flat', period: 0 });
+      if (periodSibling) onChange(csv, 0);
+      else onChange(csv);
       return;
     }
     if (periodSibling) {
-      onChange(`${next.level},${next.direction}`);
-      onSiblingPeriodChange?.(next.period);
+      onChange(`${next.level},${next.direction}`, next.period);
     } else {
       onChange(formatHardwareEnvelope(next));
     }
@@ -1706,8 +1863,7 @@ function WaveformCanvas({
     const idx = Math.max(0, Math.min(def.length - 1, Math.floor((x / rect.width) * def.length)));
     const value = Math.round(def.max - (y / rect.height) * (def.max - def.min));
     const clamped = Math.max(def.min, Math.min(def.max, value));
-    const next = samples.slice(0, def.length);
-    while (next.length < def.length) next.push(0);
+    const next = normalizeWaveSamples(samples, def.length, def.min, def.max);
     if (shift && lastIdx.current >= 0) {
       const from = lastIdx.current;
       const a = Math.min(from, idx);
@@ -1746,8 +1902,9 @@ function WaveformCanvas({
 
   const applyHexDraft = (raw: string, normalizeField: boolean) => {
     const parsed = parseWaveHexInput(raw, def.length);
-    if (normalizeField) setHexDraft(parsed.hex);
-    onChange(parsed.samples);
+    const samples = normalizeWaveSamples(parsed.samples, def.length, def.min, def.max);
+    if (normalizeField) setHexDraft(samplesToHex(samples));
+    onChange(samples);
   };
 
   return (
@@ -1773,7 +1930,7 @@ function WaveformCanvas({
             onClick={() => {
               const next = typeof p.samples === 'string'
                 ? generateWaveformPreset(p.samples, def.length, def.min, def.max)
-                : p.samples.slice(0, def.length);
+                : normalizeWaveSamples(p.samples, def.length, def.min, def.max);
               onChange(next);
             }}
           >

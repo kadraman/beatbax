@@ -14,7 +14,7 @@ export const nesInstrumentEditor: ChipInstrumentEditor = {
     { name: 'linear', label: 'Linear counter', widget: 'int', min: 0, max: 127, whenType: 'triangle', hint: 'Gate length in frames (1–127); 0 or omit = sustain' },
     { name: 'noise_mode', label: 'Noise mode', widget: 'enum', values: ['normal', 'loop'], whenType: 'noise', hint: 'normal = short LFSR (metallic); loop = long random' },
     { name: 'noise_period', label: 'Noise period', widget: 'int', min: 0, max: 15, whenType: 'noise' },
-    { name: 'dmc_sample', label: 'DMC sample', widget: 'sample', whenType: 'dmc', hint: '@nes/name, local:path, or https://…' },
+    { name: 'dmc_sample', label: 'DMC sample', widget: 'sample', whenType: 'dmc', hint: 'Bundled @nes/name, local:path, https:// URL, or github: ref' },
     { name: 'dmc_rate', label: 'DMC rate', widget: 'int', min: 0, max: 15, whenType: 'dmc' },
     { name: 'dmc_loop', label: 'DMC loop', widget: 'bool', whenType: 'dmc' },
     { name: 'dmc_level', label: 'DMC level', widget: 'int', min: 0, max: 127, whenType: 'dmc', hint: 'Initial DAC level 0–127' },

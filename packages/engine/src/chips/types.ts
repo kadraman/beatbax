@@ -509,7 +509,7 @@ export interface ChipPlugin {
    * Required by chips that support sampled audio (e.g. NES DMC).
    * Follows the same multi-environment conventions as BeatBax imports:
    *   - `"@<chip>/<name>"` — bundled library (always available)
-   *   - `"local:<path>"`   — file-system (CLI/Node.js only)
+   *   - `"local:<path>"`   — file-system (CLI/Node.js and Desktop; blocked in web-lite)
    *   - `"https://..."`    — remote fetch (browser + Node.js 18+)
    */
   resolveSampleAsset?(ref: string): Promise<ArrayBuffer>;

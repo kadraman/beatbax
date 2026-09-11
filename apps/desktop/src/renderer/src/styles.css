@@ -8944,6 +8944,49 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   min-width: 0;
   width: auto;
 }
+.bb-inst-editor .bb-settings-row.bb-inst-editor__sample-row {
+  container-type: inline-size;
+  container-name: inst-sample-row;
+}
+.bb-inst-editor__sample-controls,
+.bb-inst-editor__subpat-controls {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 8px;
+  align-items: center;
+}
+.bb-inst-editor__sample-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 6.5rem) minmax(0, 1fr);
+  gap: 6px 8px;
+  align-items: stretch;
+}
+.bb-inst-editor__sample-controls .bb-inst-editor__sample-scheme,
+.bb-inst-editor__sample-controls .bb-inst-editor__sample-value {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+.bb-inst-editor__subpat-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 22px;
+  color: #ccc;
+}
+/* Stack scheme above value when label + two fields cannot share one row. */
+@container inst-sample-row (max-width: 22rem) {
+  .bb-inst-editor__sample-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.bb-inst-editor__subpat-link {
+  flex: 0 0 auto;
+}
 .bb-inst-editor .bb-settings-select.bb-inst-editor__grow,
 .bb-inst-editor .bb-settings-text.bb-inst-editor__grow {
   /* Shrink with the pane so label + control stay on one row when narrow. */
@@ -9512,6 +9555,9 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 }
 [data-theme="light"] .bb-inst-editor__ctrl-pair-label {
   color: #666;
+}
+[data-theme="light"] .bb-inst-editor__subpat-name {
+  color: #333;
 }
 [data-theme="light"] .bb-inst-editor__ctrl-pair .bb-settings-select,
 [data-theme="light"] .bb-inst-editor__ctrl-pair .bb-inst-editor__hw-dir {

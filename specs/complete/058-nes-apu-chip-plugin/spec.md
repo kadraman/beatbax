@@ -245,14 +245,14 @@ Key behaviours:
 
 - **Sample resolution (multi-environment):** `dmc_sample` supports three reference schemes:
   - `"@nes/<name>"` — resolves from the plugin's built-in sample library (works in all environments: browser, Node.js, CLI)
-  - `"local:<path>"` — resolves from the local file system via the path-traversal guard (CLI/Node.js only; blocked in browser, matching the existing import security model in `docs/language/import-security.md`)
+  - `"local:<path>"` — resolves from the local file system via the path-traversal guard (CLI/Node.js and BeatBax Desktop via Electron FS; blocked in web-lite, matching the import security model in `docs/language/import-security.md`)
   - `"https://..."` — fetches remotely via `fetch()` (works in browser and Node.js 18+)
 - **Sample decoding:** Decode the loaded `.dmc` content (1-bit delta-encoded, standard NES format) into a `Float32Array` for WebAudio playback
 - **Playback rate:** Map `dmc_rate` index to NTSC sample rate (16 values, 4181–33144 Hz); pass as `AudioBufferSourceNode.playbackRate` relative to `audioContext.sampleRate`
 - **Loop mode:** `dmc_loop=true` sets `AudioBufferSourceNode.loop = true`
 - **Initial level:** `dmc_level` sets a DC offset on `ConstantSourceNode` to initialise the DAC counter simulation
 - **Trigger on note-on:** DMC is a sample trigger, not a pitched synthesiser; note pitch is ignored; the sample plays from its start address on each note-on event
-- **Security:** `local:` paths pass through the same path-traversal guard as instrument imports; browser environments block local paths automatically
+- **Security:** `local:` paths pass through the same path-traversal guard as instrument imports; web-lite blocks local paths; Desktop resolves them through Electron FS relative to the saved song (and process cwd), same as CLI
 
 #### 3.6 `mixer.ts` — Mixer (Linear Weighted-Sum Approximation)
 

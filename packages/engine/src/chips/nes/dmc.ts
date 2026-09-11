@@ -7,7 +7,7 @@
  *
  * Sample resolution (multi-environment):
  *   - `"@nes/<name>"` — bundled library (always safe; embedded in plugin)
- *   - `"local:<path>"` — file system (CLI/Node.js only; blocked in browser)
+ *   - `"local:<path>"` — file system (CLI/Node.js and BeatBax Desktop; blocked in web-lite)
  *   - `"https://..."`  — remote fetch (browser + Node.js 18+)
  */
 import type { ChipChannelBackend } from '../types.js';
@@ -15,6 +15,7 @@ import type { InstrumentNode } from '../../parser/ast.js';
 import { DMC_RATE_TABLE, getDmcRateTable, NES_CLOCK } from './periodTables.js';
 import { NES_MIX_GAIN } from './mixer.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
+import { dirnameLocalPath, isAbsoluteLocalPath, joinLocalPath, toPosixPath } from '../../import/localImportPath.js';
 
 interface DesktopRemoteAssetRequest {
   url: string;
@@ -24,6 +25,8 @@ interface DesktopRemoteAssetRequest {
 
 interface DesktopElectronApi {
   fetchRemoteAsset?: (request: DesktopRemoteAssetRequest) => Promise<unknown>;
+  readFileSync?: (targetPath: string, encoding?: string) => string;
+  existsSync?: (targetPath: string) => boolean;
 }
 
 // ─── GitHub URL resolution ─────────────────────────────────────────────────────
@@ -82,6 +85,113 @@ function getDesktopElectronApi(): DesktopElectronApi | null {
   const api = maybeWindow.electronAPI;
   if (!api || typeof api !== 'object') return null;
   return api as DesktopElectronApi;
+}
+
+function hasDesktopLocalFs(api: DesktopElectronApi | null): api is DesktopElectronApi & {
+  readFileSync: (targetPath: string, encoding?: string) => string;
+  existsSync: (targetPath: string) => boolean;
+} {
+  return typeof api?.readFileSync === 'function' && typeof api?.existsSync === 'function';
+}
+
+/** Web-lite (window, no Electron FS). Desktop and Node can read `local:`. */
+function blocksLocalSamples(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !hasDesktopLocalFs(getDesktopElectronApi());
+}
+
+function desktopFileExists(api: { existsSync: (targetPath: string) => boolean }, absPath: string): boolean {
+  if (api.existsSync(absPath)) return true;
+  const swapped = absPath.includes('/') && !absPath.includes('\\')
+    ? absPath.replace(/\//g, '\\')
+    : absPath.replace(/\\/g, '/');
+  return swapped !== absPath && api.existsSync(swapped);
+}
+
+function lastDocumentPath(): string | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    return localStorage.getItem('beatbax:editor.lastDocumentPath');
+  } catch {
+    return null;
+  }
+}
+
+function collectDesktopLocalCandidates(rel: string, api: DesktopElectronApi): string[] {
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+  const add = (p: string) => {
+    const n = toPosixPath(p);
+    if (!n || seen.has(n)) return;
+    seen.add(n);
+    candidates.push(n);
+  };
+
+  if (isAbsoluteLocalPath(rel)) {
+    add(rel);
+    return candidates;
+  }
+
+  const doc = lastDocumentPath();
+  if (doc) {
+    let dir = dirnameLocalPath(doc);
+    for (let i = 0; i < 16; i++) {
+      add(joinLocalPath(dir, rel));
+      const parent = dirnameLocalPath(dir);
+      if (parent === dir || parent === '.') break;
+      dir = parent;
+    }
+  }
+
+  return candidates;
+}
+
+function resolveDesktopLocalSamplePath(ref: string, api: DesktopElectronApi & {
+  existsSync: (targetPath: string) => boolean;
+}): string {
+  const rel = toPosixPath(decodeLocalSamplePath(ref));
+  const candidates = collectDesktopLocalCandidates(rel, api);
+  for (const candidate of candidates) {
+    if (desktopFileExists(api, candidate)) return candidate;
+  }
+  const hint = candidates.length > 0
+    ? ` Tried: ${candidates.join(', ')}.`
+    : ' Save the song to disk first.';
+  throw new Error(`NES DMC: local sample not found '${ref}'.${hint}`);
+}
+
+function bytesFromBase64(encoded: string): Uint8Array {
+  const binaryStr = atob(encoded);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+  return bytes;
+}
+
+async function readLocalSampleBytes(ref: string): Promise<Uint8Array> {
+  const path = decodeLocalSamplePath(ref);
+  const normalized = path.replace(/\\/g, '/');
+  if (/(^|\/)\.\.($|\/)/.test(normalized)) {
+    throw new Error(`NES DMC: path traversal detected in sample reference '${ref}'`);
+  }
+
+  const desktopApi = getDesktopElectronApi();
+  const desktopFs = hasDesktopLocalFs(desktopApi);
+
+  if (blocksLocalSamples()) {
+    throw new Error(`NES DMC: 'local:' sample references are blocked in browser contexts for security. Use '@nes/<name>', 'https://', or 'github:' instead.`);
+  }
+
+  if (desktopFs) {
+    const abs = resolveDesktopLocalSamplePath(ref, desktopApi);
+    const encoded = desktopApi.readFileSync(abs, 'base64');
+    if (typeof encoded !== 'string') {
+      throw new Error(`NES DMC: desktop local sample read failed for '${ref}'`);
+    }
+    return bytesFromBase64(encoded);
+  }
+
+  const { readFileSync } = await import('fs');
+  return new Uint8Array(readFileSync(path));
 }
 
 function toByteArray(data: unknown): Uint8Array {
@@ -166,18 +276,7 @@ export async function resolveRawDMCSample(ref: string): Promise<ArrayBuffer> {
   }
 
   if (ref.startsWith('local:')) {
-    if (isBrowser) {
-      throw new Error(`NES DMC: 'local:' sample references are blocked in browser contexts for security. Use '@nes/<name>', 'https://', or 'github:' instead.`);
-    }
-    const path = decodeLocalSamplePath(ref);
-    // Normalise separators then check for '..' as a path segment (not as part of
-    // a filename like 'file..dmc'). Mirrors the check in importResolver.ts.
-    const normalized = path.replace(/\\/g, '/');
-    if (/(^|\/)\.\.($|\/)/.test(normalized)) {
-      throw new Error(`NES DMC: path traversal detected in sample reference '${ref}'`);
-    }
-    const { readFileSync } = await import('fs');
-    const bytes = readFileSync(path);
+    const bytes = await readLocalSampleBytes(ref);
     return new Uint8Array(bytes).buffer;
   }
 
@@ -186,15 +285,13 @@ export async function resolveRawDMCSample(ref: string): Promise<ArrayBuffer> {
 
 // ─── Sample resolver ──────────────────────────────────────────────────────────
 
-const isBrowser = typeof window !== 'undefined';
-
 /**
  * Resolve a DMC sample reference to decoded Float32Array.
  *
  * Supports:
  *   - `"@nes/<name>"` — bundled sample library
  *   - `"https://..."`  — remote fetch
- *   - `"local:<path>"` — file system (Node.js only; throws in browser)
+ *   - `"local:<path>"` — file system (Node.js / Desktop; throws in web-lite)
  */
 export async function resolveDMCSample(ref: string): Promise<Float32Array> {
   if (ref.startsWith('@nes/')) {
@@ -217,20 +314,8 @@ export async function resolveDMCSample(ref: string): Promise<Float32Array> {
   }
 
   if (ref.startsWith('local:')) {
-    if (isBrowser) {
-      throw new Error(`NES DMC: 'local:' sample references are blocked in browser contexts for security. Use '@nes/<name>', 'https://', or 'github:' instead.`);
-    }
-    const path = decodeLocalSamplePath(ref);
-    // Normalise separators then check for '..' as a path segment (not as part of
-    // a filename like 'file..dmc'). Mirrors the check in importResolver.ts.
-    const normalized = path.replace(/\\/g, '/');
-    if (/(^|\/)\.\.($|\/)/.test(normalized)) {
-      throw new Error(`NES DMC: path traversal detected in sample reference '${ref}'`);
-    }
-    // Dynamic import of 'fs' so this module stays browser-safe at parse time
-    const { readFileSync } = await import('fs');
-    const bytes = readFileSync(path);
-    return decodeDMC(new Uint8Array(bytes));
+    const bytes = await readLocalSampleBytes(ref);
+    return decodeDMC(bytes);
   }
 
   throw new Error(`NES DMC: unsupported sample reference scheme '${ref}'. Use '@nes/<name>', 'https://', 'github:', or 'local:'`);
