@@ -221,6 +221,11 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     onActiveTabChange: (tab) => {
       const midi = (window as any).__beatbax_midiStepEntry;
       midi?.setInstrumentAuditionOnly?.(tab === 'instruments' && !midi.isArmed?.());
+      // Note-off handlers require Instruments to be active; stop here when leaving.
+      if (tab !== 'instruments') {
+        stopInstPreview();
+        eventBus.emit('instrument-editor:audition', { note: null });
+      }
     },
   });
 
@@ -397,6 +402,12 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
             focus: opts?.focus === true,
             reveal: opts?.reveal !== false && name != null,
           });
+        });
+      },
+      revealSubpat: (name) => {
+        if (!name) return;
+        queueMicrotask(() => {
+          instrumentEditorNav.syncSubpat(name, { focus: true, reveal: true });
         });
       },
       previewNote: (instName, note) => triggerInstNotePreview(instName, note, { sustain: true }),

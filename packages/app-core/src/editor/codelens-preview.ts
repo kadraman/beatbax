@@ -24,6 +24,7 @@ import * as monaco from 'monaco-editor';
 import { parse, parseWithPeggy } from '@beatbax/engine/parser';
 import { resolveImports, resolveSong } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
+import { chipRegistry } from '@beatbax/engine/chips';
 import type { EventBus } from '../utils/event-bus.js';
 import { buildImportResolverOptions } from '../import/import-resolver-options.js';
 import { findChannelForNamedItem } from './preview-channel-resolve.js';
@@ -114,6 +115,17 @@ export async function parseAndResolveForPreview(
 // ---------------------------------------------------------------------------
 // Preview playback
 // ---------------------------------------------------------------------------
+
+function hostCanReadLocalSamples(): boolean {
+  if (typeof window === 'undefined') return true;
+  return typeof (window as unknown as { electronAPI?: { readFileSync?: unknown } }).electronAPI?.readFileSync === 'function';
+}
+
+function isLocalDmcInstrument(instDef: any): instDef is { dmc_sample: string } {
+  return String(instDef?.type ?? '').toLowerCase() === 'dmc'
+    && typeof instDef?.dmc_sample === 'string'
+    && instDef.dmc_sample.startsWith('local:');
+}
 
 interface PreviewState {
   player: Player;
@@ -284,7 +296,7 @@ async function startInstNotePreview(
   const steps = sustain ? INST_NOTE_SUSTAIN_STEPS : 1;
 
   const previewAst = {
-    chip:  rawAst.chip ?? 'gameboy',
+    chip:  rawAst.chip ? chipRegistry.resolve(String(rawAst.chip).toLowerCase()) : (rawAst.chip ?? 'gameboy'),
     bpm:   60,   // 1 beat = 1 s at 60 BPM — gives envelope plenty of time
     insts: rawAst.insts,
     // Prefer structured events so `:N` duration expands to note + sustains.
@@ -727,24 +739,28 @@ export function setupCodeLensPreview(
     const rawAst = await astForPreview();
     if (!rawAst) return;
 
-    // Detect browser-incompatible local: DMC sample references before attempting
-    // playback — the DMC backend blocks local: in browser contexts for security,
-    // so the preview would start but be completely silent with no user feedback.
     const instDef = rawAst.insts?.[instName];
     if (!instDef) {
       failPreview(`Preview unavailable: instrument '${instName}' is not defined.`);
       return;
     }
-    if (
-      instDef?.type?.toLowerCase() === 'dmc' &&
-      typeof instDef.dmc_sample === 'string' &&
-      instDef.dmc_sample.startsWith('local:') &&
-      typeof window !== 'undefined'
-    ) {
+    const canReadLocal = hostCanReadLocalSamples();
+    const localDmc = isLocalDmcInstrument(instDef);
+    if (localDmc && !canReadLocal) {
       eventBus.emit('preview:error', {
         message: `Preview unavailable: 'local:' DMC samples cannot be accessed in the browser. Use @nes/<name> or https:// instead.`,
       });
       return;
+    }
+    if (localDmc) {
+      const plugin = chipRegistry.get(chipRegistry.resolve(String(rawAst.chip || 'nes').toLowerCase()));
+      try {
+        await plugin?.resolveSampleAsset?.(instDef.dmc_sample);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        failPreview(`Preview unavailable: ${message}`);
+        return;
+      }
     }
 
     const state = await startInstNotePreview(instName, note, rawAst, () => {
@@ -773,12 +789,7 @@ export function setupCodeLensPreview(
     }
 
     const instDef = rawAst.insts?.[instName];
-    if (
-      instDef?.type?.toLowerCase() === 'dmc' &&
-      typeof instDef.dmc_sample === 'string' &&
-      instDef.dmc_sample.startsWith('local:') &&
-      typeof window !== 'undefined'
-    ) {
+    if (isLocalDmcInstrument(instDef) && !hostCanReadLocalSamples()) {
       eventBus.emit('preview:error', {
         message: `Preview unavailable: 'local:' DMC samples cannot be accessed in the browser. Use @nes/<name> or https:// instead.`,
       });

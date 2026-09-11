@@ -17,7 +17,7 @@ export const gameboyInstrumentEditor: ChipInstrumentEditor = {
     { name: 'uge_note', label: 'UGE note', widget: 'uge_note', whenType: 'noise', hint: 'hUGETracker noise note (C-3…C-9); controls NR43 clock' },
     { name: 'gm', label: 'GM program', widget: 'int', min: 0, max: 127 },
     { name: 'note', label: 'Default note', widget: 'note', hint: 'Pitch used when the instrument name is a hit token' },
-    { name: 'subpat', label: 'Subpattern', widget: 'text', hint: 'Native subpattern — macros are read-only when set' },
+    { name: 'subpat', label: 'Subpattern', widget: 'text', hint: 'Native subpattern — macros are locked when set (native wins)' },
   ],
   macros: [
     { name: 'vol_env', label: 'Volume', min: 0, max: 15, loop: true, kind: 'software' },

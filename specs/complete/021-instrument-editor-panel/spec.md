@@ -2,11 +2,11 @@
 title: "Instrument Editor Panel (Desktop)"
 id: 21
 slug: "instrument-editor-panel"
-status: "in-progress"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-08-15"
-updated: "2026-09-07"
+updated: "2026-09-11"
 issue: "https://github.com/kadraman/beatbax/issues/169"
 area: "desktop"
 related:
@@ -264,7 +264,7 @@ Layout (top → bottom):
 
 1. **Instrument list** — names from the current AST; New / Duplicate / Rename / Delete.
 2. **Template picker** — plugin presets + copy from another song instrument.
-3. **Type + chip fields** — Name and Type stay always visible. Remaining scalar fields use **Voice** / **Defaults** tabs (same tab chrome as Hardware/Macros): Voice holds type-gated chip controls (duty, width, volume, sample, …); Defaults holds Default note, GM program, and UGE note. Hidden fields follow `whenType`. Hardware `env` / `sweep` use a separate **Hardware** section with dedicated `envelope` / `sweep` widgets (parametric controls + live shape preview), not freehand text.
+3. **Type + chip fields** — Name and Type stay always visible. Remaining scalar fields use **Voice** / **Defaults** tabs (same tab chrome as Hardware/Macros): Voice holds type-gated chip controls (duty, width, volume, sample, …); Defaults holds Default note, GM program, and UGE note. Hidden fields follow `whenType`. Hardware `env` / `sweep` use a separate **Hardware** section with dedicated `envelope` / `sweep` widgets (parametric controls + live shape preview), not freehand text. The `sample` widget (NES `dmc_sample`) splits **scheme** from **value**: scheme is Bundled (`@<chip>/`), Local (`local:`), HTTPS (`https://`), or GitHub (`github:`); Bundled value is a name dropdown from `plugin.bundledSamples`; other schemes use a text field for the remainder only (path, URL host+path, or `github:` spec). The host composes the stored `inst` prop. No filesystem Browse.
 4. **Visual waveform** — only if the schema defines `waveform` and the current type matches. hUGE-style draw canvas: nibble bars, editable hex paste field, shape presets. Audition via the Preview keyboard / MIDI strip (no play-while-drawing).
 5. **Macro graphs** — defined macros appear as tabs on the same row as dashed **Add** chips for remaining macros (one graph visible at a time); click/drag (Shift-drag line) to paint values; signed macros show a zero baseline and polyline overlay; loop marker (`|n`); empty sequence omits the field.
 6. **Preview bar** — mini piano (ships the virtual-keyboard idea in this panel), hold-to-play, existing MIDI input when enabled, plus a compact MIDI enable/device strip (shared with Settings).
@@ -352,7 +352,7 @@ Supported in v1 via schema (not a host hardcode):
 | `noise_rate_env` | SMS noise clock (chip extra)  |
 
 
-Game Boy `subpat` is **read-only in v1**: if `subpat=` is set, show the name and a link to the `subpat` block, and disable overlapping macro graphs with a note that native subpattern wins (`[gameboy-uge-instrument-subpatterns.md](complete/gameboy-uge-instrument-subpatterns.md)`). A tracker-style subpattern row editor is Phase 2.
+Game Boy `subpat` is **read-only in v1**: if `subpat=` is set, show the name and an icon that reveals **and highlights** the `subpat` definition (hover explains the jump). That jump must target `subpat <name>`, not the selected `inst` line — they often share a name (`subpat kick_huge` / `inst kick_huge`). Disable overlapping macro graphs with the note “Software macros are locked while subpat is set.” (`[gameboy-uge-instrument-subpatterns.md](complete/gameboy-uge-instrument-subpatterns.md)`). A tracker-style subpattern row editor is Phase 2.
 
 ---
 
@@ -380,7 +380,6 @@ Preview must use the same engine path as CodeLens (`[startInstNotePreview](../..
 | Computer-key mapping     | Same as mini-keyboard (hold-to-play); Z/X change octave. Applies while the Instruments tab is active and focus is not in a panel field or Monaco. Selecting an instrument from the dropdown restores panel focus so preview keys do not type into source. |
 | MIDI note-on / note-off  | Same sustain preview when Instruments tab is focused (`midi-step-entry-controller.ts`)                                                           |
 | CodeLens note buttons    | ≈2 s oneshot (unchanged)                                                                                                                         |
-| Play-while-drawing       | Retrigger last preview pitch (default C4)                                                                                                          |
 
 
 Active key highlighting is shared across mouse, computer keys, and MIDI. MIDI step-entry (inserting tokens into `pat` lines) is unchanged; when the Instruments tab is focused, MIDI prefers **audition** over step entry unless Record is armed.
@@ -413,7 +412,7 @@ Imported instruments: copy-into-song inserts a new local `inst` line; the import
 | Chip            | Waveform                            | Macros                                               | Notable fields                                                                       | Plugin notes                                                           |
 | --------------- | ----------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
 | Game Boy        | Yes — 32×4-bit `wave=`              | `vol_env`, `pitch_env`, `duty_env`, `arp_env`        | duty, env, sweep (pulse1), volume (wave), width, `uge_note`, `subpat` (read-only v1) | Wave `volume` is 0/25/50/100 (hint + hoverDocs)                        |
-| NES             | No                                  | `vol_env`, `duty_env`, `arp_env`, `pitch_env`        | duty, env (+`env_period`), Hardware Sweep via discrete `sweep_*`, triangle `linear`, noise `noise_mode`/`noise_period`, DMC `dmc_sample`/`dmc_rate`/`dmc_loop`/`dmc_level` | Triangle: warn that volume macros do not apply; DMC uses sample picker; `storage: 'discrete'` on env/sweep |
+| NES             | No                                  | `vol_env`, `duty_env`, `arp_env`, `pitch_env`        | duty, env (+`env_period`), Hardware Sweep via discrete `sweep_*`, triangle `linear`, noise `noise_mode`/`noise_period`, DMC `dmc_sample`/`dmc_rate`/`dmc_loop`/`dmc_level` | Triangle: warn that volume macros do not apply; DMC sample widget is scheme + value (not a single full-ref field); `storage: 'discrete'` on env/sweep |
 | SMS             | No                                  | `vol_env`, `arp_env`, `pitch_env`, `noise_rate_env`  | vol (attenuation), noise_mode, noise_rate, gg_pan                                    | `instrumentVolumeRange.isAttenuation`                                  |
 | Spectrum / AY   | No                                  | `vol_env` (hardware, global), `arp_env`, `pitch_env` | vol, tone, tone_mix, noise_rate, env_bass                                            | Constraint: one `vol_env` / `env_bass` at a time                       |
 | SID (proposed)  | Optional pulse-width visual later   | Schema-ready                                         | waveform, pw, ADSR                                                                   | Plugin fills schema when the chip lands                                |

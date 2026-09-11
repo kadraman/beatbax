@@ -24,8 +24,28 @@ jest.mock('../src/utils/local-storage', () => ({
 import { getCapabilities } from '../src/client-profile';
 import { FeatureFlag, setFeatureEnabled } from '../src/utils/feature-flags';
 import { isInstrumentEditorAllowed, shouldShowInstrumentEditor } from '../src/utils/instrument-editor-panel';
-import { uniqueInstName, splitTrailingComment, collectLocalInstNames, insertInstLine, deleteInstLine, renameInstrumentInSource, instIsReferenced } from '../src/editor/instrument-editor-writeback';
-import { fieldApplies, fallbackInstrumentEditor } from '../src/editor/instrument-editor-schema';
+import {
+  uniqueInstName,
+  splitTrailingComment,
+  collectLocalInstNames,
+  findInstLineIndex,
+  findSubpatLineIndex,
+  insertInstLine,
+  deleteInstLine,
+  duplicateInstLine,
+  renameInstrumentInSource,
+  instIsReferenced,
+  isValidInstName,
+} from '../src/editor/instrument-editor-writeback';
+import {
+  fieldApplies,
+  fallbackInstrumentEditor,
+  listBundledSampleRefs,
+  listBundledSampleNames,
+  parseInstrumentSampleRef,
+  formatInstrumentSampleRef,
+  sampleRemainderForSchemeChange,
+} from '../src/editor/instrument-editor-schema';
 
 const desktop = getCapabilities('desktop-full');
 
@@ -74,6 +94,101 @@ describe('writeback helpers', () => {
     expect(inserted).toBe(
       'chip gameboy\ninst lead type=pulse1\ninst bass type=wave\ninst hat type=noise\npat a = C4\n',
     );
+  });
+
+  it('duplicates the persisted definition, not an alternate body', () => {
+    const src = [
+      'chip gameboy',
+      'inst lead type=pulse1 duty=50 env=12,down  # keep',
+      'pat a = C4',
+      '',
+    ].join('\n');
+    const { next, newName, body, ok } = duplicateInstLine(src, 'lead');
+    expect(ok).toBe(true);
+    expect(newName).toBe('lead2');
+    expect(body).toBe('type=pulse1 duty=50 env=12,down');
+    expect(next).toBe([
+      'chip gameboy',
+      'inst lead type=pulse1 duty=50 env=12,down  # keep',
+      'inst lead2 type=pulse1 duty=50 env=12,down',
+      'pat a = C4',
+      '',
+    ].join('\n'));
+  });
+
+  it('handles identifiers that end with a hyphen', () => {
+    const src = [
+      'chip gameboy',
+      'inst lead- type=pulse1 duty=50',
+      'channel 1 => inst lead- seq main',
+      'pat a = inst(lead-) C4 . lead-',
+      '',
+    ].join('\n');
+    expect([...collectLocalInstNames(src)]).toEqual(['lead-']);
+    expect(findInstLineIndex(src, 'lead-')).toBe(1);
+    expect(findInstLineIndex(src, 'lead')).toBe(-1);
+    expect(instIsReferenced(src, 'lead-')).toBe(true);
+    // Each reference form must trip the delete warning (IdentChar lookarounds, not `\b`).
+    expect(instIsReferenced([
+      'chip gameboy',
+      'inst lead- type=pulse1',
+      'channel 1 => inst lead- seq main',
+      '',
+    ].join('\n'), 'lead-')).toBe(true);
+    expect(instIsReferenced([
+      'chip gameboy',
+      'inst lead- type=pulse1',
+      'pat a = inst(lead-) C4',
+      '',
+    ].join('\n'), 'lead-')).toBe(true);
+    expect(instIsReferenced([
+      'chip gameboy',
+      'inst lead- type=pulse1',
+      'pat a = C4 . lead- . C4',
+      '',
+    ].join('\n'), 'lead-')).toBe(true);
+    expect(instIsReferenced([
+      'chip gameboy',
+      'inst lead- type=pulse1',
+      'pat a = C4',
+      '',
+    ].join('\n'), 'lead-')).toBe(false);
+
+    const dup = duplicateInstLine(src, 'lead-');
+    expect(dup.ok).toBe(true);
+    expect(dup.newName).toBe('lead-2');
+    expect(dup.next).toContain('inst lead-2 type=pulse1 duty=50');
+
+    const renamed = renameInstrumentInSource(src, 'lead-', 'pluck-', { updateReferences: true });
+    expect(renamed.ok).toBe(true);
+    expect(renamed.next).toBe([
+      'chip gameboy',
+      'inst pluck- type=pulse1 duty=50',
+      'channel 1 => inst pluck- seq main',
+      'pat a = inst(pluck-) C4 . pluck-',
+      '',
+    ].join('\n'));
+
+    expect(deleteInstLine(src, 'lead-')).toBe([
+      'chip gameboy',
+      'channel 1 => inst lead- seq main',
+      'pat a = inst(lead-) C4 . lead-',
+      '',
+    ].join('\n'));
+  });
+
+  it('accepts Peggy Identifier names and rejects digit / hyphen prefixes', () => {
+    expect(isValidInstName('lead')).toBe(true);
+    expect(isValidInstName('_kick')).toBe(true);
+    expect(isValidInstName('lead2')).toBe(true);
+    expect(isValidInstName('hi-hat')).toBe(true);
+    expect(isValidInstName('0lead')).toBe(false);
+    expect(isValidInstName('-lead')).toBe(false);
+    expect(isValidInstName('')).toBe(false);
+
+    const src = 'chip gameboy\ninst lead type=pulse1\n';
+    expect(renameInstrumentInSource(src, 'lead', '0lead').ok).toBe(false);
+    expect(renameInstrumentInSource(src, 'lead', '-lead').ok).toBe(false);
   });
 
   it('renames the definition and optional channel / inline references', () => {
@@ -138,6 +253,30 @@ describe('writeback helpers', () => {
     expect(instIsReferenced(`${base}# snare fills\npat a = C4\n`, 'snare')).toBe(false);
     expect(instIsReferenced(`${base}pat a = C4  # snare later\n`, 'snare')).toBe(false);
   });
+
+  it('finds subpat definition lines by name', () => {
+    const src = [
+      'chip gameboy',
+      'subpat kick_body = . -10 halt',
+      'inst kick type=noise subpat=kick_body',
+      'subpat kick = . halt',
+      '',
+    ].join('\n');
+    expect(findSubpatLineIndex(src, 'kick_body')).toBe(1);
+    expect(findSubpatLineIndex(src, 'kick')).toBe(3);
+    expect(findSubpatLineIndex(src, 'missing')).toBe(-1);
+    expect(findSubpatLineIndex(src, '')).toBe(-1);
+    // Must not match a longer IdentChar prefix (kick vs kick_body).
+    expect(findSubpatLineIndex('subpat kick_body = . halt\n', 'kick')).toBe(-1);
+    // Same identifier on `subpat` and `inst` must resolve to different lines.
+    const shared = [
+      'subpat kick_huge = . halt',
+      'inst kick_huge type=noise subpat=kick_huge',
+      '',
+    ].join('\n');
+    expect(findSubpatLineIndex(shared, 'kick_huge')).toBe(0);
+    expect(findInstLineIndex(shared, 'kick_huge')).toBe(1);
+  });
 });
 
 describe('schema fallback', () => {
@@ -150,5 +289,52 @@ describe('schema fallback', () => {
     const schema = fallbackInstrumentEditor('gameboy');
     expect(schema.types.map((t) => t.id)).toEqual(['pulse1', 'pulse2', 'wave', 'noise']);
     expect(schema.macros.some((m) => m.name === 'vol_env')).toBe(true);
+  });
+
+  it('lists NES bundled sample refs as @nes/<name>', () => {
+    const refs = listBundledSampleRefs('nes');
+    expect(refs).toEqual(['@nes/bass_c2', '@nes/kick', '@nes/snare']);
+    expect(listBundledSampleNames('nes')).toEqual(['bass_c2', 'kick', 'snare']);
+    expect(listBundledSampleRefs('gameboy')).toEqual([]);
+  });
+});
+
+describe('instrument sample ref scheme/value', () => {
+  it('splits scheme prefixes from the stored remainder', () => {
+    expect(parseInstrumentSampleRef('@nes/kick', 'nes')).toEqual({ scheme: 'bundled', remainder: 'kick' });
+    expect(parseInstrumentSampleRef('local:samples/kick.dmc', 'nes')).toEqual({
+      scheme: 'local',
+      remainder: 'samples/kick.dmc',
+    });
+    expect(parseInstrumentSampleRef('https://example.com/kick.dmc', 'nes')).toEqual({
+      scheme: 'https',
+      remainder: 'example.com/kick.dmc',
+    });
+    expect(parseInstrumentSampleRef('github:user/repo/kick.dmc', 'nes')).toEqual({
+      scheme: 'github',
+      remainder: 'user/repo/kick.dmc',
+    });
+    expect(parseInstrumentSampleRef('', 'nes')).toEqual({ scheme: 'bundled', remainder: '' });
+  });
+
+  it('composes scheme + remainder without duplicating prefixes', () => {
+    expect(formatInstrumentSampleRef('bundled', 'kick', 'nes')).toBe('@nes/kick');
+    expect(formatInstrumentSampleRef('local', 'samples/kick.dmc', 'nes')).toBe('local:samples/kick.dmc');
+    expect(formatInstrumentSampleRef('https', 'https://example.com/kick.dmc', 'nes')).toBe(
+      'https://example.com/kick.dmc',
+    );
+    expect(formatInstrumentSampleRef('github', 'github:user/repo/kick.dmc', 'nes')).toBe(
+      'github:user/repo/kick.dmc',
+    );
+    expect(formatInstrumentSampleRef('local', '', 'nes')).toBe('');
+  });
+
+  it('clears bundled names when switching to a path/URL scheme', () => {
+    expect(sampleRemainderForSchemeChange('bundled', 'local', 'kick', 'nes')).toBe('');
+    expect(sampleRemainderForSchemeChange('local', 'https', 'samples/kick.dmc', 'nes')).toBe(
+      'samples/kick.dmc',
+    );
+    expect(sampleRemainderForSchemeChange('local', 'bundled', 'kick', 'nes')).toBe('kick');
+    expect(sampleRemainderForSchemeChange('local', 'bundled', 'samples/kick.dmc', 'nes')).toBe('');
   });
 });

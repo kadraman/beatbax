@@ -121,6 +121,7 @@ Chip plugins may declare `instrumentEditor` so Desktop can edit `inst` lines gra
 - `fields` — scalar properties (`enum`, `text`, `int`, `bool`, `sample`, `note`, `uge_note`) plus composite hardware widgets (`envelope`, `sweep`) with optional `whenType`
   - `note` — BeatBax scientific pitch picker (`C4`, `C#5`, …)
   - `uge_note` — hUGETracker display notes (`C-6` … `C-9`); host quotes sharps on writeback
+  - `sample` — scheme select (Bundled `@<chip>/`, Local `local:`, HTTPS `https://`, GitHub `github:`) plus a value control: bundled names from `plugin.bundledSamples`, or a text field for the remainder. Host composes the stored ref; no filesystem Browse.
   - `envelope` / `sweep` — Hardware section tabs; optional `storage: 'csv' | 'discrete'` (default `csv`). Discrete NES sweep writes `sweep_en` / `sweep_period` / `sweep_shift` / `sweep_dir` instead of packed `sweep=`
 - `macros` — graphable envelopes (`vol_env`, `arp_env`, …); `kind: 'hardware'` is documentation only
 - `waveform` — optional draw/hex wavetable (Game Boy wave)

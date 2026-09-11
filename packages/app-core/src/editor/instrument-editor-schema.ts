@@ -99,3 +99,112 @@ export function resolvePreviewChannel(
   const maxChannel = plugin?.channels ?? channelId;
   return Math.min(channelId, maxChannel);
 }
+
+export type InstrumentSampleScheme = 'bundled' | 'local' | 'https' | 'github';
+
+export const INSTRUMENT_SAMPLE_SCHEMES: ReadonlyArray<{
+  id: InstrumentSampleScheme;
+  label: string;
+}> = [
+  { id: 'bundled', label: 'Bundled' },
+  { id: 'local', label: 'Local' },
+  { id: 'https', label: 'HTTPS' },
+  { id: 'github', label: 'GitHub' },
+];
+
+function resolvedChipPlugin(chip: string) {
+  return chipRegistry.get(chipRegistry.resolve(chip.toLowerCase()));
+}
+
+/** `@<plugin.name>/` prefix for bundled sample refs. */
+export function bundledSamplePrefix(chip: string): string {
+  const plugin = resolvedChipPlugin(chip);
+  const name = plugin?.name ?? chipRegistry.resolve(chip.toLowerCase());
+  return `@${name}/`;
+}
+
+/** Bundled sample keys (no `@chip/` prefix), sorted for stable UI. */
+export function listBundledSampleNames(chip: string): string[] {
+  const plugin = resolvedChipPlugin(chip);
+  if (!plugin?.bundledSamples) return [];
+  return Object.keys(plugin.bundledSamples).sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Bundled sample refs for the Instrument Editor `sample` widget (`@chip/name`).
+ * Sorted by sample key for stable UI.
+ */
+export function listBundledSampleRefs(chip: string): string[] {
+  const prefix = bundledSamplePrefix(chip);
+  return listBundledSampleNames(chip).map((key) => `${prefix}${key}`);
+}
+
+export function parseInstrumentSampleRef(
+  ref: string,
+  chip: string,
+): { scheme: InstrumentSampleScheme; remainder: string } {
+  const value = ref.trim();
+  if (!value) return { scheme: 'bundled', remainder: '' };
+
+  const prefix = bundledSamplePrefix(chip);
+  if (value.startsWith(prefix)) {
+    return { scheme: 'bundled', remainder: value.slice(prefix.length) };
+  }
+  if (value.startsWith('local:')) {
+    return { scheme: 'local', remainder: value.slice('local:'.length) };
+  }
+  if (value.startsWith('https://')) {
+    return { scheme: 'https', remainder: value.slice('https://'.length) };
+  }
+  if (value.startsWith('http://')) {
+    return { scheme: 'https', remainder: value.slice('http://'.length) };
+  }
+  if (value.startsWith('github:')) {
+    return { scheme: 'github', remainder: value.slice('github:'.length) };
+  }
+  if (!value.includes(':') && !value.includes('/')) {
+    return { scheme: 'bundled', remainder: value };
+  }
+  return { scheme: 'local', remainder: value };
+}
+
+export function formatInstrumentSampleRef(
+  scheme: InstrumentSampleScheme,
+  remainder: string,
+  chip: string,
+): string {
+  const rest = remainder.trim();
+  if (!rest) return '';
+  switch (scheme) {
+    case 'bundled': {
+      const prefix = bundledSamplePrefix(chip);
+      const name = rest.startsWith(prefix) ? rest.slice(prefix.length) : rest;
+      return name ? `${prefix}${name}` : '';
+    }
+    case 'local':
+      return `local:${rest.replace(/^local:/, '')}`;
+    case 'https':
+      return `https://${rest.replace(/^https?:\/\//, '')}`;
+    case 'github':
+      return `github:${rest.replace(/^github:/, '')}`;
+  }
+}
+
+/**
+ * Remainder to keep when the user changes scheme. Bundled names are not paths,
+ * so leaving Bundled clears the value; a bundled name is kept only when it is
+ * a known sample for this chip.
+ */
+export function sampleRemainderForSchemeChange(
+  from: InstrumentSampleScheme,
+  to: InstrumentSampleScheme,
+  remainder: string,
+  chip: string,
+): string {
+  if (from === to) return remainder;
+  if (to === 'bundled') {
+    return listBundledSampleNames(chip).includes(remainder) ? remainder : '';
+  }
+  if (from === 'bundled') return '';
+  return remainder;
+}

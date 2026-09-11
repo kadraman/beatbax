@@ -486,12 +486,18 @@ describe('NES DMC channel', () => {
 describe('NES DMC sample resolution', () => {
   const originalWindow = (globalThis as any).window;
   const originalFetch = globalThis.fetch;
+  const originalLocalStorage = (globalThis as any).localStorage;
 
   afterEach(() => {
     if (originalWindow === undefined) {
       delete (globalThis as any).window;
     } else {
       (globalThis as any).window = originalWindow;
+    }
+    if (originalLocalStorage === undefined) {
+      delete (globalThis as any).localStorage;
+    } else {
+      (globalThis as any).localStorage = originalLocalStorage;
     }
     globalThis.fetch = originalFetch;
     jest.restoreAllMocks();
@@ -578,6 +584,38 @@ describe('NES DMC sample resolution', () => {
 
     expect(Array.from(new Uint8Array(raw))).toEqual([0xaa, 0x55]);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('local: is blocked in a browser window without desktop FS', async () => {
+    const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
+    (globalThis as any).window = {};
+    await expect(resolveDMCSample('local:samples/dmc/kick.dmc')).rejects.toThrow('blocked in browser');
+  });
+
+  test('desktop FS bridge reads local: DMC samples relative to the song directory', async () => {
+    const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
+    const found = '/repo/samples/dmc/kick.dmc';
+    (globalThis as any).localStorage = {
+      getItem: (key: string) => (
+        key === 'beatbax:editor.lastDocumentPath'
+          ? '/repo/songs/nes/instruments/nes_dmc_demo.bax'
+          : null
+      ),
+    };
+    (globalThis as any).window = {
+      electronAPI: {
+        existsSync: (p: string) => p.replace(/\\/g, '/') === found,
+        readFileSync: (p: string, encoding?: string) => {
+          expect(p.replace(/\\/g, '/')).toBe(found);
+          expect(encoding).toBe('base64');
+          return Buffer.from([0xff]).toString('base64');
+        },
+      },
+    };
+
+    const samples = await resolveDMCSample('local:samples/dmc/kick.dmc');
+    expect(samples).toBeInstanceOf(Float32Array);
+    expect(samples.length).toBe(8);
   });
 });
 

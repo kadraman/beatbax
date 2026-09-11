@@ -1,6 +1,11 @@
 import { parse } from '../src/parser/index.js';
 import { serializeInstrument, parseInstrumentBody, formatInstrumentFieldValue } from '../src/instruments/serialize.js';
-import { generateWaveformPreset, samplesToHex, parseWaveHexInput } from '../src/instruments/waveform.js';
+import {
+  generateWaveformPreset,
+  samplesToHex,
+  parseWaveHexInput,
+  normalizeWaveSamples,
+} from '../src/instruments/waveform.js';
 import { formatMacro, parseMacro } from '../src/util/music.js';
 import { gameboyPlugin } from '../src/chips/gameboy/plugin.js';
 import { nesPlugin } from '../src/chips/nes/plugin.js';
@@ -92,6 +97,17 @@ describe('waveform presets', () => {
     expect(empty.hex).toBe('0000');
     expect(empty.samples).toEqual([0, 0, 0, 0]);
   });
+
+  it('normalizes against schema length/min/max instead of GB 32', () => {
+    expect(normalizeWaveSamples([1, 2, 3], 4, 0, 7)).toEqual([1, 2, 3, 0]);
+    expect(normalizeWaveSamples([0, 9, 20, 3, 4, 5], 4, 0, 7)).toEqual([0, 7, 7, 3]);
+    expect(normalizeWaveSamples('[2,4,6]', 4, 1, 8)).toEqual([2, 4, 6, 1]);
+    expect(normalizeWaveSamples('ABCD', 4, 0, 15)).toEqual([10, 11, 12, 13]);
+    expect(normalizeWaveSamples(null, 3, 2, 5)).toEqual([2, 2, 2]);
+    // Must not tile a short table out to 32 Game Boy slots.
+    expect(normalizeWaveSamples([1, 2], 8, 0, 15)).toHaveLength(8);
+    expect(normalizeWaveSamples([1, 2], 8, 0, 15)).toEqual([1, 2, 0, 0, 0, 0, 0, 0]);
+  });
 });
 
 describe('formatMacro', () => {
@@ -136,5 +152,17 @@ describe('chip instrumentEditor schemas', () => {
     expect(names.has('dmc_loop')).toBe(true);
     expect(names.has('dmc_level')).toBe(true);
     expect(names.has('sweep_en')).toBe(false);
+  });
+
+  it('declares DMC sample as a sample widget backed by bundledSamples', () => {
+    const dmcSample = nesPlugin.instrumentEditor?.fields.find((f) => f.name === 'dmc_sample');
+    expect(dmcSample?.widget).toBe('sample');
+    expect(nesPlugin.bundledSamples).toBeDefined();
+    const refs = Object.keys(nesPlugin.bundledSamples!)
+      .sort((a, b) => a.localeCompare(b))
+      .map((key) => `@nes/${key}`);
+    expect(refs).toContain('@nes/kick');
+    expect(refs).toContain('@nes/snare');
+    expect(refs).toContain('@nes/bass_c2');
   });
 });
