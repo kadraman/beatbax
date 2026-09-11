@@ -140,6 +140,8 @@ export interface ElectronAPI {
   openRecentFile(filePath: string): void;
   openExternal(url: string): Promise<void>;
   getVersion(): string;
+  /** Main-process `process.cwd()` for resolving `local:` paths next to the repo/cli cwd. */
+  getCwd(): string;
   getPlatform(): NodeJS.Platform;
   minimizeWindow(): void;
   toggleMaximizeWindow(): void;

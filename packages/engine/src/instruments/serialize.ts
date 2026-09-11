@@ -4,6 +4,7 @@
  */
 
 import type { EnvelopeAST, InstrumentNode, NoiseAST, SweepAST } from '../parser/ast.js';
+import { tokenizeInstRhs } from '../parser/inst-rhs.js';
 import { formatMacro, parseMacro } from '../util/music.js';
 
 const SKIP_KEYS = new Set(['__loc', 'subpatRows', 'envelope']);
@@ -56,8 +57,8 @@ function formatScalar(value: unknown): string | null {
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'number') return String(value);
   if (typeof value === 'string') {
-    // Quote values with whitespace or `#` (sharp / comment starter in .bax).
-    return /[\s#]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
+    // Quote values with whitespace, `#`, or `//` (comment starters in .bax).
+    return /[\s#]|\/\//.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
   }
   if (Array.isArray(value)) {
     if (value.length === 0) return null;
@@ -133,7 +134,7 @@ export function serializeInstrument(
 
 /**
  * Parse a plugin preset body (with or without `inst <name>`) into field values.
- * Does not run the full song parser; splits `key=value` tokens like `parseInstRhs`.
+ * Does not run the full song parser; splits `key=value` tokens the same way as `parseInstRhs`.
  */
 export function parseInstrumentBody(content: string): InstrumentNode {
   let rest = content.trim();
@@ -169,33 +170,4 @@ export function parseInstrumentBody(content: string): InstrumentNode {
     }
   }
   return node;
-}
-
-function tokenizeInstRhs(rhs: string): string[] {
-  const tokens: string[] = [];
-  let buf = '';
-  let depth = 0;
-  let quote: string | null = null;
-  for (const ch of rhs) {
-    if (quote) {
-      buf += ch;
-      if (ch === quote) quote = null;
-      continue;
-    }
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      buf += ch;
-      continue;
-    }
-    if (ch === '[' || ch === '{') depth++;
-    if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
-    if (/\s/.test(ch) && depth === 0) {
-      if (buf) tokens.push(buf);
-      buf = '';
-      continue;
-    }
-    buf += ch;
-  }
-  if (buf) tokens.push(buf);
-  return tokens;
 }

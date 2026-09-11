@@ -119,20 +119,29 @@ export function validateLocalImportSource(
   return actualPath;
 }
 
+/** True when `resolvedPath` is inside at least one allowed directory (no `..` escape). */
+export function isResolvedWithinAllowedDirs(
+  resolvedPath: string,
+  allowedDirs: string[],
+): boolean {
+  if (allowedDirs.length === 0) return false;
+  const normalizedResolved = toPosixPath(resolvedPath);
+  for (const allowedDir of allowedDirs) {
+    const relative = relativeLocalPath(allowedDir, normalizedResolved);
+    if (!relative.startsWith('..') && !isAbsoluteLocalPath(relative)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function assertResolvedWithinAllowed(
   resolvedPath: string,
   allowedDirs: string[],
   importSource: string,
 ): void {
   if (allowedDirs.length === 0) return;
-
-  const normalizedResolved = toPosixPath(resolvedPath);
-  for (const allowedDir of allowedDirs) {
-    const relative = relativeLocalPath(allowedDir, normalizedResolved);
-    if (!relative.startsWith('..') && !isAbsoluteLocalPath(relative)) {
-      return;
-    }
-  }
+  if (isResolvedWithinAllowedDirs(resolvedPath, allowedDirs)) return;
 
   throw new Error(
     `Security violation: import path "${importSource}" resolves to "${resolvedPath}" ` +

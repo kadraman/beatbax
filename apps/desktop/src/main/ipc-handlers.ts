@@ -957,6 +957,10 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
     event.returnValue = app.getVersion()
   })
 
+  ipcMain.on(IPC_CHANNELS.GET_CWD, (event) => {
+    event.returnValue = process.cwd()
+  })
+
   ipcMain.on(IPC_CHANNELS.READ_FILE_SYNC, (event, targetPath: string, encoding?: string) => {
     try {
       event.returnValue = readFileSyncSafe(targetPath, (encoding as BufferEncoding) || 'utf-8')

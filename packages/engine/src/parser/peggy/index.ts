@@ -37,6 +37,7 @@ import { splitTopLevel } from '../../expand/splitTopLevel.js';
 import { createLogger } from '../../util/logger.js';
 import { parseEffectsInline } from '../../song/effectsInline.js';
 import { normalizeScaleDirective, normalizeLock, validateScaleLocks } from '../scale-awareness.js';
+import { tokenizeInstRhs } from '../inst-rhs.js';
 
 const log = createLogger('parser');
 
@@ -199,7 +200,7 @@ const warnProblematicPatternName = (name: string, loc?: SourceLocation | null): 
 };
 const parseInstRhs = (name: string, rhs: string, insts: InstMap, loc?: SourceLocation | null): void => {
   const rest = rhs.trim();
-  const parts = rest.split(/\s+/);
+  const parts = tokenizeInstRhs(rest);
   const props: Record<string, any> = {};
   const vendors: Record<string, string | null> = {};
   for (const p of parts) {
