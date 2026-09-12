@@ -57,6 +57,8 @@ export interface MidiStepEntryControllerOptions {
   getEditor: () => monaco.editor.IStandaloneCodeEditor | null;
   /** Called with a note name to trigger a brief audition playback. */
   onAuditionNote?: (noteName: string) => void;
+  /** Called when a MIDI audition note is released (note-off). */
+  onAuditionNoteStop?: (noteName: string) => void;
   /** Called with an effect name to trigger effect preset preview. */
   onPreviewEffect?: (effectName: string) => void;
   /** Called with a human-readable warning message. */
@@ -78,6 +80,8 @@ export class MidiStepEntryController {
   private _accessRequest: Promise<void> | null = null;
   /** Tracks the start position of the last no-advance insertion for replace-in-place. */
   private _noAdvanceStart: { lineNumber: number; startColumn: number } | null = null;
+  /** When true, MIDI notes audition only (Instrument Editor focused) unless Record is armed. */
+  private instrumentAuditionOnly = false;
   /** Tracks overwrite-selection cycling so repeated notes advance and wrap. */
   private _overwriteCycle: {
     blockStartOffset: number;
@@ -90,14 +94,14 @@ export class MidiStepEntryController {
   constructor(private opts: MidiStepEntryControllerOptions) {
     this.service = new MidiStepEntryService({
       onNoteEntered: (noteName, stepLength, emitDuration) => {
+        if (this.instrumentAuditionOnly && !this.isArmed()) return;
         this._insertNoteInEditor(noteName, stepLength, emitDuration);
       },
       onAuditionStart: (noteName) => {
         this.opts.onAuditionNote?.(noteName);
       },
-      onAuditionStop: (_noteName) => {
-        // Audition stop is informational for now; the playback engine handles
-        // timing, so we don't need to explicitly stop anything here.
+      onAuditionStop: (noteName) => {
+        this.opts.onAuditionNoteStop?.(noteName);
       },
       onIdlePreview: (noteName) => {
         this._handleIdlePreview(noteName);
@@ -120,18 +124,57 @@ export class MidiStepEntryController {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   /** Request MIDI access (once). Call early during app startup. */
-  async requestMidiAccess(force = false): Promise<void> {
-    if (this._accessGranted && !force) return;
-    if (this._accessRequest) return this._accessRequest;
+  async requestMidiAccess(force = false): Promise<string | null> {
+    if (this._accessGranted && !force) return null;
 
-    if (!settingMidiInputEnabled.get()) return;
-    if (!MidiStepEntryService.isSupported()) return;
+    const adoptExistingAccess = (): boolean => {
+      if (!this.service.hasMidiAccess() && this.service.listDevices().length === 0) return false;
+      this._accessGranted = true;
+      const savedDevice = settingMidiInputDevice.get();
+      if (savedDevice && this.service.getDeviceId() !== savedDevice) {
+        const deviceErr = this.service.setDevice(savedDevice);
+        if (deviceErr && this.service.listDevices().length > 0) {
+          settingMidiInputDevice.set('');
+          this.service.setDevice('');
+        }
+      }
+      return true;
+    };
 
+    // Wait out any in-flight attempt, including forced Refresh. The service
+    // times out the wrapper after 5s, but the underlying requestMIDIAccess()
+    // may still be pending. Starting a second browser request lets a late
+    // grant from the first overwrite a newer midiAccess and rebind listeners.
+    if (this._accessRequest) {
+      await this._accessRequest;
+      if (this._accessGranted || adoptExistingAccess()) return null;
+      return null;
+    }
+
+    if (!settingMidiInputEnabled.get()) return null;
+    if (!MidiStepEntryService.isSupported()) {
+      return 'Web MIDI is not supported in this browser. Try Chrome or Edge.';
+    }
+
+    // Late grant from a prior timed-out request may already be present.
+    if (!force && adoptExistingAccess()) return null;
+
+    let accessError: string | null = null;
     this._accessRequest = (async () => {
       const err = await this.service.requestAccess();
       if (err) {
+        if (adoptExistingAccess()) {
+          accessError = null;
+          return;
+        }
         this._accessGranted = false;
-        this.opts.onWarning?.(err);
+        accessError = err;
+        // Timeouts are often followed by a late grant or Refresh — do not spam Problems.
+        if (!String(err).toLowerCase().includes('timed out')) {
+          this.opts.onWarning?.(err);
+        } else {
+          log.warn(err);
+        }
         return;
       }
 
@@ -143,16 +186,19 @@ export class MidiStepEntryController {
         const deviceErr = this.service.setDevice(savedDevice);
         if (deviceErr) {
           log.warn('Saved MIDI device not found:', deviceErr);
-          // Saved device became unavailable (e.g. unplugged between sessions).
-          // Clear persisted selection so UI and Record button state stay accurate.
-          settingMidiInputDevice.set('');
-          this.service.setDevice('');
+          // Only forget the selection when inputs are present but the id is gone.
+          // An empty input map is often transient (startup / HMR).
+          if (this.service.listDevices().length > 0) {
+            settingMidiInputDevice.set('');
+            this.service.setDevice('');
+          }
         }
       }
     })();
 
     try {
       await this._accessRequest;
+      return accessError;
     } finally {
       this._accessRequest = null;
     }
@@ -235,6 +281,10 @@ export class MidiStepEntryController {
 
   isArmed(): boolean {
     return this.service.isArmed();
+  }
+
+  setInstrumentAuditionOnly(on: boolean): void {
+    this.instrumentAuditionOnly = on;
   }
 
   // ── Settings forwarding ───────────────────────────────────────────────────
@@ -336,6 +386,10 @@ export class MidiStepEntryController {
 
   private _handleIdlePreview(noteName: string): void {
     if (!settingMidiInputEnabled.get()) return;
+    if (this.instrumentAuditionOnly) {
+      this.opts.onAuditionNote?.(noteName);
+      return;
+    }
     ensureAudioCtxReady();
     const editor = this.opts.getEditor();
     if (!editor) return;

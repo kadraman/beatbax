@@ -19,6 +19,7 @@ export const IPC_CHANNELS = {
   AI_CHAT_COMPLETION: 'desktop:ai-chat-completion',
   AI_CANCEL_CHAT_COMPLETION: 'desktop:ai-cancel-chat-completion',
   GET_VERSION: 'desktop:get-version',
+  GET_CWD: 'desktop:get-cwd',
   MENU_ACTION: 'desktop:menu-action',
   FILE_OPENED: 'desktop:file-opened',
   FILE_OPENED_REQUEST: 'desktop:file-opened-request',

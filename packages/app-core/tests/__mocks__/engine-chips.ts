@@ -46,6 +46,7 @@ const plugins = new Map<string, {
   supportsPerChannelVolume?: boolean;
   getMeterDisplayGain?: (channelIndex: number) => number;
   uiContributions?: { hoverDocs?: Record<string, string> };
+  bundledSamples?: Record<string, string>;
 }>();
 
 export class ChipRegistry {
@@ -67,6 +68,7 @@ export class ChipRegistry {
     supportsPerChannelVolume?: boolean;
     getMeterDisplayGain?: (channelIndex: number) => number;
     uiContributions?: { hoverDocs?: Record<string, string> };
+    bundledSamples?: Record<string, string>;
   }) {
     plugins.set(plugin.name, plugin);
   }
@@ -102,6 +104,7 @@ chipRegistry.register({
     return 1;
   },
   uiContributions: nesUIContributions,
+  bundledSamples: { kick: 'AA', snare: 'BB', bass_c2: 'CC' },
 });
 const SMS_TONE_MIX_GAIN = 0.35 * (0.85 / (3 * 0.35 + 0.30));
 const SMS_NOISE_MIX_GAIN = 0.30 * (0.85 / (3 * 0.35 + 0.30));

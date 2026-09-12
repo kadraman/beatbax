@@ -25,6 +25,14 @@ import {
   buildSubpatternHoverMarkdown,
   type SubPatternRowLike,
 } from './subpat-format.js';
+import {
+  parseHardwareEnvelope,
+  simulateGBEnvelope,
+  renderEnvelopeSparkline,
+  type HardwareEnvelopeParams,
+} from './envelope-preview.js';
+
+export { simulateGBEnvelope, renderEnvelopeSparkline } from './envelope-preview.js';
 
 let latestAST: any = null;
 /** AST with import instruments merged (when imports resolve successfully). */
@@ -236,13 +244,7 @@ function buildWaveHover(
 
 // ── Envelope hover ───────────────────────────────────────────────────────────
 
-interface ParsedEnvelope {
-  /** Initial volume level 0–15. */
-  level: number;
-  /** 'up' | 'down' | 'flat'. */
-  direction: 'up' | 'down' | 'flat';
-  /** Envelope period 0–7. 0 = constant (no sweep). */
-  period: number;
+interface ParsedEnvelope extends HardwareEnvelopeParams {
   /** Source string, used for display. */
   raw: string;
   /** Monaco range covering the full env=... value token. */
@@ -272,31 +274,22 @@ export function parseEnvelopeAtPosition(
     const tokenEnd = m.index + m[0].length - 1;
     if (col0 < tokenStart || col0 > tokenEnd) continue;
 
-    try {
-      const obj = JSON.parse(m[1]);
-      const level = Number(obj.level ?? obj.initial ?? 15);
-      const rawDir: string = String(obj.direction ?? 'down').toLowerCase();
-      const direction = rawDir === 'up' ? 'up' : rawDir === 'flat' ? 'flat' : 'down';
-      const period = Number(obj.period ?? obj.step ?? 0);
-      return {
-        level: Math.max(0, Math.min(15, level)),
-        direction,
-        period: Math.max(0, Math.min(7, period)),
-        raw: m[1],
-        range: {
-          startLineNumber: position.lineNumber,
-          endLineNumber: position.lineNumber,
-          startColumn: tokenStart + 1,
-          endColumn: tokenEnd + 2,
-        },
-      };
-    } catch {
-      continue;
-    }
+    const parsed = parseHardwareEnvelope(m[1]);
+    if (!parsed) continue;
+    return {
+      ...parsed,
+      period: Math.max(0, Math.min(7, parsed.period)),
+      raw: m[1],
+      range: {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: tokenStart + 1,
+        endColumn: tokenEnd + 2,
+      },
+    };
   }
 
   // ── gb-prefixed or short form: env=gb:L,dir,period or env=L,dir[,period] ─
-  // Match everything after `env=` up to next whitespace or end-of-line
   const shortEnvRe = /\benv\s*=\s*((?:gb:)?\S+)/g;
   while ((m = shortEnvRe.exec(line)) !== null) {
     const tokenStart = m.index;
@@ -305,21 +298,14 @@ export function parseEnvelopeAtPosition(
 
     let raw = m[1];
     if (raw.startsWith('gb:')) raw = raw.slice(3);
-    if (raw.startsWith('"') || raw.startsWith('{')) continue; // already handled above
+    if (raw.startsWith('"') || raw.startsWith('{')) continue;
 
-    const parts = raw.split(',');
-    const level = Math.max(0, Math.min(15, parseInt(parts[0] ?? '15', 10)));
-    const rawDir = (parts[1] ?? 'down').toLowerCase();
-    const direction: 'up' | 'down' | 'flat' =
-      rawDir === 'up' ? 'up' : rawDir === 'flat' ? 'flat' : 'down';
-    const period = Math.max(0, Math.min(7, parseInt(parts[2] ?? '0', 10)));
-
-    if (Number.isNaN(level)) continue;
+    const parsed = parseHardwareEnvelope(raw);
+    if (!parsed) continue;
 
     return {
-      level,
-      direction,
-      period,
+      ...parsed,
+      period: Math.max(0, Math.min(7, parsed.period)),
       raw: m[1],
       range: {
         startLineNumber: position.lineNumber,
@@ -331,47 +317,6 @@ export function parseEnvelopeAtPosition(
   }
 
   return null;
-}
-
-/**
- * Simulate a Game Boy NR5x hardware envelope and return the volume level
- * at each tick step (one step = one NR52 envelope tick, ~1/64 s).
- * Returns 20 steps, which is enough to show the full decay/attack.
- */
-export function simulateGBEnvelope(env: ParsedEnvelope, steps = 20): number[] {
-  const result: number[] = [];
-  let vol = env.level;
-
-  for (let t = 0; t < steps; t++) {
-    result.push(vol);
-
-    if (env.period === 0 || env.direction === 'flat') continue;
-
-    // GB envelope: volume changes every `period` steps
-    if ((t + 1) % env.period === 0) {
-      if (env.direction === 'up') {
-        vol = Math.min(15, vol + 1);
-      } else {
-        vol = Math.max(0, vol - 1);
-      }
-    }
-  }
-
-  return result;
-}
-
-/**
- * Render a horizontal level sparkline for an envelope volume curve.
- * Each character represents one step; height encodes level 0–15.
- */
-export function renderEnvelopeSparkline(levels: number[]): string {
-  const chars = ' ▁▂▃▄▅▆▇█';
-  return levels
-    .map((v) => {
-      const idx = Math.round(Math.max(0, Math.min(15, v)) / 15 * 8);
-      return chars[idx] ?? chars[0];
-    })
-    .join('');
 }
 
 function buildGmHover(

@@ -91,6 +91,11 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
       const vis = raw === 'true';
       eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: !vis });
     },
+    'view.toggleInstrumentEditor': () => {
+      if (!isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR)) return;
+      const vis = rightTabs.tabOpen.instruments && rightTabs.activeTab === 'instruments';
+      eventBus.emit('panel:toggled', { panel: 'instrument-editor', visible: !vis });
+    },
 
     'help.showHelp': () => rightTabs.show('help'),
     'help.showHelpAlt': () => rightTabs.show('help'),

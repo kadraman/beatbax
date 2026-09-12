@@ -1,6 +1,7 @@
 import { AST } from '../src/parser/ast.js';
 import { resolveImports } from '../src/song/importResolver.browser.js';
 import {
+  isResolvedWithinAllowedDirs,
   joinLocalPath,
   relativeLocalPath,
   resolveLocalImportPath,
@@ -38,6 +39,14 @@ describe('localImportPath', () => {
       fileExists: (p) => p === 'C:/music/lib/adventure.ins',
     });
     expect(resolved).toBe('C:/music/lib/adventure.ins');
+  });
+
+  test('isResolvedWithinAllowedDirs rejects escapes and empty roots', () => {
+    expect(isResolvedWithinAllowedDirs('/repo/songs/kick.dmc', ['/repo/songs'])).toBe(true);
+    expect(isResolvedWithinAllowedDirs('/etc/passwd', ['/repo/songs', '/repo'])).toBe(false);
+    expect(isResolvedWithinAllowedDirs('/etc/passwd', [])).toBe(false);
+    expect(isResolvedWithinAllowedDirs('C:/music/lib/a.ins', ['C:/music'])).toBe(true);
+    expect(isResolvedWithinAllowedDirs('C:/Windows/win.ini', ['C:/music'])).toBe(false);
   });
 
   test('rejects parent-directory traversal', () => {

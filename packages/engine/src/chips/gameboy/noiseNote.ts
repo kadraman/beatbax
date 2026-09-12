@@ -37,6 +37,16 @@ export function hugeTrackerNoteToIndex(noteName: string): number {
   return ugeIndex;
 }
 
+/** hUGETracker display notes for indices 0–72 (C-3 … C-9). */
+export function listUgeNoteOptions(): string[] {
+  const noteNames = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
+  const out: string[] = [];
+  for (let i = 0; i <= 72; i++) {
+    out.push(`${noteNames[i % 12]}${Math.floor(i / 12) + 3}`);
+  }
+  return out;
+}
+
 /**
  * Port of hUGEDriver get_note_poly — NR43 clock bits before width OR.
  * @param noteIndex UGE note index (0–72)

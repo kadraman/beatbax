@@ -59,6 +59,7 @@ export const settingToolbarStyle = stringAtom<'icons+labels' | 'icons'>(
 export const settingShowToolbar        = boolAtom(StorageKey.PANEL_VIS_TOOLBAR,        true);
 export const settingShowTransportBar   = boolAtom(StorageKey.PANEL_VIS_TRANSPORT_BAR,  true);
 export const settingShowPatternGrid    = boolAtom(StorageKey.PANEL_VIS_PATTERN_GRID,   false);
+export const settingShowInstrumentEditor = boolAtom(StorageKey.PANEL_VIS_INSTRUMENT_EDITOR, false);
 export const settingShowChannelMixer   = boolAtom(StorageKey.PANEL_VIS_CHANNEL_MIXER,  true);
 export const settingShowSongVisualizer = boolAtom(StorageKey.PANEL_VIS_SONG_VISUALIZER, false);
 export const settingShowChannelMixerLegacy = settingShowSongVisualizer;
@@ -111,6 +112,7 @@ export const settingFeatureChannelMixer    = boolAtom(StorageKey.FEATURE_CHANNEL
 export const settingFeaturePatternGrid     = boolAtom(StorageKey.FEATURE_PATTERN_GRID,      false);
 export const settingFeatureHotReload       = boolAtom(StorageKey.FEATURE_HOT_RELOAD,        false);
 export const settingFeatureSongVisualizer  = boolAtom(StorageKey.FEATURE_SONG_VISUALIZER,   false);
+export const settingFeatureInstrumentEditor = boolAtom(StorageKey.FEATURE_INSTRUMENT_EDITOR, false);
 
 // ─── MIDI step entry ──────────────────────────────────────────────────────────
 

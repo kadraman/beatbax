@@ -44,6 +44,51 @@ export type {
 
 export { registerBeatBaxLanguage, registerNoteEditCommands, transposeCurrentNote } from './beatbax-language.js';
 export { insertHelpSnippetBlock } from './help-snippet-insertion.js';
+export { applyUndoableReplace, minimalTextEdit } from './undoable-replace.js';
+
+export {
+  fieldApplies,
+  resolveInstrumentEditorSchema,
+  resolvePreviewChannel,
+  fallbackInstrumentEditor,
+  bundledSamplePrefix,
+  listBundledSampleNames,
+  listBundledSampleRefs,
+  parseInstrumentSampleRef,
+  formatInstrumentSampleRef,
+  sampleRemainderForSchemeChange,
+  INSTRUMENT_SAMPLE_SCHEMES,
+} from './instrument-editor-schema.js';
+export type { InstrumentSampleScheme } from './instrument-editor-schema.js';
+export {
+  parseHardwareEnvelope,
+  formatHardwareEnvelope,
+  parseHardwareSweep,
+  formatHardwareSweep,
+  simulateGBEnvelope,
+  simulateHardwareSweep,
+  renderEnvelopeSparkline,
+} from './envelope-preview.js';
+export type {
+  HardwareEnvelopeParams,
+  HardwareSweepParams,
+  EnvelopeDirection,
+  SweepDirection,
+} from './envelope-preview.js';
+export {
+  collectLocalInstNames,
+  findInstLineIndex,
+  findSubpatLineIndex,
+  replaceInstLine,
+  insertInstLine,
+  deleteInstLine,
+  duplicateInstLine,
+  uniqueInstName,
+  isValidInstName,
+  renameInstrumentInSource,
+  instIsReferenced,
+  splitTrailingComment,
+} from './instrument-editor-writeback.js';
 
 export { setupBeatDecorations } from './beat-decorations.js';
 export {

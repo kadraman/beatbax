@@ -6,11 +6,11 @@
 
 GATE: complete before implementation. Re-check after design changes.
 
-- [ ] No invented syntax or undocumented language behavior
-- [ ] AST / ISM / scheduler / expansion impact identified (or N/A)
-- [ ] Plugins remain isolated; core does not gain plugin dependencies
-- [ ] Determinism and compatibility preserved (or migration documented)
-- [ ] Tests planned for new behavior
+- [x] No invented syntax or undocumented language behavior — existing `inst` grammar only; no new `.bax` syntax
+- [x] AST / ISM / scheduler / expansion impact identified (or N/A) — optional `instrumentEditor` on `ChipPlugin`; no AST/ISM/scheduler changes; `__loc` already on instruments
+- [x] Plugins remain isolated; core does not gain plugin dependencies — host renders generic widgets from plugin schema; plugins do not ship React
+- [x] Determinism and compatibility preserved (or migration documented) — write-valid-only via `validateInstrument`; `CHIP_INSTRUMENT_META` kept as fallback
+- [x] Tests planned for new behavior — serialize round-trip, schema/fallback, waveform presets, panel visibility
 
 ## Implementation Plan
 

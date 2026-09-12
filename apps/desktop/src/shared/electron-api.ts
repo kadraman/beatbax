@@ -47,6 +47,8 @@ export type MenuAction =
   | 'playback:stop'
   | 'edit:find'
   | 'edit:replace'
+  | 'edit:undo'
+  | 'edit:redo'
   | 'view:command-palette'
   | 'view:toggle-output'
   | 'view:toggle-problems'
@@ -55,6 +57,7 @@ export type MenuAction =
   | 'view:toggle-channel-mixer'
   | 'view:toggle-song-visualizer'
   | 'view:toggle-pattern-grid'
+  | 'view:toggle-instrument-editor'
   | 'view:toggle-ai-assistant'
   | 'view:toggle-wrap-text'
   | 'view:toggle-fold-all'
@@ -137,6 +140,8 @@ export interface ElectronAPI {
   openRecentFile(filePath: string): void;
   openExternal(url: string): Promise<void>;
   getVersion(): string;
+  /** Main-process `process.cwd()` for resolving `local:` paths next to the repo/cli cwd. */
+  getCwd(): string;
   getPlatform(): NodeJS.Platform;
   minimizeWindow(): void;
   toggleMaximizeWindow(): void;

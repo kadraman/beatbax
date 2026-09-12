@@ -240,14 +240,15 @@ export function buildBottomTabs(
 
 // ─── Right Tabs (Visualizer | Help | Copilot) ────────────────────────────────
 
-export type RightTabId = 'channels' | 'help' | 'ai';
+export type RightTabId = 'channels' | 'instruments' | 'help' | 'ai';
 
 const RIGHT_TAB_LABELS: Record<RightTabId, string> = {
   channels: 'Visualizer',
+  instruments: 'Instruments',
   help:     'Help',
   ai:       'Copilot',
 };
-const RIGHT_TAB_ORDER: RightTabId[]  = ['channels', 'help', 'ai'];
+const RIGHT_TAB_ORDER: RightTabId[]  = ['channels', 'instruments', 'help', 'ai'];
 
 export interface RightTabsController {
   readonly tabContents:     Record<RightTabId, HTMLElement>;
@@ -279,10 +280,14 @@ export interface RightTabsController {
 export function buildRightTabs(
   rightPane: HTMLElement,
   layout: ThreePaneLayoutManager,
+  options?: {
+    onActiveTabChange?: (tab: RightTabId | null) => void;
+  },
 ): RightTabsController {
   const caps = getCurrentCapabilities();
   const rightTabOrder: RightTabId[] = RIGHT_TAB_ORDER.filter(t => {
         if (t === 'channels') return caps.songVisualizer;
+        if (t === 'instruments') return caps.advancedEditor;
         if (t === 'ai') return caps.copilot;
         if (t === 'help') return caps.helpPanel;
         return true;
@@ -300,6 +305,7 @@ export function buildRightTabs(
   let activeTab: RightTabId | null = defaultTab;
   const tabOpen: Record<RightTabId, boolean> = {
     channels: caps.songVisualizer,
+    instruments: false,
     help: caps.helpPanel,
     ai: caps.copilot,
   };
@@ -310,6 +316,10 @@ export function buildRightTabs(
   rightTabs.className = 'bb-right-tabs';
   rightPane.appendChild(rightTabs);
 
+  const notifyActiveTab = (): void => {
+    options?.onActiveTabChange?.(activeTab);
+  };
+
   const switchTab = (tab: RightTabId): void => {
     if (!rightTabOrder.includes(tab)) return;
     activeTab = tab;
@@ -319,6 +329,7 @@ export function buildRightTabs(
       tabButtons[t]?.classList.toggle('bb-right-tab--active',         t === tab);
       tabContents[t]?.classList.toggle('bb-right-tab-content--active', t === tab);
     }
+    notifyActiveTab();
   };
 
   const show = (tab: RightTabId): void => {
@@ -351,6 +362,7 @@ export function buildRightTabs(
         activeTab = null;
         rightTabs.classList.add('bb-right-tabs--empty');
         layout.setRightPaneVisible(false);
+        notifyActiveTab();
       }
     }
   };
@@ -388,6 +400,7 @@ export function buildRightTabs(
     btn.append(labelSpan, closeBtn);
     btn.addEventListener('click', () => show(t));
     tabButtons[t] = btn;
+    if (!tabOpen[t]) btn.classList.add('bb-right-tab--hidden');
     tabBar.appendChild(btn);
 
     const content = document.createElement('div');
@@ -448,6 +461,7 @@ export function buildRightTabs(
     activeTab = null;
     rightTabs.classList.add('bb-right-tabs--empty');
     layout.setRightPaneVisible(false);
+    notifyActiveTab();
   }
 
   return {

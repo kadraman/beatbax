@@ -15,6 +15,7 @@ import { BUNDLED_SAMPLES } from './dmcSamples.js';
 import { nesUIContributions } from './ui-contributions.js';
 import { setNesClockRegion } from './periodTables.js';
 import { nesSongWizard } from './songWizard.js';
+import { nesInstrumentEditor } from './instrument-editor.js';
 import { NES_MIX_GAIN } from './mixer.js';
 
 const NES_METER_DISPLAY_GAIN = {
@@ -35,6 +36,7 @@ const nesPlugin: ChipPlugin = {
   bundledSamples: BUNDLED_SAMPLES,
   uiContributions: nesUIContributions,
   newSongWizard: nesSongWizard,
+  instrumentEditor: nesInstrumentEditor,
 
   supportsVolumeForChannel(channelIndex: number): boolean {
     return channelIndex === 0 || channelIndex === 1 || channelIndex === 3;

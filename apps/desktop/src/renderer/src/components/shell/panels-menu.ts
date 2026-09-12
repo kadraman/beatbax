@@ -19,6 +19,7 @@ export type PanelMenuId =
   | 'transport-bar'
   | 'channel-mixer'
   | 'pattern-grid'
+  | 'instrument-editor'
   | 'ai-assistant';
 
 export type PanelMenuGroup = 'bottom' | 'side' | 'window';
@@ -44,6 +45,7 @@ export interface PanelMenuState {
   transportVisible: boolean;
   channelMixerVisible: boolean;
   patternGridVisible: boolean;
+  instrumentEditorVisible: boolean;
   aiOpen: boolean;
 }
 
@@ -115,6 +117,17 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
       shortcut: panelShortcut('tools.toggleCopilot'),
       checked: state.aiOpen && state.rightPaneVisible,
       disabled: !isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
+    });
+  }
+
+  if (caps.advancedEditor) {
+    entries.push({
+      id: 'instrument-editor',
+      label: 'Instruments',
+      group: 'side',
+      shortcut: panelShortcut('view.toggleInstrumentEditor'),
+      checked: state.instrumentEditorVisible,
+      disabled: !isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR),
     });
   }
 

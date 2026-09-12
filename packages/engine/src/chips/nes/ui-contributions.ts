@@ -181,7 +181,7 @@ const hoverDocs: Record<string, string> = {
     '- `dmc_loop` — `true` to loop the sample continuously; `false` for one-shot',
     '- `dmc_sample` — sample reference:',
     '  - `"@nes/<name>"` — bundled sample (`bass_c1`, `bass_c2`, `kick`, `snare`, `hihat`, `crash`, `shaker`, `clap`)',
-    '  - `"local:<path>"` — file-system path (CLI/Node.js only)',
+    '  - `"local:<path>"` — file-system path (CLI, Node.js, and BeatBax Desktop)',
     '  - `"https://…"` — remote URL (browser + Node.js 18+)',
     '',
     '_DMC interrupts other channels on real hardware; use sparingly in authentic arrangements._',

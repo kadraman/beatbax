@@ -22,6 +22,7 @@ export const FeatureFlag = {
   PATTERN_GRID:           StorageKey.FEATURE_PATTERN_GRID,
   HOT_RELOAD:             StorageKey.FEATURE_HOT_RELOAD,
   SONG_VISUALIZER:        StorageKey.FEATURE_SONG_VISUALIZER,
+  INSTRUMENT_EDITOR:      StorageKey.FEATURE_INSTRUMENT_EDITOR,
 } as const;
 
 /** Flags that default to enabled when no value is stored in localStorage. */

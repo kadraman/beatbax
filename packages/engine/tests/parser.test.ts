@@ -16,4 +16,16 @@ describe('parser.parse', () => {
     const ast = parse(src);
     expect(ast.pats.S).toEqual(['x', '.', 'x', 'x']);
   });
+
+  test('keeps quoted inst values with spaces as a single property', () => {
+    const src = `
+      chip nes
+      inst kick type=dmc dmc_rate=15 dmc_loop=false dmc_sample="local:My Samples/kick.dmc"
+      pat a = C3
+      channel 5 => inst kick pat a
+    `;
+    const ast = parse(src);
+    expect(ast.insts.kick.dmc_sample).toBe('local:My Samples/kick.dmc');
+    expect(ast.insts.kick).not.toHaveProperty('Samples/kick.dmc"');
+  });
 });

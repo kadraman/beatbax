@@ -115,7 +115,7 @@ export interface ChipPlugin {
   // Used by chips with sampled audio channels (e.g. NES DMC, SID samples).
   // The `ref` string follows the same multi-environment conventions as `import`:
   //   - "@<chip>/<name>" — resolve from the plugin's built-in sample library
-  //   - "local:<path>"   — resolve from the local file system (CLI/Node.js only)
+  //   - "local:<path>"   — resolve from the local file system (CLI/Node.js and Desktop; blocked in web-lite)
   //   - "https://..."    — resolve via fetch() (browser and Node.js 18+)
   // Implementations must block "local:" references in browser contexts.
   resolveSampleAsset?(ref: string): Promise<ArrayBuffer>;
@@ -447,7 +447,7 @@ The engine tries loading strategies in order:
 - **Official plugins:** Plugins published under `@beatbax/*` namespace are reviewed and maintained by core team.
 - **Sample asset loading:** Chips that use sampled audio (e.g. the NES DMC channel) must follow the same import security model as BeatBax imports (see `docs/language/import-security.md`):
   - `"@<chip>/<name>"` — bundled library (always safe; embedded in plugin package)
-  - `"local:<path>"` — file system access; blocked automatically in browser contexts; path-traversal guard applies in Node.js/CLI
+  - `"local:<path>"` — file system access; blocked in web-lite; CLI/Node.js and BeatBax Desktop resolve via the same path-traversal guard
   - `"https://..."` — remote fetch; allowed in browser and Node.js 18+; plugins should not load samples from untrusted origins
 
 ## Open Questions

@@ -40,7 +40,7 @@ function getValueHoverProperties(chip: string): Set<string> {
   const names = getKeywordHoverProperties(chip);
   // Values are only rendered for a focused subset; macros use dedicated hovers.
   const valueProps = [
-    'type', 'vol', 'duty', 'noise_mode', 'noise_rate', 'tone', 'tone_mix',
+    'type', 'vol', 'volume', 'duty', 'noise_mode', 'noise_rate', 'tone', 'tone_mix',
     'env_bass', 'env_shape', 'noise_frames', 'tone_frames', 'tone_vol', 'chipRegion',
   ];
   return new Set([...names].filter((key) => valueProps.includes(key)));
