@@ -1,53 +1,42 @@
-BeatBax Desktop v0.2.0 — a much more native desktop IDE, stronger chip/export
-  parity, and signed macOS builds.
+BeatBax Desktop v0.3.0 — Instrument Editor, Pattern Grid section focus,
+  Copilot sessions, and more reliable imports/exports.
 
   Features
-  - Native React desktop shell: settings, Copilot, Help, Output/Problems,
-    toolbar/transport, channel mixer, song visualizer, and pattern grid
-    (web-UI compatibility layer retired).
-  - Experimental Arkos Tracker 3 exporter for Spectrum/CPC (.aks / optional .aki).
-  - Game Boy instrument macros and native subpat programs, with shared
-    preview/WAV/UGE (hUGETracker) lowering.
-  - Secure NES DMC remote sample loading (https://, github:, local:, @nes/;
-    insecure URLs rejected).
-  - Autosave controls (toggle + debounce) and clearer document save-state feedback.
-  - New Song Wizard chip cards with richer metadata and audible chip previews;
-    Spectrum/CPC examples expanded.
-  - Shared keyboard shortcuts across menus, toolbar, Help, and editor
-    (including macOS labels).
-  - Settings toolbar shortcut; theme sync polish; performance-mode / visualizer
-    control reliability.
+  - Instrument Editor panel (Experimental, default off): chip-aware fields,
+    waveform drawing, macro graphs, templates, and preview from a
+    mini piano or a connected MIDI keyboard. Edits write back into the open
+    `.bax` `inst` lines.
+  - Pattern Grid section focus: play one arrangement slice across all channels
+    (F6 enter; Esc exit; Alt+Left/Right previous/next section; F5/F8 scoped
+    to the focused section).
+  - Channel Mixer defaults to inline mode so the right pane keeps full height;
+    switch to full-window width when you need more channel strips. Right-pane
+    tabs get icons and a compact layout.
+  - External `.bax` file watcher: reload when another editor changes the open
+    file (Settings → Editor: When the open file changes on disk).
+  - Command palette and feature-context cleanup so desktop commands stay
+    easier to find.
 
   Chip and export improvements
-  - Game Boy noise/uge_note playback parity with hUGETracker (plus pulse/wave
-    mix and wave program playback fixes).
-  - Chip song profiles / configureForSong for clearer platform selection
-    (e.g. Spectrum vs CPC).
-  - Payload-first exports for built-in formats (JSON, MIDI, UGE, WAV) for more
-    reliable desktop downloads.
-  - Spectrum/CPC AY loudness curve closer to NES/SMS listening levels.
+  - Desktop export merges imported instrument kits before writing (issue #171),
+    so JSON/MIDI/UGE/WAV include instruments from `import` files.
+  - Native `subpat` declarations in `.ins` imports; CodeLens preview of
+    imported instruments; named effects can be imported.
+  - UGE export reuses and optimizes patterns for smaller tracker output.
 
   Copilot and editor
-  - Copilot usability pass: better context, error handling, and
-    ask-Copilot-about-this-problem flows.
-  - Default song artist setting accepts multi-word names (spaces).
-  - Plugin defaults/reset cleanup (SMS + Spectrum-128 enabled by default).
+  - Copilot sessions (multiple chats), a context-usage meter, and per-change
+    edit review before applying suggestions.
 
   Installers, signing and examples
-  - macOS GitHub Release .dmg/.zip are Developer ID signed and notarized
-    (when CI secrets are set).
+  - macOS GitHub Release .dmg/.zip are Developer ID signed and notarized.
   - Release checksums: SHA256SUMS; optional GPG (SHA256SUMS.asc,
     beatbax-release.asc) and dpkg-sig for .deb.
-  - Bundled examples: macOS copies to ~/Documents/BeatBax/Examples on first
-    launch; File -> Examples / resources/songs on Windows and Linux.
-  - .bax file-association icons; updated installer README / release-note packaging.
-  - New and updated example songs (GB subpattern/UGE demos, NES silver_orbit,
-    Spectrum themes, and more).
 
   Fixes
-  - Toolbar click/hover reliability (unmute/clear-solo/performance controls;
-    title-bar drag no longer steals hits).
-  - Various editor/effect parse fixes affecting desktop autosave and Copilot.
+  - Import/export and CodeLens preview gaps for kit instruments and named
+    effects.
+  - Pattern Grid section playback and Channel Mixer layout polish.
 
   Note: Windows installers are still not Authenticode-signed; SmartScreen may
   warn — use More info, then Run anyway (see README.txt). Verify downloads with
