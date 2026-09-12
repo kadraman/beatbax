@@ -15,7 +15,7 @@
  *  - Mute / Solo buttons wired to the shared channelStates store
  *  - Resize handle at the top edge (drag to change height, persisted)
  *  - Collapse/expand toggle (persisted in localStorage)
- *  - Dock-mode toggle: full-width bottom strip ↔ inline below output/problems panel
+ *  - Dock-mode toggle: full-window width (under side panel) ↔ inline in the editor column
  *  - Show/hide via the View menu or Ctrl+Shift+M
  */
 
@@ -53,7 +53,7 @@ const MAX_HEIGHT_PX = 400;
 export type MixerDockMode = 'docked' | 'inline';
 
 export interface ChannelMixerOptions {
-  /** Container for full-width docked mode (below all three panes). */
+  /** Container for full-window docked mode (below the three-pane row; opt-in for wide mixers). */
   container: HTMLElement;
   /** Container for inline mode (inside the left-content / output area). */
   inlineContainer?: HTMLElement;
@@ -333,8 +333,8 @@ export class ChannelMixer {
   private applyDockModeBtn(btn: HTMLButtonElement): void {
     const isDocked = this.dockMode === 'docked';
     btn.title = isDocked
-      ? 'Switch to inline mode (beside output panel)'
-      : 'Switch to full-width docked mode';
+      ? 'Switch to editor-column mode (side panel stays full height)'
+      : 'Switch to full-window width (for many channels)';
     btn.setAttribute('aria-label', btn.title);
     // arrows-pointing-in = switch to inline (smaller), arrows-pointing-out = switch back to full-width
     btn.innerHTML = isDocked

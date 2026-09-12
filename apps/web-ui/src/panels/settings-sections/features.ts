@@ -36,7 +36,7 @@ const FEATURES: FeatureEntry[] = [
   },
   {
     label: 'Channel Mixer',
-    description: 'Horizontal channel strip with VU meters docked at the bottom of the editor. Each channel shows instrument, sequence, and pattern readouts plus mute/solo controls. Can be toggled between full-width and inline (beside the output panel) dock modes.',
+    description: 'Horizontal channel strip with VU meters at the bottom of the workspace. Defaults to the editor column (side panel stays full height); can expand to full window width for chips with many channels, or sit inline beside the output panel.',
     badge: 'Beta',
     flag: FeatureFlag.CHANNEL_MIXER,
     atom: settingFeatureChannelMixer,

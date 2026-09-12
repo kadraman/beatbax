@@ -130,7 +130,7 @@ export const StorageKey = {
   CHANNEL_MIXER_COLLAPSED: 'ui.channelMixerCollapsed',
   /** Channel mixer height in pixels (number). */
   CHANNEL_MIXER_HEIGHT: 'ui.channelMixerHeight',
-  /** Channel mixer dock mode ('docked' = full-width bottom | 'inline' = beside output panel). */
+  /** Channel mixer dock mode ('docked' = full window width under side panel | 'inline' = editor column, side panel full height). Default is inline. */
   CHANNEL_MIXER_DOCK_MODE: 'ui.channelMixerDockMode',
   /** Enabled chip plugin IDs (JSON string[]). */
   ENABLED_PLUGINS: 'plugins.enabled',
