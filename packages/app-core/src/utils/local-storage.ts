@@ -92,6 +92,8 @@ export const StorageKey = {
   FEATURE_HOT_RELOAD: 'feature.hotReload',
   /** Song Visualizer feature flag (boolean). */
   FEATURE_SONG_VISUALIZER: 'feature.songVisualizer',
+  /** Instrument Editor panel feature flag (boolean). Experimental, default off. */
+  FEATURE_INSTRUMENT_EDITOR: 'feature.instrumentEditor',
   /** AI Copilot connection settings (JSON: endpoint, model, maxContextChars, contextWindowTokens). API keys are not stored here. */
   CHAT_SETTINGS: 'ai.settings',
   /** AI Copilot interaction mode ('edit' | 'ask'). */
@@ -114,6 +116,8 @@ export const StorageKey = {
   PANEL_VIS_CHANNEL_MIXER: 'panel.channel-mixer',
   /** Pattern grid visible state (boolean). */
   PANEL_VIS_PATTERN_GRID: 'panel.pattern-grid',
+  /** Instrument editor (right-pane) visible state (boolean). */
+  PANEL_VIS_INSTRUMENT_EDITOR: 'panel.instrument-editor',
   /** Legacy (right-pane) channel mixer visible state (boolean). */
   PANEL_VIS_CHANNEL_MIXER_LEGACY: 'panel.channel-mixer-legacy',
   /** Song visualizer (right-pane) visible state (boolean). */

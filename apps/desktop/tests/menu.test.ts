@@ -92,6 +92,26 @@ describe('desktop native menu', () => {
     expect(mockWindow.webContents.send).not.toHaveBeenCalled();
   });
 
+  it('routes macOS Edit Undo/Redo to Monaco instead of Chromium native undo', () => {
+    if (!isMac) return;
+
+    const template = createMenuTemplate([], handlers());
+    const editMenu = findTopLevelMenu(template, 'Edit').submenu as MenuItemConstructorOptions[];
+    const undo = editMenu.find((item) => item.label === 'Undo')!;
+    const redo = editMenu.find((item) => item.label === 'Redo')!;
+
+    expect(undo.role).toBeUndefined();
+    expect(redo.role).toBeUndefined();
+    expect(undo.accelerator).toBe('CmdOrCtrl+Z');
+    expect(redo.accelerator).toBe('Cmd+Shift+Z');
+
+    undo.click?.({} as any, mockWindow, {} as any);
+    redo.click?.({} as any, mockWindow, {} as any);
+
+    expect(onMenuAction).toHaveBeenCalledWith('edit:undo');
+    expect(onMenuAction).toHaveBeenCalledWith('edit:redo');
+  });
+
   it('includes Auto Save as a checkbox in the File menu', () => {
     const template = createMenuTemplate([], handlers(), {
       ...DEFAULT_NATIVE_MENU_CHECK_STATE,
@@ -187,6 +207,7 @@ describe('desktop native menu', () => {
       'view:toggle-channel-mixer': { checked: false, enabled: true },
       'view:toggle-song-visualizer': { checked: false, enabled: true },
       'view:toggle-pattern-grid': { checked: false, enabled: true },
+      'view:toggle-instrument-editor': { checked: false, enabled: false },
       'view:toggle-ai-assistant': { checked: false, enabled: true },
       'view:toggle-wrap-text': { checked: true },
       'view:toggle-fold-all': { checked: false },
@@ -209,9 +230,11 @@ describe('desktop native menu', () => {
     const toolbar = viewMenu.find((item) => item.label === 'Toolbar')!;
     const transport = viewMenu.find((item) => item.label === 'Transport Bar')!;
     const patternGrid = viewMenu.find((item) => item.label === 'Pattern Grid')!;
+    const instruments = viewMenu.find((item) => item.label === 'Instruments')!;
 
     expect(toolbar.accelerator).toBe('CmdOrCtrl+Shift+B');
     expect(transport.accelerator).toBe('CmdOrCtrl+Shift+R');
     expect(patternGrid.accelerator).toBe('CmdOrCtrl+Shift+G');
+    expect(instruments.accelerator).toBe('CmdOrCtrl+Alt+I');
   });
 });

@@ -26,6 +26,7 @@ import {
   isEffectDefinitionLine,
   isMidiPreviewLine,
   MidiStepEntryService,
+  MIDI_ACCESS_TIMEOUT_MS,
 } from '@beatbax/app-core/input/midi-step-entry';
 import { MidiStepEntryController } from '../src/input/midi-step-entry-controller';
 import { settingMidiInputEnabled } from '@beatbax/app-core/stores/settings.store';
@@ -416,6 +417,129 @@ describe('MidiStepEntryService', () => {
     expect(onIdlePreview).toHaveBeenCalledWith('C4');
     expect(onNoteEntered).not.toHaveBeenCalled();
     expect(onAuditionStart).not.toHaveBeenCalled();
+  });
+});
+
+describe('MidiStepEntryService requestAccess coalescing', () => {
+  function createDeferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  function mockMidiAccess(id: string) {
+    const input = {
+      id,
+      name: `Keyboard ${id}`,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    };
+    const inputs = new Map([[id, input]]);
+    return {
+      id,
+      inputs: {
+        size: inputs.size,
+        get: (deviceId: string) => inputs.get(deviceId),
+        forEach: (fn: (value: typeof input, key: string) => void) => {
+          inputs.forEach((value, key) => fn(value, key));
+        },
+      },
+    };
+  }
+
+  let service: MidiStepEntryService;
+  let requestMIDIAccess: jest.Mock;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    service = new MidiStepEntryService({
+      onNoteEntered: jest.fn(),
+    });
+    requestMIDIAccess = jest.fn();
+    Object.defineProperty(navigator, 'requestMIDIAccess', {
+      configurable: true,
+      value: requestMIDIAccess,
+    });
+  });
+
+  afterEach(() => {
+    service.dispose();
+    jest.useRealTimers();
+    delete (navigator as { requestMIDIAccess?: unknown }).requestMIDIAccess;
+  });
+
+  it('shares one requestMIDIAccess across concurrent requestAccess calls', async () => {
+    const deferred = createDeferred<ReturnType<typeof mockMidiAccess>>();
+    requestMIDIAccess.mockReturnValue(deferred.promise);
+
+    const first = service.requestAccess();
+    const second = service.requestAccess();
+    expect(requestMIDIAccess).toHaveBeenCalledTimes(1);
+
+    deferred.resolve(mockMidiAccess('shared-1'));
+    await jest.advanceTimersByTimeAsync(0);
+    await expect(first).resolves.toBeNull();
+    await expect(second).resolves.toBeNull();
+    expect(service.listDevices().map((d) => d.id)).toEqual(['shared-1']);
+  });
+
+  it('reuses the in-flight requestMIDIAccess after a timeout instead of starting a second request', async () => {
+    const deferred = createDeferred<ReturnType<typeof mockMidiAccess>>();
+    requestMIDIAccess.mockReturnValue(deferred.promise);
+
+    const first = service.requestAccess();
+    await jest.advanceTimersByTimeAsync(MIDI_ACCESS_TIMEOUT_MS);
+    await expect(first).resolves.toMatch(/timed out/);
+    expect(requestMIDIAccess).toHaveBeenCalledTimes(1);
+
+    const second = service.requestAccess();
+    expect(requestMIDIAccess).toHaveBeenCalledTimes(1);
+
+    deferred.resolve(mockMidiAccess('late-1'));
+    await jest.advanceTimersByTimeAsync(0);
+    await expect(second).resolves.toBeNull();
+    expect(service.hasMidiAccess()).toBe(true);
+    expect(service.listDevices().map((d) => d.id)).toEqual(['late-1']);
+  });
+
+  it('rejects an in-flight waiter when the request is retired by dispose', async () => {
+    const deferred = createDeferred<ReturnType<typeof mockMidiAccess>>();
+    requestMIDIAccess.mockReturnValue(deferred.promise);
+
+    const pending = service.requestAccess();
+    service.dispose();
+    deferred.resolve(mockMidiAccess('stale'));
+    await jest.advanceTimersByTimeAsync(0);
+    await expect(pending).resolves.toMatch(/superseded/);
+    expect(service.hasMidiAccess()).toBe(false);
+  });
+
+  it('ignores a late grant from a retired request after dispose', async () => {
+    const firstDeferred = createDeferred<ReturnType<typeof mockMidiAccess>>();
+    requestMIDIAccess.mockReturnValueOnce(firstDeferred.promise);
+
+    const first = service.requestAccess();
+    await jest.advanceTimersByTimeAsync(MIDI_ACCESS_TIMEOUT_MS);
+    await expect(first).resolves.toMatch(/timed out/);
+
+    service.dispose();
+
+    const secondDeferred = createDeferred<ReturnType<typeof mockMidiAccess>>();
+    requestMIDIAccess.mockReturnValueOnce(secondDeferred.promise);
+    const second = service.requestAccess();
+
+    firstDeferred.resolve(mockMidiAccess('stale'));
+    await jest.advanceTimersByTimeAsync(0);
+    expect(service.hasMidiAccess()).toBe(false);
+
+    secondDeferred.resolve(mockMidiAccess('fresh'));
+    await jest.advanceTimersByTimeAsync(0);
+    await expect(second).resolves.toBeNull();
+    expect(service.listDevices().map((d) => d.id)).toEqual(['fresh']);
   });
 });
 

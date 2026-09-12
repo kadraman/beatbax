@@ -3,6 +3,7 @@ import {
   settingFeatureAI,
   settingFeatureChannelMixer,
   settingFeatureHotReload,
+  settingFeatureInstrumentEditor,
   settingFeaturePatternGrid,
   settingFeaturePerChannelAnalyser,
   settingFeatureSongVisualizer,
@@ -78,6 +79,13 @@ const FEATURES: FeatureEntry[] = [
     flag: FeatureFlag.HOT_RELOAD,
     label: 'Hot reload (Live mode)',
     onToggle: (enabled) => (window as any).__beatbax_setLiveMode?.(enabled),
+  },
+  {
+    atom: settingFeatureInstrumentEditor,
+    badge: 'Experimental',
+    description: 'Graphical instrument editor in the right pane: waveforms, macros, templates, and a mini keyboard. Edits write back into the open .bax file.',
+    flag: FeatureFlag.INSTRUMENT_EDITOR,
+    label: 'Instrument Editor',
   },
 ];
 

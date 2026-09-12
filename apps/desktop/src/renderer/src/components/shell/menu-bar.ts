@@ -202,6 +202,7 @@ const PANEL_CHECK_IDS: Record<string, string> = {
   'channel-mixer': 'channel-mixer-toggle',
   'song-visualizer': 'song-visualizer-toggle',
   'pattern-grid': 'pattern-grid-toggle',
+  'instrument-editor': 'instrument-editor-toggle',
   help: 'help-panel-toggle',
 };
 
@@ -209,6 +210,7 @@ const PANEL_CHECK_IDS: Record<string, string> = {
 const PANEL_FEATURE_FLAGS: Partial<Record<string, string>> = {
   'channel-mixer': FeatureFlag.CHANNEL_MIXER,
   'pattern-grid': FeatureFlag.PATTERN_GRID,
+  'instrument-editor': FeatureFlag.INSTRUMENT_EDITOR,
   'song-visualizer': FeatureFlag.SONG_VISUALIZER,
 };
 
@@ -257,6 +259,7 @@ export class MenuBar {
     ['toolbar', true],
     ['transport-bar', true],
     ['pattern-grid', false],
+    ['instrument-editor', false],
     ['song-visualizer', false],
     ['ai-assistant', false],
   ]);
@@ -766,6 +769,15 @@ export class MenuBar {
         disabled: !isFeatureEnabled(FeatureFlag.PATTERN_GRID),
         action: () => this.emitPanelToggle('pattern-grid'),
       },
+      {
+        type: 'item',
+        label: 'Instruments',
+        id: 'instrument-editor-toggle',
+        checkable: true,
+        shortcut: menuShortcut('view.toggleInstrumentEditor'),
+        disabled: !isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR),
+        action: () => this.emitPanelToggle('instrument-editor'),
+      },
       { type: 'separator' },
       {
         type: 'item',
@@ -1208,11 +1220,13 @@ export class MenuBar {
     this.opts.eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
       if (flag === FeatureFlag.SONG_VISUALIZER) this.setItemEnabled('song-visualizer-toggle', enabled);
       if (flag === FeatureFlag.PATTERN_GRID)    this.setItemEnabled('pattern-grid-toggle', enabled);
+      if (flag === FeatureFlag.INSTRUMENT_EDITOR) this.setItemEnabled('instrument-editor-toggle', enabled);
       if (flag === FeatureFlag.AI_ASSISTANT)    this.setItemEnabled('ai-assistant', enabled);
       if (flag === FeatureFlag.CHANNEL_MIXER)   this.setItemEnabled('channel-mixer-toggle', enabled);
       if (
         flag === FeatureFlag.SONG_VISUALIZER
         || flag === FeatureFlag.PATTERN_GRID
+        || flag === FeatureFlag.INSTRUMENT_EDITOR
         || flag === FeatureFlag.AI_ASSISTANT
         || flag === FeatureFlag.CHANNEL_MIXER
       ) {

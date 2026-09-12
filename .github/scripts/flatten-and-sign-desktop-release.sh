@@ -18,6 +18,11 @@ if [ -z "${GPG_PRIVATE_KEY:-}" ]; then
   exit 0
 fi
 
+# Drop the runner's Google Chrome apt source — BeatBax does not need it, and
+# dl.google.com Hash Sum mismatches fail apt-get update intermittently.
+sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
+  /etc/apt/sources.list.d/google-chrome.sources \
+  /etc/apt/sources.list.d/google-chrome*.list
 sudo apt-get update
 # dpkg-sig is not packaged on Ubuntu 24.04 (noble). Prefer it when
 # available; otherwise skip embedded .deb signatures and still publish

@@ -3,7 +3,7 @@
  */
 
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
-import { triggerEffectPreview, triggerStepEntryAudition } from '@beatbax/app-core/editor/codelens-preview';
+import { triggerEffectPreview, triggerInstNotePreview, triggerStepEntryAudition, stopInstPreview } from '@beatbax/app-core/editor/codelens-preview';
 import type { TransportControls } from '@beatbax/app-core/playback/transport-controls';
 import type { PlaybackManager } from '@beatbax/app-core/playback/playback-manager';
 import type { ClientCapabilities } from '@beatbax/app-core/client-profile';
@@ -70,6 +70,8 @@ export interface FullIdeSetupOptions {
   transportDisplay: TransportDisplayState;
   /** When section focus is active, play the focused slice instead of the full song. */
   tryPlayFocused?: () => boolean;
+  /** When the Instrument Editor tab is active, MIDI idle notes preview this `inst`. */
+  getInstrumentAuditionTarget?: () => string | null;
 }
 
 export interface FullIdeSetupHandle {
@@ -89,6 +91,7 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
     capabilities,
     transportDisplay,
     tryPlayFocused,
+    getInstrumentAuditionTarget,
   } = options;
 
   const cleanups: Array<() => void> = [];
@@ -395,11 +398,23 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
     midiController = new MidiStepEntryController({
       getEditor: () => getEditor()?.editor ?? null,
       onAuditionNote: (noteName) => {
+        const instName = getInstrumentAuditionTarget?.();
+        if (instName) {
+          triggerInstNotePreview(instName, noteName, { sustain: true });
+          eventBus.emit('instrument-editor:audition', { note: noteName });
+          return;
+        }
         const monacoEditor = getEditor()?.editor;
         const model = monacoEditor?.getModel();
         const pos = monacoEditor?.getPosition();
         if (!model || !pos) return;
         triggerStepEntryAudition(model.getLineContent(pos.lineNumber), noteName);
+      },
+      onAuditionNoteStop: () => {
+        if (getInstrumentAuditionTarget?.()) {
+          stopInstPreview();
+          eventBus.emit('instrument-editor:audition', { note: null });
+        }
       },
       onPreviewEffect: (effectName) => {
         triggerEffectPreview(effectName);

@@ -28,6 +28,8 @@ import { chipRegistry } from '@beatbax/engine/chips';
 import type { EventBus } from '../utils/event-bus.js';
 import { buildImportResolverOptions } from '../import/import-resolver-options.js';
 import { findChannelForNamedItem } from './preview-channel-resolve.js';
+import { resolvePreviewChannel } from './instrument-editor-schema.js';
+import { FeatureFlag, isFeatureEnabled } from '../utils/feature-flags.js';
 
 // ---------------------------------------------------------------------------
 // Instrument resolution
@@ -114,6 +116,17 @@ export async function parseAndResolveForPreview(
 // Preview playback
 // ---------------------------------------------------------------------------
 
+function hostCanReadLocalSamples(): boolean {
+  if (typeof window === 'undefined') return true;
+  return typeof (window as unknown as { electronAPI?: { readFileSync?: unknown } }).electronAPI?.readFileSync === 'function';
+}
+
+function isLocalDmcInstrument(instDef: any): instDef is { dmc_sample: string } {
+  return String(instDef?.type ?? '').toLowerCase() === 'dmc'
+    && typeof instDef?.dmc_sample === 'string'
+    && instDef.dmc_sample.startsWith('local:');
+}
+
 interface PreviewState {
   player: Player;
   /** Namespaced key: 'pat:<name>', 'loop:<name>', or 'inst:<name>' */
@@ -128,24 +141,9 @@ interface PreviewState {
  * fewer than 4 channels (e.g. AY-3-8910 has 3) still receive a valid id.
  */
 function instChannelId(instName: string, ast: any): number {
-  let channelId: number;
-  switch ((ast.insts?.[instName]?.type ?? '').toLowerCase()) {
-    case 'pulse2':   channelId = 2; break;
-    case 'wave':     channelId = 3;   // Game Boy wave channel
-                     break;
-    case 'triangle': channelId = 3;   // NES triangle channel
-                     break;
-    case 'noise':    channelId = 4; break;
-    case 'dmc':      channelId = 5; break;
-    default:         channelId = 1; break;
-  }
-
-  // Clamp to the chip's actual channel count so out-of-range ids are never
-  // passed to the player (e.g. AY has 3 channels, SMS has 4).
+  const type = ast.insts?.[instName]?.type;
   const rawChip = (ast.chip ?? 'gameboy').toLowerCase();
-  const plugin = chipRegistry.get(chipRegistry.resolve(rawChip));
-  const maxChannel = plugin?.channels ?? channelId;
-  return Math.min(channelId, maxChannel);
+  return resolvePreviewChannel(type, rawChip);
 }
 
 async function startPatternPreview(
@@ -270,20 +268,43 @@ async function startSeqPreview(
 // Notes shown as individual clickable buttons above each `inst` line.
 const INST_PREVIEW_NOTES = ['C3', 'C4', 'C5', 'C6', 'C7'];
 
+/** Options for {@link startInstNotePreview} / {@link triggerInstNotePreview}. */
+export interface InstNotePreviewOptions {
+  /**
+   * Hold-to-play: schedule a long sustained note and only stop on
+   * {@link stopInstPreview} (or a long safety timeout). Use for mini-keyboard
+   * / MIDI note-on. CodeLens clicks leave this false (≈2 s oneshot).
+   */
+  sustain?: boolean;
+}
+
+/** Steps at bpm 60 (≈1 s/step) while a key is held; release stops earlier. */
+const INST_NOTE_SUSTAIN_STEPS = 180;
+const INST_NOTE_ONESHOT_MS = 2000;
+const INST_NOTE_SUSTAIN_SAFETY_MS = INST_NOTE_SUSTAIN_STEPS * 1000 + 500;
+
 /** Play a single note with the named instrument; auto-stops after the note decays. */
 async function startInstNotePreview(
   instName: string,
   note: string,
   rawAst: any,
   onDone: () => void,
+  options?: InstNotePreviewOptions,
+  isCancelled?: () => boolean,
 ): Promise<PreviewState | null> {
   const channelId = instChannelId(instName, rawAst);
+  const sustain = options?.sustain === true;
+  const steps = sustain ? INST_NOTE_SUSTAIN_STEPS : 1;
 
   const previewAst = {
-    chip:  rawAst.chip ?? 'gameboy',
+    chip:  rawAst.chip ? chipRegistry.resolve(String(rawAst.chip).toLowerCase()) : (rawAst.chip ?? 'gameboy'),
     bpm:   60,   // 1 beat = 1 s at 60 BPM — gives envelope plenty of time
     insts: rawAst.insts,
-    pats:  { __inst_note__: [note] },
+    // Prefer structured events so `:N` duration expands to note + sustains.
+    patternEvents: {
+      __inst_note__: [{ kind: 'note', value: note, duration: steps, raw: `${note}:${steps}` }],
+    },
+    pats:  { __inst_note__: [] as string[] },
     seqs:  {},
     channels: [{ id: channelId, inst: instName, pat: '__inst_note__' }],
     play: { auto: false },
@@ -296,6 +317,8 @@ async function startInstNotePreview(
     return null;
   }
 
+  if (isCancelled?.()) return null;
+
   let player: Player;
   try {
     player = new Player(_sharedCtx ?? undefined);
@@ -304,11 +327,16 @@ async function startInstNotePreview(
     return null;
   }
 
-  // Safety fallback: 2 s is more than enough for any GB envelope to decay
+  if (isCancelled?.()) {
+    try { player.stop(); } catch (_e) { /* ignore */ }
+    return null;
+  }
+
+  // Oneshot: short cap for CodeLens clicks. Sustain: long safety net; release stops earlier.
   const stopTimer = window.setTimeout(() => {
     try { player.stop(); } catch (_e) { /* ignore */ }
     onDone();
-  }, 2000);
+  }, sustain ? INST_NOTE_SUSTAIN_SAFETY_MS : INST_NOTE_ONESHOT_MS);
 
   player.onComplete = () => {
     clearTimeout(stopTimer);
@@ -578,12 +606,13 @@ let _previewTrigger: ((patternName: string) => void) | null = null;
 let _loopTrigger: ((patternName: string) => void) | null = null;
 let _seqPreviewTrigger: ((seqName: string) => void) | null = null;
 let _seqLoopTrigger: ((seqName: string) => void) | null = null;
-let _instNotePreviewTrigger: ((instName: string, note: string) => void) | null = null;
+let _instNotePreviewTrigger: ((instName: string, note: string, options?: InstNotePreviewOptions) => void) | null = null;
 let _stepEntryAuditionTrigger: ((lineText: string, note: string) => void) | null = null;
 let _effectPreviewTrigger: ((effectName: string) => void) | null = null;
 let _effectSlowPreviewTrigger: ((effectName: string) => void) | null = null;
 let _effectLoopTrigger: ((effectName: string) => void) | null = null;
 let _stopTrigger: (() => void) | null = null;
+let _editInstrumentTrigger: ((instName: string) => void) | null = null;
 let _commandsRegistered = false;
 let _codeLensSetupDispose: (() => void) | null = null;
 
@@ -634,6 +663,9 @@ function ensureCommandsRegistered(): void {
   monaco.editor.registerCommand('beatbax.previewInstNote', (_acc: any, instName: string, note: string) => {
     _instNotePreviewTrigger?.(instName, note);
   });
+  monaco.editor.registerCommand('beatbax.editInstrument', (_acc: any, instName: string) => {
+    _editInstrumentTrigger?.(instName);
+  });
   monaco.editor.registerCommand('beatbax.previewEffect', (_acc: any, effectName: string) => {
     _effectPreviewTrigger?.(effectName);
   });
@@ -664,6 +696,8 @@ export function setupCodeLensPreview(
 
   let hasValidParse = false;
   let previewState: PreviewState | null = null;
+  /** Bumped by {@link stopPreview} so in-flight starts cannot assign a player after release. */
+  let previewGeneration = 0;
 
   // Simple change-event emitter for the CodeLens provider to subscribe to
   type ProviderListener = (e: any) => any;
@@ -672,8 +706,44 @@ export function setupCodeLensPreview(
   let providerInstance: monaco.languages.CodeLensProvider;
   const notifyChange = () => changeListeners.forEach(l => l(providerInstance));
 
+  function previewIsCurrent(generation: number): boolean {
+    return generation === previewGeneration;
+  }
+
+  /** Stop a player that was created after the generation was invalidated (never assigned). */
+  function abandonUnassignedPreview(state: PreviewState | null): void {
+    if (!state) return;
+    clearTimeout(state.stopTimer);
+    state.cancelLoop?.();
+    state.player.onComplete = undefined;
+    try { state.player.stop(); } catch (_e) { /* ignore */ }
+  }
+
+  function beginPreview(): number {
+    stopPreview();
+    return previewGeneration;
+  }
+
+  function assignPreviewIfCurrent(
+    generation: number,
+    state: PreviewState | null,
+    failMessage: string,
+  ): void {
+    if (!previewIsCurrent(generation)) {
+      abandonUnassignedPreview(state);
+      return;
+    }
+    if (!state) {
+      failPreview(failMessage);
+      return;
+    }
+    previewState = state;
+    notifyChange();
+  }
+
   // ── Stop any running preview ──────────────────────────────────────────────
   function stopPreview(): void {
+    previewGeneration += 1;
     if (!previewState) return;
     clearTimeout(previewState.stopTimer);
     previewState.cancelLoop?.();
@@ -694,65 +764,72 @@ export function setupCodeLensPreview(
   _previewTrigger = async (patternName: string) => {
     ensureAudioCtxReady(); // synchronous — must stay before any await
     if (previewState?.key === `pat:${patternName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
     const rawAst = await astForPreview();
-    if (!rawAst) return;
+    if (!previewIsCurrent(generation) || !rawAst) return;
     const state = await startPatternPreview(patternName, rawAst, () => {
       previewState = null;
       notifyChange();
     });
-    if (!state) {
-      failPreview(`Preview unavailable: no instrument found for pattern '${patternName}'.`);
-      return;
-    }
-    previewState = state;
-    notifyChange();
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: no instrument found for pattern '${patternName}'.`,
+    );
   };
 
-  _instNotePreviewTrigger = async (instName: string, note: string) => {
+  _instNotePreviewTrigger = async (instName: string, note: string, options?: InstNotePreviewOptions) => {
     ensureAudioCtxReady(); // synchronous — must stay before any await
-    stopPreview(); // always stop current note and restart (allows re-clicking same note)
+    const generation = beginPreview(); // always stop current note and restart (allows re-clicking same note)
+    const isCancelled = () => !previewIsCurrent(generation);
     const rawAst = await astForPreview();
-    if (!rawAst) return;
+    if (isCancelled() || !rawAst) return;
 
-    // Detect browser-incompatible local: DMC sample references before attempting
-    // playback — the DMC backend blocks local: in browser contexts for security,
-    // so the preview would start but be completely silent with no user feedback.
     const instDef = rawAst.insts?.[instName];
     if (!instDef) {
       failPreview(`Preview unavailable: instrument '${instName}' is not defined.`);
       return;
     }
-    if (
-      instDef?.type?.toLowerCase() === 'dmc' &&
-      typeof instDef.dmc_sample === 'string' &&
-      instDef.dmc_sample.startsWith('local:') &&
-      typeof window !== 'undefined'
-    ) {
+    const canReadLocal = hostCanReadLocalSamples();
+    const localDmc = isLocalDmcInstrument(instDef);
+    if (localDmc && !canReadLocal) {
       eventBus.emit('preview:error', {
         message: `Preview unavailable: 'local:' DMC samples cannot be accessed in the browser. Use @nes/<name> or https:// instead.`,
       });
       return;
     }
+    if (localDmc) {
+      const plugin = chipRegistry.get(chipRegistry.resolve(String(rawAst.chip || 'nes').toLowerCase()));
+      try {
+        await plugin?.resolveSampleAsset?.(instDef.dmc_sample);
+      } catch (err: unknown) {
+        if (isCancelled()) return;
+        const message = err instanceof Error ? err.message : String(err);
+        failPreview(`Preview unavailable: ${message}`);
+        return;
+      }
+      if (isCancelled()) return;
+    }
 
+    if (isCancelled()) return;
     const state = await startInstNotePreview(instName, note, rawAst, () => {
       previewState = null;
       notifyChange();
-    });
-    if (!state) {
-      failPreview(`Preview unavailable: instrument '${instName}' is not defined.`);
-      return;
-    }
-    previewState = state;
-    notifyChange();
+    }, options, isCancelled);
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: instrument '${instName}' is not defined.`,
+    );
   };
 
   _stepEntryAuditionTrigger = async (lineText: string, note: string) => {
     ensureAudioCtxReady(); // synchronous — must stay before any await
-    stopPreview();
+    const generation = beginPreview();
+    const isCancelled = () => !previewIsCurrent(generation);
 
     const rawAst = await astForPreview(true);
-    if (!rawAst) return;
+    if (isCancelled() || !rawAst) return;
 
     const instName = resolveAuditionInstrumentForLine(lineText, rawAst);
     if (!instName) {
@@ -761,53 +838,49 @@ export function setupCodeLensPreview(
     }
 
     const instDef = rawAst.insts?.[instName];
-    if (
-      instDef?.type?.toLowerCase() === 'dmc' &&
-      typeof instDef.dmc_sample === 'string' &&
-      instDef.dmc_sample.startsWith('local:') &&
-      typeof window !== 'undefined'
-    ) {
+    if (isLocalDmcInstrument(instDef) && !hostCanReadLocalSamples()) {
       eventBus.emit('preview:error', {
         message: `Preview unavailable: 'local:' DMC samples cannot be accessed in the browser. Use @nes/<name> or https:// instead.`,
       });
       return;
     }
 
+    if (isCancelled()) return;
     const state = await startInstNotePreview(instName, note, rawAst, () => {
       previewState = null;
       notifyChange();
-    });
-    if (!state) {
-      failPreview(`Preview unavailable: instrument '${instName}' is not defined.`);
-      return;
-    }
-    previewState = state;
-    notifyChange();
+    }, undefined, isCancelled);
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: instrument '${instName}' is not defined.`,
+    );
   };
 
   _loopTrigger = async (patternName: string) => {
     ensureAudioCtxReady(); // synchronous — must stay before any await
     if (previewState?.key === `loop:${patternName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
 
     let cancelled = false;
     const cancel = () => { cancelled = true; };
 
     // Each iteration re-parses the source so live edits are picked up.
     async function playNext(): Promise<void> {
-      if (cancelled) return;
+      if (cancelled || !previewIsCurrent(generation)) return;
       const rawAst = await astForPreview();
-      if (!rawAst || cancelled) return;
+      if (!rawAst || cancelled || !previewIsCurrent(generation)) return;
       // One-shot guard prevents double-fire if both timer and onComplete fire.
       let fired = false;
       const onIterationDone = () => {
-        if (fired || cancelled) return;
+        if (fired || cancelled || !previewIsCurrent(generation)) return;
         fired = true;
         void playNext();
       };
       const state = await startPatternPreview(patternName, rawAst, onIterationDone);
-      if (!state || cancelled) {
-        if (!state && !cancelled) {
+      if (!state || cancelled || !previewIsCurrent(generation)) {
+        abandonUnassignedPreview(state);
+        if (!state && !cancelled && previewIsCurrent(generation)) {
           failPreview(`Preview unavailable: no instrument found for pattern '${patternName}'.`);
         }
         return;
@@ -824,42 +897,42 @@ export function setupCodeLensPreview(
   _seqPreviewTrigger = async (seqName: string) => {
     ensureAudioCtxReady();
     if (previewState?.key === `seq:${seqName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
     const rawAst = await astForPreview();
-    if (!rawAst) return;
+    if (!previewIsCurrent(generation) || !rawAst) return;
     const state = await startSeqPreview(seqName, rawAst, () => {
       previewState = null;
       notifyChange();
     });
-    if (!state) {
-      failPreview(`Preview unavailable: no instrument found for sequence '${seqName}'.`);
-      return;
-    }
-    previewState = state;
-    notifyChange();
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: no instrument found for sequence '${seqName}'.`,
+    );
   };
 
   _seqLoopTrigger = async (seqName: string) => {
     ensureAudioCtxReady();
     if (previewState?.key === `seq-loop:${seqName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
 
     let cancelled = false;
     const cancel = () => { cancelled = true; };
 
     async function playNext(): Promise<void> {
-      if (cancelled) return;
+      if (cancelled || !previewIsCurrent(generation)) return;
       const rawAst = await astForPreview();
-      if (!rawAst || cancelled) return;
+      if (!rawAst || cancelled || !previewIsCurrent(generation)) return;
       let fired = false;
       const onIterationDone = () => {
-        if (fired || cancelled) return;
+        if (fired || cancelled || !previewIsCurrent(generation)) return;
         fired = true;
         void playNext();
       };
       const state = await startSeqPreview(seqName, rawAst, onIterationDone);
-      if (!state || cancelled) {
-        if (!state && !cancelled) {
+      if (!state || cancelled || !previewIsCurrent(generation)) {
+        abandonUnassignedPreview(state);
+        if (!state && !cancelled && previewIsCurrent(generation)) {
           failPreview(`Preview unavailable: no instrument found for sequence '${seqName}'.`);
         }
         return;
@@ -876,60 +949,59 @@ export function setupCodeLensPreview(
   _effectPreviewTrigger = async (effectName: string) => {
     ensureAudioCtxReady();
     if (previewState?.key === `effect:${effectName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
     const rawAst = await astForPreview();
-    if (!rawAst) return;
+    if (!previewIsCurrent(generation) || !rawAst) return;
     const state = await startEffectPreview(effectName, rawAst, () => {
       previewState = null;
       notifyChange();
     });
-    if (!state) {
-      failPreview(`Preview unavailable: no instrument found for effect '${effectName}'.`);
-      return;
-    }
-    previewState = state;
-    notifyChange();
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: no instrument found for effect '${effectName}'.`,
+    );
   };
 
   _effectSlowPreviewTrigger = async (effectName: string) => {
     ensureAudioCtxReady();
     if (previewState?.key === `effect-slow:${effectName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
     const rawAst = await astForPreview();
-    if (!rawAst) return;
+    if (!previewIsCurrent(generation) || !rawAst) return;
     const state = await startEffectPreview(effectName, rawAst, () => {
       previewState = null;
       notifyChange();
     }, { stepsOverride: 16, keyPrefix: 'effect-slow' });
-    if (!state) {
-      failPreview(`Preview unavailable: no instrument found for effect '${effectName}'.`);
-      return;
-    }
-    previewState = state;
-    notifyChange();
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: no instrument found for effect '${effectName}'.`,
+    );
   };
 
   _effectLoopTrigger = async (effectName: string) => {
     ensureAudioCtxReady();
     if (previewState?.key === `effect-loop:${effectName}`) { stopPreview(); return; }
-    stopPreview();
+    const generation = beginPreview();
 
     let cancelled = false;
     const cancel = () => { cancelled = true; };
 
     async function playNext(): Promise<void> {
-      if (cancelled) return;
+      if (cancelled || !previewIsCurrent(generation)) return;
       const rawAst = await astForPreview();
-      if (!rawAst || cancelled) return;
+      if (!rawAst || cancelled || !previewIsCurrent(generation)) return;
       let fired = false;
       const onIterationDone = () => {
-        if (fired || cancelled) return;
+        if (fired || cancelled || !previewIsCurrent(generation)) return;
         fired = true;
         void playNext();
       };
       const state = await startEffectPreview(effectName, rawAst, onIterationDone);
-      if (!state || cancelled) {
-        if (!state && !cancelled) {
+      if (!state || cancelled || !previewIsCurrent(generation)) {
+        abandonUnassignedPreview(state);
+        if (!state && !cancelled && previewIsCurrent(generation)) {
           failPreview(`Preview unavailable: no instrument found for effect '${effectName}'.`);
         }
         return;
@@ -944,6 +1016,9 @@ export function setupCodeLensPreview(
   };
 
   _stopTrigger = () => stopPreview();
+  _editInstrumentTrigger = (instName: string) => {
+    eventBus.emit('instrument-editor:open', { name: instName });
+  };
 
   // ── EventBus subscriptions ────────────────────────────────────────────────
   const unsubParseSuccess = eventBus.on('parse:success', (payload) => {
@@ -1034,6 +1109,13 @@ export function setupCodeLensPreview(
         const instMatch = line.match(/^\s*inst\s+([A-Za-z0-9_-]+)\s+/);
         if (instMatch) {
           const instName = instMatch[1];
+          if (isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR)) {
+            lenses.push({
+              range: new monaco.Range(ln, 1, ln, 1),
+              id: `bb-inst-edit-${instName}`,
+              command: { id: 'beatbax.editInstrument', title: 'Edit', arguments: [instName] },
+            });
+          }
           // Sample-based instruments (type=dmc) get a single ▶ Sample button
           // instead of individual note buttons — DMC samples have no meaningful pitch.
           const isSampleBased = /\btype=dmc\b/.test(line);
@@ -1125,12 +1207,25 @@ export function setupCodeLensPreview(
       _effectSlowPreviewTrigger = null;
       _effectLoopTrigger = null;
       _stopTrigger = null;
+      _editInstrumentTrigger = null;
       _codeLensSetupDispose = null;
     }
   };
 
   _codeLensSetupDispose = dispose;
   return dispose;
+}
+
+export function triggerInstNotePreview(
+  instName: string,
+  note: string,
+  options?: InstNotePreviewOptions,
+): void {
+  _instNotePreviewTrigger?.(instName, note, options);
+}
+
+export function stopInstPreview(): void {
+  _stopTrigger?.();
 }
 
 export function triggerStepEntryAudition(lineText: string, note: string): void {

@@ -14,6 +14,7 @@ import { lowerGameBoyInstrumentProgram } from './instrumentProgram.js';
 import { noiseClockToLfsrHz, resolveNoiseClock, resolveNoiseWidth, gameBoyNoiseSample, NOISE_OUTPUT_GAIN, stepGameBoyLfsr, triggerGameBoyLfsr } from './noiseNote.js';
 import { version } from '../../version.js';
 import { gbSongWizard } from './songWizard.js';
+import { gameboyInstrumentEditor } from './instrument-editor.js';
 
 // ─── Per-channel PCM backends ─────────────────────────────────────────────────
 
@@ -236,6 +237,7 @@ export const gameboyPlugin: ChipPlugin = {
   instrumentVolumeRange: { min: 0, max: 15 },
   uiContributions: gameboyUIContributions,
   newSongWizard: gbSongWizard,
+  instrumentEditor: gameboyInstrumentEditor,
 
   validateInstrument(inst: InstrumentNode): ValidationError[] {
     return validateGBInstrument(inst);
