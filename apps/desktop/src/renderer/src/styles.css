@@ -2023,11 +2023,15 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 /* ─── Right Pane Tabs (Mixer | Help | Copilot) ──────────────────────────── */
 .bb-right-tabs { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 .bb-right-tab-bar { display: flex; flex-shrink: 0; background: var(--header-bg, #252526); border-bottom: 1px solid var(--border-color, #3c3c3c); }
-.bb-right-tab { display: flex; align-items: center; gap: 4px; flex: 1; padding: 7px 6px 7px 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted, #888); cursor: pointer; transition: color 0.15s, border-color 0.15s; white-space: nowrap; overflow: hidden; }
+.bb-right-tab { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; padding: 7px 6px 7px 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted, #888); cursor: pointer; transition: color 0.15s, border-color 0.15s; white-space: nowrap; overflow: hidden; }
 .bb-right-tab:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
 .bb-right-tab--active { color: var(--text-color, #d4d4d4); border-bottom-color: var(--bb-accent); }
 .bb-right-tab--hidden { display: none; }
-.bb-right-tab__label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.bb-right-tab__icon { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; }
+.bb-right-tab__icon-svg { width: 14px; height: 14px; display: block; }
+.bb-right-tab__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: clip; }
+.bb-right-tab-bar--compact .bb-right-tab { justify-content: center; gap: 2px; padding: 7px 4px; }
+.bb-right-tab-bar--compact .bb-right-tab__label { display: none; }
 .bb-right-tab__close { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 3px; font-size: 11px; line-height: 1; color: var(--text-muted, #888); opacity: 0; transition: opacity 0.1s, background 0.1s; pointer-events: none; }
 .bb-right-tab:hover .bb-right-tab__close,
 .bb-right-tab--active .bb-right-tab__close { opacity: 1; pointer-events: auto; }
@@ -5745,6 +5749,7 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 
 #bb-mixer-host {
   flex-shrink: 0;
+  width: 100%;
 }
 
 .bb-channel-mixer {

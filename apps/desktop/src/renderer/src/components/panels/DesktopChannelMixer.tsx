@@ -92,7 +92,8 @@ function readInitialHeight(): number {
 }
 
 function readInitialDockMode(): MixerDockMode {
-  return storage.get(StorageKey.CHANNEL_MIXER_DOCK_MODE) === 'inline' ? 'inline' : 'docked';
+  // Default inline keeps the right pane full height; docked is opt-in full window width.
+  return storage.get(StorageKey.CHANNEL_MIXER_DOCK_MODE) === 'docked' ? 'docked' : 'inline';
 }
 
 function readInitialMasterVolume(): number {
@@ -514,12 +515,12 @@ function DesktopChannelMixer({
         />
         <span className="bb-channel-mixer__toolbar-label">CHANNEL MIXER</span>
         <button
-          aria-label={docked ? 'Switch to inline mode (beside output panel)' : 'Switch to full-width docked mode'}
+          aria-label={docked ? 'Switch to editor-column mode (side panel stays full height)' : 'Switch to full-window width (for many channels)'}
           className="bb-channel-mixer__toolbar-btn bb-channel-mixer__toolbar-btn--dock"
           dangerouslySetInnerHTML={{ __html: icon(docked ? 'arrows-pointing-in' : 'arrows-pointing-out', 'w-3.5 h-3.5') }}
           id="bb-channel-mixer-dock-mode"
           onPointerDown={(event) => handleToolbarAction(event, false, () => applyDockMode(docked ? 'inline' : 'docked'))}
-          title={docked ? 'Switch to inline mode (beside output panel)' : 'Switch to full-width docked mode'}
+          title={docked ? 'Switch to editor-column mode (side panel stays full height)' : 'Switch to full-window width (for many channels)'}
           type="button"
         />
       </div>

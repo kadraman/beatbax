@@ -164,8 +164,12 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     inlineMixerContainer.style.display = 'none';
   }
 
+  // Full-window docked host (below the three-pane row). Opt-in via the mixer
+  // toolbar; default is inline so the right pane stays full height.
   const mixerHostContainer = document.createElement('div');
   mixerHostContainer.id = 'bb-mixer-host';
+  mixerHostContainer.style.flexShrink = '0';
+  mixerHostContainer.style.width = '100%';
   if (capabilities.channelMixer) {
     layoutHost.appendChild(mixerHostContainer);
   } else {
@@ -1143,6 +1147,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     ks.dispose();
     toolbar.dispose();
     transportControls.dispose();
+    rightTabs.dispose();
     layout.dispose();
     layoutHost.remove();
     if (parseTimeout !== null) window.clearTimeout(parseTimeout);
