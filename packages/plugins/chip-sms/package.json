@@ -1,6 +1,6 @@
 {
   "name": "@beatbax/plugin-chip-sms",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Sega Master System / Game Gear SN76489 PSG chip plugin for BeatBax.",
   "private": false,
   "type": "module",

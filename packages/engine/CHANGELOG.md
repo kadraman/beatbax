@@ -1,5 +1,22 @@
 # @beatbax/engine
 
+## 0.25.0
+
+### Minor Changes
+
+- 1ca3998: Add Instrument Editor support for chip plugins and engine helpers.
+  - Expose optional `instrumentEditor` schemas on chip plugins (Game Boy, NES, SMS, Spectrum 128) for typed fields, macros, and waveform UI.
+  - Add `serializeInstrument` / `parseInstrumentBody` / waveform helpers for editor writeback; empty `[]` list values parse as empty arrays and are omitted when serializing.
+  - Add `normalizeWaveSamples` so hosts normalize wavetable data to each plugin schema’s `length` / `min` / `max` instead of Game Boy’s fixed 32-entry table.
+  - Gate SMS `arp_env` to `tone1` / `tone2` / `tone3` so the editor does not offer Add Arpeggio on noise (rejected by `validateSmsInstrument`).
+  - Extend plugin API / chip types so hosts can discover editor schemas without hard-coding per chip.
+
+### Patch Changes
+
+- 0fbb1cd: Fix per-token source metadata for sequence-level length modifiers.
+
+  Apply `pal`, `slow`, `fast` (and order modifiers) to the full expanded leaf-attribution stream before recompressing counts in `tokenSourceMeta`, matching resolver playback. Pass outer seq-ref modifiers from `resolver` / `resolver.browser` into `buildTokenSourceMeta` so channel refs like `group:fast(2)` attribute steps correctly (e.g. palindrome order `a, b, a`).
+
 ## 0.24.1
 
 ### Patch Changes
