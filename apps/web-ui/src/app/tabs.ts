@@ -431,16 +431,21 @@ export function buildRightTabs(
     rightTabs.appendChild(content);
   }
 
-  const compactObserver = new ResizeObserver(() => {
-    // Defer layout writes out of the RO delivery loop to avoid
-    // "ResizeObserver loop completed with undelivered notifications".
-    if (compactRaf != null) return;
-    compactRaf = requestAnimationFrame(() => {
-      compactRaf = null;
-      updateCompactMode();
-    });
-  });
-  compactObserver.observe(tabBar);
+  // jsdom (and older hosts) may omit ResizeObserver; compact mode still
+  // updates from open/close/show, just without live tab-bar width tracking.
+  const compactObserver =
+    typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => {
+          // Defer layout writes out of the RO delivery loop to avoid
+          // "ResizeObserver loop completed with undelivered notifications".
+          if (compactRaf != null) return;
+          compactRaf = requestAnimationFrame(() => {
+            compactRaf = null;
+            updateCompactMode();
+          });
+        })
+      : null;
+  compactObserver?.observe(tabBar);
 
   // ── Collapse / expand button at the far right of the tab bar ─────────────
   // Mirrors the HorizontalMixer collapse button so users can hide the right
@@ -510,7 +515,7 @@ export function buildRightTabs(
     restorePersistedTab,
     dispose: () => {
       if (compactRaf != null) cancelAnimationFrame(compactRaf);
-      compactObserver.disconnect();
+      compactObserver?.disconnect();
     },
   };
 }

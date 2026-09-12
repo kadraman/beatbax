@@ -1147,6 +1147,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     ks.dispose();
     toolbar.dispose();
     transportControls.dispose();
+    rightTabs.dispose();
     layout.dispose();
     layoutHost.remove();
     if (parseTimeout !== null) window.clearTimeout(parseTimeout);
