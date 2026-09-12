@@ -75,12 +75,12 @@ describe('parseEnvelopeAtPosition', () => {
       expect(result!.period).toBe(3);
     });
 
-    it('defaults period to 0 when omitted', () => {
+    it('defaults period to 1 when omitted (matches playback)', () => {
       const line = 'inst p type=pulse1 env=8,down';
       const col = colOf(line, '8,down');
       const result = parseEnvelopeAtPosition(makeModel(line), pos(col));
       expect(result).not.toBeNull();
-      expect(result!.period).toBe(0);
+      expect(result!.period).toBe(1);
     });
 
     it('handles flat direction', () => {

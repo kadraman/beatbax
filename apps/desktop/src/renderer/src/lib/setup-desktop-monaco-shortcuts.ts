@@ -115,6 +115,11 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
       const vis = raw === 'true';
       eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: !vis });
     }, requiresCapability: 'patternGrid' },
+    { commandId: 'view.toggleInstrumentEditor', handler: () => {
+      if (!isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR)) return;
+      const vis = rightTabs.tabOpen.instruments && rightTabs.activeTab === 'instruments';
+      eventBus.emit('panel:toggled', { panel: 'instrument-editor', visible: !vis });
+    }, requiresCapability: 'advancedEditor' },
   ], DESKTOP_CAPABILITIES);
 
   if (patternGridHandlers) {

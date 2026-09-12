@@ -5,6 +5,7 @@
  * Called by the plugin's `validateInstrument()` method.
  */
 import type { InstrumentNode } from '../../parser/ast.js';
+import { isAbsoluteLocalPath } from '../../import/localImportPath.js';
 import type { ValidationError } from '../types.js';
 
 /** NES instrument types and their channel assignments. */
@@ -154,6 +155,11 @@ export function validateNesInstrument(inst: InstrumentNode): ValidationError[] {
           errors.push({
             field: 'dmc_sample',
             message: `dmc_sample 'local:' path must not contain '..' path segments (path traversal)`
+          });
+        } else if (isAbsoluteLocalPath(localPath)) {
+          errors.push({
+            field: 'dmc_sample',
+            message: `dmc_sample 'local:' path must be relative to the song or working directory (absolute paths are not allowed)`
           });
         }
       }

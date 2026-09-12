@@ -261,3 +261,36 @@ describe('BeatBax Monaco hover provider — Spectrum-128 inst properties', () =>
     expect(hover?.contents[0].value).toContain('Fixed channel amplitude');
   });
 });
+
+describe('Game Boy inst property hovers — wave volume', () => {
+  test('chip hoverDocs include volume keyword', () => {
+    const docs = chipRegistry.get('gameboy')?.uiContributions?.hoverDocs ?? {};
+    expect(docs.volume).toContain('hardware output-level');
+    expect(docs.volume).toContain('0');
+    expect(docs.volume).toContain('100');
+  });
+
+  test('buildInstPropertyKeywordHover explains volume= on inst line', () => {
+    const line = 'inst bass type=wave volume=100 wave=[0,8,15]';
+    const column = line.indexOf('volume') + 2;
+    const model = {
+      getLineContent: jest.fn(() => line),
+    } as unknown as monaco.editor.ITextModel;
+
+    const hover = buildInstPropertyKeywordHover(model, { lineNumber: 1, column }, 'gameboy');
+    expect(hover?.contents[0].value).toContain('Wave volume');
+    expect(hover?.contents[0].value).toContain('not a 0–15 envelope');
+  });
+
+  test('buildInstPropertyHover explains volume= value on inst line', () => {
+    const line = 'inst bass type=wave volume=50 wave=[0,8,15]';
+    const column = line.indexOf('50') + 1;
+    const model = {
+      getLineContent: jest.fn(() => line),
+    } as unknown as monaco.editor.ITextModel;
+
+    const hover = buildInstPropertyHover(model, { lineNumber: 1, column }, 'gameboy');
+    expect(hover?.contents[0].value).toContain('volume=50');
+    expect(hover?.contents[0].value).toContain('hardware output-level');
+  });
+});

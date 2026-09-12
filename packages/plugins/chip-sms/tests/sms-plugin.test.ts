@@ -36,6 +36,11 @@ describe('plugin metadata', () => {
     expect(smsPlugin.getMeterDisplayGain?.(3)).toBeCloseTo(1 / SMS_MIX_GAIN.noise, 6);
     expect(smsPlugin.getMeterDisplayGain?.(4)).toBe(1);
   });
+
+  it('gates arp_env to tone types so noise cannot Add Arpeggio into an invalid draft', () => {
+    const arp = smsPlugin.instrumentEditor?.macros.find((m) => m.name === 'arp_env');
+    expect(arp?.whenType).toEqual(['tone1', 'tone2', 'tone3']);
+  });
 });
 
 describe('plugin registration', () => {

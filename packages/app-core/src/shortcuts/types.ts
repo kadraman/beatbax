@@ -24,6 +24,7 @@ export type ShortcutCommandId =
   | 'view.toggleToolbar'
   | 'view.toggleTransportBar'
   | 'view.togglePatternGrid'
+  | 'view.toggleInstrumentEditor'
   | 'patternGrid.focusSectionAtCursor'
   | 'patternGrid.exitSectionFocus'
   | 'patternGrid.previousSection'

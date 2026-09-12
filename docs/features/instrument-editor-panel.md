@@ -2,8 +2,8 @@
 
 This feature specification moved to the SDD tree:
 
-**[`specs/features/021-instrument-editor-panel/`](../../specs/features/021-instrument-editor-panel/)**
+**[`specs/complete/021-instrument-editor-panel/`](../../specs/complete/021-instrument-editor-panel/)**
 
-- [spec.md](../../specs/features/021-instrument-editor-panel/spec.md)
-- [plan.md](../../specs/features/021-instrument-editor-panel/plan.md)
-- [tasks.md](../../specs/features/021-instrument-editor-panel/tasks.md)
+- [spec.md](../../specs/complete/021-instrument-editor-panel/spec.md)
+- [plan.md](../../specs/complete/021-instrument-editor-panel/plan.md)
+- [tasks.md](../../specs/complete/021-instrument-editor-panel/tasks.md)

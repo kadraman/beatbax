@@ -30,6 +30,7 @@ describe('shortcuts format', () => {
   it('builds desktop electron accelerators from the catalog', () => {
     expect(electronAcceleratorForCommand('view.toggleTransportBar', 'desktop-full')).toBe('CmdOrCtrl+Shift+R');
     expect(electronAcceleratorForCommand('view.togglePatternGrid', 'desktop-full')).toBe('CmdOrCtrl+Shift+G');
+    expect(electronAcceleratorForCommand('view.toggleInstrumentEditor', 'desktop-full')).toBe('CmdOrCtrl+Alt+I');
   });
 });
 
