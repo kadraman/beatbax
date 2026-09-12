@@ -172,6 +172,8 @@ export function installGlobalErrorHandlers(callback: GlobalErrorCallback): () =>
   const onError = (ev: ErrorEvent) => {
     const err: Error | undefined = ev.error instanceof Error ? ev.error : undefined;
     const msg = err?.message ?? ev.message ?? 'Unknown error';
+    // Chromium reports this when an observer mutates layout in its callback; it is not actionable.
+    if (/ResizeObserver loop/i.test(msg)) return;
     log.error('Uncaught error:', msg, err ?? ev);
     callback(msg, err ?? ev);
   };

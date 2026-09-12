@@ -9,7 +9,7 @@
 import type { ThreePaneLayoutManager } from '../ui/layout';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
-import { filledIcon } from '../utils/icons';
+import { filledIcon, icon } from '../utils/icons';
 
 // ─── Bottom Tabs (Problems | Output) ─────────────────────────────────────────
 
@@ -246,7 +246,16 @@ const RIGHT_TAB_LABELS: Record<RightTabId, string> = {
   channels: 'Visualizer',
   help:     'Help',
 };
+const RIGHT_TAB_ICONS: Record<RightTabId, string> = {
+  channels: 'waveform',
+  help: 'information-circle',
+};
 const RIGHT_TAB_ORDER: RightTabId[]  = ['channels', 'help'];
+
+/** Per open tab + collapse button; below this, labels hide in favor of icons. */
+const RIGHT_TAB_COMPACT_PER_TAB = 88;
+const RIGHT_TAB_COMPACT_COLLAPSE = 22;
+const RIGHT_TAB_COMPACT_HYSTERESIS = 16;
 
 export interface RightTabsController {
   readonly tabContents:     Record<RightTabId, HTMLElement>;
@@ -273,6 +282,8 @@ export interface RightTabsController {
    * (including the AI panel) has been fully initialised.
    */
   restorePersistedTab(): void;
+  /** Disconnect resize observer and release tab-bar listeners. */
+  dispose(): void;
 }
 
 export function buildRightTabs(
@@ -307,6 +318,28 @@ export function buildRightTabs(
   rightTabs.className = 'bb-right-tabs';
   rightPane.appendChild(rightTabs);
 
+  // ─── DOM construction ──────────────────────────────────────────────────────
+  const tabBar = document.createElement('div');
+  tabBar.className = 'bb-right-tab-bar';
+  rightTabs.appendChild(tabBar);
+
+  let compactMode = false;
+  let compactRaf: number | null = null;
+  const openTabCount = (): number =>
+    rightTabOrder.reduce((n, t) => n + (tabOpen[t] ? 1 : 0), 0);
+
+  const updateCompactMode = (): void => {
+    const open = openTabCount();
+    const threshold = open * RIGHT_TAB_COMPACT_PER_TAB + RIGHT_TAB_COMPACT_COLLAPSE;
+    const width = tabBar.clientWidth;
+    const next = compactMode
+      ? width < threshold + RIGHT_TAB_COMPACT_HYSTERESIS
+      : width < threshold;
+    if (next === compactMode) return;
+    compactMode = next;
+    tabBar.classList.toggle('bb-right-tab-bar--compact', compactMode);
+  };
+
   const switchTab = (tab: RightTabId): void => {
     if (!rightTabOrder.includes(tab)) return;
     activeTab = tab;
@@ -324,6 +357,7 @@ export function buildRightTabs(
     tabButtons[tab]?.classList.remove('bb-right-tab--hidden');
     layout.setRightPaneVisible(true);
     switchTab(tab);
+    updateCompactMode();
   };
 
   const ensureOpen = (tab: RightTabId): void => {
@@ -332,6 +366,7 @@ export function buildRightTabs(
     tabButtons[tab]?.classList.remove('bb-right-tab--hidden');
     layout.setRightPaneVisible(true);
     if (activeTab === null) switchTab(tab);
+    updateCompactMode();
   };
 
   const close = (tab: RightTabId): void => {
@@ -350,6 +385,7 @@ export function buildRightTabs(
         layout.setRightPaneVisible(false);
       }
     }
+    updateCompactMode();
   };
 
   const restorePersistedTab = (): void => {
@@ -362,27 +398,29 @@ export function buildRightTabs(
     if (defaultTab) switchTab(defaultTab);
   };
 
-  // ─── DOM construction ──────────────────────────────────────────────────────
-  const tabBar = document.createElement('div');
-  tabBar.className = 'bb-right-tab-bar';
-  rightTabs.appendChild(tabBar);
-
   for (const t of rightTabOrder) {
+    const label = RIGHT_TAB_LABELS[t];
     const btn = document.createElement('button');
     btn.className = 'bb-right-tab';
-    btn.title = RIGHT_TAB_LABELS[t];
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+
+    const iconWrap = document.createElement('span');
+    iconWrap.className = 'bb-right-tab__icon';
+    iconWrap.setAttribute('aria-hidden', 'true');
+    iconWrap.innerHTML = icon(RIGHT_TAB_ICONS[t], 'bb-right-tab__icon-svg');
 
     const labelSpan = document.createElement('span');
     labelSpan.className = 'bb-right-tab__label';
-    labelSpan.textContent = RIGHT_TAB_LABELS[t];
+    labelSpan.textContent = label;
 
     const closeBtn = document.createElement('span');
     closeBtn.className = 'bb-right-tab__close';
     closeBtn.textContent = '✕';
-    closeBtn.title = `Close ${RIGHT_TAB_LABELS[t]}`;
+    closeBtn.title = `Close ${label}`;
     closeBtn.addEventListener('click', (e) => { e.stopPropagation(); close(t); });
 
-    btn.append(labelSpan, closeBtn);
+    btn.append(iconWrap, labelSpan, closeBtn);
     btn.addEventListener('click', () => show(t));
     tabButtons[t] = btn;
     tabBar.appendChild(btn);
@@ -392,6 +430,17 @@ export function buildRightTabs(
     tabContents[t] = content;
     rightTabs.appendChild(content);
   }
+
+  const compactObserver = new ResizeObserver(() => {
+    // Defer layout writes out of the RO delivery loop to avoid
+    // "ResizeObserver loop completed with undelivered notifications".
+    if (compactRaf != null) return;
+    compactRaf = requestAnimationFrame(() => {
+      compactRaf = null;
+      updateCompactMode();
+    });
+  });
+  compactObserver.observe(tabBar);
 
   // ── Collapse / expand button at the far right of the tab bar ─────────────
   // Mirrors the HorizontalMixer collapse button so users can hide the right
@@ -446,6 +495,7 @@ export function buildRightTabs(
     rightTabs.classList.add('bb-right-tabs--empty');
     layout.setRightPaneVisible(false);
   }
+  updateCompactMode();
 
   return {
     tabContents:     tabContents as Record<RightTabId, HTMLElement>,
@@ -458,5 +508,9 @@ export function buildRightTabs(
     close,
     switch:              switchTab,
     restorePersistedTab,
+    dispose: () => {
+      if (compactRaf != null) cancelAnimationFrame(compactRaf);
+      compactObserver.disconnect();
+    },
   };
 }

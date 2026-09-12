@@ -445,8 +445,8 @@ describe('ChannelMixer', () => {
 
   // ── Dock mode ─────────────────────────────────────────────────────────────────
 
-  it('defaults to docked mode', () => {
-    expect(mixer.getDockMode()).toBe('docked');
+  it('defaults to inline mode (side panel stays full height)', () => {
+    expect(mixer.getDockMode()).toBe('inline');
   });
 
   it('setDockMode("inline") moves root to inline container', () => {

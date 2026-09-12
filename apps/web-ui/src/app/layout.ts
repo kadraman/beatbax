@@ -20,7 +20,7 @@ export interface AppLayout {
   layoutHost: HTMLElement;
   /** Host for the PatternGrid (below TransportBar, above three-pane layout). */
   patternGridContainer: HTMLElement;
-  /** Host for the Channel Mixer in full-width docked mode (below all three panes). */
+  /** Host for the Channel Mixer in full-window docked mode (below the three-pane row; opt-in). */
   mixerHostContainer: HTMLElement;
   /** Host for the Channel Mixer in inline mode (bottom of the left content column, below the output pane). */
   inlineMixerContainer: HTMLElement;
@@ -98,6 +98,8 @@ export function buildAppLayout(appContainer: HTMLElement): AppLayout {
   // is always visible regardless of how small the output pane is dragged — the output
   // pane (flex: 1) absorbs the remaining space above it.
   // flex-shrink: 0 ensures the mixer is never compressed by the flex algorithm.
+  // Default dock mode is inline so the right pane stays full height; users can switch
+  // to full-window docked mode for chips with many channels.
   const inlineMixerContainer = document.createElement('div');
   inlineMixerContainer.id = 'bb-inline-mixer-host';
   inlineMixerContainer.style.flexShrink = '0';
@@ -107,8 +109,11 @@ export function buildAppLayout(appContainer: HTMLElement): AppLayout {
     inlineMixerContainer.style.display = 'none';
   }
 
+  // Full-window docked host (below the three-pane row). Opt-in via the mixer toolbar.
   const mixerHostContainer = document.createElement('div');
   mixerHostContainer.id = 'bb-mixer-host';
+  mixerHostContainer.style.flexShrink = '0';
+  mixerHostContainer.style.width = '100%';
   if (caps.channelMixer) {
     layoutHost.appendChild(mixerHostContainer);
   } else {
