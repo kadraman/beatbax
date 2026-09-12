@@ -1,5 +1,14 @@
 # @beatbax/cli
 
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [1ca3998]
+- Updated dependencies [0fbb1cd]
+  - @beatbax/engine@0.25.0
+  - @beatbax/plugin-chip-sms@0.3.6
+
 ## 0.5.0
 
 ### Minor Changes

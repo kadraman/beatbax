@@ -1,7 +1,6 @@
 ---
 "@beatbax/app-core": patch
 "@beatbax/desktop": patch
-"@beatbax/engine": patch
 ---
 
 Split Instrument Editor sample scheme from value.
