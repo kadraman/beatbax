@@ -5975,9 +5975,9 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 }
 
 .bb-channel-mixer__strip--master {
-  flex: 0 0 74px;
-  min-width: 74px;
-  max-width: 74px;
+  flex: 0 0 96px;
+  min-width: 96px;
+  max-width: 96px;
   background-color: #242326;
   background-image:
     repeating-linear-gradient(
@@ -6031,6 +6031,44 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   letter-spacing: 0.08em;
   color: rgba(200,162,39,0.68);
   flex-shrink: 0;
+}
+
+.bb-channel-mixer__enhance {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  width: 100%;
+  padding: 0 3px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.bb-channel-mixer__enhance-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  padding: 2px 0;
+  border: 1px solid rgba(200,162,39,0.28);
+  border-radius: 2px;
+  background: rgba(0,0,0,0.35);
+  color: rgba(230,220,190,0.72);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  cursor: pointer;
+}
+
+.bb-channel-mixer__enhance-btn:hover {
+  border-color: rgba(200,162,39,0.55);
+  color: rgba(245,235,200,0.95);
+}
+
+.bb-channel-mixer__enhance-btn--active {
+  background: linear-gradient(180deg, rgba(200,162,39,0.42) 0%, rgba(140,110,30,0.55) 100%);
+  border-color: rgba(200,162,39,0.85);
+  color: #fff6d4;
+  text-shadow: 0 0 4px rgba(200,162,39,0.55);
 }
 
 /* Colour accent bar — channel ID stripe at the top of the module face */

@@ -33,6 +33,11 @@ import { icon } from '../utils/icons';
 import { settingFeaturePerChannelAnalyser } from '@beatbax/app-core/stores/settings.store';
 import { getMeterDisplayGain, scaleRmsForMeter } from '../utils/meter-display';
 import { chipRegistry } from '@beatbax/engine/chips';
+import {
+  DEFAULT_LISTENING_ENHANCE_MODE,
+  isListeningEnhanceMode,
+  type ListeningEnhanceMode,
+} from '@beatbax/engine/audio/playback';
 
 /** Number of VU-meter segments per channel strip. */
 const VU_SEGMENTS = 12;
@@ -49,6 +54,15 @@ const DEFAULT_HEIGHT_PX = 200;
 /** Minimum/maximum draggable mixer height. */
 const MIN_HEIGHT_PX = 80;
 const MAX_HEIGHT_PX = 400;
+
+const LISTENING_ENHANCE_TOOLTIP =
+  'Listening enhance (preview only): presence EQ + glue compression. Does not affect exports.';
+
+const LISTENING_ENHANCE_OPTIONS: Array<{ mode: ListeningEnhanceMode; label: string; title: string }> = [
+  { mode: 'off', label: 'Off', title: 'Dry / authentic mix' },
+  { mode: 'mild', label: 'Mild', title: 'Subtle presence + glue (default)' },
+  { mode: 'strong', label: 'Strong', title: 'More competitive loudness' },
+];
 
 export type MixerDockMode = 'docked' | 'inline';
 
@@ -90,6 +104,7 @@ export class ChannelMixer {
   private height: number;
   private dockMode: MixerDockMode;
   private masterVolPct: number;
+  private listeningEnhance: ListeningEnhanceMode;
 
   /**
    * Whether the per-channel analyser feature is enabled (mirrors settingFeaturePerChannelAnalyser).
@@ -140,6 +155,12 @@ export class ChannelMixer {
 
     const rawMasterVol = storage.getJSON<number>(StorageKey.MASTER_VOLUME, 100) ?? 100;
     this.masterVolPct = Math.max(0, Math.min(100, Math.round(rawMasterVol)));
+
+    const rawEnhance = storage.get(StorageKey.MIXER_LISTENING_ENHANCE);
+    this.listeningEnhance = isListeningEnhanceMode(rawEnhance)
+      ? rawEnhance
+      : DEFAULT_LISTENING_ENHANCE_MODE;
+    try { this.playbackManager?.setListeningEnhance?.(this.listeningEnhance); } catch { /* ignore */ }
 
     // Sync analyser-enabled flag with the shared settings atom (same as ChannelMixer)
     this.analyserEnabled = settingFeaturePerChannelAnalyser.get();
@@ -624,6 +645,25 @@ export class ChannelMixer {
     readout.textContent = `${String(this.masterVolPct).padStart(3, ' ')}%`;
     strip.appendChild(readout);
 
+    const enhance = document.createElement('div');
+    enhance.className = 'bb-channel-mixer__enhance';
+    enhance.setAttribute('role', 'group');
+    enhance.setAttribute('aria-label', 'Listening enhance');
+    enhance.title = LISTENING_ENHANCE_TOOLTIP;
+    for (const opt of LISTENING_ENHANCE_OPTIONS) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bb-channel-mixer__enhance-btn'
+        + (this.listeningEnhance === opt.mode ? ' bb-channel-mixer__enhance-btn--active' : '');
+      btn.dataset.mode = opt.mode;
+      btn.textContent = opt.label;
+      btn.title = `${opt.title} — ${LISTENING_ENHANCE_TOOLTIP}`;
+      btn.setAttribute('aria-pressed', String(this.listeningEnhance === opt.mode));
+      btn.addEventListener('click', () => this.setListeningEnhance(opt.mode, true));
+      enhance.appendChild(btn);
+    }
+    strip.appendChild(enhance);
+
     const caption = document.createElement('div');
     caption.className = 'bb-channel-mixer__master-caption';
     caption.textContent = 'OUT';
@@ -771,6 +811,21 @@ export class ChannelMixer {
     if (emit) this.eventBus.emit('master-volume:changed', { volumePct: this.masterVolPct, source: 'mixer' });
   }
 
+  private setListeningEnhance(mode: ListeningEnhanceMode, emit: boolean): void {
+    const next: ListeningEnhanceMode = isListeningEnhanceMode(mode) ? mode : 'off';
+    this.listeningEnhance = next;
+    try { this.playbackManager?.setListeningEnhance?.(next); } catch { /* ignore */ }
+    const root = this.rootEl?.querySelector('.bb-channel-mixer__enhance');
+    if (root) {
+      root.querySelectorAll<HTMLButtonElement>('.bb-channel-mixer__enhance-btn').forEach((btn) => {
+        const active = btn.dataset.mode === next;
+        btn.classList.toggle('bb-channel-mixer__enhance-btn--active', active);
+        btn.setAttribute('aria-pressed', String(active));
+      });
+    }
+    if (emit) this.eventBus.emit('listening-enhance:changed', { mode: next, source: 'mixer' });
+  }
+
   private applyMuteStyle(btn: HTMLButtonElement, muted: boolean): void {
     btn.textContent = 'M';
     btn.title = muted ? 'Unmute channel' : 'Mute channel';
@@ -896,6 +951,11 @@ export class ChannelMixer {
 
       this.eventBus.on('master-volume:changed', ({ volumePct }) => {
         this.setMasterVolume(volumePct, false);
+      }),
+
+      this.eventBus.on('listening-enhance:changed', ({ mode }) => {
+        if (!isListeningEnhanceMode(mode)) return;
+        this.setListeningEnhance(mode, false);
       }),
 
       // Subscribe to channel store for mute/solo/volume changes

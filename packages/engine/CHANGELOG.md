@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.26.0
+
+### Minor Changes
+
+- Optional master **listening enhance** for live Web/Desktop preview: presence EQ + glue compression + make-up gain before the existing soft limiter (`off` | `mild` | `strong`). Default `mild`. Forced off for `OfflineAudioContext` / export so hardware-faithful renders stay dry. Controlled via `Player.setListeningEnhance` / Channel Mixer master strip.
+
 ## 0.25.0
 
 ### Minor Changes

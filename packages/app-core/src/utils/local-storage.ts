@@ -132,6 +132,11 @@ export const StorageKey = {
   CHANNEL_MIXER_HEIGHT: 'ui.channelMixerHeight',
   /** Channel mixer dock mode ('docked' = full window width under side panel | 'inline' = editor column, side panel full height). Default is inline. */
   CHANNEL_MIXER_DOCK_MODE: 'ui.channelMixerDockMode',
+  /**
+   * Master listening enhance mode for live preview (`off` | `mild` | `strong`).
+   * Preview-only; does not affect exports. Default mild when unset.
+   */
+  MIXER_LISTENING_ENHANCE: 'mixer.listeningEnhance',
   /** Enabled chip plugin IDs (JSON string[]). */
   ENABLED_PLUGINS: 'plugins.enabled',
   /** Enabled exporter plugin IDs (JSON string[]). */

@@ -15,6 +15,19 @@ import { get as getEffect, clearEffectState } from '../effects/index.js';
 import { createLogger } from '../util/logger.js';
 import { chipRegistry } from '../chips/index.js';
 import { applyInlineRenderEffects } from './inlineMacroEffects.js';
+import {
+  DEFAULT_LISTENING_ENHANCE_MODE,
+  getListeningEnhancePreset,
+  isListeningEnhanceMode,
+  type ListeningEnhanceMode,
+} from './listeningEnhance.js';
+
+export type { ListeningEnhanceMode } from './listeningEnhance.js';
+export {
+  DEFAULT_LISTENING_ENHANCE_MODE,
+  LISTENING_ENHANCE_MODES,
+  isListeningEnhanceMode,
+} from './listeningEnhance.js';
 
 const log = createLogger('player');
 
@@ -149,6 +162,16 @@ export class Player {
   private bpmDefault = 128;
   private masterGain: GainNode | null = null;
   private masterLimiter: DynamicsCompressorNode | null = null;
+  /** Optional presence EQ (peaking) for listening enhance. */
+  private _enhancePresence: BiquadFilterNode | null = null;
+  /** Optional low-shelf for Strong listening enhance. */
+  private _enhanceLowShelf: BiquadFilterNode | null = null;
+  /** Glue compressor used only when listening enhance is active. */
+  private _enhanceGlue: DynamicsCompressorNode | null = null;
+  /** Make-up gain after glue compression. */
+  private _enhanceMakeup: GainNode | null = null;
+  /** Requested listening enhance mode (may be forced Off on OfflineAudioContext). */
+  private _listeningEnhanceMode: ListeningEnhanceMode = DEFAULT_LISTENING_ENHANCE_MODE;
   private activeNodes: Array<{ node: any; chId: number; endTime?: number }> = [];
   public muted = new Set<number>();
   public solo: number | null = null;
@@ -236,6 +259,29 @@ export class Player {
   }
 
   /**
+   * Offline / export renders must stay hardware-faithful: never insert listening enhance.
+   */
+  private _isOfflineAudioContext(): boolean {
+    const c = this.ctx as any;
+    if (!c) return false;
+    if (typeof c.startRendering === 'function') return true;
+    const OfflineCtor = (globalThis as any).OfflineAudioContext || (globalThis as any).webkitOfflineAudioContext;
+    if (typeof OfflineCtor === 'function') {
+      try {
+        if (c instanceof OfflineCtor) return true;
+      } catch (_) { /* ignore cross-realm instanceof failures */ }
+    }
+    const name = c.constructor?.name;
+    return name === 'OfflineAudioContext' || name === 'webkitOfflineAudioContext';
+  }
+
+  /** Requested mode, forced to Off for OfflineAudioContext. */
+  private _effectiveListeningEnhanceMode(): ListeningEnhanceMode {
+    if (this._isOfflineAudioContext()) return 'off';
+    return this._listeningEnhanceMode;
+  }
+
+  /**
    * Drop only the masterGain → speakers routing edge(s), preserving parallel UI taps
    * (e.g. masterGain → AnalyserNode for oscilloscope / meters).
    */
@@ -246,6 +292,9 @@ export class Player {
     if (this.masterLimiter) {
       try { this.masterGain.disconnect(this.masterLimiter); } catch (_) {}
     }
+    if (this._enhancePresence) {
+      try { this.masterGain.disconnect(this._enhancePresence); } catch (_) {}
+    }
   }
 
   /** Drop only the limiter → destination edge before re-wiring the output chain. */
@@ -254,12 +303,81 @@ export class Player {
     try { this.masterLimiter.disconnect(this.ctx.destination); } catch (_) {}
   }
 
+  /** Tear down enhance-bus edges only (not UI analyser taps on masterGain). */
+  private _disconnectListeningEnhanceChain(): void {
+    const nodes: Array<AudioNode | null> = [
+      this._enhancePresence,
+      this._enhanceLowShelf,
+      this._enhanceGlue,
+      this._enhanceMakeup,
+    ];
+    for (const node of nodes) {
+      if (!node) continue;
+      try { node.disconnect(); } catch (_) {}
+    }
+    if (this.masterLimiter && this._enhanceMakeup) {
+      try { this._enhanceMakeup.disconnect(this.masterLimiter); } catch (_) {}
+    }
+  }
+
+  private _ensureListeningEnhanceNodes(): boolean {
+    const ctx = this.ctx as any;
+    if (typeof ctx.createBiquadFilter !== 'function') return false;
+    if (typeof ctx.createDynamicsCompressor !== 'function') return false;
+    if (typeof ctx.createGain !== 'function') return false;
+
+    if (!this._enhancePresence) {
+      this._enhancePresence = ctx.createBiquadFilter();
+      this._enhancePresence!.type = 'peaking';
+    }
+    if (!this._enhanceLowShelf) {
+      this._enhanceLowShelf = ctx.createBiquadFilter();
+      this._enhanceLowShelf!.type = 'lowshelf';
+    }
+    if (!this._enhanceGlue) {
+      this._enhanceGlue = ctx.createDynamicsCompressor();
+    }
+    if (!this._enhanceMakeup) {
+      this._enhanceMakeup = ctx.createGain();
+    }
+    return true;
+  }
+
+  private _applyListeningEnhancePreset(mode: Exclude<ListeningEnhanceMode, 'off'>): void {
+    const preset = getListeningEnhancePreset(mode);
+    if (!preset || !this._enhancePresence || !this._enhanceGlue || !this._enhanceMakeup) return;
+    const t = this.ctx.currentTime;
+
+    this._enhancePresence.type = 'peaking';
+    this._enhancePresence.frequency.setValueAtTime(preset.presenceFreqHz, t);
+    this._enhancePresence.Q.setValueAtTime(preset.presenceQ, t);
+    this._enhancePresence.gain.setValueAtTime(preset.presenceGainDb, t);
+
+    if (this._enhanceLowShelf) {
+      this._enhanceLowShelf.type = 'lowshelf';
+      this._enhanceLowShelf.frequency.setValueAtTime(preset.lowShelfFreqHz ?? 120, t);
+      this._enhanceLowShelf.gain.setValueAtTime(
+        preset.lowShelfFreqHz == null ? 0 : preset.lowShelfGainDb,
+        t,
+      );
+    }
+
+    this._enhanceGlue.threshold.setValueAtTime(preset.compressor.thresholdDb, t);
+    this._enhanceGlue.knee.setValueAtTime(preset.compressor.kneeDb, t);
+    this._enhanceGlue.ratio.setValueAtTime(preset.compressor.ratio, t);
+    this._enhanceGlue.attack.setValueAtTime(preset.compressor.attackSec, t);
+    this._enhanceGlue.release.setValueAtTime(preset.compressor.releaseSec, t);
+
+    this._enhanceMakeup.gain.setValueAtTime(preset.makeupGainLinear, t);
+  }
+
   private _ensureMasterOutputChain(): GainNode {
     if (!this.masterGain) {
       this.masterGain = this.ctx.createGain();
     }
     const destination = this.ctx.destination;
     if (typeof (this.ctx as any).createDynamicsCompressor !== 'function') {
+      this._disconnectListeningEnhanceChain();
       this._disconnectMasterGainFromOutputSinks();
       this.masterGain.connect(destination);
       return this.masterGain;
@@ -272,9 +390,31 @@ export class Player {
       this.masterLimiter.attack.setValueAtTime(0.003, this.ctx.currentTime);
       this.masterLimiter.release.setValueAtTime(0.1, this.ctx.currentTime);
     }
+
+    this._disconnectListeningEnhanceChain();
     this._disconnectMasterGainFromOutputSinks();
     this._disconnectLimiterFromDestination();
-    this.masterGain.connect(this.masterLimiter);
+
+    const enhanceMode = this._effectiveListeningEnhanceMode();
+    const canEnhance =
+      enhanceMode !== 'off' &&
+      this._ensureListeningEnhanceNodes();
+
+    if (canEnhance && this._enhancePresence && this._enhanceGlue && this._enhanceMakeup) {
+      this._applyListeningEnhancePreset(enhanceMode);
+      // masterGain → presence → [lowShelf] → glue → makeup → limiter → destination
+      this.masterGain.connect(this._enhancePresence);
+      let last: AudioNode = this._enhancePresence;
+      if (enhanceMode === 'strong' && this._enhanceLowShelf) {
+        last.connect(this._enhanceLowShelf);
+        last = this._enhanceLowShelf;
+      }
+      last.connect(this._enhanceGlue);
+      this._enhanceGlue.connect(this._enhanceMakeup);
+      this._enhanceMakeup.connect(this.masterLimiter);
+    } else {
+      this.masterGain.connect(this.masterLimiter);
+    }
     this.masterLimiter.connect(destination);
     return this.masterGain;
   }
@@ -1349,6 +1489,21 @@ export class Player {
     // Remember that the user explicitly set the master volume so subsequent
     // play/loop restarts do not overwrite their preference with ast.volume.
     this._userMasterVolumeOverride = clamped;
+  }
+
+  /**
+   * Optional listening enhancement (presence EQ + glue compression + make-up).
+   * Preview-only: OfflineAudioContext / export paths always wire the dry chain.
+   */
+  public setListeningEnhance(mode: ListeningEnhanceMode | string): void {
+    const next: ListeningEnhanceMode = isListeningEnhanceMode(mode) ? mode : 'off';
+    this._listeningEnhanceMode = next;
+    this._ensureMasterOutputChain();
+  }
+
+  /** Requested listening enhance mode (not the offline-forced effective mode). */
+  public getListeningEnhance(): ListeningEnhanceMode {
+    return this._listeningEnhanceMode;
   }
 
   /** Expose the AudioContext so UI consumers (e.g. oscilloscope) can create nodes. */

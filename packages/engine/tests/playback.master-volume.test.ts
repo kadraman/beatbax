@@ -50,6 +50,7 @@ describe('Player master volume override', () => {
       createDynamicsCompressor: () => limiterNode,
     });
     const player: any = new Player(ctx);
+    player.setListeningEnhance('off');
 
     player.setMasterVolume(0.6);
 
@@ -61,6 +62,7 @@ describe('Player master volume override', () => {
   test('setMasterVolume creates masterGain immediately and stores override', () => {
     const ctx = makeAudioContext();
     const player: any = new Player(ctx);
+    player.setListeningEnhance('off');
 
     player.setMasterVolume(0);
 
@@ -72,6 +74,7 @@ describe('Player master volume override', () => {
   test('setMasterVolume clamps values and remembers explicit user override', () => {
     const ctx = makeAudioContext();
     const player: any = new Player(ctx);
+    player.setListeningEnhance('off');
 
     player.setMasterVolume(1.5);
     expect(player._userMasterVolumeOverride).toBe(1);
@@ -105,6 +108,7 @@ describe('Player master volume override', () => {
       createDynamicsCompressor: () => limiterNode,
     });
     const player: any = new Player(ctx);
+    player.setListeningEnhance('off');
 
     player.setMasterVolume(0.5);
     gainNode.connect(analyserTap);
@@ -136,6 +140,7 @@ describe('Player master volume override', () => {
       createDynamicsCompressor: undefined,
     });
     const player: any = new Player(ctx);
+    player.setListeningEnhance('off');
 
     player.setMasterVolume(0.5);
     gainNode.connect(analyserTap);

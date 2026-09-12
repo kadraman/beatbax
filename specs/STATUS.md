@@ -1,9 +1,10 @@
 # Specification status index
 
-Assign the next feature id as **088** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **089** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
+- **088** `master-listening-enhance` — in-progress — engine — issue: _none_ — [specs/features/088-master-listening-enhance/](specs/features/088-master-listening-enhance/)
 - **001** `hot-reload` — specified — engine — issue: https://github.com/kadraman/beatbax/issues/6 — [specs/features/001-hot-reload/](specs/features/001-hot-reload/)
 - **002** `vscode-plugin` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/21 — [specs/features/002-vscode-plugin/](specs/features/002-vscode-plugin/)
 - **003** `ai-chatbot-rag` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/66 — [specs/features/003-ai-chatbot-rag/](specs/features/003-ai-chatbot-rag/)

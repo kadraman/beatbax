@@ -27,6 +27,11 @@ import { settingFeaturePerChannelAnalyser } from '@beatbax/app-core/stores/setti
 import { FeatureFlag, isFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { chipRegistry } from '@beatbax/engine/chips';
+import {
+  DEFAULT_LISTENING_ENHANCE_MODE,
+  isListeningEnhanceMode,
+  type ListeningEnhanceMode,
+} from '@beatbax/engine/audio/playback';
 import { getChannelMeta } from '@beatbax/ui-tokens/channel-meta';
 import { icon } from '../../utils/icons';
 import { getMeterDisplayGain, scaleRmsForMeter } from '../../utils/meter-display';
@@ -101,6 +106,20 @@ function readInitialMasterVolume(): number {
   const parsed = raw === undefined ? NaN : Number(raw);
   return Number.isFinite(parsed) ? Math.max(0, Math.min(100, Math.round(parsed))) : 100;
 }
+
+function readInitialListeningEnhance(): ListeningEnhanceMode {
+  const raw = storage.get(StorageKey.MIXER_LISTENING_ENHANCE);
+  return isListeningEnhanceMode(raw) ? raw : DEFAULT_LISTENING_ENHANCE_MODE;
+}
+
+const LISTENING_ENHANCE_TOOLTIP =
+  'Listening enhance (preview only): presence EQ + glue compression. Does not affect exports.';
+
+const LISTENING_ENHANCE_OPTIONS: Array<{ mode: ListeningEnhanceMode; label: string; title: string }> = [
+  { mode: 'off', label: 'Off', title: 'Dry / authentic mix' },
+  { mode: 'mild', label: 'Mild', title: 'Subtle presence + glue (default)' },
+  { mode: 'strong', label: 'Strong', title: 'More competitive loudness' },
+];
 
 function computeRms(samples: Float32Array): number {
   if (!samples || samples.length === 0) return 0;
@@ -192,6 +211,7 @@ function DesktopChannelMixer({
   const [dockMode, setDockModeState] = useState<MixerDockMode>(readInitialDockMode);
   const [analyserEnabled, setAnalyserEnabled] = useState(settingFeaturePerChannelAnalyser.get());
   const [masterVolumePct, setMasterVolumePct] = useState(readInitialMasterVolume);
+  const [listeningEnhance, setListeningEnhance] = useState<ListeningEnhanceMode>(readInitialListeningEnhance);
   const visibleRef = useRef(visible);
   const dockModeRef = useRef(dockMode);
   const astRef = useRef<any>(ast);
@@ -364,6 +384,12 @@ function DesktopChannelMixer({
     eventBus.emit('master-volume:changed', { volumePct: next, source: 'mixer' });
   }, [eventBus]);
 
+  const applyListeningEnhanceMode = useCallback((mode: ListeningEnhanceMode) => {
+    flushSync(() => setListeningEnhance(mode));
+    try { playbackManager?.setListeningEnhance?.(mode); } catch { /* ignore */ }
+    eventBus.emit('listening-enhance:changed', { mode, source: 'mixer' });
+  }, [eventBus, playbackManager]);
+
   const handleMasterFaderPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -455,6 +481,11 @@ function DesktopChannelMixer({
       eventBus.on('master-volume:changed', ({ volumePct }) => {
         flushSync(() => setMasterVolumePct(Math.max(0, Math.min(100, Math.round(volumePct)))));
       }),
+      eventBus.on('listening-enhance:changed', ({ mode }) => {
+        if (!isListeningEnhanceMode(mode)) return;
+        flushSync(() => setListeningEnhance(mode));
+        try { playbackManager?.setListeningEnhance?.(mode); } catch { /* ignore */ }
+      }),
       channelStates.subscribe((states) => setChannelInfo({ ...states })),
       settingFeaturePerChannelAnalyser.subscribe((val) => {
         setAnalyserEnabled(val);
@@ -464,6 +495,10 @@ function DesktopChannelMixer({
     ];
     return () => cleanups.forEach((cleanup) => cleanup());
   }, [eventBus, playbackManager, resetVuState, updateVuLevel]);
+
+  useEffect(() => {
+    try { playbackManager?.setListeningEnhance?.(listeningEnhance); } catch { /* ignore */ }
+  }, [playbackManager, listeningEnhance]);
 
   const anyMuted = Object.values(channelInfo).some((state) => state.muted);
   const anySoloed = Object.values(channelInfo).some((state) => state.soloed);
@@ -542,6 +577,8 @@ function DesktopChannelMixer({
         ))}
         {channels.length > 0 ? (
           <MasterStrip
+            listeningEnhance={listeningEnhance}
+            onEnhanceChange={applyListeningEnhanceMode}
             onFaderPointerDown={handleMasterFaderPointerDown}
             volumePct={masterVolumePct}
           />
@@ -553,9 +590,13 @@ function DesktopChannelMixer({
 
 function MasterStrip({
   volumePct,
+  listeningEnhance,
+  onEnhanceChange,
   onFaderPointerDown,
 }: {
   volumePct: number;
+  listeningEnhance: ListeningEnhanceMode;
+  onEnhanceChange: (mode: ListeningEnhanceMode) => void;
   onFaderPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
 }): React.JSX.Element {
   return (
@@ -605,6 +646,25 @@ function MasterStrip({
         </div>
         <div className="bb-channel-mixer__inst bb-channel-mixer__inst--master" id="bb-channel-mixer-master-volume-readout">
           {String(volumePct).padStart(3, ' ')}%
+        </div>
+        <div
+          aria-label="Listening enhance"
+          className="bb-channel-mixer__enhance"
+          role="group"
+          title={LISTENING_ENHANCE_TOOLTIP}
+        >
+          {LISTENING_ENHANCE_OPTIONS.map(({ mode, label, title }) => (
+            <button
+              aria-pressed={listeningEnhance === mode}
+              className={`bb-channel-mixer__enhance-btn${listeningEnhance === mode ? ' bb-channel-mixer__enhance-btn--active' : ''}`}
+              key={mode}
+              onClick={() => onEnhanceChange(mode)}
+              title={`${title} — ${LISTENING_ENHANCE_TOOLTIP}`}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
         </div>
         <div className="bb-channel-mixer__master-caption">OUT</div>
       </div>

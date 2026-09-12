@@ -32,6 +32,11 @@ export interface BeatBaxEvents {
   'playback:error': { error: Error };
   'playback:position': { current: number; total: number };
   'master-volume:changed': { volumePct: number; source?: 'transport' | 'mixer' | 'settings' };
+  /** Master listening enhance (presence EQ + glue compression) for live preview only. */
+  'listening-enhance:changed': {
+    mode: 'off' | 'mild' | 'strong';
+    source?: 'mixer' | 'settings';
+  };
   // Real-time position tracking
   'playback:position-changed': { channelId: number; position: any };
   /** Per-channel analyser waveform data (emitted at uiUpdateHz when analyser is enabled). */

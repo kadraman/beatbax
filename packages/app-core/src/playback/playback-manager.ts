@@ -4,7 +4,12 @@
 
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong, resolveImports } from '@beatbax/engine/song';
-import { Player } from '@beatbax/engine/audio/playback';
+import {
+  DEFAULT_LISTENING_ENHANCE_MODE,
+  isListeningEnhanceMode,
+  Player,
+  type ListeningEnhanceMode,
+} from '@beatbax/engine/audio/playback';
 import type { EventBus } from '../utils/event-bus.js';
 import { buildImportResolverOptions } from '../import/import-resolver-options.js';
 import { channelStates, setChannelMuted, setChannelSoloed } from '../stores/channel.store.js';
@@ -87,6 +92,8 @@ export class PlaybackManager {
   // store the desired volume here (linear 0.0–1.0). Applied to the Player
   // as soon as it is constructed so playback honors the transport control.
   private _pendingMasterVolume: number | null = null;
+  /** Live-preview listening enhance mode (persisted; forced Off on OfflineAudioContext). */
+  private _listeningEnhanceMode: ListeningEnhanceMode = DEFAULT_LISTENING_ENHANCE_MODE;
   private _loop = false;
   private _bpmOverride: number | null = null;
   private _masterAnalyser: AnalyserNode | null = null;
@@ -116,6 +123,15 @@ export class PlaybackManager {
       this._perChannelAnalyserEnabled =
         storage.get(StorageKey.FEATURE_PER_CHANNEL_ANALYSER) === 'true';
     } catch { /* ignore */ }
+
+    // Restore listening enhance preference (default Mild for new users)
+    try {
+      const raw = storage.get(StorageKey.MIXER_LISTENING_ENHANCE);
+      if (isListeningEnhanceMode(raw)) this._listeningEnhanceMode = raw;
+      else this._listeningEnhanceMode = DEFAULT_LISTENING_ENHANCE_MODE;
+    } catch {
+      this._listeningEnhanceMode = DEFAULT_LISTENING_ENHANCE_MODE;
+    }
 
     // Live-sync mute/solo/volume to the Player whenever the store changes during playback.
     channelStates.subscribe((states) => {
@@ -354,6 +370,7 @@ export class PlaybackManager {
         if (this._pendingMasterVolume !== null) {
           try { this.player.setMasterVolume(this._pendingMasterVolume); } catch (e) { /* ignore */ }
         }
+        try { this.player.setListeningEnhance(this._listeningEnhanceMode); } catch (e) { /* ignore */ }
          log.debug('Player instance created:', this.player);
          log.debug('Player.playAST type:', typeof this.player.playAST);
          log.debug('Player.playAST:', this.player.playAST);
@@ -607,6 +624,24 @@ export class PlaybackManager {
     try { storage.set(StorageKey.MASTER_VOLUME, String(Math.round(this._pendingMasterVolume * 100))); } catch { /* ignore */ }
     if (!this.player) return;
     this.player.setMasterVolume(this._pendingMasterVolume);
+  }
+
+  /**
+   * Optional master listening enhance (presence EQ + glue compression + make-up).
+   * Preview-only; OfflineAudioContext / export paths stay dry inside Player.
+   */
+  setListeningEnhance(mode: ListeningEnhanceMode | string): void {
+    const next: ListeningEnhanceMode = isListeningEnhanceMode(mode) ? mode : 'off';
+    this._listeningEnhanceMode = next;
+    try { storage.set(StorageKey.MIXER_LISTENING_ENHANCE, next); } catch { /* ignore */ }
+    if (this.player) {
+      try { this.player.setListeningEnhance(next); } catch { /* ignore */ }
+    }
+  }
+
+  /** Current requested listening enhance mode. */
+  getListeningEnhance(): ListeningEnhanceMode {
+    return this._listeningEnhanceMode;
   }
 
   /**
