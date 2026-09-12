@@ -1,6 +1,6 @@
 {
   "name": "@beatbax/cli",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Command-line interface for BeatBax chiptune live-coding language.",
   "private": false,
   "type": "module",
@@ -45,10 +45,10 @@
     "test": "jest --config ./jest.config.cjs --passWithNoTests"
   },
   "dependencies": {
-    "@beatbax/engine": "^0.24.1",
+    "@beatbax/engine": "^0.25.0",
     "@beatbax/plugin-exporter-famitracker": "^0.2.4",
     "@beatbax/plugin-exporter-vgm": "^0.1.5",
-    "@beatbax/plugin-chip-sms": "^0.3.5",
+    "@beatbax/plugin-chip-sms": "^0.3.6",
     "commander": "^12.1.0",
     "play-sound": "^1.1.6",
     "standardized-audio-context": "^25.3.0"
