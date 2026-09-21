@@ -2,7 +2,7 @@
 title: "CLI MIDI → .bax Conversion"
 id: 6
 slug: "midi-importer"
-status: "specified"
+status: "in-progress"
 authors:
   - "GitHub Copilot"
   - "Cursor Agent"

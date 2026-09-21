@@ -231,13 +231,18 @@ describe('changelog prepend', () => {
   it('inserts a new stable section above existing seeded versions', () => {
     const existing = readFileSync(join(__dirname, '../CHANGELOG.md'), 'utf8');
     expect(changelogHasVersion(existing, '0.2.0')).toBe(true);
+    expect(changelogHasVersion(existing, '99.0.0')).toBe(false);
     const result = prependChangelogSection(existing, {
-      version: '0.3.0',
-      date: '2026-08-16',
+      version: '99.0.0',
+      date: '2026-09-21',
       body: '* Example change',
     });
     expect(result.changed).toBe(true);
-    expect(result.content.indexOf('## 0.3.0')).toBeLessThan(result.content.indexOf('## 0.2.0'));
+    const firstExistingHeading = existing.match(/^## \d/m)?.[0];
+    expect(firstExistingHeading).toBeTruthy();
+    expect(result.content.indexOf('## 99.0.0')).toBeLessThan(
+      result.content.indexOf(firstExistingHeading!),
+    );
   });
 });
 
