@@ -1,24 +1,28 @@
-# Implementation Plan: MIDI Importer Using @tonejs/midi
+# Implementation Plan: CLI MIDI → .bax Conversion
 
-**Spec**: [spec.md](spec.md) | **Migrated**: 2026-09-03
+**Spec**: [spec.md](spec.md) | **Fixtures**: [fixtures.md](fixtures.md) | **Updated**: 2026-09-21
 
 ## Constitution Check
 
 GATE: complete before implementation. Re-check after design changes.
 
-- [ ] No invented syntax or undocumented language behavior
-- [ ] AST / ISM / scheduler / expansion impact identified (or N/A)
-- [ ] Plugins remain isolated; core does not gain plugin dependencies
-- [ ] Determinism and compatibility preserved (or migration documented)
-- [ ] Tests planned for new behavior
+- [x] No invented syntax or undocumented language behavior (emit existing `inst` / `pat` / `seq` / `channel` / `inst()`)
+- [x] AST / ISM / scheduler / expansion impact identified: **N/A** — output is normal `.bax` source
+- [x] Plugins remain isolated; core does not gain chip-plugin dependencies beyond registry lookups for channel counts / kits
+- [x] Determinism and compatibility preserved (additive CLI command)
+- [x] Tests planned for new behavior ([fixtures.md](fixtures.md) + tasks below)
 
-## Implementation Plan
+## Status of this documentation pass
+
+**Spec/plan/tasks/fixtures updated.** Engine, CLI, dependency adds, and golden `.mid` commits are **deferred** — see [tasks.md](tasks.md) section B.
+
+## Implementation Plan (follow-on)
 
 ### AST Changes
 
 No AST shape changes are required.
 
-Importer output is normal BeatBax source, parsed by existing parser and resolver.
+Converter output is normal BeatBax source, parsed by existing parser and resolver.
 
 ### Parser Changes
 
@@ -26,52 +30,74 @@ No parser changes required for v1.
 
 ### CLI Changes
 
-Add a new command:
+Add a new command (primary):
 
 ```text
 beatbax import midi <input.mid> <output.bax> [options]
 ```
 
+Equivalent alias (optional):
+
+```text
+beatbax convert midi2bax <input.mid> <output.bax> [options]
+```
+
 Suggested options:
 
-- --chip <chip>
-- --config <file>
-- --strict
-- --quantize <nearest|floor|ceil|strict>
-- --grid <1/4|1/8|1/16|1/32>
-- --max-bars <N>
-- --dry-run (prints summary only)
+- `--chip <chip>` (**required**)
+- `--config <file>` (optional mapping override)
+- `--strict`
+- `--quantize <nearest|floor|ceil|strict>`
+- `--grid <1/4|1/8|1/16|1/32>`
+- `--max-bars <N>`
+- `--dry-run` (prints summary only)
+- `--max-overlap-ticks <N>` (packing merge threshold)
 
 ### Engine / Import Module Changes
 
-Add a dedicated import module under engine/cli boundaries, for example:
+Add a dedicated module under `packages/engine/src/import/midi/`:
 
-- MIDI reader adapter using @tonejs/midi
-- timing normalizer
-- mapping engine (track -> channel role)
-- pattern partitioner
-- bax emitter
+| Stage | Responsibility |
+|-------|----------------|
+| Reader | `@tonejs/midi` → tracks, tempo, notes, ch10 drums |
+| Quantizer | PPQ → BeatBax ticks; nearest/floor/ceil/strict |
+| Role classifier | Melodic vs drum; GM program / track name heuristics |
+| Channel packer | Assign to chip roles; schedule `inst()` switches; emit warnings |
+| Kit emitter | Chip default `inst` lines + GM drum → named percussion map |
+| Reuse engine | Bar hash → shared `pat`; sequence compression → `seq` |
+| Bax emitter | Deterministic, commented `.bax` |
 
-Keep importer as compile-time tooling.
-Runtime playback and scheduler remain unchanged.
+Keep conversion as compile-time tooling. Runtime playback and scheduler remain unchanged.
 
-### Web UI Changes
+Instrument-change packing policy (default):
 
-No mandatory web-ui changes for v1.
+1. Route channel-10 / GM drums to noise as named hits.
+2. Prioritize streams (bass → wave/triangle, lead → pulse1, harmony → pulse2, …).
+3. Merge non-overlapping streams of compatible type onto one channel with `inst(a)` / `inst(b)`.
+4. Otherwise warn and drop lower-priority notes or flatten chords to top note.
 
-Optional phase 2: expose importer in web UI as file-upload + mapping wizard.
+Invert GM drum maps from `packages/engine/src/export/midiExport.ts` (kick 36, snare 38, hat 42).
+
+### Desktop / Web UI Changes
+
+**No** Desktop or Web UI changes for v1.
+
+Explicitly out of scope: IDE file-import wizard, and any conflation with MIDI step-entry (feature 065).
+
+Optional later phase: file-upload + mapping wizard.
 
 ### Export Changes
 
 No export format changes required.
 
-Generated .bax is handled by existing play/verify/export pipeline.
+Generated `.bax` is handled by existing `play` / `verify` / `export` pipeline.
 
-### Documentation Updates
+### Documentation Updates (when implementing)
 
-- Add CLI usage examples to README and/or the [docs tutorial](https://beatbax.com/docs/tutorial/overview)
-- Add mapping config schema reference
-- Add example importer config files for NES songs
+- CLI usage examples in package README / beatbax.com CLI docs
+- Mapping config schema reference
+- Example config files for NES / Game Boy
+- Link [fixtures.md](fixtures.md) from feature docs
 
 ---
 
@@ -79,26 +105,23 @@ Generated .bax is handled by existing play/verify/export pipeline.
 
 ### Unit Tests
 
-- MIDI parsing adapter tests (tempo, time signatures, note extraction)
-- Timing conversion tests (PPQ -> ticks)
-- Quantization mode tests (nearest/floor/ceil/strict)
-- Drum mapping tests (MIDI drum note -> noise token / DMC trigger)
-- Pattern tick-balance tests (all emitted patterns sum to patternTicks)
-- Determinism tests (same input/config yields byte-identical output)
+- MIDI parsing adapter (tempo, time signatures, note extraction)
+- Timing conversion (PPQ → ticks)
+- Quantization modes
+- Drum mapping (MIDI drum note → noise token / optional DMC)
+- Packing / `inst()` multiplexing and over-polyphony warnings
+- Pattern tick-balance and reuse (shared `pat`, `seq` compression)
+- Determinism (same input/options → byte-identical output)
 
 ### Integration Tests
 
-- Golden-file tests for representative MIDI fixtures
-- Round-trip validation:
-  - import .mid -> .bax
-  - run verify on generated .bax
-- Strict-mode failure tests for unquantizable and unsupported cases
+- Golden-file tests for fixtures **F01–F09** ([fixtures.md](fixtures.md))
+- Round-trip validation: convert → `verify` on generated `.bax`
+- Strict-mode failure tests for unquantizable cases
 
-### Manual Tests
+### Manual / Stretch Tests
 
-- Import a multi-track NES-style MIDI
-- Validate generated song structure and channel assignments
-- Spot-check bars with tuplets/syncopation under different quantization modes
+- Well-known stretch set **S01–S10** (see fixtures.md); S07–S08 operator-local only
 
 ---
 
@@ -106,6 +129,4 @@ Generated .bax is handled by existing play/verify/export pipeline.
 
 No migration required.
 
-This is an additive feature delivered through a new command and does not change existing BeatBax source semantics.
-
----
+This is an additive feature delivered through a new CLI command and does not change existing BeatBax source semantics.
