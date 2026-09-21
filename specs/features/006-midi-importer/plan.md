@@ -12,9 +12,9 @@ GATE: complete before implementation. Re-check after design changes.
 - [x] Determinism and compatibility preserved (additive CLI command)
 - [x] Tests planned for new behavior ([fixtures.md](fixtures.md) + tasks below)
 
-## Status of this documentation pass
+**Status of this documentation pass**
 
-**Spec/plan/tasks/fixtures updated.** Engine, CLI, dependency adds, and golden `.mid` commits are **deferred** — see [tasks.md](tasks.md) section B.
+Implementation landed under `packages/engine/src/import/midi/` and CLI `import midi` / `convert midi2bax`. Fixtures F01–F09 committed; see [fixtures.md](fixtures.md) and [tasks.md](tasks.md).
 
 ## Implementation Plan (follow-on)
 
