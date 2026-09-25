@@ -34,7 +34,9 @@ function applyMode(value: number, gridTicks: number, mode: QuantizeMode): number
 
 /**
  * Quantize a continuous BeatBax-tick position. Returns quantized value and shift.
- * In strict mode, throws (or pushes error diagnostic) when off-grid beyond epsilon.
+ * In quantize mode `strict`, off-grid positions push an error diagnostic and still
+ * snap to the nearest grid. Throws only when `options.strict` is also set
+ * (CLI `--strict`); otherwise callers may inspect diagnostics and continue.
  */
 export function quantizePosition(
   continuousTicks: number,
@@ -49,14 +51,11 @@ export function quantizePosition(
   const absShift = Math.abs(shift);
 
   if (mode === 'strict') {
-    const epsilon = 1e-6;
-    const onGrid = Math.abs(continuousTicks - quantized) < epsilon || Math.abs(continuousTicks % gridTicks) < epsilon;
-    // Prefer checking remainder against grid
     const rem = Math.abs(continuousTicks / gridTicks - Math.round(continuousTicks / gridTicks));
     if (rem > 1e-4) {
       const msg = `Strict quantize: ${context} at ${continuousTicks.toFixed(3)} ticks is off ${options.quantize.grid} grid`;
       diagnostics.push({ level: 'error', code: 'quantize_strict', message: msg });
-      if (options.strict || mode === 'strict') {
+      if (options.strict) {
         throw new Error(msg);
       }
     }

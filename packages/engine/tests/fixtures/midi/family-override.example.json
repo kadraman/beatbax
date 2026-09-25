@@ -1,0 +1,17 @@
+{
+  "chip": "gameboy",
+  "programFamilies": {
+    "0-7": "piano",
+    "40-51": "strings",
+    "56-63": "lead"
+  },
+  "families": {
+    "piano": {
+      "gb": { "period": 1, "level": 14 }
+    },
+    "strings": {
+      "gb": { "period": 0, "level": 11 },
+      "nes": { "vol": 9 }
+    }
+  }
+}

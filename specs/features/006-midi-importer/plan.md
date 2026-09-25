@@ -76,7 +76,7 @@ Instrument-change packing policy (default):
 3. Merge non-overlapping streams of compatible type onto one channel with `inst(a)` / `inst(b)`.
 4. Otherwise warn and drop lower-priority notes or flatten chords to top note.
 
-Invert GM drum maps from `packages/engine/src/export/midiExport.ts` (kick 36, snare 38, hat 42).
+Invert GM drum maps from `packages/engine/src/export/midiExport.ts` (kick 36, snare 38, hat 42; clap 39 → snare). Same-tick drum stacks prefer snare over kick (backbeat); optional `drumFlamTicks` can nudge losers into empty ticks (default 0).
 
 ### Desktop / Web UI Changes
 

@@ -10,7 +10,12 @@ import {
 import { midiTicksToBaxTicks, quantizeNotes, quantizePosition } from '../../../src/import/midi/quantize';
 import { mapDrumPitch, DEFAULT_DRUM_MAP } from '../../../src/import/midi/roles';
 import { compressPlaylist, hitsToBarTokens, hashTokens } from '../../../src/import/midi/reuse';
-import type { MidiConvertOptions, MidiRawNote, PackedHit } from '../../../src/import/midi/types';
+import type {
+  ConversionDiagnostic,
+  MidiConvertOptions,
+  MidiRawNote,
+  PackedHit,
+} from '../../../src/import/midi/types';
 
 describe('midi import config', () => {
   test('parses chip and quantize enums', () => {
@@ -30,6 +35,17 @@ describe('midi import config', () => {
     expect(gridToTicks('1/32', 4)).toBe(1);
   });
 
+  test('parseImportConfig accepts programFamilies and families', () => {
+    const cfg = parseImportConfig({
+      programFamilies: { '0-7': 'piano', '56': 'lead' },
+      families: { piano: { gb: { period: 1 } } },
+    });
+    expect(cfg.programFamilies?.['0-7']).toBe('piano');
+    expect(cfg.families?.piano?.gb?.period).toBe(1);
+    expect(() => parseImportConfig({ programFamilies: { '0-7': 'trumpet' } })).toThrow(/piano\|guitar/);
+    expect(() => parseImportConfig({ programFamilies: { '200': 'piano' } })).toThrow(/0 ≤ min/);
+  });
+
   test('resolveConvertOptions merges config and CLI', () => {
     const opts = resolveConvertOptions({
       chip: 'nes',
@@ -46,15 +62,71 @@ describe('midi import config', () => {
     expect(opts.quantize.grid).toBe('1/8');
     expect(opts.maxOverlapTicks).toBe(2);
     expect(opts.dmcReinforcement.enabled).toBe(true);
+    expect(opts.programFamilyByProgram).toHaveLength(128);
+    expect(opts.familyArticulations.piano.gb.period).toBe(2);
+  });
+
+  test('resolveConvertOptions reads drumFlamTicks from config', () => {
+    const opts = resolveConvertOptions({
+      chip: 'gameboy',
+      config: { drumFlamTicks: 2 },
+    });
+    expect(opts.drumFlamTicks).toBe(2);
+    expect(defaultConvertOptions('gameboy').drumFlamTicks).toBe(0);
+    expect(parseImportConfig({ drumFlamTicks: 1 }).drumFlamTicks).toBe(1);
   });
 
   test('parseImportConfig validates trackMappings', () => {
     const cfg = parseImportConfig({
       chip: 'gameboy',
-      trackMappings: [{ midiTrack: 0, target: 'pulse1', instrument: 'lead' }],
+      trackMappings: [
+        { midiTrack: 0, target: 'pulse1', instrument: 'lead' },
+        { midiChannel: 10, target: 'noise' },
+        { midiChannel: 0, target: 'pulse2' },
+        { midiChannel: 16, target: 'wave' },
+      ],
     });
     expect(cfg.trackMappings?.[0]?.target).toBe('pulse1');
+    expect(cfg.trackMappings?.[1]?.midiChannel).toBe(10);
+    expect(cfg.trackMappings?.[2]?.midiChannel).toBe(0);
+    expect(cfg.trackMappings?.[3]?.midiChannel).toBe(16);
     expect(() => parseImportConfig([])).toThrow(/JSON object/);
+  });
+
+  test('parseImportConfig rejects invalid trackMapping target', () => {
+    expect(() =>
+      parseImportConfig({
+        trackMappings: [{ midiTrack: 0, target: 'pulze1' }],
+      }),
+    ).toThrow(/trackMappings\[0\]\.target/);
+    expect(() =>
+      parseImportConfig({
+        trackMappings: [{ midiTrack: 0, target: 'bass' }],
+      }),
+    ).toThrow(/pulse1\|pulse2\|wave\|triangle\|noise\|dmc/);
+  });
+
+  test('parseImportConfig rejects invalid trackMapping midiChannel', () => {
+    expect(() =>
+      parseImportConfig({
+        trackMappings: [{ midiChannel: 17, target: 'pulse1' }],
+      }),
+    ).toThrow(/trackMappings\[0\]\.midiChannel/);
+    expect(() =>
+      parseImportConfig({
+        trackMappings: [{ midiChannel: -1, target: 'pulse1' }],
+      }),
+    ).toThrow(/0–15 \(0-based\) or 1–16 \(1-based\)/);
+    expect(() =>
+      parseImportConfig({
+        trackMappings: [{ midiChannel: 1.5, target: 'pulse1' }],
+      }),
+    ).toThrow(/midiChannel/);
+    expect(() =>
+      parseImportConfig({
+        trackMappings: [{ midiChannel: '9', target: 'pulse1' }],
+      }),
+    ).toThrow(/midiChannel/);
   });
 });
 
@@ -73,13 +145,26 @@ describe('midi quantize', () => {
     expect(quantizePosition(1.4, { ...base, quantize: { ...base.quantize, mode: 'ceil' } }, diags, 't').tick).toBe(2);
   });
 
-  test('strict mode fails off-grid', () => {
-    const diags: any[] = [];
+  test('strict mode records error; throws only when options.strict', () => {
+    const diags: ConversionDiagnostic[] = [];
     const opts: MidiConvertOptions = {
       ...base,
       quantize: { mode: 'strict', grid: '1/16', maxShiftTicks: 1 },
+      strict: false,
     };
-    expect(() => quantizePosition(1.3, opts, diags, 'off')).toThrow(/Strict quantize/);
+    const result = quantizePosition(1.3, opts, diags, 'off');
+    expect(diags).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ level: 'error', code: 'quantize_strict' }),
+      ]),
+    );
+    expect(result.tick).toBe(1);
+
+    const diags2: ConversionDiagnostic[] = [];
+    expect(() =>
+      quantizePosition(1.3, { ...opts, strict: true }, diags2, 'off'),
+    ).toThrow(/Strict quantize/);
+    expect(diags2.some((d) => d.code === 'quantize_strict')).toBe(true);
   });
 
   test('quantizeNotes sorts deterministically', () => {
@@ -119,8 +204,11 @@ describe('midi quantize', () => {
 describe('drum map', () => {
   test('inverts export GM notes to named tokens', () => {
     expect(mapDrumPitch(36)).toBe('kick');
+    expect(mapDrumPitch(37)).toBe('ghost');
     expect(mapDrumPitch(38)).toBe('snare');
+    expect(mapDrumPitch(39)).toBe('snare');
     expect(mapDrumPitch(42)).toBe('hihat');
+    expect(mapDrumPitch(49)).toBe('crash');
     expect(DEFAULT_DRUM_MAP[36]).toBe('kick');
   });
 });

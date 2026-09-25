@@ -2,7 +2,8 @@
  * Channel packer: assign streams to chip roles, multiplex with inst(), drop over-polyphony.
  */
 import { getChipRoleTable, type ChipRoleSlot } from './chipRoles.js';
-import { noteTokenForHit } from './roles.js';
+import { instrumentNameForFamilyRole } from './kit.js';
+import { mapDrumPitch, noteTokenForHit } from './roles.js';
 import type {
   ClassifiedStream,
   ConversionDiagnostic,
@@ -86,6 +87,110 @@ function resolveMonophonic(
       kept.push(n);
     }
   }
+  return { kept, dropped };
+}
+
+/**
+ * Priority for monophonic noise packing (higher wins the native tick).
+ * Snare/clap beats kick on stacks — four-on-the-floor MIDIs often layer
+ * kick+snare on 2/4; keeping kick and flamming snare ruins the backbeat.
+ */
+function drumTokenRank(token: string): number {
+  switch (token) {
+    case 'snare':
+      return 5;
+    case 'kick':
+      return 4;
+    case 'crash':
+      return 2;
+    case 'hihat':
+    case 'shaker':
+      return 2;
+    case 'ghost':
+      return 1;
+    default:
+      return 2;
+  }
+}
+
+function compareDrumNotes(a: QuantizedNote, b: QuantizedNote): number {
+  const ra = drumTokenRank(mapDrumPitch(a.pitch));
+  const rb = drumTokenRank(mapDrumPitch(b.pitch));
+  if (rb !== ra) return rb - ra;
+  if (b.velocity !== a.velocity) return b.velocity - a.velocity;
+  if (a.pitch !== b.pitch) return a.pitch - b.pitch;
+  return a.sourceEventIndex - b.sourceEventIndex;
+}
+
+/**
+ * Collapse stacked drum hits onto a monophonic noise channel.
+ * Keep the highest-priority token on each tick; optionally flam lower-priority
+ * tokens into nearby empty ticks (`drumFlamTicks`).
+ */
+function packDrumNotes(
+  allDrumNotes: QuantizedNote[],
+  flamTicks: number,
+  diagnostics: ConversionDiagnostic[],
+): { kept: QuantizedNote[]; dropped: number } {
+  const byStart = new Map<number, QuantizedNote[]>();
+  for (const n of allDrumNotes) {
+    const list = byStart.get(n.startTick) ?? [];
+    list.push(n);
+    byStart.set(n.startTick, list);
+  }
+
+  const occupied = new Map<number, QuantizedNote>();
+  const kept: QuantizedNote[] = [];
+  const deferred: QuantizedNote[] = [];
+  let dropped = 0;
+
+  for (const [tick, group] of [...byStart.entries()].sort((a, b) => a[0] - b[0])) {
+    const ranked = [...group].sort(compareDrumNotes);
+    const winner = ranked[0]!;
+    occupied.set(tick, winner);
+    kept.push(winner);
+
+    // Same-token duplicates at this tick are dropped; other tokens may flam.
+    const seenTokens = new Set([mapDrumPitch(winner.pitch)]);
+    for (const n of ranked.slice(1)) {
+      const token = mapDrumPitch(n.pitch);
+      if (seenTokens.has(token)) {
+        dropped += 1;
+        continue;
+      }
+      seenTokens.add(token);
+      deferred.push(n);
+    }
+  }
+
+  deferred.sort((a, b) => a.startTick - b.startTick || compareDrumNotes(a, b));
+
+  for (const n of deferred) {
+    const token = mapDrumPitch(n.pitch);
+    let placed = false;
+    for (let d = 1; d <= flamTicks; d++) {
+      const dest = n.startTick + d;
+      if (occupied.has(dest)) continue;
+      const nudged: QuantizedNote = {
+        ...n,
+        startTick: dest,
+        durationTicks: Math.max(1, Math.min(n.durationTicks, 1)),
+        shiftTicks: n.shiftTicks + d,
+      };
+      occupied.set(dest, nudged);
+      kept.push(nudged);
+      diagnostics.push({
+        level: 'info',
+        code: 'drum_flam',
+        message: `Flam ${token} from tick ${n.startTick} → ${dest} (stacked drum on noise)`,
+      });
+      placed = true;
+      break;
+    }
+    if (!placed) dropped += 1;
+  }
+
+  kept.sort((a, b) => a.startTick - b.startTick || compareDrumNotes(a, b));
   return { kept, dropped };
 }
 
@@ -182,34 +287,23 @@ export function packChannels(
       `${target.role}/ch${target.channelIndex}`,
     );
     notesDropped += dropped;
-    target.assigned.push({ stream, notes: kept });
+    const family = stream.gmFamily ?? 'lead';
+    const instrument =
+      stream.instrumentLocked || stream.isDrum
+        ? stream.instrument
+        : instrumentNameForFamilyRole(family, target.role);
+    target.assigned.push({
+      stream: { ...stream, instrument, roleHint: target.role },
+      notes: kept,
+    });
   }
 
   // Drums → noise slot (always merge all drum streams onto noise)
   const noiseSlot = slots.find((s) => s.role === 'noise');
   if (noiseSlot && drumStreams.length > 0) {
     const allDrumNotes = drumStreams.flatMap((s) => s.notes);
-    // Drums may stack different tokens at same tick — allow multiple one-shots only if same start
-    // For monophonic noise channel, keep one hit per start tick (priority: kick > snare > hihat)
-    const byStart = new Map<number, QuantizedNote[]>();
-    for (const n of allDrumNotes) {
-      const list = byStart.get(n.startTick) ?? [];
-      list.push(n);
-      byStart.set(n.startTick, list);
-    }
-    const kept: QuantizedNote[] = [];
-    for (const [, group] of [...byStart.entries()].sort((a, b) => a[0] - b[0])) {
-      const ranked = group.sort((a, b) => {
-        const rank = (p: number) => {
-          if (p === 36 || p === 35) return 3;
-          if (p === 38 || p === 40) return 2;
-          return 1;
-        };
-        return rank(b.pitch) - rank(a.pitch) || b.velocity - a.velocity;
-      });
-      kept.push(ranked[0]!);
-      notesDropped += ranked.length - 1;
-    }
+    const { kept, dropped } = packDrumNotes(allDrumNotes, options.drumFlamTicks, diagnostics);
+    notesDropped += dropped;
     noiseSlot.assigned.push({
       stream: {
         id: 'drums',
@@ -230,7 +324,7 @@ export function packChannels(
   if (dmcSlot && options.chip === 'nes' && options.dmcReinforcement.enabled) {
     const kicksSnares = (noiseSlot?.assigned[0]?.notes ?? []).filter((n) => {
       const p = n.pitch;
-      return p === 35 || p === 36 || p === 38 || p === 40;
+      return p === 35 || p === 36 || p === 38 || p === 39 || p === 40;
     });
     if (kicksSnares.length > 0 || dmcStreams.length > 0) {
       const notes = [...kicksSnares, ...dmcStreams.flatMap((s) => s.notes)];
@@ -299,7 +393,9 @@ export function packChannels(
     channels.push({
       channelIndex: slot.channelIndex,
       role: slot.role,
-      defaultInstrument: slot.defaultInstrument,
+      defaultInstrument: slot.assigned[0]!.stream.isDrum
+        ? slot.defaultInstrument
+        : slot.assigned[0]!.stream.instrument,
       hits,
     });
   }

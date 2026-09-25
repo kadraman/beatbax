@@ -2,7 +2,8 @@
  * Role classifier: auto-map MIDI tracks/channels to chip roles + optional config override.
  */
 import { midiToNote } from '../../util/music.js';
-import type { ChipRole } from './types.js';
+import { gmFamilyFromProgram, instrumentNameForFamilyRole } from './kit.js';
+import type { ChipRole, GmFamily } from './types.js';
 import type {
   ClassifiedStream,
   ConversionDiagnostic,
@@ -11,15 +12,18 @@ import type {
   TrackMapping,
 } from './types.js';
 
-/** Invert of midiExport NOISE_TO_DRUM (full token names). */
+/** Invert of midiExport NOISE_TO_DRUM (GM drum key → BeatBax token). */
 export const DEFAULT_DRUM_MAP: Record<number, string> = {
   35: 'kick',
   36: 'kick',
+  37: 'ghost', // side stick — soft ghost hits (must not become full snare)
   38: 'snare',
+  39: 'snare', // hand clap → backbeat snare (export uses 39 as unnamed noise default)
   40: 'snare',
   42: 'hihat',
   44: 'hihat',
   46: 'hihat',
+  49: 'crash',
 };
 
 export function mapDrumPitch(pitch: number, custom?: Record<string, string>): string {
@@ -27,14 +31,43 @@ export function mapDrumPitch(pitch: number, custom?: Record<string, string>): st
   return DEFAULT_DRUM_MAP[pitch] ?? 'hihat';
 }
 
-function trackNameHints(name: string): ChipRole | null {
+/**
+ * Track-name → chip role. Prefer chiptune / producer labels (BeatBax audience),
+ * then common orchestral names for classical stretch MIDIs.
+ */
+export function hintChipRoleFromTrackName(name: string): ChipRole | null {
   const n = name.toLowerCase();
-  if (/\b(drum|perc|kit|noise)\b/.test(n)) return 'noise';
-  if (/\b(bass|sub)\b/.test(n)) return 'wave';
-  if (/\b(lead|melody|square|pulse1)\b/.test(n)) return 'pulse1';
-  if (/\b(harm|arp|pad|pulse2)\b/.test(n)) return 'pulse2';
+
+  // Drums / percussion (ch.10 often already flagged; names still help)
+  if (/\b(drum|drums|perc|percussion|kit|noise)\b/.test(n)) return 'noise';
+  if (/\b(kick|snare|clap|claps|hat|hats|hihat|hi-hat|cymbal|tom|rim)\b/.test(n)) return 'noise';
+
+  // Bass / low end
+  if (/\b(bassline|bass\s*line|sub|subbass|reese|808)\b/.test(n)) return 'wave';
+  if (/\b(bass)\b/.test(n)) return 'wave';
+
+  // Lead / melody
+  if (/\b(lead|melody|mel|solo|hook|vox|vocal)\b/.test(n)) return 'pulse1';
+  if (/\b(saw|square|pulse1|chip\s*lead|synth\s*lead)\b/.test(n)) return 'pulse1';
+
+  // Harmony / pad / arp
+  if (/\b(arp|arpeggio|pluck|plucks)\b/.test(n)) return 'pulse2';
+  if (/\b(pad|pads|chord|chords|harmony|harm|comp|keys|atmosphere|atmos|fx|riser)\b/.test(n)) {
+    return 'pulse2';
+  }
+  if (/\b(pulse2|synth\s*pad)\b/.test(n)) return 'pulse2';
+
+  // NES triangle callouts
   if (/\b(tri|triangle)\b/.test(n)) return 'triangle';
-  if (/\b(dmc|sample)\b/.test(n)) return 'dmc';
+  if (/\b(dmc|sample|samples)\b/.test(n)) return 'dmc';
+
+  // Orchestral stretch MIDIs (secondary — classical Mutopia etc.)
+  if (/\b(cello|violoncello|contrabass|double\s*bass)\b/.test(n)) return 'wave';
+  if (/\bviola\b/.test(n)) return 'pulse2';
+  if (/violin\s*iii/.test(n)) return 'pulse1';
+  if (/violin\s*ii/.test(n)) return 'pulse2';
+  if (/violin/.test(n)) return 'pulse1';
+
   return null;
 }
 
@@ -42,6 +75,12 @@ function trackNameHints(name: string): ChipRole | null {
 function programHints(program: number): ChipRole | null {
   // Bass family 32–39
   if (program >= 32 && program <= 39) return 'wave';
+  // Orchestral strings (GM): violin→pulse1, viola→pulse2, cello/contrabass→bass
+  if (program === 40) return 'pulse1'; // Violin
+  if (program === 41) return 'pulse2'; // Viola
+  if (program === 42 || program === 43) return 'wave'; // Cello / Contrabass
+  // Other string-ish / ensemble (excl. 47 Timpani) → melodic pulse
+  if ((program >= 44 && program <= 46) || (program >= 48 && program <= 51)) return 'pulse1';
   // Lead 80–87
   if (program >= 80 && program <= 87) return 'pulse1';
   // Synth pad / FX often harmony
@@ -63,25 +102,6 @@ function roleForChip(role: ChipRole, chip: MidiConvertOptions['chip']): ChipRole
   if (chip === 'gameboy' && role === 'triangle') return 'wave';
   if (chip === 'nes' && role === 'wave') return 'triangle';
   return role;
-}
-
-function instrumentForRole(role: ChipRole, chip: MidiConvertOptions['chip']): string {
-  const r = roleForChip(role, chip);
-  switch (r) {
-    case 'pulse1':
-      return 'lead';
-    case 'pulse2':
-      return 'arp';
-    case 'wave':
-    case 'triangle':
-      return 'bass';
-    case 'noise':
-      return 'hihat';
-    case 'dmc':
-      return 'kick';
-    default:
-      return 'lead';
-  }
 }
 
 function priorityForRole(role: ChipRole): number {
@@ -128,6 +148,10 @@ function findOverride(
   return scored[0]?.m;
 }
 
+function familyForNotes(notes: QuantizedNote[], options: MidiConvertOptions): GmFamily {
+  return gmFamilyFromProgram(notes[0]?.program ?? 0, options.programFamilyByProgram);
+}
+
 /**
  * Group quantized notes into classified streams (one per track/channel or override target).
  */
@@ -143,10 +167,20 @@ export function classifyStreams(
     let role: ChipRole;
     let instrument: string;
     let isDrum = note.isDrum;
+    let gmFamily: GmFamily | undefined;
+    let instrumentLocked = false;
 
     if (override) {
       role = roleForChip(override.target, options.chip);
-      instrument = override.instrument ?? instrumentForRole(role, options.chip);
+      gmFamily = note.isDrum ? undefined : gmFamilyFromProgram(note.program, options.programFamilyByProgram);
+      if (override.instrument) {
+        instrument = override.instrument;
+        instrumentLocked = true;
+      } else if (role === 'noise' || role === 'dmc') {
+        instrument = role === 'dmc' ? 'kick' : 'hihat';
+      } else {
+        instrument = instrumentNameForFamilyRole(gmFamily ?? 'lead', role);
+      }
       if (role === 'noise' || role === 'dmc') isDrum = true;
     } else if (note.isDrum) {
       role = 'noise';
@@ -154,11 +188,12 @@ export function classifyStreams(
       isDrum = true;
     } else {
       const hinted =
-        trackNameHints(note.trackName) ??
+        hintChipRoleFromTrackName(note.trackName) ??
         programHints(note.program) ??
         null;
       role = roleForChip(hinted ?? 'pulse1', options.chip);
-      instrument = instrumentForRole(role, options.chip);
+      gmFamily = gmFamilyFromProgram(note.program, options.programFamilyByProgram);
+      instrument = instrumentNameForFamilyRole(gmFamily, role);
     }
 
     const key = override
@@ -173,6 +208,8 @@ export function classifyStreams(
         id: key,
         roleHint: role,
         instrument,
+        gmFamily,
+        instrumentLocked,
         isDrum,
         notes: [],
         sourceTrackIndex: note.sourceTrackIndex,
@@ -188,15 +225,20 @@ export function classifyStreams(
   for (const stream of buckets.values()) {
     if (stream.isDrum) continue;
     if (options.trackMappings && options.trackMappings.length > 0) continue;
-    const fromName = trackNameHints(stream.notes[0]?.trackName ?? '');
+    const fromName = hintChipRoleFromTrackName(stream.notes[0]?.trackName ?? '');
     const fromProg = programHints(stream.notes[0]?.program ?? 0);
     if (!fromName && !fromProg) {
       const hint = pitchRangeHint(stream.notes);
       if (hint) {
         stream.roleHint = roleForChip(hint, options.chip);
-        stream.instrument = instrumentForRole(stream.roleHint, options.chip);
+        stream.gmFamily = familyForNotes(stream.notes, options);
+        if (!stream.instrumentLocked) {
+          stream.instrument = instrumentNameForFamilyRole(stream.gmFamily, stream.roleHint);
+        }
         stream.priority = priorityForRole(stream.roleHint);
       }
+    } else if (!stream.instrumentLocked && stream.gmFamily) {
+      stream.instrument = instrumentNameForFamilyRole(stream.gmFamily, stream.roleHint);
     }
   }
 

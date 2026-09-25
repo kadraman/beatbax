@@ -26,9 +26,9 @@ node packages/engine/scripts/generate-midi-fixtures.mjs
 
 | ID | Filename | Purpose | Source | SHA-256 |
 |----|----------|---------|--------|---------|
-| `F01-grid-mono` | `f01-grid-mono.mid` | Happy path melodic | `export midi songs/gameboy/grassland_dash.bax` | `f7ac4ef73635670bf53748ae9c3a4d2732c8ea1ebbc765aa227033553d4d8e92` |
-| `F02-gb-kit` | `f02-gb-kit.mid` | GB lead/bass/drums | `export midi songs/gameboy/tutorial_groove.bax` | `a5dcae11748311121e7bbdf5cee508eeaadcd6355869e6d9de3229a894d2564f` |
-| `F03-nes-kit` | `f03-nes-kit.mid` | NES roles | `export midi songs/nes/battle_fanfare.bax` | `be60e87b76fc0251378ec150b6e003ba83f041b107877d902858539a77d6fd9f` |
+| `F01-grid-mono` | `f01-grid-mono.mid` | Happy path melodic | `export midi songs/gameboy/grassland_dash.bax` | `f77a9cd423b5d69bb49889a07a7271b8bd4f8000265993ed25c737a5deca2e3b` |
+| `F02-gb-kit` | `f02-gb-kit.mid` | GB lead/bass/drums | `export midi songs/gameboy/tutorial_groove.bax` | `87da83cb1fdeb35b8d129764f2e5c5178acd6a8f1712ec61cb4e7a3ad4bd2078` |
+| `F03-nes-kit` | `f03-nes-kit.mid` (+ `f03-nes-kit.import.json` for opt-in DMC) | NES roles / `dmcReinforcement` | `export midi songs/nes/battle_fanfare.bax` | `63828888346fd2547b468f03158002a38414ddee3eac9ee06b16c3a8ce39463c` |
 | `F04-gm-drums` | `f04-gm-drums.mid` | GM ch.10 → kick/snare/hihat | `generate-midi-fixtures.mjs` | `ced817799db601ec4e6a9318ee3930599fa88e0bda3bb18426cd165d347a885c` |
 | `F05-overpoly` | `f05-overpoly.mid` | Over-polyphony warnings | `generate-midi-fixtures.mjs` | `f2317c8394e92e0c69b0e01fd3c3161e3615b3c88e9301aa6718f67e0e5a1c55` |
 | `F06-inst-switch` | `f06-inst-switch.mid` (+ `f06-inst-switch.import.json`) | `inst()` multiplex | `generate-midi-fixtures.mjs` | `ae48311752185bc9d7d00b94d30bb3f435fdbc40eb706b4ee9ffa7bf8c297349` |
@@ -73,11 +73,24 @@ Use after F01–F09 pass. Prefer public-domain *compositions* with freely redist
 
 ### Manual stretch notes (T016)
 
-Run locally (do not commit copyrighted MIDIs):
+Local copies (operator machine; optional gitignore) use the stretch id as a filename prefix under `songs/midi/`:
+
+| ID | Example local path |
+|----|--------------------|
+| S01 | `songs/midi/s01-bach-invention-01.mid` (+ `.import.json`) |
+| S02 | `songs/midi/s02-bach-wtc-prelude-bwv846.mid` (+ `.import.json`) |
+| S03 | `songs/midi/s03-fur-elise.mid` (+ `.import.json`) — Mutopia WoO59 |
+| S04 | `songs/midi/s04-eine-kleine.mid` (+ `.import.json`) — Mutopia KV525 mvt1 |
+| S05 | `songs/midi/s05-canon_per_3_violini_e_basso.mid` (+ `.import.json`) |
+| S06 | `songs/midi/s06-korobeiniki.mid` (+ `.import.json`) |
+| S09 | `songs/midi/s09-entertainer.mid` (+ `.import.json`) |
+
+Companion `.import.json` files set `title`, soften piano sustain for classical stretches (S01/S02/S06), keep strings sustain for S05, and use a slightly looser quantize window for S09 swing.
 
 ```bash
-beatbax import midi path/to/S06.mid /tmp/s06.bax --chip gameboy
-beatbax verify /tmp/s06.bax
+beatbax import midi songs/midi/s02-bach-wtc-prelude-bwv846.mid stretch-s02.bax \
+  --chip gameboy --config songs/midi/s02-bach-wtc-prelude-bwv846.import.json
+beatbax verify stretch-s02.bax
 ```
 
-Record qualitative results (reuse quality, warning volume, packing) in PR notes when exercising the stretch set.
+Do not commit copyrighted MIDIs. Record qualitative results (reuse quality, warning volume, packing) in PR notes when exercising the stretch set.

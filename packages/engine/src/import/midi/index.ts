@@ -24,14 +24,27 @@ export {
   parseImportConfig,
   defaultConvertOptions,
   parseChipId,
+  parseChipRole,
+  parseMidiChannel,
   parseQuantizeMode,
   parseQuantizeGrid,
 } from './config.js';
 export { readMidiBytes } from './reader.js';
 export { quantizeNotes, midiTicksToBaxTicks } from './quantize.js';
-export { classifyStreams, mapDrumPitch, DEFAULT_DRUM_MAP } from './roles.js';
+export {
+  emitKitLines,
+  emitMelodicInstLine,
+  gmFamilyFromProgram,
+  instrumentNameForFamilyRole,
+  buildProgramFamilyByProgram,
+  mergeFamilyArticulations,
+  parseGmFamily,
+  parseProgramFamilyKey,
+  DEFAULT_PROGRAM_FAMILY_RANGES,
+  DEFAULT_FAMILY_ARTICULATIONS,
+} from './kit.js';
+export { classifyStreams, mapDrumPitch, DEFAULT_DRUM_MAP, hintChipRoleFromTrackName } from './roles.js';
 export { packChannels } from './pack.js';
-export { emitKitLines } from './kit.js';
 export { buildPatternsAndSequences, compressPlaylist, hitsToBarTokens, hashTokens } from './reuse.js';
 export { emitBaxSource } from './emit.js';
 

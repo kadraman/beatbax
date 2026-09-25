@@ -1,18 +1,52 @@
 /**
  * Deterministic .bax source emitter for MIDI conversion.
  */
-import { emitKitLines } from './kit.js';
+import { emitKitLines, type MelodicKitNeed } from './kit.js';
 import { compressPlaylist } from './reuse.js';
 import type {
   MidiConvertOptions,
   PatternDef,
   SequenceDef,
+  ChipRole,
+  GmFamily,
 } from './types.js';
 import type { ReuseResult } from './reuse.js';
 
 function formatPatBody(tokens: string[]): string {
-  // Group into readable chunks of ~4 sounding tokens when possible
   return tokens.join(' ');
+}
+
+function familyFromInstName(name: string): GmFamily {
+  const m = /^(piano|guitar|bass|strings|pad|lead)/.exec(name);
+  return (m?.[1] as GmFamily | undefined) ?? 'lead';
+}
+
+function collectMelodicNeeds(reuse: ReuseResult): MelodicKitNeed[] {
+  const needs: MelodicKitNeed[] = [];
+  const seen = new Set<string>();
+
+  const add = (name: string, role: ChipRole, family: GmFamily) => {
+    if (!name || seen.has(name)) return;
+    if (['kick', 'snare', 'hihat', 'shaker', 'ghost', 'crash'].includes(name)) return;
+    seen.add(name);
+    needs.push({ name, role, family });
+  };
+
+  for (const ch of reuse.channelPlans) {
+    if (ch.role === 'noise' || ch.role === 'dmc') continue;
+    add(ch.defaultInstrument, ch.role, familyFromInstName(ch.defaultInstrument));
+  }
+
+  for (const p of reuse.patterns) {
+    for (const tok of p.tokens) {
+      const m = /^inst\(([^)]+)\)$/.exec(tok);
+      if (!m) continue;
+      const name = m[1]!;
+      add(name, 'pulse1', familyFromInstName(name));
+    }
+  }
+
+  return needs;
 }
 
 export function emitBaxSource(args: {
@@ -33,8 +67,8 @@ export function emitBaxSource(args: {
   lines.push(`bpm ${Math.round(bpm)}`);
   lines.push('');
 
-  lines.push('# --- instruments (default kit) ---');
-  for (const inst of emitKitLines(options.chip, options)) {
+  lines.push('# --- instruments (GM family kit) ---');
+  for (const inst of emitKitLines(options.chip, options, collectMelodicNeeds(reuse))) {
     lines.push(inst);
   }
   lines.push('');

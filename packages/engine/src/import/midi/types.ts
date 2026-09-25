@@ -23,10 +23,65 @@ export interface DrumMap {
 
 export interface TrackMapping {
   midiTrack?: number;
+  /** MIDI channel: 0–15 (0-based) or 1–16 (1-based); both accepted by the matcher. */
   midiChannel?: number;
   target: ChipRole;
   instrument?: string;
   drumMap?: DrumMap;
+}
+
+/** Coarse GM program → timbre family for kit articulation. */
+export type GmFamily = 'piano' | 'guitar' | 'bass' | 'strings' | 'pad' | 'lead';
+
+export const GM_FAMILIES: readonly GmFamily[] = [
+  'piano',
+  'guitar',
+  'bass',
+  'strings',
+  'pad',
+  'lead',
+] as const;
+
+/** Inclusive GM program range → family (after merge into a 128-slot table). */
+export interface ProgramFamilyRange {
+  min: number;
+  max: number;
+  family: GmFamily;
+}
+
+export interface GbFamilyArticulation {
+  level: number;
+  period: number;
+  dutyP1: number;
+  dutyP2: number;
+  waveVolume: number;
+}
+
+export interface NesFamilyArticulation {
+  vol: number;
+  dutyP1: number;
+  dutyP2: number;
+  volEnv?: number[];
+  pitchEnvP1?: number[];
+}
+
+export interface FamilyArticulation {
+  gb: GbFamilyArticulation;
+  nes: NesFamilyArticulation;
+}
+
+/** Partial articulation override from JSON `--config`. */
+export interface FamilyArticulationConfig {
+  gb?: Partial<GbFamilyArticulation>;
+  nes?: {
+    vol?: number;
+    dutyP1?: number;
+    dutyP2?: number;
+    /** Set to `null` to clear a default volEnv. */
+    volEnv?: number[] | null;
+    /** Set to `null` to clear a default pitchEnvP1. */
+    pitchEnvP1?: number[] | null;
+  };
 }
 
 export interface DmcReinforcementConfig {
@@ -38,12 +93,23 @@ export interface DmcReinforcementConfig {
 /** Optional JSON `--config` override (and CLI-merged options). */
 export interface MidiImportConfig {
   chip?: MidiChipId;
+  /** Song title override when CLI `--title` is omitted. */
+  title?: string;
   ticksPerBeat?: number;
   patternTicks?: number;
   trackMappings?: TrackMapping[];
   dmcReinforcement?: DmcReinforcementConfig;
+  /** GM program or `min-max` → family id; merges over defaults. */
+  programFamilies?: Record<string, string>;
+  /** Per-family articulation field overrides; merges over defaults. */
+  families?: Partial<Record<GmFamily, FamilyArticulationConfig>>;
   quantize?: Partial<QuantizeOptions>;
   maxOverlapTicks?: number;
+  /**
+   * When different drum tokens share a start tick, nudge lower-priority hits
+   * forward by up to this many BeatBax ticks into empty slots (default 1; 0 = drop).
+   */
+  drumFlamTicks?: number;
   maxBars?: number;
 }
 
@@ -54,10 +120,16 @@ export interface MidiConvertOptions {
   patternTicks: number;
   quantize: QuantizeOptions;
   maxOverlapTicks: number;
+  /** Max flam distance for stacked drum tokens (see MidiImportConfig.drumFlamTicks). */
+  drumFlamTicks: number;
   maxBars?: number;
   strict: boolean;
   trackMappings?: TrackMapping[];
   dmcReinforcement: DmcReinforcementConfig;
+  /** Index 0–127 → family (built from defaults + config). */
+  programFamilyByProgram: GmFamily[];
+  /** Resolved articulations per family. */
+  familyArticulations: Record<GmFamily, FamilyArticulation>;
   /** Song title for emitted metadata (defaults from MIDI name / filename). */
   title?: string;
 }
@@ -118,6 +190,10 @@ export interface ClassifiedStream {
   id: string;
   roleHint: ChipRole;
   instrument: string;
+  /** GM timbre family for kit articulation (ignored for drums). */
+  gmFamily?: GmFamily;
+  /** When true, pack must not rewrite instrument from family+slot role. */
+  instrumentLocked?: boolean;
   isDrum: boolean;
   notes: QuantizedNote[];
   sourceTrackIndex: number;

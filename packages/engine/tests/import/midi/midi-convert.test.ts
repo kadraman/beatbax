@@ -141,4 +141,63 @@ describe('packing', () => {
     expect(pulse1!.hits.length).toBe(2);
     expect(pulse1!.hits.some((h) => h.instrument === 'arp' || h.instrument === 'lead')).toBe(true);
   });
+
+  test('stacked kick+snare keeps snare (backbeat) and drops kick', () => {
+    const opts = defaultConvertOptions('gameboy');
+    const mkDrum = (pitch: number, start: number, idx: number): QuantizedNote => ({
+      startTick: start,
+      durationTicks: 1,
+      pitch,
+      velocity: 100,
+      midiChannel: 9,
+      sourceTrackIndex: 0,
+      sourceEventIndex: idx,
+      trackName: 'drums',
+      program: 0,
+      isDrum: true,
+      shiftTicks: 0,
+    });
+    // Four-on-floor + snare on 2/4 (same tick as kick)
+    const notes: QuantizedNote[] = [
+      mkDrum(36, 0, 0),
+      mkDrum(36, 4, 1),
+      mkDrum(38, 4, 2),
+      mkDrum(36, 8, 3),
+      mkDrum(36, 12, 4),
+      mkDrum(38, 12, 5),
+    ];
+    const diags: any[] = [];
+    const streams = classifyStreams(notes, opts, diags);
+    const { channels, notesDropped } = packChannels(streams, opts, diags);
+    const noise = channels.find((c) => c.role === 'noise');
+    expect(noise).toBeTruthy();
+    const tokens = noise!.hits.map((h) => `${h.startTick}:${h.token}`);
+    expect(tokens).toEqual(['0:kick', '4:snare', '8:kick', '12:snare']);
+    expect(notesDropped).toBe(2);
+    expect(diags.some((d) => d.code === 'drum_flam')).toBe(false);
+  });
+
+  test('drumFlamTicks>=1 can flam losing hat onto next empty tick', () => {
+    const opts = { ...defaultConvertOptions('gameboy'), drumFlamTicks: 1 };
+    const mkDrum = (pitch: number, start: number, idx: number): QuantizedNote => ({
+      startTick: start,
+      durationTicks: 1,
+      pitch,
+      velocity: 100,
+      midiChannel: 9,
+      sourceTrackIndex: 0,
+      sourceEventIndex: idx,
+      trackName: 'drums',
+      program: 0,
+      isDrum: true,
+      shiftTicks: 0,
+    });
+    const notes = [mkDrum(36, 0, 0), mkDrum(42, 0, 1)];
+    const diags: any[] = [];
+    const streams = classifyStreams(notes, opts, diags);
+    const { channels } = packChannels(streams, opts, diags);
+    const noise = channels.find((c) => c.role === 'noise');
+    expect(noise!.hits.map((h) => `${h.startTick}:${h.token}`)).toEqual(['0:kick', '1:hihat']);
+    expect(diags.some((d) => d.code === 'drum_flam')).toBe(true);
+  });
 });
