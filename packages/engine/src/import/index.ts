@@ -52,3 +52,34 @@ export {
   type RemoteImportProgress,
 } from './remoteCache.js';
 
+// MIDI → .bax conversion (feature 006)
+export {
+  convertMidiToBax,
+  convertMidiParseResult,
+  convertMidiWithCliArgs,
+  resolveConvertOptions,
+  parseImportConfig,
+  defaultConvertOptions,
+  parseChipId,
+  parseQuantizeMode,
+  parseQuantizeGrid,
+  readMidiBytes,
+  quantizeNotes,
+  midiTicksToBaxTicks,
+  classifyStreams,
+  mapDrumPitch,
+  DEFAULT_DRUM_MAP,
+  packChannels,
+  emitKitLines,
+  buildPatternsAndSequences,
+  compressPlaylist,
+  hitsToBarTokens,
+  hashTokens,
+  emitBaxSource,
+  type MidiConvertOptions,
+  type MidiConvertResult,
+  type MidiImportConfig,
+  type ConversionSummary,
+  type ConversionDiagnostic,
+} from './midi/index.js';
+

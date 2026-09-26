@@ -92,23 +92,49 @@ export function buildMIDI(song: any, options: { duration?: number, channels?: nu
 
 	const trackBuffers: Buffer[] = [];
 
-	// GB type -> GM program defaults and drum mapping
-	const GB_TO_GM_PROGRAM: Record<string, number> = {
-		pulse1: 80, // Lead 1 (square-like)
-		pulse2: 34, // Electric Bass (example)
-		wave: 81, // Lead 2 (saw-ish)
-		noise: 0
+	/**
+	 * Chip voice type → GM program defaults.
+	 * Chosen so `import midi` programHints round-trip correctly:
+	 *   pulse1 ← 80–87, pulse2 ← 88–103, wave/triangle ← 32–39.
+	 */
+	const CHIP_TO_GM_PROGRAM: Record<string, number> = {
+		pulse1: 80, // Lead 1 (square)
+		pulse2: 89, // Pad 2 (warm) — not bass (34)
+		wave: 39, // Electric Bass (finger)
+		triangle: 39,
+		noise: 0,
+		dmc: 0,
 	};
 
+	/** Named percussion tokens → GM drum keys (channel 10). Short aliases kept for older songs. */
 	const NOISE_TO_DRUM: Record<string, number> = {
-		hh: 42, // closed hi-hat
-		sn: 38, // acoustic snare
-		kick: 36, // bass drum
-		default: 39
+		kick: 36,
+		snare: 38,
+		sn: 38,
+		hihat: 42,
+		hh: 42,
+		hat: 42,
+		openhat: 46,
+		oh: 46,
+		crash: 49,
+		ghost: 37, // side stick / soft hit
+		default: 39,
 	};
+
+	function programForChipType(type: string | undefined): number | null {
+		if (!type) return null;
+		const t = String(type).toLowerCase();
+		if (t.includes('pulse1')) return CHIP_TO_GM_PROGRAM.pulse1;
+		if (t.includes('pulse2')) return CHIP_TO_GM_PROGRAM.pulse2;
+		if (t.includes('triangle')) return CHIP_TO_GM_PROGRAM.triangle;
+		if (t.includes('wave')) return CHIP_TO_GM_PROGRAM.wave;
+		if (t.includes('noise')) return CHIP_TO_GM_PROGRAM.noise;
+		if (t.includes('dmc')) return CHIP_TO_GM_PROGRAM.dmc;
+		return null;
+	}
 
 	function resolveProgramForInstrumentName(instName: string | undefined, ch: any, ev?: any) {
-		// priority: ev.instProps?.gm -> song.insts[instName]?.gm -> GB_TO_GM_PROGRAM based on type -> 0
+		// priority: ev.instProps?.gm -> song.insts[instName]?.gm -> CHIP_TO_GM_PROGRAM based on type -> pulse1
 		if (ev && ev.instProps && typeof ev.instProps.gm === 'number') return ev.instProps.gm & 0x7f;
 		if (ev && ev.instProps && typeof ev.instProps.gm === 'string') {
 			const parsed = parseInt(ev.instProps.gm as any, 10);
@@ -121,26 +147,16 @@ export function buildMIDI(song: any, options: { duration?: number, channels?: nu
 				const parsed = parseInt(inst.gm as any, 10);
 				if (!isNaN(parsed)) return parsed & 0x7f;
 			}
-			if (inst && typeof inst.type === 'string') {
-				const t = String(inst.type).toLowerCase();
-				if (t.includes('pulse1')) return GB_TO_GM_PROGRAM.pulse1;
-				if (t.includes('pulse2')) return GB_TO_GM_PROGRAM.pulse2;
-				if (t.includes('wave')) return GB_TO_GM_PROGRAM.wave;
-				if (t.includes('noise')) return GB_TO_GM_PROGRAM.noise;
-			}
+			const fromType = programForChipType(inst?.type);
+			if (fromType != null) return fromType;
 		}
 		// Channel-level default instrument may have type data
 		if (ch && ch.defaultInstrument && song && song.insts && song.insts[ch.defaultInstrument]) {
 			const inst = song.insts[ch.defaultInstrument];
-			if (inst && typeof inst.type === 'string') {
-				const t = String(inst.type).toLowerCase();
-				if (t.includes('pulse1')) return GB_TO_GM_PROGRAM.pulse1;
-				if (t.includes('pulse2')) return GB_TO_GM_PROGRAM.pulse2;
-				if (t.includes('wave')) return GB_TO_GM_PROGRAM.wave;
-				if (t.includes('noise')) return GB_TO_GM_PROGRAM.noise;
-			}
+			const fromType = programForChipType(inst?.type);
+			if (fromType != null) return fromType;
 		}
-		return GB_TO_GM_PROGRAM.pulse1;
+		return CHIP_TO_GM_PROGRAM.pulse1;
 	}
 
 	// For each channel produce a track of note on/off events, emitting Program Change when needed

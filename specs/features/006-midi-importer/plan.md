@@ -12,9 +12,9 @@ GATE: complete before implementation. Re-check after design changes.
 - [x] Determinism and compatibility preserved (additive CLI command)
 - [x] Tests planned for new behavior ([fixtures.md](fixtures.md) + tasks below)
 
-## Status of this documentation pass
+**Status of this documentation pass**
 
-**Spec/plan/tasks/fixtures updated.** Engine, CLI, dependency adds, and golden `.mid` commits are **deferred** — see [tasks.md](tasks.md) section B.
+Implementation landed under `packages/engine/src/import/midi/` and CLI `import midi` / `convert midi2bax`. Fixtures F01–F09 committed; see [fixtures.md](fixtures.md) and [tasks.md](tasks.md).
 
 ## Implementation Plan (follow-on)
 
@@ -64,7 +64,7 @@ Add a dedicated module under `packages/engine/src/import/midi/`:
 | Role classifier | Melodic vs drum; GM program / track name heuristics |
 | Channel packer | Assign to chip roles; schedule `inst()` switches; emit warnings |
 | Kit emitter | Chip default `inst` lines + GM drum → named percussion map |
-| Reuse engine | Bar hash → shared `pat`; sequence compression → `seq` |
+| Reuse engine | Bar hash → shared `pat`; sequence compression → `seq`; optional fixed `sectionBars` chunks → multi-seq channels + `# --- Section N ---` |
 | Bax emitter | Deterministic, commented `.bax` |
 
 Keep conversion as compile-time tooling. Runtime playback and scheduler remain unchanged.
@@ -76,7 +76,7 @@ Instrument-change packing policy (default):
 3. Merge non-overlapping streams of compatible type onto one channel with `inst(a)` / `inst(b)`.
 4. Otherwise warn and drop lower-priority notes or flatten chords to top note.
 
-Invert GM drum maps from `packages/engine/src/export/midiExport.ts` (kick 36, snare 38, hat 42).
+Invert GM drum maps from `packages/engine/src/export/midiExport.ts` (kick 36, snare 38, hat 42; clap 39 → snare). Same-tick drum stacks prefer snare over kick (backbeat); optional `drumFlamTicks` can nudge losers into empty ticks (default 0).
 
 ### Desktop / Web UI Changes
 
