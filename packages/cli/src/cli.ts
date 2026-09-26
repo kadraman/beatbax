@@ -9,6 +9,7 @@ import {
   parseInstrumentKinds,
   peelKitOutputArgument,
 } from './extract-instrument.js';
+import { runMidiImport, midiImportOptionDefs } from './import-midi.js';
 import { playFile } from '@beatbax/engine/node';
 import type { ChipPlugin, ExporterPlugin } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
@@ -1095,7 +1096,62 @@ function upsampleDmcForPlayback(
 
 const convertCmd = program
   .command('convert')
-  .description('Convert between audio and chip sample formats');
+  .description('Convert between audio, sample, and song formats');
+
+function bindMidiImportOptions(cmd: Command): Command {
+  for (const def of midiImportOptionDefs()) {
+    if (def.defaultValue !== undefined) cmd.option(def.flags, def.description, def.defaultValue);
+    else cmd.option(def.flags, def.description);
+  }
+  return cmd;
+}
+
+function midiImportAction(input: string, output: string | undefined, options: any) {
+  const globalOpts = program.opts();
+  configureLoggerFromCLI(options, globalOpts);
+  const strict = options.strict === true || globalOpts?.strict === true;
+  if (!options.chip) {
+    failCommand('Error: --chip is required (gameboy | nes)');
+  }
+  runMidiImport(
+    input,
+    output,
+    {
+      chip: options.chip,
+      config: options.config,
+      quantize: options.quantize,
+      grid: options.grid,
+      maxBars: options.maxBars,
+      maxOverlapTicks: options.maxOverlapTicks,
+      sectionBars: options.sectionBars,
+      dryRun: options.dryRun === true,
+      strict,
+      title: options.title,
+      verbose: options.verbose === true || globalOpts?.verbose === true,
+    },
+    failCommand,
+  );
+}
+
+const importCmd = program
+  .command('import')
+  .description('Import external formats into BeatBax source');
+
+bindMidiImportOptions(
+  importCmd
+    .command('midi')
+    .description('Convert a Standard MIDI File (.mid) to editable BeatBax .bax source')
+    .argument('<input.mid>', 'Input Standard MIDI File')
+    .argument('[output.bax]', 'Output .bax path (required unless --dry-run)'),
+).action(midiImportAction);
+
+bindMidiImportOptions(
+  convertCmd
+    .command('midi2bax')
+    .description('Convert a Standard MIDI File (.mid) to editable BeatBax .bax source. Alias for "import midi"')
+    .argument('<input.mid>', 'Input Standard MIDI File')
+    .argument('[output.bax]', 'Output .bax path (required unless --dry-run)'),
+).action(midiImportAction);
 
 convertCmd
   .command('wav2dmc')

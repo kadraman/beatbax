@@ -1,0 +1,33 @@
+{
+  "chip": "nes",
+  "ticksPerBeat": 4,
+  "patternTicks": 16,
+  "trackMappings": [
+    { "midiTrack": 0, "target": "pulse1", "instrument": "lead" },
+    { "midiTrack": 1, "target": "pulse2", "instrument": "arp" },
+    { "midiTrack": 2, "target": "triangle", "instrument": "bass" },
+    {
+      "midiTrack": 3,
+      "target": "noise",
+      "drumMap": {
+        "36": "kick",
+        "37": "ghost",
+        "38": "snare",
+        "39": "hihat",
+        "42": "hihat",
+        "49": "crash"
+      }
+    }
+  ],
+  "dmcReinforcement": {
+    "enabled": true,
+    "kickSample": "@nes/kick",
+    "snareSample": "@nes/snare"
+  },
+  "quantize": {
+    "mode": "nearest",
+    "grid": "1/16",
+    "maxShiftTicks": 1
+  },
+  "maxOverlapTicks": 0
+}

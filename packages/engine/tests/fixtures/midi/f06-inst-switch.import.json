@@ -1,0 +1,7 @@
+{
+  "chip": "gameboy",
+  "trackMappings": [
+    { "midiTrack": 0, "target": "pulse1", "instrument": "lead" },
+    { "midiTrack": 1, "target": "pulse1", "instrument": "arp" }
+  ]
+}
