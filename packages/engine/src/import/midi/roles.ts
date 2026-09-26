@@ -2,7 +2,7 @@
  * Role classifier: auto-map MIDI tracks/channels to chip roles + optional config override.
  */
 import { midiToNote } from '../../util/music.js';
-import { gmFamilyFromProgram, instrumentNameForFamilyRole } from './kit.js';
+import { gmFamilyFromProgram, instrumentNameForFamilyRole, DMC_KICK, DMC_SNARE } from './kit.js';
 import type { ChipRole, GmFamily } from './types.js';
 import type {
   ClassifiedStream,
@@ -169,15 +169,17 @@ export function classifyStreams(
     let isDrum = note.isDrum;
     let gmFamily: GmFamily | undefined;
     let instrumentLocked = false;
+    let drumMap: ClassifiedStream['drumMap'];
 
     if (override) {
       role = roleForChip(override.target, options.chip);
       gmFamily = note.isDrum ? undefined : gmFamilyFromProgram(note.program, options.programFamilyByProgram);
+      drumMap = override.drumMap;
       if (override.instrument) {
         instrument = override.instrument;
         instrumentLocked = true;
       } else if (role === 'noise' || role === 'dmc') {
-        instrument = role === 'dmc' ? 'kick' : 'hihat';
+        instrument = role === 'dmc' ? DMC_KICK : 'hihat';
       } else {
         instrument = instrumentNameForFamilyRole(gmFamily ?? 'lead', role);
       }
@@ -210,7 +212,9 @@ export function classifyStreams(
         instrument,
         gmFamily,
         instrumentLocked,
+        mappingOverride: override != null,
         isDrum,
+        drumMap,
         notes: [],
         sourceTrackIndex: note.sourceTrackIndex,
         midiChannel: note.midiChannel,
@@ -221,10 +225,11 @@ export function classifyStreams(
     stream.notes.push(note);
   }
 
-  // Refine melodic roles using pitch-range when still on generic pulse1 from defaults
+  // Refine melodic roles using pitch-range when still on generic pulse1 from defaults.
+  // Only skip streams that matched a trackMappings override — partial configs must not
+  // disable refinement for unrelated auto-mapped tracks.
   for (const stream of buckets.values()) {
-    if (stream.isDrum) continue;
-    if (options.trackMappings && options.trackMappings.length > 0) continue;
+    if (stream.isDrum || stream.mappingOverride) continue;
     const fromName = hintChipRoleFromTrackName(stream.notes[0]?.trackName ?? '');
     const fromProg = programHints(stream.notes[0]?.program ?? 0);
     if (!fromName && !fromProg) {
@@ -260,4 +265,11 @@ export function classifyStreams(
 export function noteTokenForHit(note: QuantizedNote, isDrum: boolean, drumMap?: Record<string, string>): string {
   if (isDrum) return mapDrumPitch(note.pitch, drumMap);
   return midiToNote(note.pitch);
+}
+
+/** Map a drum note to the NES DMC reinforcement token (`kick_dmc` / `snare_dmc`). */
+export function dmcTokenForHit(note: QuantizedNote, drumMap?: Record<string, string>): string {
+  const base = mapDrumPitch(note.pitch, drumMap);
+  if (base === 'snare') return DMC_SNARE;
+  return DMC_KICK;
 }

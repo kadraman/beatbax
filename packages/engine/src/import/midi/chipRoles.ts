@@ -22,7 +22,7 @@ export function getChipRoleTable(chip: MidiChipId): ChipRoleSlot[] {
       { channelIndex: 2, role: 'pulse2', defaultInstrument: 'arp', priority: 80, multiplexGroup: 'melodic-pulse' },
       { channelIndex: 3, role: 'triangle', defaultInstrument: 'bass', priority: 90, multiplexGroup: 'bass' },
       { channelIndex: 4, role: 'noise', defaultInstrument: 'hihat', priority: 50, multiplexGroup: 'drums' },
-      { channelIndex: 5, role: 'dmc', defaultInstrument: 'kick', priority: 60, multiplexGroup: 'dmc' },
+      { channelIndex: 5, role: 'dmc', defaultInstrument: 'kick_dmc', priority: 60, multiplexGroup: 'dmc' },
     ];
   }
   // gameboy

@@ -27,22 +27,29 @@ function collectMelodicNeeds(reuse: ReuseResult): MelodicKitNeed[] {
 
   const add = (name: string, role: ChipRole, family: GmFamily) => {
     if (!name || seen.has(name)) return;
-    if (['kick', 'snare', 'hihat', 'shaker', 'ghost', 'crash'].includes(name)) return;
+    if (['kick', 'snare', 'hihat', 'shaker', 'ghost', 'crash', 'kick_dmc', 'snare_dmc'].includes(name)) return;
     seen.add(name);
     needs.push({ name, role, family });
   };
 
+  const patternByName = new Map(reuse.patterns.map((p) => [p.name, p]));
+  const sequenceByName = new Map(reuse.sequences.map((s) => [s.name, s]));
+
   for (const ch of reuse.channelPlans) {
     if (ch.role === 'noise' || ch.role === 'dmc') continue;
     add(ch.defaultInstrument, ch.role, familyFromInstName(ch.defaultInstrument));
-  }
 
-  for (const p of reuse.patterns) {
-    for (const tok of p.tokens) {
-      const m = /^inst\(([^)]+)\)$/.exec(tok);
-      if (!m) continue;
-      const name = m[1]!;
-      add(name, 'pulse1', familyFromInstName(name));
+    const seq = sequenceByName.get(ch.sequenceName);
+    if (!seq) continue;
+    for (const patName of seq.playlist) {
+      const pat = patternByName.get(patName);
+      if (!pat) continue;
+      for (const tok of pat.tokens) {
+        const m = /^inst\(([^)]+)\)$/.exec(tok);
+        if (!m) continue;
+        const name = m[1]!;
+        add(name, ch.role, familyFromInstName(name));
+      }
     }
   }
 

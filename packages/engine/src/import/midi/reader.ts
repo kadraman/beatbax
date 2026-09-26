@@ -18,10 +18,10 @@ function resolveMidiCtor(): new (data?: ArrayBuffer | ArrayLike<number>) => any 
 
 const Midi = resolveMidiCtor();
 
-function toArrayBuffer(data: Uint8Array | ArrayBuffer | Buffer): ArrayBuffer {
+function toArrayBuffer(data: Uint8Array | ArrayBuffer): ArrayBuffer {
   if (data instanceof ArrayBuffer) return data;
-  const view = data instanceof Uint8Array ? data : new Uint8Array(data);
-  return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
+  // Node Buffer is a Uint8Array subclass and is accepted structurally here.
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
 }
 
 /** GM channel 10 is MIDI channel index 9 (0-based). */
@@ -29,7 +29,7 @@ export function isDrumChannel(midiChannel: number): boolean {
   return midiChannel === 9;
 }
 
-export function readMidiBytes(bytes: Uint8Array | ArrayBuffer | Buffer): MidiParseResult {
+export function readMidiBytes(bytes: Uint8Array | ArrayBuffer): MidiParseResult {
   const midi = new Midi(toArrayBuffer(bytes));
   const ppq = midi.header.ppq || 480;
 

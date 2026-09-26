@@ -37,6 +37,8 @@ const SUPPORTED_CHIPS = new Set<MidiChipId>(['gameboy', 'nes']);
 const CHIP_ROLES = new Set<ChipRole>(['pulse1', 'pulse2', 'wave', 'triangle', 'noise', 'dmc']);
 const QUANTIZE_MODES = new Set<QuantizeMode>(['nearest', 'floor', 'ceil', 'strict']);
 const QUANTIZE_GRIDS = new Set<QuantizeGrid>(['1/4', '1/8', '1/16', '1/32']);
+/** BeatBax identifiers used in `inst` names, `inst(...)` tokens, and channel bindings. */
+const BAX_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 
 /** MIDI channel in config may be 0–15 (0-based) or 1–16 (1-based). */
 const MIDI_CHANNEL_MIN = 0;
@@ -115,6 +117,16 @@ export function parseChipRole(raw: string | undefined, context = 'target'): Chip
   return v;
 }
 
+/** Require a non-empty BeatBax identifier (`[A-Za-z_][A-Za-z0-9_-]*`). */
+export function parseBaxIdentifier(raw: string, context: string): string {
+  if (!BAX_IDENTIFIER.test(raw)) {
+    throw new Error(
+      `${context} must be a BeatBax identifier ([A-Za-z_][A-Za-z0-9_-]*); got ${JSON.stringify(raw)}`,
+    );
+  }
+  return raw;
+}
+
 /**
  * Accept MIDI channel as 0–15 (0-based, matching Tone.js / SMF) or 1–16 (1-based).
  * Combined valid integers: 0 through 16 inclusive.
@@ -128,6 +140,66 @@ export function parseMidiChannel(raw: unknown, context = 'midiChannel'): number 
   return raw;
 }
 
+const DUTY_CYCLE_VALUES = new Set([12.5, 25, 50, 75]);
+const WAVE_VOLUME_VALUES = new Set([0, 25, 50, 100]);
+
+function parseFiniteNumber(raw: unknown, context: string): number {
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(n)) {
+    throw new Error(`${context} must be a finite number; got ${JSON.stringify(raw)}`);
+  }
+  return n;
+}
+
+function parseIntInRange(raw: unknown, lo: number, hi: number, context: string): number {
+  const n = parseFiniteNumber(raw, context);
+  if (!Number.isInteger(n) || n < lo || n > hi) {
+    throw new Error(`${context} must be an integer in ${lo}–${hi}; got ${JSON.stringify(raw)}`);
+  }
+  return n;
+}
+
+function parseDutyCycle(raw: unknown, context: string): number {
+  const n = parseFiniteNumber(raw, context);
+  if (!DUTY_CYCLE_VALUES.has(n)) {
+    throw new Error(`${context} must be one of 12.5|25|50|75; got ${JSON.stringify(raw)}`);
+  }
+  return n;
+}
+
+function parseWaveVolume(raw: unknown, context: string): number {
+  const n = parseFiniteNumber(raw, context);
+  if (!WAVE_VOLUME_VALUES.has(n)) {
+    throw new Error(`${context} must be one of 0|25|50|100; got ${JSON.stringify(raw)}`);
+  }
+  return n;
+}
+
+function parseFiniteNumberArray(raw: unknown, context: string): number[] {
+  if (!Array.isArray(raw)) {
+    throw new Error(`${context} must be an array of numbers or null; got ${JSON.stringify(raw)}`);
+  }
+  return raw.map((x, i) => parseFiniteNumber(x, `${context}[${i}]`));
+}
+
+function parseVolEnvArray(raw: unknown, context: string): number[] {
+  return parseFiniteNumberArray(raw, context).map((n, i) => {
+    if (!Number.isInteger(n) || n < 0 || n > 15) {
+      throw new Error(`${context}[${i}] must be an integer in 0–15; got ${n}`);
+    }
+    return n;
+  });
+}
+
+function parsePitchEnvArray(raw: unknown, context: string): number[] {
+  return parseFiniteNumberArray(raw, context).map((n, i) => {
+    if (!Number.isInteger(n)) {
+      throw new Error(`${context}[${i}] must be an integer; got ${n}`);
+    }
+    return n;
+  });
+}
+
 function parseFamilyArticulationConfig(
   raw: Record<string, unknown>,
   familyId: GmFamily,
@@ -138,26 +210,30 @@ function parseFamilyArticulationConfig(
       throw new Error(`families.${familyId}.gb must be an object`);
     }
     const g = raw.gb as Record<string, unknown>;
+    const prefix = `families.${familyId}.gb`;
     out.gb = {};
-    if (g.level != null) out.gb.level = Number(g.level);
-    if (g.period != null) out.gb.period = Number(g.period);
-    if (g.dutyP1 != null) out.gb.dutyP1 = Number(g.dutyP1);
-    if (g.dutyP2 != null) out.gb.dutyP2 = Number(g.dutyP2);
-    if (g.waveVolume != null) out.gb.waveVolume = Number(g.waveVolume);
+    if (g.level != null) out.gb.level = parseIntInRange(g.level, 0, 15, `${prefix}.level`);
+    if (g.period != null) out.gb.period = parseIntInRange(g.period, 0, 7, `${prefix}.period`);
+    if (g.dutyP1 != null) out.gb.dutyP1 = parseDutyCycle(g.dutyP1, `${prefix}.dutyP1`);
+    if (g.dutyP2 != null) out.gb.dutyP2 = parseDutyCycle(g.dutyP2, `${prefix}.dutyP2`);
+    if (g.waveVolume != null) out.gb.waveVolume = parseWaveVolume(g.waveVolume, `${prefix}.waveVolume`);
   }
   if (raw.nes != null) {
     if (typeof raw.nes !== 'object' || Array.isArray(raw.nes)) {
       throw new Error(`families.${familyId}.nes must be an object`);
     }
     const n = raw.nes as Record<string, unknown>;
+    const prefix = `families.${familyId}.nes`;
     out.nes = {};
-    if (n.vol != null) out.nes.vol = Number(n.vol);
-    if (n.dutyP1 != null) out.nes.dutyP1 = Number(n.dutyP1);
-    if (n.dutyP2 != null) out.nes.dutyP2 = Number(n.dutyP2);
+    if (n.vol != null) out.nes.vol = parseIntInRange(n.vol, 0, 15, `${prefix}.vol`);
+    if (n.dutyP1 != null) out.nes.dutyP1 = parseDutyCycle(n.dutyP1, `${prefix}.dutyP1`);
+    if (n.dutyP2 != null) out.nes.dutyP2 = parseDutyCycle(n.dutyP2, `${prefix}.dutyP2`);
     if (n.volEnv === null) out.nes.volEnv = null;
-    else if (Array.isArray(n.volEnv)) out.nes.volEnv = n.volEnv.map((x) => Number(x));
+    else if (n.volEnv != null) out.nes.volEnv = parseVolEnvArray(n.volEnv, `${prefix}.volEnv`);
     if (n.pitchEnvP1 === null) out.nes.pitchEnvP1 = null;
-    else if (Array.isArray(n.pitchEnvP1)) out.nes.pitchEnvP1 = n.pitchEnvP1.map((x) => Number(x));
+    else if (n.pitchEnvP1 != null) {
+      out.nes.pitchEnvP1 = parsePitchEnvArray(n.pitchEnvP1, `${prefix}.pitchEnvP1`);
+    }
   }
   return out;
 }
@@ -333,11 +409,15 @@ export function parseImportConfig(raw: unknown): MidiImportConfig {
       if (tm.midiChannel != null) {
         midiChannel = parseMidiChannel(tm.midiChannel, `trackMappings[${i}].midiChannel`);
       }
+      let instrument: string | undefined;
+      if (typeof tm.instrument === 'string' && tm.instrument.length > 0) {
+        instrument = parseBaxIdentifier(tm.instrument, `trackMappings[${i}].instrument`);
+      }
       mappings.push({
         midiTrack: typeof tm.midiTrack === 'number' ? tm.midiTrack : undefined,
         midiChannel,
         target,
-        instrument: typeof tm.instrument === 'string' ? tm.instrument : undefined,
+        instrument,
         drumMap:
           tm.drumMap && typeof tm.drumMap === 'object' && !Array.isArray(tm.drumMap)
             ? (tm.drumMap as Record<string, string>)

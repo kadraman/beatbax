@@ -62,13 +62,19 @@ describe('midi import golden fixtures F01–F09', () => {
     const opts = resolveConvertOptions({ chip: 'nes', config: cfg });
     const result = convertMidiToBax(loadMid('f03-nes-kit.mid'), opts, 'f03-dmc');
     expect(result.source).toContain('chip nes');
+    expect(result.source).toMatch(/inst kick\s+type=noise.*noise_period=12/);
+    expect(result.source).toMatch(/inst snare\s+type=noise.*noise_period=7/);
     expect(result.source).toMatch(
-      /inst kick\s+type=dmc.*dmc_sample="@nes\/kick"/,
+      /inst kick_dmc\s+type=dmc.*dmc_sample="@nes\/kick"/,
     );
     expect(result.source).toMatch(
-      /inst snare\s+type=dmc.*dmc_sample="@nes\/snare"/,
+      /inst snare_dmc\s+type=dmc.*dmc_sample="@nes\/snare"/,
     );
-    expect(result.source).toMatch(/channel 5 => inst kick seq dmc_seq/);
+    expect(result.source).toMatch(/channel 5 => inst kick_dmc seq dmc_seq/);
+    expect(result.source).toMatch(/\bkick_dmc\b/);
+    expect(result.source).toMatch(/\bsnare_dmc\b/);
+    // Noise channel still uses plain kick/snare tokens bound to type=noise defs
+    expect(result.source).toMatch(/channel 4 => inst /);
     expect(result.source).toMatch(/\bghost\b/);
     expectParses(result.source);
   });

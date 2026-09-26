@@ -123,10 +123,10 @@ export function midiImportOptionDefs(): { flags: string; description: string; de
   return [
     { flags: '--chip <chip>', description: 'Target chip (required): gameboy | nes' },
     { flags: '--config <file>', description: 'Optional JSON mapping/quantize override' },
-    { flags: '--quantize <mode>', description: 'nearest | floor | ceil | strict', defaultValue: 'nearest' },
-    { flags: '--grid <grid>', description: '1/4 | 1/8 | 1/16 | 1/32', defaultValue: '1/16' },
+    { flags: '--quantize <mode>', description: 'nearest | floor | ceil | strict' },
+    { flags: '--grid <grid>', description: '1/4 | 1/8 | 1/16 | 1/32' },
     { flags: '--max-bars <N>', description: 'Clamp generated bar count' },
-    { flags: '--max-overlap-ticks <N>', description: 'Allow up to N ticks of overlap when multiplexing', defaultValue: '0' },
+    { flags: '--max-overlap-ticks <N>', description: 'Allow up to N ticks of overlap when multiplexing' },
     { flags: '--dry-run', description: 'Print conversion summary only; do not write .bax' },
     { flags: '--strict', description: 'Fail on strict quantize / conversion errors' },
     { flags: '--title <name>', description: 'Override song name metadata' },

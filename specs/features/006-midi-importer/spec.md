@@ -269,8 +269,8 @@ Example fixture: `packages/engine/tests/fixtures/midi/family-override.example.js
 
 Percussion (always emitted):
 
-- **Game Boy:** noise `kick` / `snare` / `hihat` / `shaker` with `uge_note` plus short `pitch_env` / `vol_env` macros (kick uses `uge_note=C-6` and a pitch drop; hihat/shaker use 15-bit LFSR); wave bass uses `volume=25`
-- **NES:** noise percussion with battle-style periods (`kick` period 12, `snare` 7, `hihat` 2, `note=C5`) plus soft `ghost` / `crash`; optional DMC reinforcement for kick/snare when enabled in config
+- **Game Boy:** noise `kick` / `snare` / `hihat` / `shaker` / `ghost` / `crash` with `uge_note` plus short `pitch_env` / `vol_env` macros (kick uses `uge_note=C-6` and a pitch drop; hihat/shaker/crash use 15-bit LFSR; `ghost` is a soft side-stick); wave bass uses `volume=25`
+- **NES:** noise percussion with battle-style periods (`kick` period 12, `snare` 7, `hihat` 2, `note=C5`) plus soft `ghost` / `crash`; optional DMC reinforcement emits distinct `kick_dmc` / `snare_dmc` instruments and tokens on channel 5 (noise `kick`/`snare` remain on channel 4)
 
 Named drum tokens are one-shot hits and must not sticky-change the channel’s current instrument (existing resolver semantics).
 

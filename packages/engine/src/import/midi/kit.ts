@@ -14,7 +14,11 @@ import { GM_FAMILIES } from './types.js';
 
 export type { GmFamily };
 
-const DRUM_NAMES = new Set(['kick', 'snare', 'hihat', 'shaker', 'ghost', 'crash']);
+const DRUM_NAMES = new Set(['kick', 'snare', 'hihat', 'shaker', 'ghost', 'crash', 'kick_dmc', 'snare_dmc']);
+
+/** NES DMC reinforcement instrument / pattern token names (distinct from noise kick/snare). */
+export const DMC_KICK = 'kick_dmc';
+export const DMC_SNARE = 'snare_dmc';
 
 const FAMILY_SET = new Set<string>(GM_FAMILIES);
 
@@ -179,7 +183,7 @@ function roleSuffix(role: ChipRole): '_p1' | '_p2' | '_bass' | null {
  */
 export function instrumentNameForFamilyRole(family: GmFamily, role: ChipRole): string {
   if (role === 'noise') return 'hihat';
-  if (role === 'dmc') return 'kick';
+  if (role === 'dmc') return DMC_KICK;
   const suffix = roleSuffix(role);
   if (!suffix) return family;
   if (family === 'bass' && suffix === '_bass') return 'bass';
@@ -299,6 +303,9 @@ function gbDrumLines(): string[] {
     'inst snare type=noise gb:width=7 env={"level":12,"direction":"down","period":1,"format":"gb"} length=16 uge_note=C-7 pitch_env=[0,5,0] vol_env=[12,10,6,2]',
     'inst hihat type=noise gb:width=15 env={"level":5,"direction":"down","period":1,"format":"gb"} length=8 uge_note=C-8 vol_env=[6,2]',
     'inst shaker type=noise gb:width=15 env={"level":4,"direction":"down","period":1,"format":"gb"} length=4 uge_note=D-7 vol_env=[4,1]',
+    // Side stick (GM 37) / crash (GM 49) — must match DEFAULT_DRUM_MAP token names.
+    'inst ghost type=noise gb:width=7 env={"level":6,"direction":"down","period":1,"format":"gb"} length=8 uge_note=C-7 vol_env=[5,3,1]',
+    'inst crash type=noise gb:width=15 env={"level":15,"direction":"down","period":6,"format":"gb"} length=64 uge_note=F-7 vol_env=[15,12,10,8,6,4,2]',
   ];
 }
 
@@ -307,19 +314,16 @@ function nesDrumLines(options: MidiConvertOptions): string[] {
     'inst hihat type=noise noise_mode=normal noise_period=2 vol_env=[7,4,2,1] note=C5',
     'inst ghost type=noise noise_mode=normal noise_period=7 vol_env=[5,4,3,2,1] note=C5',
     'inst crash type=noise noise_mode=normal noise_period=3 vol_env=[12,11,10,9,8,7,6,5,4,3,2,1] note=C5',
+    // Noise kick/snare always — channel 4 tokens bind here even when DMC reinforcement is on.
+    'inst kick  type=noise noise_mode=normal noise_period=12 vol_env=[15,14,12,9,6,4,2,1] note=C5',
+    'inst snare type=noise noise_mode=normal noise_period=7 vol_env=[14,13,11,9,7,5,3,2,1] note=C5',
   ];
   if (options.dmcReinforcement.enabled) {
     const kick = options.dmcReinforcement.kickSample ?? '@nes/kick';
     const snare = options.dmcReinforcement.snareSample ?? '@nes/snare';
-    lines.push(`inst kick   type=dmc dmc_rate=15 dmc_loop=false dmc_sample="${kick}"`);
-    lines.push(`inst snare  type=dmc dmc_rate=15 dmc_loop=false dmc_sample="${snare}"`);
-  } else {
-    lines.push(
-      'inst kick  type=noise noise_mode=normal noise_period=12 vol_env=[15,14,12,9,6,4,2,1] note=C5',
-    );
-    lines.push(
-      'inst snare type=noise noise_mode=normal noise_period=7 vol_env=[14,13,11,9,7,5,3,2,1] note=C5',
-    );
+    // Distinct names from noise kick/snare (wizard / iron_keep style).
+    lines.push(`inst kick_dmc  type=dmc dmc_rate=15 dmc_loop=false dmc_sample="${kick}"`);
+    lines.push(`inst snare_dmc type=dmc dmc_rate=15 dmc_loop=false dmc_sample="${snare}"`);
   }
   return lines;
 }

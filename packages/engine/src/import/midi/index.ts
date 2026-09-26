@@ -31,6 +31,7 @@ export {
 } from './config.js';
 export { readMidiBytes } from './reader.js';
 export { quantizeNotes, midiTicksToBaxTicks } from './quantize.js';
+export { classifyStreams, mapDrumPitch, DEFAULT_DRUM_MAP, hintChipRoleFromTrackName, dmcTokenForHit } from './roles.js';
 export {
   emitKitLines,
   emitMelodicInstLine,
@@ -42,8 +43,9 @@ export {
   parseProgramFamilyKey,
   DEFAULT_PROGRAM_FAMILY_RANGES,
   DEFAULT_FAMILY_ARTICULATIONS,
+  DMC_KICK,
+  DMC_SNARE,
 } from './kit.js';
-export { classifyStreams, mapDrumPitch, DEFAULT_DRUM_MAP, hintChipRoleFromTrackName } from './roles.js';
 export { packChannels } from './pack.js';
 export { buildPatternsAndSequences, compressPlaylist, hitsToBarTokens, hashTokens } from './reuse.js';
 export { emitBaxSource } from './emit.js';
@@ -57,6 +59,55 @@ function fileBaseName(label: string): string {
 function pickBpm(parsed: MidiParseResult): number {
   const t0 = parsed.tempos.find((t) => t.midiTicks === 0) ?? parsed.tempos[0];
   return t0?.bpm && t0.bpm > 0 ? t0.bpm : 120;
+}
+
+/**
+ * v1 emits a single `bpm` and fixed `patternTicks` bars. Warn when the MIDI
+ * tempo map or time-signature map cannot be represented in that model.
+ */
+function pushIgnoredTimingDiagnostics(
+  parsed: MidiParseResult,
+  selectedBpm: number,
+  patternTicks: number,
+  diagnostics: ConversionDiagnostic[],
+): void {
+  const selectedTempo = parsed.tempos.find((t) => t.midiTicks === 0) ?? parsed.tempos[0];
+  const ignoredTempos = selectedTempo
+    ? parsed.tempos.filter((t) => t !== selectedTempo)
+    : parsed.tempos;
+  if (ignoredTempos.length > 0) {
+    const changes = ignoredTempos
+      .map((t) => `t=${t.midiTicks} bpm=${Math.round(t.bpm)}`)
+      .join(', ');
+    diagnostics.push({
+      level: 'warn',
+      code: 'tempo_map_ignored',
+      message:
+        `Ignoring ${ignoredTempos.length} MIDI tempo change(s) after initial bpm ${Math.round(selectedBpm)} ` +
+        `(${changes}); output uses constant tempo`,
+    });
+  }
+
+  const sigs = parsed.timeSignatures;
+  if (sigs.length === 0) return;
+
+  const incompatible = sigs.filter(
+    (ts) => ts.numerator !== 4 || ts.denominator !== 4 || ts.midiTicks !== 0,
+  );
+  // Multiple events even if all 4/4 still cannot drive mid-song meter changes.
+  const hasMapChanges = sigs.length > 1;
+  if (incompatible.length === 0 && !hasMapChanges) return;
+
+  const describe = sigs
+    .map((ts) => `t=${ts.midiTicks} ${ts.numerator}/${ts.denominator}`)
+    .join(', ');
+  diagnostics.push({
+    level: 'warn',
+    code: 'time_signature_ignored',
+    message:
+      `Ignoring MIDI time signature map (${describe}); output uses fixed ` +
+      `${patternTicks}-tick bar partitioning (4/4 at ticksPerBeat)`,
+  });
 }
 
 function safeTitle(options: MidiConvertOptions, parsed: MidiParseResult, inputLabel?: string): string {
@@ -87,11 +138,13 @@ export function convertMidiParseResult(
     });
   }
 
+  const bpm = pickBpm(parsed);
+  pushIgnoredTimingDiagnostics(parsed, bpm, options.patternTicks, diagnostics);
+
   const quantized = quantizeNotes(parsed.notes, parsed.ppq, options, diagnostics);
   const streams = classifyStreams(quantized, options, diagnostics);
   const { channels, notesDropped } = packChannels(streams, options, diagnostics);
   const reuse = buildPatternsAndSequences(channels, options, diagnostics);
-  const bpm = pickBpm(parsed);
   const title = safeTitle(options, parsed, inputLabel);
   const source = emitBaxSource({ options, bpm, title, reuse });
 
@@ -131,7 +184,7 @@ export function convertMidiParseResult(
  * Pass `inputLabel` (e.g. filename) for song-name fallback metadata.
  */
 export function convertMidiToBax(
-  input: Uint8Array | ArrayBuffer | Buffer,
+  input: Uint8Array | ArrayBuffer,
   options: MidiConvertOptions,
   inputLabel?: string,
 ): MidiConvertResult {
@@ -143,7 +196,7 @@ export function convertMidiToBax(
  * Convenience: merge CLI-style args + optional JSON config, then convert.
  */
 export function convertMidiWithCliArgs(
-  input: Uint8Array | ArrayBuffer | Buffer,
+  input: Uint8Array | ArrayBuffer,
   args: {
     chip: string;
     config?: MidiImportConfig | null;

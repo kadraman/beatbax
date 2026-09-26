@@ -194,7 +194,11 @@ export interface ClassifiedStream {
   gmFamily?: GmFamily;
   /** When true, pack must not rewrite instrument from family+slot role. */
   instrumentLocked?: boolean;
+  /** True when this stream matched a trackMappings override (skip pitch-range refine). */
+  mappingOverride?: boolean;
   isDrum: boolean;
+  /** Optional per-override GM pitch → token map (from trackMappings[].drumMap). */
+  drumMap?: DrumMap;
   notes: QuantizedNote[];
   sourceTrackIndex: number;
   midiChannel: number;

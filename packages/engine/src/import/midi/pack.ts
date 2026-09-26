@@ -3,7 +3,8 @@
  */
 import { getChipRoleTable, type ChipRoleSlot } from './chipRoles.js';
 import { instrumentNameForFamilyRole } from './kit.js';
-import { mapDrumPitch, noteTokenForHit } from './roles.js';
+import { mapDrumPitch, noteTokenForHit, dmcTokenForHit } from './roles.js';
+import { DMC_KICK } from './kit.js';
 import type {
   ClassifiedStream,
   ConversionDiagnostic,
@@ -113,9 +114,13 @@ function drumTokenRank(token: string): number {
   }
 }
 
-function compareDrumNotes(a: QuantizedNote, b: QuantizedNote): number {
-  const ra = drumTokenRank(mapDrumPitch(a.pitch));
-  const rb = drumTokenRank(mapDrumPitch(b.pitch));
+function compareDrumNotes(
+  a: QuantizedNote,
+  b: QuantizedNote,
+  tokenFor: (n: QuantizedNote) => string,
+): number {
+  const ra = drumTokenRank(tokenFor(a));
+  const rb = drumTokenRank(tokenFor(b));
   if (rb !== ra) return rb - ra;
   if (b.velocity !== a.velocity) return b.velocity - a.velocity;
   if (a.pitch !== b.pitch) return a.pitch - b.pitch;
@@ -131,6 +136,8 @@ function packDrumNotes(
   allDrumNotes: QuantizedNote[],
   flamTicks: number,
   diagnostics: ConversionDiagnostic[],
+  tokenFor: (n: QuantizedNote) => string,
+  onFlamCopy: (from: QuantizedNote, to: QuantizedNote) => void,
 ): { kept: QuantizedNote[]; dropped: number } {
   const byStart = new Map<number, QuantizedNote[]>();
   for (const n of allDrumNotes) {
@@ -143,17 +150,18 @@ function packDrumNotes(
   const kept: QuantizedNote[] = [];
   const deferred: QuantizedNote[] = [];
   let dropped = 0;
+  const cmp = (a: QuantizedNote, b: QuantizedNote) => compareDrumNotes(a, b, tokenFor);
 
   for (const [tick, group] of [...byStart.entries()].sort((a, b) => a[0] - b[0])) {
-    const ranked = [...group].sort(compareDrumNotes);
+    const ranked = [...group].sort(cmp);
     const winner = ranked[0]!;
     occupied.set(tick, winner);
     kept.push(winner);
 
     // Same-token duplicates at this tick are dropped; other tokens may flam.
-    const seenTokens = new Set([mapDrumPitch(winner.pitch)]);
+    const seenTokens = new Set([tokenFor(winner)]);
     for (const n of ranked.slice(1)) {
-      const token = mapDrumPitch(n.pitch);
+      const token = tokenFor(n);
       if (seenTokens.has(token)) {
         dropped += 1;
         continue;
@@ -163,10 +171,10 @@ function packDrumNotes(
     }
   }
 
-  deferred.sort((a, b) => a.startTick - b.startTick || compareDrumNotes(a, b));
+  deferred.sort((a, b) => a.startTick - b.startTick || cmp(a, b));
 
   for (const n of deferred) {
-    const token = mapDrumPitch(n.pitch);
+    const token = tokenFor(n);
     let placed = false;
     for (let d = 1; d <= flamTicks; d++) {
       const dest = n.startTick + d;
@@ -177,6 +185,7 @@ function packDrumNotes(
         durationTicks: Math.max(1, Math.min(n.durationTicks, 1)),
         shiftTicks: n.shiftTicks + d,
       };
+      onFlamCopy(n, nudged);
       occupied.set(dest, nudged);
       kept.push(nudged);
       diagnostics.push({
@@ -190,13 +199,14 @@ function packDrumNotes(
     if (!placed) dropped += 1;
   }
 
-  kept.sort((a, b) => a.startTick - b.startTick || compareDrumNotes(a, b));
+  kept.sort((a, b) => a.startTick - b.startTick || cmp(a, b));
   return { kept, dropped };
 }
 
 function multiplexGroupForStream(stream: ClassifiedStream): ChipRoleSlot['multiplexGroup'] {
-  if (stream.isDrum || stream.roleHint === 'noise') return 'drums';
+  // DMC before drums: classifyStreams sets isDrum for target:"dmc" overrides.
   if (stream.roleHint === 'dmc') return 'dmc';
+  if (stream.isDrum || stream.roleHint === 'noise') return 'drums';
   if (stream.roleHint === 'wave' || stream.roleHint === 'triangle') return 'bass';
   return 'melodic-pulse';
 }
@@ -239,6 +249,8 @@ export function packChannels(
   const drumStreams: ClassifiedStream[] = [];
   const dmcStreams: ClassifiedStream[] = [];
   const melodic: ClassifiedStream[] = [];
+  /** Per-note drum maps (survives flam copies that leave the original stream). */
+  const drumMapByNote = new Map<QuantizedNote, ClassifiedStream['drumMap']>();
 
   for (const s of streams) {
     const g = multiplexGroupForStream(s);
@@ -246,6 +258,16 @@ export function packChannels(
     else if (g === 'dmc') dmcStreams.push(s);
     else melodic.push(s);
   }
+
+  for (const s of [...drumStreams, ...dmcStreams]) {
+    for (const n of s.notes) drumMapByNote.set(n, s.drumMap);
+  }
+
+  const tokenForNote = (n: QuantizedNote) => mapDrumPitch(n.pitch, drumMapByNote.get(n));
+  const drumTokenForPacked = (n: QuantizedNote, role: ClassifiedStream['roleHint'], streamMap?: ClassifiedStream['drumMap']) => {
+    const map = streamMap ?? drumMapByNote.get(n);
+    return role === 'dmc' ? dmcTokenForHit(n, map) : noteTokenForHit(n, true, map);
+  };
 
   // Assign melodic streams — prefer matching role, else multiplex, else drop lowest priority
   const pending = [...melodic].sort((a, b) => b.priority - a.priority);
@@ -302,7 +324,17 @@ export function packChannels(
   const noiseSlot = slots.find((s) => s.role === 'noise');
   if (noiseSlot && drumStreams.length > 0) {
     const allDrumNotes = drumStreams.flatMap((s) => s.notes);
-    const { kept, dropped } = packDrumNotes(allDrumNotes, options.drumFlamTicks, diagnostics);
+    const sharedMap =
+      drumStreams.length === 1 ? drumStreams[0]!.drumMap : undefined;
+    const { kept, dropped } = packDrumNotes(
+      allDrumNotes,
+      options.drumFlamTicks,
+      diagnostics,
+      tokenForNote,
+      (from, to) => {
+        drumMapByNote.set(to, drumMapByNote.get(from));
+      },
+    );
     notesDropped += dropped;
     noiseSlot.assigned.push({
       stream: {
@@ -310,6 +342,7 @@ export function packChannels(
         roleHint: 'noise',
         instrument: 'hihat',
         isDrum: true,
+        drumMap: sharedMap,
         notes: kept,
         sourceTrackIndex: -1,
         midiChannel: 9,
@@ -330,12 +363,15 @@ export function packChannels(
       const notes = [...kicksSnares, ...dmcStreams.flatMap((s) => s.notes)];
       const { kept, dropped } = resolveMonophonic(notes, diagnostics, 'dmc');
       notesDropped += dropped;
+      const sharedDmcMap =
+        dmcStreams.length === 1 ? dmcStreams[0]!.drumMap : noiseSlot?.assigned[0]?.stream.drumMap;
       dmcSlot.assigned.push({
         stream: {
           id: 'dmc',
           roleHint: 'dmc',
-          instrument: 'kick',
+          instrument: DMC_KICK,
           isDrum: true,
+          drumMap: sharedDmcMap,
           notes: kept,
           sourceTrackIndex: -1,
           midiChannel: 9,
@@ -360,7 +396,9 @@ export function packChannels(
       for (const n of a.notes) {
         tagged.push({
           note: n,
-          instrument: a.stream.isDrum ? noteTokenForHit(n, true) : a.stream.instrument,
+          instrument: a.stream.isDrum
+            ? drumTokenForPacked(n, slot.role, a.stream.drumMap)
+            : a.stream.instrument,
           isDrum: a.stream.isDrum,
         });
       }
@@ -384,7 +422,7 @@ export function packChannels(
       hits.push({
         startTick: t.note.startTick,
         durationTicks: t.note.durationTicks,
-        token: noteTokenForHit(t.note, t.isDrum),
+        token: t.isDrum ? t.instrument : noteTokenForHit(t.note, false),
         velocity: t.note.velocity,
         instrument: needInst ? t.instrument : undefined,
       });

@@ -65,11 +65,11 @@ export function quantizePosition(
       code: 'quantize_clamp',
       message: `Quantize shift ${absShift.toFixed(2)} exceeds maxShiftTicks=${options.quantize.maxShiftTicks} for ${context}; clamping`,
     });
-    // Clamp toward original within maxShiftTicks
+    // Move toward the grid by at most maxShiftTicks — do not re-apply the
+    // mode (that can snap past the guardrail back to the original grid point).
     const clampedShift = Math.sign(shift) * Math.min(absShift, options.quantize.maxShiftTicks);
-    const clamped = continuousTicks + clampedShift;
-    const reQuant = applyMode(clamped, gridTicks, mode);
-    return { tick: Math.max(0, Math.round(reQuant)), shift: reQuant - continuousTicks };
+    const tick = Math.max(0, Math.round(continuousTicks + clampedShift));
+    return { tick, shift: tick - continuousTicks };
   }
 
   return { tick: Math.max(0, Math.round(quantized)), shift };

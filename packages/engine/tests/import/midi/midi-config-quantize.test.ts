@@ -8,13 +8,15 @@ import {
   resolveConvertOptions,
 } from '../../../src/import/midi/config';
 import { midiTicksToBaxTicks, quantizeNotes, quantizePosition } from '../../../src/import/midi/quantize';
-import { mapDrumPitch, DEFAULT_DRUM_MAP } from '../../../src/import/midi/roles';
+import { mapDrumPitch, DEFAULT_DRUM_MAP, classifyStreams } from '../../../src/import/midi/roles';
+import { packChannels } from '../../../src/import/midi/pack';
 import { compressPlaylist, hitsToBarTokens, hashTokens } from '../../../src/import/midi/reuse';
 import type {
   ConversionDiagnostic,
   MidiConvertOptions,
   MidiRawNote,
   PackedHit,
+  QuantizedNote,
 } from '../../../src/import/midi/types';
 
 describe('midi import config', () => {
@@ -44,6 +46,41 @@ describe('midi import config', () => {
     expect(cfg.families?.piano?.gb?.period).toBe(1);
     expect(() => parseImportConfig({ programFamilies: { '0-7': 'trumpet' } })).toThrow(/piano\|guitar/);
     expect(() => parseImportConfig({ programFamilies: { '200': 'piano' } })).toThrow(/0 ≤ min/);
+  });
+
+  test('parseImportConfig rejects invalid family articulation values', () => {
+    expect(() =>
+      parseImportConfig({ families: { piano: { gb: { period: 'bad' } } } }),
+    ).toThrow(/families\.piano\.gb\.period/);
+    expect(() =>
+      parseImportConfig({ families: { piano: { gb: { dutyP1: 13 } } } }),
+    ).toThrow(/12\.5\|25\|50\|75/);
+    expect(() =>
+      parseImportConfig({ families: { piano: { gb: { level: 16 } } } }),
+    ).toThrow(/0–15/);
+    expect(() =>
+      parseImportConfig({ families: { piano: { gb: { waveVolume: 33 } } } }),
+    ).toThrow(/0\|25\|50\|100/);
+    expect(() =>
+      parseImportConfig({ families: { lead: { nes: { vol: Number.NaN } } } }),
+    ).toThrow(/families\.lead\.nes\.vol/);
+    expect(() =>
+      parseImportConfig({ families: { lead: { nes: { dutyP2: 60 } } } }),
+    ).toThrow(/12\.5\|25\|50\|75/);
+    expect(() =>
+      parseImportConfig({ families: { lead: { nes: { volEnv: [1, 'x'] } } } }),
+    ).toThrow(/volEnv\[1\]/);
+    expect(() =>
+      parseImportConfig({ families: { lead: { nes: { pitchEnvP1: [1.5] } } } }),
+    ).toThrow(/pitchEnvP1\[0\]/);
+    const ok = parseImportConfig({
+      families: {
+        piano: { gb: { period: 0, level: 10, dutyP1: 12.5, waveVolume: 50 } },
+        lead: { nes: { vol: 8, dutyP1: 25, volEnv: [12, 6, 0], pitchEnvP1: [2, 1, 0] } },
+      },
+    });
+    expect(ok.families?.piano?.gb?.dutyP1).toBe(12.5);
+    expect(ok.families?.lead?.nes?.volEnv).toEqual([12, 6, 0]);
   });
 
   test('resolveConvertOptions merges config and CLI', () => {
@@ -106,6 +143,23 @@ describe('midi import config', () => {
     ).toThrow(/pulse1\|pulse2\|wave\|triangle\|noise\|dmc/);
   });
 
+  test('parseImportConfig rejects invalid trackMapping instrument identifiers', () => {
+    expect(() =>
+      parseImportConfig({
+        trackMappings: [{ midiTrack: 0, target: 'pulse1', instrument: 'soft lead' }],
+      }),
+    ).toThrow(/trackMappings\[0\]\.instrument/);
+    expect(() =>
+      parseImportConfig({
+        trackMappings: [{ midiTrack: 0, target: 'pulse1', instrument: '1lead' }],
+      }),
+    ).toThrow(/BeatBax identifier/);
+    const ok = parseImportConfig({
+      trackMappings: [{ midiTrack: 0, target: 'pulse1', instrument: 'soft_lead' }],
+    });
+    expect(ok.trackMappings?.[0]?.instrument).toBe('soft_lead');
+  });
+
   test('parseImportConfig rejects invalid trackMapping midiChannel', () => {
     expect(() =>
       parseImportConfig({
@@ -143,6 +197,20 @@ describe('midi quantize', () => {
     expect(quantizePosition(1.4, { ...base, quantize: { ...base.quantize, mode: 'nearest' } }, diags, 't').tick).toBe(1);
     expect(quantizePosition(1.4, { ...base, quantize: { ...base.quantize, mode: 'floor' } }, diags, 't').tick).toBe(1);
     expect(quantizePosition(1.4, { ...base, quantize: { ...base.quantize, mode: 'ceil' } }, diags, 't').tick).toBe(2);
+  });
+
+  test('maxShiftTicks clamp does not requantize past the guardrail', () => {
+    const diags: ConversionDiagnostic[] = [];
+    // Continuous 2 on a 4-tick nearest grid wants 4 (shift 2); maxShiftTicks=1 must stay at 3.
+    const opts: MidiConvertOptions = {
+      ...base,
+      ticksPerBeat: 4,
+      quantize: { mode: 'nearest', grid: '1/4', maxShiftTicks: 1 },
+    };
+    const result = quantizePosition(2, opts, diags, 'mid');
+    expect(diags.some((d) => d.code === 'quantize_clamp')).toBe(true);
+    expect(result.tick).toBe(3);
+    expect(Math.abs(result.shift)).toBeLessThanOrEqual(1 + 1e-6);
   });
 
   test('strict mode records error; throws only when options.strict', () => {
@@ -210,6 +278,42 @@ describe('drum map', () => {
     expect(mapDrumPitch(42)).toBe('hihat');
     expect(mapDrumPitch(49)).toBe('crash');
     expect(DEFAULT_DRUM_MAP[36]).toBe('kick');
+  });
+
+  test('custom trackMapping drumMap overrides default tokens through pack', () => {
+    const opts = resolveConvertOptions({
+      chip: 'nes',
+      config: parseImportConfig({
+        trackMappings: [
+          {
+            midiTrack: 0,
+            target: 'noise',
+            drumMap: { '36': 'kick', '39': 'hihat' },
+          },
+        ],
+      }),
+    });
+    const notes: QuantizedNote[] = [
+      {
+        startTick: 0,
+        durationTicks: 1,
+        pitch: 39,
+        velocity: 100,
+        midiChannel: 9,
+        sourceTrackIndex: 0,
+        sourceEventIndex: 0,
+        trackName: 'drums',
+        program: 0,
+        isDrum: true,
+        shiftTicks: 0,
+      },
+    ];
+    const diags: ConversionDiagnostic[] = [];
+    const streams = classifyStreams(notes, opts, diags);
+    expect(streams[0]?.drumMap?.['39']).toBe('hihat');
+    const { channels } = packChannels(streams, opts, diags);
+    const noise = channels.find((c) => c.role === 'noise');
+    expect(noise?.hits.map((h) => h.token)).toEqual(['hihat']);
   });
 });
 
