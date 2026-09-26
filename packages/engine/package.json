@@ -83,6 +83,7 @@
     "test": "jest --config ./jest.config.cjs --passWithNoTests"
   },
   "dependencies": {
+    "@tonejs/midi": "^2.0.28",
     "standardized-audio-context": "^25.3.0"
   },
   "devDependencies": {

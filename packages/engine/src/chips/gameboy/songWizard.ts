@@ -48,13 +48,14 @@ export const gbSongWizard = {
           label: 'Sample instruments',
           content:
 `
-inst lead type=pulse1 duty=50 env={"level":12,"direction":"flat","period":1,"format":"gb"} gm=81
-inst arp  type=pulse2 duty=25 env={"level":9,"direction":"down","period":2,"format":"gb"} gm=84
+inst lead type=pulse1 duty=50 env={"level":14,"direction":"down","period":3,"format":"gb"} gm=81
+inst arp  type=pulse2 duty=12.5 env={"level":9,"direction":"down","period":2,"format":"gb"} gm=84
 inst bass type=wave wave=[0,5,11,15,15,15,15,15,11,5,0,0,0,0,0,0,0,0,6,8,8,8,8,8,8,8,8,6,0,0,0,0] gm=39
 
-inst snare  type=noise env={"level":12,"direction":"down","period":1,"format":"gb"}
-inst hihat  type=noise env={"level":5,"direction":"down","period":1,"format":"gb"}
-inst shaker type=noise gb:width=7 env={"level":4,"direction":"down","period":1,"format":"gb"} length=4
+inst kick   type=noise gb:width=7  env={"level":14,"direction":"down","period":1,"format":"gb"} length=16 uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
+inst snare  type=noise gb:width=7  env={"level":12,"direction":"down","period":1,"format":"gb"} length=16 uge_note=C-7 pitch_env=[0,5,0] vol_env=[12,10,6,2]
+inst hihat  type=noise gb:width=15 env={"level":5,"direction":"down","period":1,"format":"gb"} length=8  uge_note=C-8 vol_env=[6,2]
+inst shaker type=noise gb:width=15 env={"level":4,"direction":"down","period":1,"format":"gb"} length=4  uge_note=D-7 vol_env=[4,1]
 `,
         },
       ],
@@ -86,8 +87,8 @@ pat melody_pat      = (C5 C5 G5<fastVib>:4 G5 A5 G5<exprVib>:4) (C3:2 .) * 4
 pat melody_alt_pat  = (E5 E5 G5<fastVib>:4 F5 E5 C5<slide>:4)
 pat bass_pat        = (C3 . C3 . ) * 2 (C3 . . .) * 2  (G2 . . .) * 2
 pat arp_pat         = C4<majArp>:4 E4<majArp>:4 G4<majArp>:4 C5<majArp>:4
-pat drums_pat       = (snare . . .) (snare . . .) (snare . . .)
-pat drums_alt_pat   = (snare . . .) * 2 (shaker hihat) * 8
+pat drums_pat       = (kick . snare .) (kick . snare .) (kick . snare .)
+pat drums_alt_pat   = (kick . snare .) * 2 (shaker hihat) * 8
 
 seq lead_seq        = melody_pat melody_alt_pat
 seq bass_seq        = bass_pat
@@ -97,7 +98,7 @@ seq drums_seq       = drums_pat drums_alt_pat
 channel 1 => inst lead  seq lead_seq
 channel 2 => inst arp   seq arp_seq
 channel 3 => inst bass  seq bass_seq
-channel 4 => inst hihat seq drums_seq
+channel 4 => inst kick  seq drums_seq
 
 play
 `

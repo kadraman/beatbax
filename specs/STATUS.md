@@ -8,7 +8,7 @@ Assign the next feature id as **088** (one past the highest id below). Process: 
 - **002** `vscode-plugin` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/21 — [specs/features/002-vscode-plugin/](specs/features/002-vscode-plugin/)
 - **003** `ai-chatbot-rag` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/66 — [specs/features/003-ai-chatbot-rag/](specs/features/003-ai-chatbot-rag/)
 - **005** `plugin-starter-template` — in-progress — plugin — issue: https://github.com/kadraman/beatbax/issues/86 — [specs/features/005-plugin-starter-template/](specs/features/005-plugin-starter-template/)
-- **006** `midi-importer` (CLI MIDI → `.bax` conversion) — specified — engine — issue: https://github.com/kadraman/beatbax/issues/101 — [specs/features/006-midi-importer/](specs/features/006-midi-importer/)
+- **006** `midi-importer` (CLI MIDI → `.bax` conversion) — in-progress — engine — issue: https://github.com/kadraman/beatbax/issues/101 — [specs/features/006-midi-importer/](specs/features/006-midi-importer/)
 - **007** `scale-awareness` — specified — language — issue: https://github.com/kadraman/beatbax/issues/102 — [specs/features/007-scale-awareness/](specs/features/007-scale-awareness/)
 - **008** `song-composition-abstractions` — specified — language — issue: https://github.com/kadraman/beatbax/issues/125 — [specs/features/008-song-composition-abstractions/](specs/features/008-song-composition-abstractions/)
 - **009** `c64-sid-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/199 — [specs/features/009-c64-sid-chip-plugin/](specs/features/009-c64-sid-chip-plugin/)

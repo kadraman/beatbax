@@ -137,6 +137,17 @@ Usage: beatbax extract instrument [options] <inputs...> [output.ins]
 ```
 
 For a single `.uge`, omit the output path to write `{basename}.ins` beside the source.
+
+### Import MIDI → .bax
+
+```bash
+beatbax import midi song.mid song.bax --chip gameboy
+beatbax convert midi2bax song.mid song.bax --chip nes --config mapping.json
+beatbax import midi song.mid --chip gameboy --dry-run
+```
+
+Converts a Standard MIDI File into editable BeatBax source (chip kits, `pat`/`seq` reuse, drum tokens). `--chip` is required (`gameboy` | `nes`). See [docs/features/midi-importer.md](../../docs/features/midi-importer.md) for options and config schema.
+
 ### Convert WAV to NES DMC
 
 ```bash
@@ -203,6 +214,8 @@ beatbax --help
 beatbax play --help
 beatbax export --help
 beatbax extract instrument --help
+beatbax import midi --help
+beatbax convert midi2bax --help
 beatbax convert wav2dmc --help
 ```
 
