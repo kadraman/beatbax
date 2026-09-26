@@ -356,8 +356,8 @@ export function packChannels(
   const dmcSlot = slots.find((s) => s.role === 'dmc');
   if (dmcSlot && options.chip === 'nes' && options.dmcReinforcement.enabled) {
     const kicksSnares = (noiseSlot?.assigned[0]?.notes ?? []).filter((n) => {
-      const p = n.pitch;
-      return p === 35 || p === 36 || p === 38 || p === 39 || p === 40;
+      const token = mapDrumPitch(n.pitch, drumMapByNote.get(n));
+      return token === 'kick' || token === 'snare';
     });
     if (kicksSnares.length > 0 || dmcStreams.length > 0) {
       const notes = [...kicksSnares, ...dmcStreams.flatMap((s) => s.notes)];

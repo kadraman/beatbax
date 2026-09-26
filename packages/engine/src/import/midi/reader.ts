@@ -29,6 +29,17 @@ export function isDrumChannel(midiChannel: number): boolean {
   return midiChannel === 9;
 }
 
+/**
+ * Prefer the note-on event channel (format 0 multi-channel tracks) and fall back
+ * to `track.channel` when the note does not carry one (typical @tonejs/midi shape).
+ */
+export function resolveNoteMidiChannel(
+  note: { channel?: number },
+  trackChannel: number,
+): number {
+  return typeof note.channel === 'number' ? note.channel : trackChannel;
+}
+
 export function readMidiBytes(bytes: Uint8Array | ArrayBuffer): MidiParseResult {
   const midi = new Midi(toArrayBuffer(bytes));
   const ppq = midi.header.ppq || 480;
@@ -60,10 +71,10 @@ export function readMidiBytes(bytes: Uint8Array | ArrayBuffer): MidiParseResult 
   midi.tracks.forEach((track: any, sourceTrackIndex: number) => {
     const program = track.instrument?.number ?? 0;
     const trackName = track.name || `track${sourceTrackIndex}`;
-    const midiChannel = typeof track.channel === 'number' ? track.channel : 0;
-    const drum = isDrumChannel(midiChannel);
+    const trackChannel = typeof track.channel === 'number' ? track.channel : 0;
 
     track.notes.forEach((note: any, sourceEventIndex: number) => {
+      const midiChannel = resolveNoteMidiChannel(note, trackChannel);
       notes.push({
         startMidiTicks: Math.round(note.ticks),
         durationMidiTicks: Math.max(1, Math.round(note.durationTicks)),
@@ -74,7 +85,7 @@ export function readMidiBytes(bytes: Uint8Array | ArrayBuffer): MidiParseResult 
         sourceEventIndex,
         trackName,
         program,
-        isDrum: drum,
+        isDrum: isDrumChannel(midiChannel),
       });
     });
   });

@@ -74,7 +74,7 @@ export function runMidiImport(
 
   let sectionBars: number | undefined;
   if (options.sectionBars != null) {
-    sectionBars = parseInt(String(options.sectionBars), 10);
+    sectionBars = Number(String(options.sectionBars));
     if (!Number.isFinite(sectionBars) || sectionBars < 0 || !Number.isInteger(sectionBars)) {
       fail('Error: --section-bars must be an integer >= 0 (0 = monolithic)');
     }

@@ -46,4 +46,13 @@ describe('CLI import midi', () => {
     expect(res.status).not.toBe(0);
     expect(res.stderr).toMatch(/--chip/);
   });
+
+  test('rejects fractional --section-bars', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bb-midi-'));
+    const out = join(dir, 'out.bax');
+    const res = run('import', 'midi', FIXTURE, out, '--chip', 'gameboy', '--section-bars', '1.5');
+    expect(res.status).not.toBe(0);
+    expect(res.stderr + res.stdout).toMatch(/section-bars/);
+    expect(existsSync(out)).toBe(false);
+  });
 });

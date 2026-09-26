@@ -7,6 +7,7 @@ import {
   parseImportConfig,
   resolveConvertOptions,
 } from '../../../src/import/midi';
+import { readMidiBytes } from '../../../src/import/midi/reader';
 
 const FIXTURES = join(__dirname, '../../fixtures/midi');
 
@@ -135,7 +136,12 @@ describe('midi import golden fixtures F01–F09', () => {
   });
 
   test('F09 format 0 multi-channel', () => {
-    const result = convertMidiToBax(loadMid('f09-format0.mid'), defaultConvertOptions('gameboy'), 'f09');
+    const bytes = loadMid('f09-format0.mid');
+    const parsed = readMidiBytes(bytes);
+    const midiChannels = [...new Set(parsed.notes.map((n) => n.midiChannel))];
+    expect(midiChannels.length).toBeGreaterThanOrEqual(2);
+
+    const result = convertMidiToBax(bytes, defaultConvertOptions('gameboy'), 'f09');
     expect(result.summary.notesImported).toBe(4);
     expect(result.summary.channelsPacked).toBeGreaterThanOrEqual(2);
     expectParses(result.source);

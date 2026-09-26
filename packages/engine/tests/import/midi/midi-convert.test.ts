@@ -8,9 +8,11 @@ import {
 } from '../../../src/import/midi';
 import { classifyStreams } from '../../../src/import/midi/roles';
 import { packChannels } from '../../../src/import/midi/pack';
-import { readMidiBytes } from '../../../src/import/midi/reader';
+import { readMidiBytes, resolveNoteMidiChannel } from '../../../src/import/midi/reader';
 import type { MidiParseResult, QuantizedNote } from '../../../src/import/midi/types';
 import { parse } from '../../../src/parser/index';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 function expectParses(source: string) {
   const ast = parse(source);
@@ -24,6 +26,22 @@ function makeMidi(builder: (midi: Midi) => void): Uint8Array {
   builder(midi);
   return midi.toArray();
 }
+
+describe('midi reader channel resolution', () => {
+  test('resolveNoteMidiChannel prefers note.channel over track.channel', () => {
+    expect(resolveNoteMidiChannel({ channel: 2 }, 0)).toBe(2);
+    expect(resolveNoteMidiChannel({}, 1)).toBe(1);
+    expect(resolveNoteMidiChannel({ channel: undefined }, 9)).toBe(9);
+  });
+
+  test('F09 format-0 notes keep distinct midi channels', () => {
+    const bytes = readFileSync(join(__dirname, '../../fixtures/midi/f09-format0.mid'));
+    const parsed = readMidiBytes(bytes);
+    const channels = [...new Set(parsed.notes.map((n) => n.midiChannel))].sort((a, b) => a - b);
+    expect(parsed.notes).toHaveLength(4);
+    expect(channels).toEqual([0, 1, 2]);
+  });
+});
 
 describe('midi reader + convert smoke', () => {
   test('reads format-1 style tracks and converts to .bax', () => {

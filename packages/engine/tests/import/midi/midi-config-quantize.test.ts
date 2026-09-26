@@ -323,6 +323,58 @@ describe('drum map', () => {
     const noise = channels.find((c) => c.role === 'noise');
     expect(noise?.hits.map((h) => h.token)).toEqual(['hihat']);
   });
+
+  test('DMC reinforcement follows resolved drum tokens, not raw GM pitches', () => {
+    const opts = resolveConvertOptions({
+      chip: 'nes',
+      config: parseImportConfig({
+        trackMappings: [
+          {
+            midiTrack: 0,
+            target: 'noise',
+            drumMap: { '39': 'hihat', '50': 'kick' },
+          },
+        ],
+        dmcReinforcement: { enabled: true },
+      }),
+    });
+    const notes: QuantizedNote[] = [
+      {
+        startTick: 0,
+        durationTicks: 1,
+        pitch: 39,
+        velocity: 100,
+        midiChannel: 9,
+        sourceTrackIndex: 0,
+        sourceEventIndex: 0,
+        trackName: 'drums',
+        program: 0,
+        isDrum: true,
+        shiftTicks: 0,
+      },
+      {
+        startTick: 4,
+        durationTicks: 1,
+        pitch: 50,
+        velocity: 100,
+        midiChannel: 9,
+        sourceTrackIndex: 0,
+        sourceEventIndex: 1,
+        trackName: 'drums',
+        program: 0,
+        isDrum: true,
+        shiftTicks: 0,
+      },
+    ];
+    const diags: ConversionDiagnostic[] = [];
+    const streams = classifyStreams(notes, opts, diags);
+    const { channels } = packChannels(streams, opts, diags);
+    const noise = channels.find((c) => c.role === 'noise');
+    const dmc = channels.find((c) => c.role === 'dmc');
+    expect(noise?.hits.map((h) => h.token)).toEqual(['hihat', 'kick']);
+    // Clap@39 → hihat must not reinforce; custom kick@50 must.
+    expect(dmc?.hits.map((h) => h.token)).toEqual(['kick_dmc']);
+  });
 });
 
 describe('reuse helpers', () => {
