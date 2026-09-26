@@ -108,12 +108,34 @@ export function compressPlaylist(playlist: string[]): string[] {
   return out;
 }
 
+export interface ChannelPlan {
+  channelIndex: number;
+  defaultInstrument: string;
+  role: PackedChannel['role'];
+  /** Ordered section sequence names for this channel. */
+  sequenceNames: string[];
+}
+
 export interface ReuseResult {
   patterns: PatternDef[];
   sequences: SequenceDef[];
-  channelPlans: { channelIndex: number; defaultInstrument: string; role: PackedChannel['role']; sequenceName: string }[];
+  channelPlans: ChannelPlan[];
   barsGenerated: number;
   patternsReused: number;
+  /** Number of arrangement sections emitted (1 = monolithic). */
+  sectionCount: number;
+}
+
+/** How many sections to emit for `barCount` given `sectionBars` (0 = force one). */
+export function sectionCountForBars(barCount: number, sectionBars: number): number {
+  if (sectionBars <= 0 || barCount <= sectionBars) return 1;
+  return Math.ceil(barCount / sectionBars);
+}
+
+function sectionSeqName(prefix: string, sectionIndex: number, sectionCount: number, sectionBars: number): string {
+  // Legacy monolithic name when sectioning disabled.
+  if (sectionBars <= 0 || sectionCount <= 1) return `${prefix}_seq`;
+  return `${prefix}_s${String(sectionIndex + 1).padStart(2, '0')}`;
 }
 
 export function buildPatternsAndSequences(
@@ -130,6 +152,10 @@ export function buildPatternsAndSequences(
   }
   let barCount = Math.max(1, Math.ceil(maxTick / patternTicks));
   if (options.maxBars != null) barCount = Math.min(barCount, options.maxBars);
+
+  const sectionBars = options.sectionBars;
+  const sectionCount = sectionCountForBars(barCount, sectionBars);
+  const chunkSize = sectionCount === 1 ? barCount : sectionBars;
 
   // Shared rest pattern
   const patternByHash = new Map<string, PatternDef>();
@@ -158,19 +184,37 @@ export function buildPatternsAndSequences(
   const sortedChannels = [...channels].sort((a, b) => a.channelIndex - b.channelIndex);
 
   for (const ch of sortedChannels) {
-    const prefix = ch.role === 'pulse1' ? 'lead' : ch.role === 'pulse2' ? 'arp' : ch.role === 'noise' ? 'drums' : ch.role === 'dmc' ? 'dmc' : 'bass';
+    const prefix =
+      ch.role === 'pulse1'
+        ? 'lead'
+        : ch.role === 'pulse2'
+          ? 'arp'
+          : ch.role === 'noise'
+            ? 'drums'
+            : ch.role === 'dmc'
+              ? 'dmc'
+              : 'bass';
     const playlist: string[] = [];
     for (let bar = 0; bar < barCount; bar++) {
       const tokens = hitsToBarTokens(ch.hits, bar * patternTicks, patternTicks);
       playlist.push(intern(tokens, bar, prefix));
     }
-    const seqName = `${prefix}_seq`;
-    sequences.push({ name: seqName, playlist });
+
+    const sequenceNames: string[] = [];
+    for (let s = 0; s < sectionCount; s++) {
+      const start = s * chunkSize;
+      const end = Math.min(barCount, start + chunkSize);
+      const slice = playlist.slice(start, end);
+      const seqName = sectionSeqName(prefix, s, sectionCount, sectionBars);
+      sequences.push({ name: seqName, playlist: slice });
+      sequenceNames.push(seqName);
+    }
+
     channelPlans.push({
       channelIndex: ch.channelIndex,
       defaultInstrument: ch.defaultInstrument,
       role: ch.role,
-      sequenceName: seqName,
+      sequenceNames,
     });
   }
 
@@ -179,6 +223,13 @@ export function buildPatternsAndSequences(
     code: 'reuse',
     message: `Generated ${barCount} bar(s), ${patterns.length} unique pattern(s), reused ${patternsReused} bar slot(s)`,
   });
+  if (sectionCount > 1) {
+    diagnostics.push({
+      level: 'info',
+      code: 'arrangement_sections',
+      message: `Emitting ${sectionCount} arrangement section(s) (${chunkSize} bar(s) each, last may be shorter)`,
+    });
+  }
 
   return {
     patterns,
@@ -186,5 +237,6 @@ export function buildPatternsAndSequences(
     channelPlans,
     barsGenerated: barCount,
     patternsReused,
+    sectionCount,
   };
 }

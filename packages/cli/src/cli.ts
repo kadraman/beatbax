@@ -1123,6 +1123,7 @@ function midiImportAction(input: string, output: string | undefined, options: an
       grid: options.grid,
       maxBars: options.maxBars,
       maxOverlapTicks: options.maxOverlapTicks,
+      sectionBars: options.sectionBars,
       dryRun: options.dryRun === true,
       strict,
       title: options.title,

@@ -32,3 +32,4 @@ Planning and inventory only — no engine/CLI implementation.
 - [x] T017 GM program family → named instrument kit (piano short / strings sustain / …); pack uses family+role names; emit used melodic defs + percussion
 - [x] T018 Config `programFamilies` + `families` merge over built-in GM family defaults
 - [x] T019 Drum stacks: `snare` > `kick` on same tick (backbeat); optional flam via `drumFlamTicks` (default 0); GM clap (39) → `snare`
+- [x] T020 Arrangement sections: fixed `sectionBars` (default 8; `0` = monolithic); emit `# --- Section N: Bars A-B ---` + multi-seq channel lines for Pattern Grid

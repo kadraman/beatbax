@@ -225,6 +225,35 @@ describe('packing', () => {
     expectParses(result.source);
   });
 
+  test('sectionBars emit Pattern Grid multi-seq channel lines', () => {
+    const bytes = makeMidi((midi) => {
+      const t = midi.addTrack();
+      t.name = 'Lead';
+      t.channel = 0;
+      t.instrument.number = 81;
+      // 16 bars at 120 BPM, PPQ 480 → 1 bar = 1920 ticks if 4/4
+      for (let bar = 0; bar < 16; bar++) {
+        t.addNote({ midi: 60, ticks: bar * 1920, durationTicks: 480 });
+      }
+    });
+    const result = convertMidiToBax(bytes, defaultConvertOptions('gameboy'), 'sections');
+    expect(result.source).toMatch(/# --- Section 1: Bars 1-8 ---/);
+    expect(result.source).toMatch(/# --- Section 2: Bars 9-16 ---/);
+    expect(result.source).toMatch(/seq lead_s01 =/);
+    expect(result.source).toMatch(/seq lead_s02 =/);
+    expect(result.source).toMatch(/channel 1 => inst \S+ seq lead_s01 lead_s02/);
+    expectParses(result.source);
+
+    const mono = convertMidiToBax(
+      bytes,
+      { ...defaultConvertOptions('gameboy'), sectionBars: 0 },
+      'mono',
+    );
+    expect(mono.source).not.toMatch(/Section 1:/);
+    expect(mono.source).toMatch(/seq lead_seq =/);
+    expect(mono.source).toMatch(/channel 1 => inst \S+ seq lead_seq\b/);
+  });
+
   test('stacked kick+snare keeps snare (backbeat) and drops kick', () => {
     const opts = defaultConvertOptions('gameboy');
     const mkDrum = (pitch: number, start: number, idx: number): QuantizedNote => ({

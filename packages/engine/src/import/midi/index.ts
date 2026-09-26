@@ -204,6 +204,7 @@ export function convertMidiWithCliArgs(
     grid?: string;
     maxOverlapTicks?: number;
     maxBars?: number;
+    sectionBars?: number;
     strict?: boolean;
     title?: string;
   },

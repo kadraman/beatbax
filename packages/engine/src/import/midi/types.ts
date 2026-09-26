@@ -111,6 +111,11 @@ export interface MidiImportConfig {
    */
   drumFlamTicks?: number;
   maxBars?: number;
+  /**
+   * Bars per arrangement section for Pattern Grid–compatible emit (default 8).
+   * `0` keeps a single monolithic seq per channel.
+   */
+  sectionBars?: number;
 }
 
 export interface MidiConvertOptions {
@@ -123,6 +128,10 @@ export interface MidiConvertOptions {
   /** Max flam distance for stacked drum tokens (see MidiImportConfig.drumFlamTicks). */
   drumFlamTicks: number;
   maxBars?: number;
+  /**
+   * Bars per arrangement section (default 8). `0` = monolithic one-seq-per-channel.
+   */
+  sectionBars: number;
   strict: boolean;
   trackMappings?: TrackMapping[];
   dmcReinforcement: DmcReinforcementConfig;
@@ -242,7 +251,8 @@ export interface ChannelEmitPlan {
   channelIndex: number;
   defaultInstrument: string;
   role: ChipRole;
-  sequenceName: string;
+  /** Ordered section sequence names for this channel (one or more). */
+  sequenceNames: string[];
 }
 
 export interface ConversionSummary {

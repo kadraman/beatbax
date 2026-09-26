@@ -39,21 +39,30 @@ function collectMelodicNeeds(reuse: ReuseResult): MelodicKitNeed[] {
     if (ch.role === 'noise' || ch.role === 'dmc') continue;
     add(ch.defaultInstrument, ch.role, familyFromInstName(ch.defaultInstrument));
 
-    const seq = sequenceByName.get(ch.sequenceName);
-    if (!seq) continue;
-    for (const patName of seq.playlist) {
-      const pat = patternByName.get(patName);
-      if (!pat) continue;
-      for (const tok of pat.tokens) {
-        const m = /^inst\(([^)]+)\)$/.exec(tok);
-        if (!m) continue;
-        const name = m[1]!;
-        add(name, ch.role, familyFromInstName(name));
+    for (const seqName of ch.sequenceNames) {
+      const seq = sequenceByName.get(seqName);
+      if (!seq) continue;
+      for (const patName of seq.playlist) {
+        const pat = patternByName.get(patName);
+        if (!pat) continue;
+        for (const tok of pat.tokens) {
+          const m = /^inst\(([^)]+)\)$/.exec(tok);
+          if (!m) continue;
+          const name = m[1]!;
+          add(name, ch.role, familyFromInstName(name));
+        }
       }
     }
   }
 
   return needs;
+}
+
+/** Parse `_sNN` suffix; monolithic `*_seq` → section 0. */
+function sectionIndexOfSeqName(name: string): number {
+  const m = /_s(\d+)$/.exec(name);
+  if (m) return Math.max(0, parseInt(m[1]!, 10) - 1);
+  return 0;
 }
 
 export function emitBaxSource(args: {
@@ -91,17 +100,46 @@ export function emitBaxSource(args: {
   lines.push('');
 
   lines.push('# --- sequences ---');
-  const seqs = [...reuse.sequences].sort((a, b) => a.name.localeCompare(b.name));
-  for (const s of seqs) {
-    const compressed = compressPlaylist(s.playlist);
-    lines.push(`seq ${s.name} = ${compressed.join(' ')}`);
+  const sectionCount = Math.max(1, reuse.sectionCount);
+  const chunkSize =
+    sectionCount === 1
+      ? reuse.barsGenerated
+      : Math.max(1, options.sectionBars > 0 ? options.sectionBars : reuse.barsGenerated);
+
+  if (sectionCount <= 1) {
+    const seqs = [...reuse.sequences].sort((a, b) => a.name.localeCompare(b.name));
+    for (const s of seqs) {
+      const compressed = compressPlaylist(s.playlist);
+      lines.push(`seq ${s.name} = ${compressed.join(' ')}`);
+    }
+  } else {
+    const bySection = new Map<number, SequenceDef[]>();
+    for (const s of reuse.sequences) {
+      const idx = sectionIndexOfSeqName(s.name);
+      const list = bySection.get(idx) ?? [];
+      list.push(s);
+      bySection.set(idx, list);
+    }
+    for (let si = 0; si < sectionCount; si++) {
+      const barStart = si * chunkSize + 1;
+      const barEnd = Math.min(reuse.barsGenerated, (si + 1) * chunkSize);
+      lines.push(`# --- Section ${si + 1}: Bars ${barStart}-${barEnd} ---`);
+      const seqs = (bySection.get(si) ?? []).sort((a, b) => a.name.localeCompare(b.name));
+      for (const s of seqs) {
+        const compressed = compressPlaylist(s.playlist);
+        lines.push(`seq ${s.name} = ${compressed.join(' ')}`);
+      }
+      lines.push('');
+    }
   }
-  lines.push('');
+  if (sectionCount <= 1) lines.push('');
 
   lines.push('# --- channels ---');
   const chans = [...reuse.channelPlans].sort((a, b) => a.channelIndex - b.channelIndex);
   for (const ch of chans) {
-    lines.push(`channel ${ch.channelIndex} => inst ${ch.defaultInstrument} seq ${ch.sequenceName}`);
+    lines.push(
+      `channel ${ch.channelIndex} => inst ${ch.defaultInstrument} seq ${ch.sequenceNames.join(' ')}`,
+    );
   }
   lines.push('');
   lines.push('play');

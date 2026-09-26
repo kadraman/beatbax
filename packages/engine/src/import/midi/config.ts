@@ -32,6 +32,11 @@ export const DEFAULT_MAX_OVERLAP_TICKS = 0;
  * only when you want hats/ghosts nudged into empty ticks.
  */
 export const DEFAULT_DRUM_FLAM_TICKS = 0;
+/**
+ * Bars per Pattern Grid section when emitting multi-seq channel lines.
+ * `0` disables sectioning (monolithic one-seq-per-channel).
+ */
+export const DEFAULT_SECTION_BARS = 8;
 
 const SUPPORTED_CHIPS = new Set<MidiChipId>(['gameboy', 'nes']);
 const CHIP_ROLES = new Set<ChipRole>(['pulse1', 'pulse2', 'wave', 'triangle', 'noise', 'dmc']);
@@ -60,6 +65,7 @@ export function defaultConvertOptions(chip: MidiChipId): MidiConvertOptions {
     quantize: defaultQuantizeOptions(),
     maxOverlapTicks: DEFAULT_MAX_OVERLAP_TICKS,
     drumFlamTicks: DEFAULT_DRUM_FLAM_TICKS,
+    sectionBars: DEFAULT_SECTION_BARS,
     strict: false,
     dmcReinforcement: { enabled: false },
     programFamilyByProgram: buildProgramFamilyByProgram(),
@@ -249,6 +255,7 @@ export function resolveConvertOptions(args: {
   grid?: string;
   maxOverlapTicks?: number;
   maxBars?: number;
+  sectionBars?: number;
   strict?: boolean;
   title?: string;
 }): MidiConvertOptions {
@@ -296,6 +303,12 @@ export function resolveConvertOptions(args: {
         : typeof cfg.maxBars === 'number'
           ? Math.max(1, Math.floor(cfg.maxBars))
           : undefined,
+    sectionBars:
+      typeof args.sectionBars === 'number'
+        ? Math.max(0, Math.floor(args.sectionBars))
+        : typeof cfg.sectionBars === 'number'
+          ? Math.max(0, Math.floor(cfg.sectionBars))
+          : base.sectionBars,
     strict: args.strict === true,
     trackMappings: Array.isArray(cfg.trackMappings) ? cfg.trackMappings : undefined,
     dmcReinforcement: {
@@ -348,6 +361,13 @@ export function parseImportConfig(raw: unknown): MidiImportConfig {
     const n = Number(o.maxBars);
     if (!Number.isFinite(n) || n < 1) throw new Error('maxBars must be >= 1');
     out.maxBars = Math.floor(n);
+  }
+  if (o.sectionBars != null) {
+    const n = Number(o.sectionBars);
+    if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+      throw new Error('sectionBars must be an integer >= 0 (0 = monolithic)');
+    }
+    out.sectionBars = n;
   }
   if (o.quantize != null && typeof o.quantize === 'object' && !Array.isArray(o.quantize)) {
     const q = o.quantize as Record<string, unknown>;

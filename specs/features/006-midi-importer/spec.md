@@ -184,6 +184,7 @@ Minimal mapping config example (optional override):
    - Hash identical bar contents → shared `pat` names (deterministic)
    - Compress repeating pattern playlists into `seq` with `*N` / grouping where stable
    - Empty bars emit rest-only patterns, optionally deduplicated
+   - **Arrangement sections (Pattern Grid):** chunk each channel’s bar playlist into fixed-size sections of `sectionBars` bars (default **8**; `0` = monolithic one-seq-per-channel). When more than one section is emitted, write `# --- Section N: Bars A-B ---` headers and bind `channel … => … seq s01 s02 …` with aligned top-level seq refs across channels (Desktop Pattern Grid structured/phased layout). Short songs with `bars ≤ sectionBars` stay a single seq.
 
 7. Diagnostics
    - Report conversion summary: notes imported, quantized, dropped, bars generated, patterns reused, channels packed
@@ -191,8 +192,9 @@ Minimal mapping config example (optional override):
    - Fail loudly when CLI `--strict` is set (including strict-quantize off-grid errors)
 
 8. Output
-   - Emit readable, editable `.bax` with comments marking generated sections
+   - Emit readable, editable `.bax` with comments marking generated kit/pattern blocks and, when sectioned, `# --- Section N: Bars A-B ---` arrangement headers
    - Do not emit unsupported syntax for the chosen chip profile
+   - Prefer Pattern Grid–compatible multi-seq channel lines when `sectionBars > 0` and the song spans more than one section
 
 ---
 

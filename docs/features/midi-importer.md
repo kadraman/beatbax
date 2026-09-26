@@ -21,6 +21,7 @@ beatbax import midi packages/engine/tests/fixtures/midi/f03-nes-kit.mid out.bax 
 | `--grid <grid>` | `1/4`, `1/8`, `1/16` (default), `1/32` |
 | `--max-bars <N>` | Clamp generated bar count |
 | `--max-overlap-ticks <N>` | Allow N ticks of overlap when multiplexing with `inst()` (default 0) |
+| `--section-bars <N>` | Bars per Pattern Grid section (default **8**; **0** = monolithic one `seq` per channel) |
 | `--dry-run` | Print summary only; do not write `.bax` |
 | `--strict` | Fail on strict-quantize / conversion errors |
 | `--title <name>` | Override `song name` metadata |
@@ -57,7 +58,8 @@ beatbax import midi packages/engine/tests/fixtures/midi/f03-nes-kit.mid out.bax 
     "maxShiftTicks": 1
   },
   "maxOverlapTicks": 0,
-  "drumFlamTicks": 0
+  "drumFlamTicks": 0,
+  "sectionBars": 8
 }
 ```
 
@@ -66,6 +68,8 @@ beatbax import midi packages/engine/tests/fixtures/midi/f03-nes-kit.mid out.bax 
 `trackMappings[].target` must be one of `pulse1|pulse2|wave|triangle|noise|dmc`. Optional `midiChannel` must be an integer in **0–15** (0-based, matching SMF) or **1–16** (1-based); both conventions are accepted (valid values 0–16 inclusive). Invalid targets or channels are rejected at config parse time.
 
 `drumFlamTicks` (default `0`) optionally nudges losing drum tokens forward into empty ticks. Leave at `0` for clean backbeats; set `≥1` only if you want hats flammed after a kick/snare. Flams never overwrite a native hit.
+
+`sectionBars` (default `8`) chunks each channel playlist into fixed-size arrangement sections with `# --- Section N: Bars A-B ---` headers and `channel … seq s01 s02 …` bindings so Desktop Pattern Grid is not stuck in monolithic mode. Set `0` for a single seq per channel (legacy). Songs with `bars ≤ sectionBars` stay one section.
 
 - Without `--config`, tracks are auto-mapped from GM program, track name, channel 10 (drums), and pitch-range heuristics. Track names prefer chiptune/producer labels (`bassline`, `pluck`, `chords`, `saw lead`, `kick`/…) before orchestral ones (`violin`, `cello`, …).
 

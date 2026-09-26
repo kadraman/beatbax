@@ -10,11 +10,12 @@ import {
 import { midiTicksToBaxTicks, quantizeNotes, quantizePosition } from '../../../src/import/midi/quantize';
 import { mapDrumPitch, DEFAULT_DRUM_MAP, classifyStreams } from '../../../src/import/midi/roles';
 import { packChannels } from '../../../src/import/midi/pack';
-import { compressPlaylist, hitsToBarTokens, hashTokens } from '../../../src/import/midi/reuse';
+import { compressPlaylist, hitsToBarTokens, hashTokens, sectionCountForBars, buildPatternsAndSequences } from '../../../src/import/midi/reuse';
 import type {
   ConversionDiagnostic,
   MidiConvertOptions,
   MidiRawNote,
+  PackedChannel,
   PackedHit,
   QuantizedNote,
 } from '../../../src/import/midi/types';
@@ -101,6 +102,13 @@ describe('midi import config', () => {
     expect(opts.dmcReinforcement.enabled).toBe(true);
     expect(opts.programFamilyByProgram).toHaveLength(128);
     expect(opts.familyArticulations.piano.gb.period).toBe(2);
+  });
+
+  test('parseImportConfig rejects invalid sectionBars', () => {
+    expect(() => parseImportConfig({ sectionBars: -1 })).toThrow(/sectionBars/);
+    expect(() => parseImportConfig({ sectionBars: 1.5 })).toThrow(/sectionBars/);
+    expect(parseImportConfig({ sectionBars: 0 }).sectionBars).toBe(0);
+    expect(parseImportConfig({ sectionBars: 8 }).sectionBars).toBe(8);
   });
 
   test('resolveConvertOptions reads drumFlamTicks from config', () => {
@@ -337,5 +345,55 @@ describe('reuse helpers', () => {
 
   test('hashTokens is stable', () => {
     expect(hashTokens(['C4', '.', 'E4'])).toBe(hashTokens(['C4', '.', 'E4']));
+  });
+
+  test('sectionCountForBars respects sectionBars and short-song rule', () => {
+    expect(sectionCountForBars(16, 8)).toBe(2);
+    expect(sectionCountForBars(8, 8)).toBe(1);
+    expect(sectionCountForBars(9, 8)).toBe(2);
+    expect(sectionCountForBars(32, 0)).toBe(1);
+  });
+
+  test('buildPatternsAndSequences chunks aligned section seqs', () => {
+    const mkHits = (pitch: number): PackedHit[] => {
+      const hits: PackedHit[] = [];
+      for (let bar = 0; bar < 16; bar++) {
+        hits.push({
+          startTick: bar * 16,
+          durationTicks: 4,
+          token: pitch === 36 ? 'C2' : 'C4',
+          velocity: 100,
+        });
+      }
+      return hits;
+    };
+    const channels: PackedChannel[] = [
+      {
+        channelIndex: 1,
+        role: 'pulse1',
+        defaultInstrument: 'lead_p1',
+        hits: mkHits(60),
+      },
+      {
+        channelIndex: 3,
+        role: 'wave',
+        defaultInstrument: 'bass',
+        hits: mkHits(36),
+      },
+    ];
+    const opts = defaultConvertOptions('gameboy');
+    expect(opts.sectionBars).toBe(8);
+    const reuse = buildPatternsAndSequences(channels, opts, []);
+    expect(reuse.sectionCount).toBe(2);
+    expect(reuse.channelPlans.map((c) => c.sequenceNames)).toEqual([
+      ['lead_s01', 'lead_s02'],
+      ['bass_s01', 'bass_s02'],
+    ]);
+    expect(reuse.sequences.find((s) => s.name === 'lead_s01')?.playlist).toHaveLength(8);
+    expect(reuse.sequences.find((s) => s.name === 'lead_s02')?.playlist).toHaveLength(8);
+
+    const mono = buildPatternsAndSequences(channels, { ...opts, sectionBars: 0 }, []);
+    expect(mono.sectionCount).toBe(1);
+    expect(mono.channelPlans[0]?.sequenceNames).toEqual(['lead_seq']);
   });
 });

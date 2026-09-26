@@ -64,7 +64,7 @@ Add a dedicated module under `packages/engine/src/import/midi/`:
 | Role classifier | Melodic vs drum; GM program / track name heuristics |
 | Channel packer | Assign to chip roles; schedule `inst()` switches; emit warnings |
 | Kit emitter | Chip default `inst` lines + GM drum → named percussion map |
-| Reuse engine | Bar hash → shared `pat`; sequence compression → `seq` |
+| Reuse engine | Bar hash → shared `pat`; sequence compression → `seq`; optional fixed `sectionBars` chunks → multi-seq channels + `# --- Section N ---` |
 | Bax emitter | Deterministic, commented `.bax` |
 
 Keep conversion as compile-time tooling. Runtime playback and scheduler remain unchanged.

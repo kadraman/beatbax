@@ -18,6 +18,7 @@ export interface MidiImportCliOptions {
   grid?: string;
   maxBars?: string;
   maxOverlapTicks?: string;
+  sectionBars?: string;
   dryRun?: boolean;
   strict?: boolean;
   title?: string;
@@ -71,6 +72,14 @@ export function runMidiImport(
     }
   }
 
+  let sectionBars: number | undefined;
+  if (options.sectionBars != null) {
+    sectionBars = parseInt(String(options.sectionBars), 10);
+    if (!Number.isFinite(sectionBars) || sectionBars < 0 || !Number.isInteger(sectionBars)) {
+      fail('Error: --section-bars must be an integer >= 0 (0 = monolithic)');
+    }
+  }
+
   let resolved;
   try {
     resolved = resolveConvertOptions({
@@ -80,6 +89,7 @@ export function runMidiImport(
       grid: options.grid,
       maxBars,
       maxOverlapTicks,
+      sectionBars,
       strict: options.strict === true,
       title: options.title,
     });
@@ -127,6 +137,10 @@ export function midiImportOptionDefs(): { flags: string; description: string; de
     { flags: '--grid <grid>', description: '1/4 | 1/8 | 1/16 | 1/32' },
     { flags: '--max-bars <N>', description: 'Clamp generated bar count' },
     { flags: '--max-overlap-ticks <N>', description: 'Allow up to N ticks of overlap when multiplexing' },
+    {
+      flags: '--section-bars <N>',
+      description: 'Bars per Pattern Grid section (default 8; 0 = monolithic one seq per channel)',
+    },
     { flags: '--dry-run', description: 'Print conversion summary only; do not write .bax' },
     { flags: '--strict', description: 'Fail on strict quantize / conversion errors' },
     { flags: '--title <name>', description: 'Override song name metadata' },

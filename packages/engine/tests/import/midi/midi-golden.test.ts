@@ -70,7 +70,7 @@ describe('midi import golden fixtures F01–F09', () => {
     expect(result.source).toMatch(
       /inst snare_dmc\s+type=dmc.*dmc_sample="@nes\/snare"/,
     );
-    expect(result.source).toMatch(/channel 5 => inst kick_dmc seq dmc_seq/);
+    expect(result.source).toMatch(/channel 5 => inst kick_dmc seq dmc_s01 dmc_s02/);
     expect(result.source).toMatch(/\bkick_dmc\b/);
     expect(result.source).toMatch(/\bsnare_dmc\b/);
     // Noise channel still uses plain kick/snare tokens bound to type=noise defs
