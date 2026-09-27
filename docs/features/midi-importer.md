@@ -82,7 +82,20 @@ beatbax import midi packages/engine/tests/fixtures/midi/f03-nes-kit.mid out.bax 
 - Deterministic: same MIDI + chip + options → byte-identical `.bax`.
 - Not a round-trip guarantee with `export midi`; Desktop MIDI step-entry is a separate feature.
 
+## Current limitations
+
+These apply to the shipped importer. Most of them are addressed by the planned follow-up, feature 089 ([issue #213](https://github.com/kadraman/beatbax/issues/213)); none of the 089 config fields are available yet.
+
+- **Whole tracks only.** `trackMappings` map an entire track or channel. A track can only share a chip channel with another part if their notes never overlap (beyond `maxOverlapTicks`). Otherwise it moves to another free channel of the same kind, or is dropped whole with an `over_polyphony` warning. On dense multi-track MIDIs this can drop a large share of the notes.
+- **Chord reduction.** When notes start together on one channel, the importer keeps the earliest note, then the louder, then the **lower** pitch (`chord_flatten`). For chordal lead parts this keeps the bottom of the chord rather than the melody.
+- **One tempo.** The first tempo event is used for the whole song. Later tempo changes are reported as `tempo_map_ignored`. If a file starts with a count-in at a different tempo, the whole song imports at the count-in tempo.
+- **Fixed bars.** Output bars are always `patternTicks` long (16 steps by default). Other or changing time signatures are reported as `time_signature_ignored`.
+- **`ticksPerBeat` other than 4.** Setting `ticksPerBeat: 3` gives a triplet-eighth grid, but the source `bpm` is written unchanged, so the result plays at 4/3 of the source speed. Until 089 lands, set the written tempo by hand: source bpm × `ticksPerBeat` / 4 (e.g. 135 → 101).
+- **NES drum tokens.** The NES kit has no `shaker`. On NES, map shaker, cabasa and maracas notes to `hihat` in `drumMap`; a `shaker` value is reported by `beatbax verify` as an unknown token.
+- **No track filtering.** Tracks that match no `trackMappings` entry are still auto-mapped. To leave a track out, remove it from the MIDI file before importing.
+
 ## Spec
 
-- Feature: [specs/features/006-midi-importer/](../../specs/features/006-midi-importer/)
-- Fixtures: [fixtures.md](../../specs/features/006-midi-importer/fixtures.md)
+- Feature: [specs/complete/006-midi-importer/](../../specs/complete/006-midi-importer/)
+- Fixtures: [fixtures.md](../../specs/complete/006-midi-importer/fixtures.md)
+- Planned follow-up (arrangement-aware import): [specs/features/089-midi-import-arrangement/](../../specs/features/089-midi-import-arrangement/), [issue #213](https://github.com/kadraman/beatbax/issues/213)
