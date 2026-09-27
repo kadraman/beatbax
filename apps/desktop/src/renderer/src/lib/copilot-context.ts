@@ -236,6 +236,8 @@ export function buildCopilotContext(
         'Invalid syntax (e.g. `|` bar separators in patterns) is rejected before apply; you may be asked to repair parse errors automatically.',
         'If diagnostics warn that an effect is not defined, add `effect name = type:params` before using `<name>`, or replace `<name>` with a built-in parametric form such as `<vib:3,5>`.',
         'Prefer minimal edits to the current song; preserve comments, metadata, instruments, channel structure, and play directives unless the user asks otherwise.',
+        'Change only what the request needs. Do not rename, deduplicate, merge, or reorganise existing definitions, and do not edit patterns, sequences, or channels unrelated to the request — even when a name looks misleading (imported songs reuse hash-named patterns such as `lead_0c0dd0e2` across channels). Copy every unrelated line verbatim.',
+        'When the message includes a `[Referenced editor Lines N–M]` block, confine edits to those lines, the definitions they reference, and any new definitions they need.',
       ].join(' ')
     : buildAskModeHint();
 

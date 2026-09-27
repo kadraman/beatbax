@@ -186,7 +186,8 @@ songs/**/*.vgm
 songs/**/*.json
 songs/**/*.aks
 songs/**/*.aki
-*
+songs/midi/*.bax
+
 # generate GitHub Issues
 .github/ISSUES
 t.cmd
