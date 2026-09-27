@@ -1,6 +1,6 @@
 # Specification status index
 
-Assign the next feature id as **089** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **090** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
@@ -8,7 +8,6 @@ Assign the next feature id as **089** (one past the highest id below). Process: 
 - **002** `vscode-plugin` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/21 — [specs/features/002-vscode-plugin/](specs/features/002-vscode-plugin/)
 - **003** `ai-chatbot-rag` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/66 — [specs/features/003-ai-chatbot-rag/](specs/features/003-ai-chatbot-rag/)
 - **005** `plugin-starter-template` — in-progress — plugin — issue: https://github.com/kadraman/beatbax/issues/86 — [specs/features/005-plugin-starter-template/](specs/features/005-plugin-starter-template/)
-- **006** `midi-importer` (CLI MIDI → `.bax` conversion) — in-progress — engine — issue: https://github.com/kadraman/beatbax/issues/101 — [specs/features/006-midi-importer/](specs/features/006-midi-importer/)
 - **007** `scale-awareness` — specified — language — issue: https://github.com/kadraman/beatbax/issues/102 — [specs/features/007-scale-awareness/](specs/features/007-scale-awareness/)
 - **008** `song-composition-abstractions` — specified — language — issue: https://github.com/kadraman/beatbax/issues/125 — [specs/features/008-song-composition-abstractions/](specs/features/008-song-composition-abstractions/)
 - **009** `c64-sid-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/199 — [specs/features/009-c64-sid-chip-plugin/](specs/features/009-c64-sid-chip-plugin/)
@@ -27,12 +26,14 @@ Assign the next feature id as **089** (one past the highest id below). Process: 
 - **023** `sega-mega-drive-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/193 — [specs/features/023-sega-mega-drive-chip-plugin/](specs/features/023-sega-mega-drive-chip-plugin/)
 - **024** `granular-codelens-settings` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/205 — [specs/features/024-granular-codelens-settings/](specs/features/024-granular-codelens-settings/)
 - **088** `copilot-request-controls` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/212 — [specs/features/088-copilot-request-controls/](specs/features/088-copilot-request-controls/)
+- **089** `midi-import-arrangement` (arrangement-aware MIDI import, follow-up to 006) — specified — engine — issue: https://github.com/kadraman/beatbax/issues/213 — [specs/features/089-midi-import-arrangement/](specs/features/089-midi-import-arrangement/)
 
 ## Complete (`specs/complete/`)
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
 
 - **004** `daw-channel-mixer` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/75 — [specs/complete/004-daw-channel-mixer/](specs/complete/004-daw-channel-mixer/)
+- **006** `midi-importer` (CLI MIDI → `.bax` conversion) — complete — engine — issue: https://github.com/kadraman/beatbax/issues/101 — [specs/complete/006-midi-importer/](specs/complete/006-midi-importer/)
 - **021** `instrument-editor-panel` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/169 — [specs/complete/021-instrument-editor-panel/](specs/complete/021-instrument-editor-panel/)
 - **025** `arpeggio-effect` — complete — language — issue: _none_ — [specs/complete/025-arpeggio-effect/](specs/complete/025-arpeggio-effect/)
 - **026** `exporter_plugin_system` — complete — export — issue: https://github.com/kadraman/beatbax/issues/89 — [specs/complete/026-exporter_plugin_system/](specs/complete/026-exporter_plugin_system/)
