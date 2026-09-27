@@ -2,12 +2,12 @@
 title: "CLI MIDI → .bax Conversion"
 id: 6
 slug: "midi-importer"
-status: "in-progress"
+status: "complete"
 authors:
   - "GitHub Copilot"
   - "Cursor Agent"
 created: "2026-04-27"
-updated: "2026-09-21"
+updated: "2026-09-27"
 issue: "https://github.com/kadraman/beatbax/issues/101"
 area: "engine"
 ---
@@ -285,6 +285,8 @@ Named drum tokens are one-shot hits and must not sticky-change the channel’s c
 - Additional chip mapping profiles beyond GB/NES (SMS, Spectrum/CPC)
 - Richer drum maps (toms, open hat, crash) and DMC sample kits
 - Configurable polyphony-reduction strategies beyond the v1 defaults
+
+Arrangement-aware mapping (bar-range track mappings, per-mapping chord reduction and pitch fixes, drum source filtering, timing overrides, `--inspect`) is specified as follow-up feature **089** `midi-import-arrangement` (https://github.com/kadraman/beatbax/issues/213).
 
 ---
 
