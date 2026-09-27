@@ -89,7 +89,7 @@ The BeatBax language has a non-trivial surface area: instruments, patterns, sequ
 
 A **Copilot panel** in the desktop app’s right-side stack (alongside Channel Mixer, Pattern Grid, etc.). It renders a conversation thread with a text input. The user can ask questions or request code generation in two modes:
 
-- **Edit mode** — the AI outputs a complete updated song in a ` ```bax ``` ` block (applied to the editor) plus a short what/why explanation after the fence. Parse-error self-correction runs up to **2** times; incomplete-song repair runs up to **2** additional times. Replies that would wipe most of the song (snippet-only responses) are blocked by the apply guard.
+- **Edit mode** — the AI outputs a complete updated song in a ` ```bax ``` ` block (applied to the editor) plus a short what/why explanation after the fence. Parse-error self-correction runs up to **2** times; incomplete-song repair runs up to **2** additional times. Replies that would wipe most of the song (snippet-only responses) are blocked by the apply guard. The Edit instructions scope changes to the request: no renaming, deduplicating, or reorganising existing definitions, and no edits to unrelated patterns, sequences, or channels (unrelated lines are copied verbatim). When the message carries a `[Referenced editor Lines N–M]` block, edits are confined to those lines, the definitions they reference, and any new definitions they need.
 - **Ask mode** — the AI answers questions and can include code snippets, but does not auto-apply anything.
 
 The mode toggle is persisted under `beatbax:ai.mode` (`chatMode` in app-core).
@@ -304,7 +304,7 @@ The renderer sends chat requests through the **Electron main process** (`createA
 | Remote, Edit mode (`maxTokens` > 2048) | 2 minutes |
 | Remote, Ask mode | 1 minute |
 
-Token limits: **8192** for Edit mode, **2048** for Ask mode. OpenAI endpoints use `max_completion_tokens`; other providers use `max_tokens`. The API key is only included when non-empty (Ollama/LM Studio do not require one). Requests can be cancelled via the abort controller (stop button in the UI). Successful responses parse optional OpenAI-compatible `usage` and return `{ content, usage? }` (not a bare string).
+Token limits: **8192** for Edit mode, **2048** for Ask mode. OpenAI endpoints use `max_completion_tokens`; other providers use `max_tokens`. On the `max_completion_tokens` dialect the main process also sends `reasoning_effort: "low"` and raises Edit-mode requests to **16384** completion tokens, because reasoning models (GPT-5 / o-series) spend hidden reasoning tokens from the same budget — at default effort a full-song Edit can exhaust 8192 and return empty content (`finish_reason: "length"`). If the model rejects `reasoning_effort`, it is dropped and the request retried (same adaptation as `temperature`). The API key is only included when non-empty (Ollama/LM Studio do not require one). Requests can be cancelled via the abort controller (stop button in the UI). Successful responses parse optional OpenAI-compatible `usage` and return `{ content, usage? }` (not a bare string).
 
 ```typescript
 // Renderer (DesktopCopilotPanel.tsx)
