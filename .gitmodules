@@ -1,4 +1,0 @@
-[submodule "songs/covers"]
-	path = songs/covers
-	url = https://github.com/kadraman/beatbax-covers
-	branch = main
