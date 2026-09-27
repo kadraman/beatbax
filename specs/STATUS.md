@@ -1,6 +1,6 @@
 # Specification status index
 
-Assign the next feature id as **088** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **089** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
@@ -26,6 +26,7 @@ Assign the next feature id as **088** (one past the highest id below). Process: 
 - **022** `motifs-and-loop-templates` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/204 — [specs/features/022-motifs-and-loop-templates/](specs/features/022-motifs-and-loop-templates/)
 - **023** `sega-mega-drive-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/193 — [specs/features/023-sega-mega-drive-chip-plugin/](specs/features/023-sega-mega-drive-chip-plugin/)
 - **024** `granular-codelens-settings` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/205 — [specs/features/024-granular-codelens-settings/](specs/features/024-granular-codelens-settings/)
+- **088** `copilot-request-controls` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/212 — [specs/features/088-copilot-request-controls/](specs/features/088-copilot-request-controls/)
 
 ## Complete (`specs/complete/`)
 

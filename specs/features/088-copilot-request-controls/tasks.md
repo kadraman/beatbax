@@ -1,0 +1,50 @@
+# Tasks: Copilot request controls and budget diagnostics
+
+**Input**: [spec.md](spec.md), [plan.md](plan.md)
+
+**Format**: `- [ ] Tnnn [P?] [USn?] Description` with **exact repo paths**.
+
+- **[P]**: can run in parallel (different files, no shared-write dependency)
+- **[USn]**: maps to a user story in spec.md
+
+## Phase 0: Foundation (blocks stories)
+
+- [ ] T001 [P] Add `reasoningEffort?` to `AIChatCompletionRequest`; `finishReason?`, `reasoningPresent?`, `effectiveReasoningEffort?`, `tokenParam?` to `AIChatCompletionResult`; `reasoningTokens?` to `AIChatCompletionUsage` in `apps/desktop/src/shared/electron-api.ts`
+- [ ] T002 Parse `choices[0].finish_reason`, `usage.completion_tokens_details.reasoning_tokens`, and non-empty `choices[0].message.reasoning` / `reasoning_content` in `apps/desktop/src/shared/ai-chat-completion.ts` (`parseAIChatUsage`, `parseAIChatCompletionResponse`, `normalizeAIChatCompletionResult`); tests in `apps/desktop/tests/ai-chat-completion.test.ts` (FR-001)
+- [ ] T003 [P] New `apps/desktop/src/shared/ai-request-negotiation.ts`: `ReasoningEffortLevel`, `REASONING_EFFORT_FALLBACKS`, `nextReasoningEffortValue`, `isReasoningEffortRejection`, `NegotiationState`, `negotiationKey`, `usesCompletionTokensParam`; tests in `apps/desktop/tests/ai-request-negotiation.test.ts` (FR-008–FR-010)
+- [ ] T004 Add `reasoningTokens?` and `reasoningPresent?` to `ChatTokenUsage` and merge them in `addTokenUsage` / `sanitizeUsage` in `packages/app-core/src/stores/chat.store.ts`
+
+**Checkpoint**: finish reason and reasoning signals reach the renderer; negotiation helpers exist but are unused; no behavior change yet.
+
+## Phase 1: User Story 1 — Understand an out-of-budget failure (P1)
+
+- [ ] T010 [US1] New `apps/desktop/src/renderer/src/lib/copilot-budget-diagnostics.ts` with `describeLengthStop` (reasoning tokens, else reasoning flag); tests in `apps/desktop/tests/copilot-budget-diagnostics.test.ts`
+- [ ] T011 [US1] In `apps/desktop/src/renderer/src/components/panels/DesktopCopilotPanel.tsx`, keep `finishReason` from `generate()`; on `"length"` in Edit mode show the diagnostic, mark `applyBlocked`, and skip no-bax / parse / incomplete repair loops (FR-002, FR-003)
+- [ ] T012 [US1] Ask mode: append a cut-off notice when `finishReason === "length"` in `DesktopCopilotPanel.tsx`
+- [ ] T013 [US1] Show reasoning tokens (or `· thinking`) in `MessageUsage` badge and title in `DesktopCopilotPanel.tsx` (FR-004)
+- [ ] T014 [US1] Add `checkReplyFits` to `apps/desktop/src/renderer/src/lib/copilot-budget-diagnostics.ts` with tests (FR-017); in `DesktopCopilotPanel.tsx`, run it before Edit sends and show the warning with Send anyway / Open Settings and a per-chat dismissal key (depends on T021)
+
+**Checkpoint**: SC-001 passes manually with a forced small budget; SC-006 passes in tests.
+
+## Phase 2: User Story 2 — Adjust reply budget and reasoning effort (P2)
+
+- [ ] T020 [US2] Extend `AISettings` with `editReplyTokens`, `askReplyTokens`, `reasoningEffort`, `reasoningEffortCustom`; load/save/clamp/validate with Auto defaults in `packages/app-core/src/stores/chat.store.ts` (FR-007, FR-008, FR-015); tests for legacy settings and invalid Custom values
+- [ ] T021 [US2] Add `estimatePromptTokens`, `resolveReplyBudget` (with window fitting) and `resolveReasoningEffort` to `apps/desktop/src/renderer/src/lib/copilot-token-budget.ts`; switch `estimateContextBudget` to the new prompt estimate; tests in `apps/desktop/tests/copilot-token-budget.test.ts` (FR-006, FR-016, SC-007)
+- [ ] T022 [US2] Send resolved `maxTokens` and `reasoningEffort` from `generate()`; keep the last returned `tokenParam` / `effectiveReasoningEffort` per endpoint and model; use the same budget for the meter `reservedOutput` in `DesktopCopilotPanel.tsx` (FR-013)
+- [ ] T023 [US2] In `apps/desktop/src/main/ipc-handlers.ts`, remove `OPENAI_EDIT_COMPLETION_TOKENS`; extract a pure `negotiateChatCompletion(payload, state, send)` that sends `payload.maxTokens` as received, picks `reasoning_effort` from the fallback list on every dialect, walks the list on rejection, and caps attempts at 6; scale timeouts by budget (FR-009, FR-010, FR-012, FR-014); tests for SC-004 and SC-005
+- [ ] T024 [US2] Advanced section in `apps/desktop/src/renderer/src/components/settings/ai.tsx`: two budget fields and a Reasoning effort select (with Custom text field), each showing its effective value; window-overflow warning; Reset to Auto; update `saveChatSettings` and `resetAIDefaults` (FR-005)
+- [ ] T025 [US2] Show "Sent as `<value>` for this model" / "This model does not accept reasoning effort" in `ai.tsx` from the last `effectiveReasoningEffort`
+
+**Checkpoint**: SC-002, SC-004 and SC-007 pass.
+
+## Phase 3: User Story 3 — Don't resend rejected parameters (P3)
+
+- [ ] T030 [US3] Session `Map<string, NegotiationState>` keyed by `negotiationKey(endpoint, model)` in `apps/desktop/src/main/ipc-handlers.ts`; seed each request (temperature, token parameter, rejected reasoning values) and record each adaptation (FR-011); tests via `negotiateChatCompletion`
+
+**Checkpoint**: SC-003 passes manually with `gpt-5.x`; SC-005 second-request case passes in tests.
+
+## Polish
+
+- [ ] T900 Add QA scenarios for SC-001–SC-003, SC-006, SC-007 and the Ollama fallback cases to `docs/qa/copilot-test-scenarios.md`
+- [ ] T901 Point the token-limit paragraph in `specs/complete/052-ai-chatbot-assistant/spec.md` at this spec; in `specs/features/017-copilot-local-ollama/spec.md`, note the fitted Edit reply budget, the pre-send warning, and Reasoning effort Off for thinking models on windows of 16k or less
+- [ ] T902 Run `npm test`; move this folder to `specs/complete/088-copilot-request-controls/` and update `specs/STATUS.md` when shipped

@@ -635,6 +635,8 @@ function isLocalAiEndpoint(endpoint: string): boolean {
 const AI_CHAT_TIMEOUT_LOCAL_MS = 5 * 60_000
 const AI_CHAT_TIMEOUT_REMOTE_MS = 60_000
 const AI_CHAT_TIMEOUT_REMOTE_EDIT_MS = 120_000
+/** Edit-mode `max_completion_tokens`: room for reasoning plus a full-song reply. */
+const OPENAI_EDIT_COMPLETION_TOKENS = 16384
 
 function aiChatTimeoutMs(endpoint: string, maxTokens: number): number {
   if (isLocalAiEndpoint(endpoint)) return AI_CHAT_TIMEOUT_LOCAL_MS
@@ -673,16 +675,25 @@ async function createAIChatCompletion(request: unknown): Promise<AIChatCompletio
     ? 'max_completion_tokens'
     : 'max_tokens'
   let includeTemperature = true
+  // Reasoning models spend hidden reasoning tokens from `max_completion_tokens`
+  // before writing any reply; at default effort a full-song Edit can exhaust
+  // the budget and return empty content with finish_reason "length".
+  let includeReasoningEffort = tokenParam === 'max_completion_tokens'
 
   const MAX_ATTEMPTS = 4
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    const isEditBudget = (payload.maxTokens ?? 0) > 2048
+    const completionLimit = tokenParam === 'max_completion_tokens' && isEditBudget
+      ? Math.max(payload.maxTokens ?? 0, OPENAI_EDIT_COMPLETION_TOKENS)
+      : payload.maxTokens
     const body: Record<string, unknown> = {
       model: payload.model,
       messages: payload.messages,
       stream: false,
-      [tokenParam]: payload.maxTokens
+      [tokenParam]: completionLimit
     }
     if (includeTemperature) body.temperature = payload.temperature
+    if (includeReasoningEffort && tokenParam === 'max_completion_tokens') body.reasoning_effort = 'low'
 
     const controller = new AbortController()
     activeAIChatAbort = controller
@@ -719,6 +730,10 @@ async function createAIChatCompletion(request: unknown): Promise<AIChatCompletio
         }
         if (includeTemperature && lower.includes('temperature')) {
           includeTemperature = false
+          adapted = true
+        }
+        if (includeReasoningEffort && lower.includes('reasoning_effort')) {
+          includeReasoningEffort = false
           adapted = true
         }
         if (adapted) continue
