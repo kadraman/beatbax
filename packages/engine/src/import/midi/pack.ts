@@ -5,9 +5,12 @@ import { getChipRoleTable, type ChipRoleSlot } from './chipRoles.js';
 import { instrumentNameForFamilyRole } from './kit.js';
 import { mapDrumPitch, noteTokenForHit, dmcTokenForHit } from './roles.js';
 import { DMC_KICK } from './kit.js';
+import { statsFor, type ArrangementContext } from './arrangement.js';
 import type {
+  ChipRole,
   ClassifiedStream,
   ConversionDiagnostic,
+  MappingStats,
   MidiConvertOptions,
   PackedChannel,
   PackedHit,
@@ -41,7 +44,7 @@ function flattenChord(notes: QuantizedNote[]): QuantizedNote {
   })[0]!;
 }
 
-function resolveMonophonic(
+export function resolveMonophonic(
   notes: QuantizedNote[],
   diagnostics: ConversionDiagnostic[],
   label: string,
@@ -226,50 +229,85 @@ function toHits(
   }));
 }
 
+/** One source (mapping or auto-mapped track) heard on an output channel. */
+export interface ChannelSource {
+  mappingIndex?: number;
+  sourceTrackIndex: number;
+  /** MIDI channel 0–15. */
+  midiChannel: number;
+  /** Melodic instrument, or `drums` on noise / DMC channels. */
+  instrument: string;
+  kept: number;
+}
+
+export interface ChannelContribution {
+  channelIndex: number;
+  role: ChipRole;
+  sources: ChannelSource[];
+}
+
 export interface PackResult {
   channels: PackedChannel[];
   notesDropped: number;
+  /** Per-mapping accounting (089); present when an arrangement context was passed. */
+  mappingStats?: MappingStats[];
+  /** Which sources ended up on which channel, with kept note counts. */
+  contributions?: ChannelContribution[];
+  /** Drum hits dropped while stacking drum streams onto the noise channel. */
+  drumHitsDropped?: number;
 }
 
-/**
- * Pack classified streams onto chip channels.
- */
-export function packChannels(
-  streams: ClassifiedStream[],
-  options: MidiConvertOptions,
-  diagnostics: ConversionDiagnostic[],
-): PackResult {
-  const table = getChipRoleTable(options.chip);
-  const slots = table.map((s) => ({
-    ...s,
-    assigned: [] as { stream: ClassifiedStream; notes: QuantizedNote[] }[],
-  }));
+type Slot = ChipRoleSlot & { assigned: { stream: ClassifiedStream; notes: QuantizedNote[] }[] };
 
-  let notesDropped = 0;
+interface PackState {
+  slots: Slot[];
+  /** Per-note drum maps (survives flam copies that leave the original stream). */
+  drumMapByNote: Map<QuantizedNote, ClassifiedStream['drumMap']>;
+  /** Per-note source mapping index (089 stats; survives flam copies). */
+  mappingByNote: Map<QuantizedNote, number>;
+}
+
+function createPackState(streams: ClassifiedStream[], options: MidiConvertOptions): PackState {
+  const slots: Slot[] = getChipRoleTable(options.chip).map((s) => ({ ...s, assigned: [] }));
+  const drumMapByNote = new Map<QuantizedNote, ClassifiedStream['drumMap']>();
+  const mappingByNote = new Map<QuantizedNote, number>();
+  for (const s of streams) {
+    const g = multiplexGroupForStream(s);
+    if (g === 'drums' || g === 'dmc') {
+      for (const n of s.notes) drumMapByNote.set(n, s.drumMap);
+    }
+    if (s.mappingIndex != null) {
+      for (const n of s.notes) mappingByNote.set(n, s.mappingIndex);
+    }
+  }
+  return { slots, drumMapByNote, mappingByNote };
+}
+
+function partitionStreams(streams: ClassifiedStream[]): {
+  drumStreams: ClassifiedStream[];
+  dmcStreams: ClassifiedStream[];
+  melodic: ClassifiedStream[];
+} {
   const drumStreams: ClassifiedStream[] = [];
   const dmcStreams: ClassifiedStream[] = [];
   const melodic: ClassifiedStream[] = [];
-  /** Per-note drum maps (survives flam copies that leave the original stream). */
-  const drumMapByNote = new Map<QuantizedNote, ClassifiedStream['drumMap']>();
-
   for (const s of streams) {
     const g = multiplexGroupForStream(s);
     if (g === 'drums') drumStreams.push(s);
     else if (g === 'dmc') dmcStreams.push(s);
     else melodic.push(s);
   }
+  return { drumStreams, dmcStreams, melodic };
+}
 
-  for (const s of [...drumStreams, ...dmcStreams]) {
-    for (const n of s.notes) drumMapByNote.set(n, s.drumMap);
-  }
-
-  const tokenForNote = (n: QuantizedNote) => mapDrumPitch(n.pitch, drumMapByNote.get(n));
-  const drumTokenForPacked = (n: QuantizedNote, role: ClassifiedStream['roleHint'], streamMap?: ClassifiedStream['drumMap']) => {
-    const map = streamMap ?? drumMapByNote.get(n);
-    return role === 'dmc' ? dmcTokenForHit(n, map) : noteTokenForHit(n, true, map);
-  };
-
-  // Assign melodic streams — prefer matching role, else multiplex, else drop lowest priority
+/** 006 stream rules: prefer matching role, else multiplex, else drop lowest priority. */
+function assignMelodicStreams(
+  melodic: ClassifiedStream[],
+  slots: Slot[],
+  options: MidiConvertOptions,
+  diagnostics: ConversionDiagnostic[],
+): number {
+  let notesDropped = 0;
   const pending = [...melodic].sort((a, b) => b.priority - a.priority);
 
   for (const stream of pending) {
@@ -280,12 +318,12 @@ export function packChannels(
         (group === 'melodic-pulse' && s.multiplexGroup === 'melodic-pulse'),
     );
 
-    const canMultiplex = (s: (typeof slots)[number]) =>
+    const canMultiplex = (s: Slot) =>
       s.assigned.length === 0 ||
       s.assigned.every((a) => !streamOverlaps(a.notes, stream.notes, options.maxOverlapTicks));
 
     // 1) Exact role match that is empty or multiplexable
-    let target =
+    const target =
       candidates.find((s) => s.role === stream.roleHint && canMultiplex(s)) ??
       // 2) Any empty slot in group
       candidates.find((s) => s.assigned.length === 0) ??
@@ -319,11 +357,36 @@ export function packChannels(
       notes: kept,
     });
   }
+  return notesDropped;
+}
 
-  // Drums → noise slot (always merge all drum streams onto noise)
+/** Drums → noise slot (all drum streams merged) and optional NES DMC reinforcement. */
+function packPercussion(
+  drumStreams: ClassifiedStream[],
+  dmcStreams: ClassifiedStream[],
+  state: PackState,
+  options: MidiConvertOptions,
+  diagnostics: ConversionDiagnostic[],
+): { dropped: number; drumHitsDropped: number } {
+  const { slots, drumMapByNote, mappingByNote } = state;
+  let notesDropped = 0;
+  let drumHitsDropped = 0;
+  const tokenForNote = (n: QuantizedNote) => mapDrumPitch(n.pitch, drumMapByNote.get(n));
+  // Named drum tokens are one-shot hits that last one step; a longer emitted
+  // duration is not a sustain and would shift every later hit on the channel.
+  const oneShot = (notes: QuantizedNote[]) =>
+    notes.map((n) => {
+        if (n.durationTicks <= 1) return n;
+      const hit: QuantizedNote = { ...n, durationTicks: 1 };
+      drumMapByNote.set(hit, drumMapByNote.get(n));
+      const mi = mappingByNote.get(n);
+      if (mi != null) mappingByNote.set(hit, mi);
+      return hit;
+    });
+
   const noiseSlot = slots.find((s) => s.role === 'noise');
   if (noiseSlot && drumStreams.length > 0) {
-    const allDrumNotes = drumStreams.flatMap((s) => s.notes);
+    const allDrumNotes = oneShot(drumStreams.flatMap((s) => s.notes));
     const sharedMap =
       drumStreams.length === 1 ? drumStreams[0]!.drumMap : undefined;
     const { kept, dropped } = packDrumNotes(
@@ -333,9 +396,12 @@ export function packChannels(
       tokenForNote,
       (from, to) => {
         drumMapByNote.set(to, drumMapByNote.get(from));
+        const mi = mappingByNote.get(from);
+        if (mi != null) mappingByNote.set(to, mi);
       },
     );
     notesDropped += dropped;
+    drumHitsDropped += dropped;
     noiseSlot.assigned.push({
       stream: {
         id: 'drums',
@@ -360,7 +426,7 @@ export function packChannels(
       return token === 'kick' || token === 'snare';
     });
     if (kicksSnares.length > 0 || dmcStreams.length > 0) {
-      const notes = [...kicksSnares, ...dmcStreams.flatMap((s) => s.notes)];
+      const notes = [...kicksSnares, ...oneShot(dmcStreams.flatMap((s) => s.notes))];
       const { kept, dropped } = resolveMonophonic(notes, diagnostics, 'dmc');
       notesDropped += dropped;
       const sharedDmcMap =
@@ -381,8 +447,26 @@ export function packChannels(
       });
     }
   }
+  return { dropped: notesDropped, drumHitsDropped };
+}
+
+/** Merge each slot's assigned note lists into one timeline with inst() switches. */
+function mergeSlots(
+  state: PackState,
+  options: MidiConvertOptions,
+  diagnostics: ConversionDiagnostic[],
+  ctx: ArrangementContext | undefined,
+): { channels: PackedChannel[]; dropped: number; contributions: ChannelContribution[] } {
+  const { slots, drumMapByNote, mappingByNote } = state;
+  const mappings = options.trackMappings ?? [];
+  let notesDropped = 0;
+  const drumTokenForPacked = (n: QuantizedNote, role: ClassifiedStream['roleHint'], streamMap?: ClassifiedStream['drumMap']) => {
+    const map = streamMap ?? drumMapByNote.get(n);
+    return role === 'dmc' ? dmcTokenForHit(n, map) : noteTokenForHit(n, true, map);
+  };
 
   const channels: PackedChannel[] = [];
+  const contributions: ChannelContribution[] = [];
   for (const slot of slots) {
     if (slot.assigned.length === 0) continue;
     const multi = slot.assigned.length > 1;
@@ -415,6 +499,7 @@ export function packChannels(
     notesDropped += dropped;
     const keptSet = new Set(kept);
 
+    const sources = new Map<string, ChannelSource>();
     for (const t of tagged) {
       if (!keptSet.has(t.note)) continue;
       const needInst = multi && !t.isDrum && t.instrument !== currentInst;
@@ -426,6 +511,26 @@ export function packChannels(
         velocity: t.note.velocity,
         instrument: needInst ? t.instrument : undefined,
       });
+
+      const mi = mappingByNote.get(t.note);
+      const instrument = t.isDrum ? 'drums' : t.instrument;
+      const key = `${mi ?? 'auto'}:${t.note.sourceTrackIndex}:${t.note.midiChannel}:${instrument}`;
+      const src = sources.get(key);
+      if (src) src.kept += 1;
+      else {
+        sources.set(key, {
+          mappingIndex: mi,
+          sourceTrackIndex: t.note.sourceTrackIndex,
+          midiChannel: t.note.midiChannel,
+          instrument,
+          kept: 1,
+        });
+      }
+      if (ctx && mi != null && mappings[mi]) {
+        const stats = statsFor(ctx, mi, mappings[mi]!);
+        stats.kept += 1;
+        if (stats.channelIndex == null) stats.channelIndex = slot.channelIndex;
+      }
     }
 
     channels.push({
@@ -436,16 +541,144 @@ export function packChannels(
         : slot.assigned[0]!.stream.instrument,
       hits,
     });
+    contributions.push({
+      channelIndex: slot.channelIndex,
+      role: slot.role,
+      sources: [...sources.values()].sort(compareSources),
+    });
   }
+  return { channels, dropped: notesDropped, contributions };
+}
+
+function compareSources(a: ChannelSource, b: ChannelSource): number {
+  const am = a.mappingIndex ?? Number.MAX_SAFE_INTEGER;
+  const bm = b.mappingIndex ?? Number.MAX_SAFE_INTEGER;
+  if (am !== bm) return am - bm;
+  if (a.sourceTrackIndex !== b.sourceTrackIndex) return a.sourceTrackIndex - b.sourceTrackIndex;
+  if (a.midiChannel !== b.midiChannel) return a.midiChannel - b.midiChannel;
+  return a.instrument.localeCompare(b.instrument);
+}
+
+/**
+ * Keep the notes (sorted by start, non-overlapping) that fit between notes already
+ * placed on the lane. Returns kept notes and the merged placed list.
+ */
+export function gapFill(
+  placed: QuantizedNote[],
+  notes: QuantizedNote[],
+): { accepted: QuantizedNote[]; placed: QuantizedNote[] } {
+  const sorted = [...notes].sort((a, b) => a.startTick - b.startTick);
+  const accepted: QuantizedNote[] = [];
+  let j = 0;
+  for (const n of sorted) {
+    const end = n.startTick + n.durationTicks;
+    while (j < placed.length && placed[j]!.startTick + placed[j]!.durationTicks <= n.startTick) j += 1;
+    const blocker = placed[j];
+    if (blocker && blocker.startTick < end) continue;
+    const last = accepted[accepted.length - 1];
+    if (last && last.startTick + last.durationTicks > n.startTick) continue;
+    accepted.push(n);
+  }
+
+  const merged: QuantizedNote[] = [];
+  let a = 0;
+  let b = 0;
+  while (a < placed.length || b < accepted.length) {
+    if (b >= accepted.length || (a < placed.length && placed[a]!.startTick <= accepted[b]!.startTick)) {
+      merged.push(placed[a++]!);
+    } else {
+      merged.push(accepted[b++]!);
+    }
+  }
+  return { accepted, placed: merged };
+}
+
+/**
+ * Lane packing (spec FR-011, FR-012): mappings sharing a target fill the target's
+ * channel in config order; later mappings only fill gaps. Targets are binding.
+ */
+function placeLanes(
+  laneStreams: ClassifiedStream[],
+  state: PackState,
+  options: MidiConvertOptions,
+  diagnostics: ConversionDiagnostic[],
+  ctx: ArrangementContext | undefined,
+): number {
+  const mappings = options.trackMappings ?? [];
+  const placedBySlot = new Map<Slot, QuantizedNote[]>();
+  let dropped = 0;
+  const ordered = [...laneStreams].sort((a, b) => (a.mappingIndex ?? 0) - (b.mappingIndex ?? 0));
+
+  for (const lane of ordered) {
+    const mapping = lane.mappingIndex != null ? mappings[lane.mappingIndex] : undefined;
+    const stats = ctx && mapping ? statsFor(ctx, lane.mappingIndex!, mapping) : undefined;
+    const slot = state.slots.find((s) => s.role === lane.roleHint);
+    if (!slot) {
+      dropped += lane.notes.length;
+      diagnostics.push({
+        level: 'warn',
+        code: 'lane_target_unavailable',
+        message: `Dropped lane ${lane.id} (${lane.notes.length} notes): ${options.chip} has no ${lane.roleHint} channel`,
+      });
+      continue;
+    }
+    const { accepted, placed } = gapFill(placedBySlot.get(slot) ?? [], lane.notes);
+    placedBySlot.set(slot, placed);
+    const overlap = lane.notes.length - accepted.length;
+    if (overlap > 0) {
+      dropped += overlap;
+      if (stats) stats.laneOverlap += overlap;
+    }
+    if (accepted.length > 0) {
+      slot.assigned.push({ stream: { ...lane, roleHint: slot.role }, notes: accepted });
+    }
+  }
+  return dropped;
+}
+
+/**
+ * Pack classified streams onto chip channels.
+ * `packing: "lanes"` places lane streams first (binding targets), then packs the
+ * remaining streams with the 006 stream rules into whatever the lanes leave free.
+ */
+export function packChannels(
+  streams: ClassifiedStream[],
+  options: MidiConvertOptions,
+  diagnostics: ConversionDiagnostic[],
+  ctx?: ArrangementContext,
+): PackResult {
+  const state = createPackState(streams, options);
+  let notesDropped = 0;
+
+  let rest = streams;
+  if (options.packing === 'lanes') {
+    const laneStreams = streams.filter((s) => s.lane);
+    rest = streams.filter((s) => !s.lane);
+    notesDropped += placeLanes(laneStreams, state, options, diagnostics, ctx);
+  }
+
+  const { drumStreams, dmcStreams, melodic } = partitionStreams(rest);
+  notesDropped += assignMelodicStreams(melodic, state.slots, options, diagnostics);
+  const percussion = packPercussion(drumStreams, dmcStreams, state, options, diagnostics);
+  notesDropped += percussion.dropped;
+  const merged = mergeSlots(state, options, diagnostics, ctx);
+  notesDropped += merged.dropped;
 
   diagnostics.push({
     level: 'info',
     code: 'channels_packed',
-    message: `Packed ${channels.length} channel(s); dropped ${notesDropped} note(s)`,
+    message: `Packed ${merged.channels.length} channel(s); dropped ${notesDropped} note(s)`,
   });
 
-  return { channels, notesDropped };
+  return {
+    channels: merged.channels,
+    notesDropped,
+    mappingStats: ctx ? [...ctx.stats.values()].sort((a, b) => a.mappingIndex - b.mappingIndex) : undefined,
+    contributions: merged.contributions,
+    drumHitsDropped: percussion.drumHitsDropped,
+  };
 }
 
 // silence unused helper warning path — toHits kept for clarity in tests
 export { toHits };
+

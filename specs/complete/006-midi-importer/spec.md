@@ -161,7 +161,7 @@ Minimal mapping config example (optional override):
 
 4. Mapping layer
    - **Default:** auto-map using GM program, track name heuristics, channel 10 → drums, and pitch-range cues (bass → wave/triangle, lead → pulse1, etc.). Track-name hints prefer **chiptune / producer labels** (`lead`, `bassline`, `arp`, `pluck`, `chords`, `pad`, `kick`/`snare`/`hat`, …) before orchestral names (`violin`, `viola`, `cello`). Within GM strings: 40 violin → pulse1, 41 viola → pulse2, 42–43 cello/contrabass → wave/triangle
-   - GM program also selects a **timbre family** (piano / guitar / bass / strings / pad / lead) that chooses articulation (e.g. piano = short hold, strings = sustain); instrument names are `{family}_p1` / `{family}_p2` / `{family}_bass` for the packed chip role (`bass` family on the bass role stays `bass`)
+   - GM program also selects a **timbre family** (piano / guitar / bass / strings / pad / lead) that chooses articulation (e.g. piano = short hold, strings = sustain); instrument names are `{family}_p1` / `{family}_p2` / `{family}_bass` for the packed chip role (`bass` family on the bass role stays `bass`). Since feature 090 these carry an `_inst` suffix ([090 spec](../../features/090-midi-import-naming/spec.md))
    - **Optional:** `--config` may override the program→family table (`programFamilies`) and per-family articulation (`families`); values merge over built-in defaults (config wins per program range / field). Known family ids only: `piano|guitar|bass|strings|pad|lead`
    - **Optional:** `--config` explicit track/channel → role mapping (escape hatch)
    - Config `trackMappings[].target` must be a known chip role (`pulse1|pulse2|wave|triangle|noise|dmc`); invalid values are rejected at parse time
@@ -221,7 +221,7 @@ Minimal mapping config example (optional override):
    - Emit warnings when resolution alters source material
 
 4. Naming stability
-   - Pattern names use stable prefixes and content hashes or bar indices (example: `lead_b01` or hash-stable `lead_a3f2`)
+   - Pattern names use stable prefixes and content hashes or bar indices (example: `lead_b01` or hash-stable `lead_a3f2`). Superseded by feature 090: numbered `lead_01_pat`, shared `rest_x16_pat`, `lead_seq` / `lead_s01_seq` ([090 spec](../../features/090-midi-import-naming/spec.md))
    - Instrument order: kit defaults first, then any extra mapped names, sorted stably
 
 5. Channel completeness

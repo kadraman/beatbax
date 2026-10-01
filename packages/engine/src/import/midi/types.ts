@@ -21,6 +21,15 @@ export interface DrumMap {
   [midiNote: string]: string;
 }
 
+/** Chord / overlap reduction policy for one mapping (feature 089). */
+export type MonoPolicy = 'earliest' | 'highest' | 'lowest' | 'newest';
+
+export type PackingMode = 'streams' | 'lanes';
+
+export type UnmappedTracksMode = 'auto' | 'drop';
+
+export type TempoPolicy = 'first' | 'longest';
+
 export interface TrackMapping {
   midiTrack?: number;
   /** MIDI channel: 0–15 (0-based) or 1–16 (1-based); both accepted by the matcher. */
@@ -28,6 +37,19 @@ export interface TrackMapping {
   target: ChipRole;
   instrument?: string;
   drumMap?: DrumMap;
+  /** First source bar (1-based, inclusive) this mapping applies to. */
+  fromBar?: number;
+  /** Last source bar (1-based, inclusive) this mapping applies to. */
+  toBar?: number;
+  mono?: MonoPolicy;
+  /** Semitones applied before `fold` (melodic targets only). */
+  transpose?: number;
+  /** `[lo, hi]` MIDI note range; notes are moved by octaves into it (melodic targets only). */
+  fold?: [number, number];
+  /** Drum targets only: keep only these MIDI note numbers. */
+  include?: number[];
+  /** Drum targets only: ignore these MIDI note numbers. */
+  exclude?: number[];
 }
 
 /** Coarse GM program → timbre family for kit articulation. */
@@ -116,6 +138,22 @@ export interface MidiImportConfig {
    * `0` keeps a single monolithic seq per channel.
    */
   sectionBars?: number;
+  /** `lanes` packs mappings that share a target in config order (gap fill). Default `streams`. */
+  packing?: PackingMode;
+  /** `drop` excludes notes that match no mapping. Default `auto`. */
+  unmappedTracks?: UnmappedTracksMode;
+  /** Source tempo override (BPM). */
+  bpm?: number;
+  /** Tempo event selection when `bpm` is absent. Default `first`. */
+  tempo?: TempoPolicy;
+  /** First source bar of the output window (1-based, inclusive). */
+  startBar?: number;
+  /** Last source bar of the output window (1-based, inclusive). */
+  endBar?: number;
+  /** Shift every note by this many source sixteenths before quantization. */
+  nudge?: number;
+  /** Emit the arrangement notes comment block. */
+  annotate?: boolean;
 }
 
 export interface MidiConvertOptions {
@@ -141,6 +179,15 @@ export interface MidiConvertOptions {
   familyArticulations: Record<GmFamily, FamilyArticulation>;
   /** Song title for emitted metadata (defaults from MIDI name / filename). */
   title?: string;
+  packing: PackingMode;
+  unmappedTracks: UnmappedTracksMode;
+  bpm?: number;
+  tempo: TempoPolicy;
+  startBar?: number;
+  endBar?: number;
+  /** Source sixteenths (may be negative). */
+  nudge: number;
+  annotate: boolean;
 }
 
 export interface MidiRawNote {
@@ -170,6 +217,16 @@ export interface MidiTimeSigEvent {
   denominator: number;
 }
 
+export interface MidiTrackInfo {
+  index: number;
+  name: string;
+  /** MIDI channel 0–15 from the track header. */
+  channel: number;
+  program: number;
+  /** GM program name as reported by the MIDI reader (may be empty). */
+  programName: string;
+}
+
 export interface MidiParseResult {
   ppq: number;
   name: string;
@@ -178,6 +235,8 @@ export interface MidiParseResult {
   tempos: MidiTempoEvent[];
   timeSignatures: MidiTimeSigEvent[];
   trackCount: number;
+  /** Per-track metadata (absent on hand-built parse results). */
+  tracks?: MidiTrackInfo[];
 }
 
 export interface QuantizedNote {
@@ -212,6 +271,35 @@ export interface ClassifiedStream {
   sourceTrackIndex: number;
   midiChannel: number;
   priority: number;
+  /** Index into `trackMappings` when the stream came from one mapping (089). */
+  mappingIndex?: number;
+  /** True when the stream is a lane of `packing: "lanes"` (binding target). */
+  lane?: boolean;
+  /** Reduction policy to apply before packing (089). */
+  mono?: MonoPolicy;
+}
+
+/** Per-mapping note accounting (089 arrangement stats). */
+export interface MappingStats {
+  mappingIndex: number;
+  target: ChipRole;
+  /** Resolved instrument name (last seen). */
+  instrument: string;
+  midiTrack?: number;
+  midiChannel?: number;
+  fromBar?: number;
+  toBar?: number;
+  /** Notes selected by the mapping (after include/exclude and range). */
+  matched: number;
+  /** Notes that reached the output channel. */
+  kept: number;
+  laneOverlap: number;
+  monoReduce: number;
+  pitchOutOfRange: number;
+  /** Notes removed by include/exclude (by choice; not counted as dropped). */
+  filtered: number;
+  /** 1-based channel the mapping was packed onto (when known). */
+  channelIndex?: number;
 }
 
 export interface PackedHit {
@@ -263,8 +351,11 @@ export interface ConversionSummary {
   patternsReused: number;
   patternsEmitted: number;
   channelsPacked: number;
+  /** Written `bpm` (source tempo scaled by `ticksPerBeat / 4`, rounded). */
   bpm: number;
   chip: MidiChipId;
+  /** Per-mapping accounting when `trackMappings` are configured (089). */
+  mappingStats?: MappingStats[];
 }
 
 export interface ConversionDiagnostic {

@@ -1,5 +1,5 @@
 /**
- * Generate synthetic MIDI fixtures F04–F09 for feature 006.
+ * Generate synthetic MIDI fixtures F04–F09 (feature 006) and F10–F14 (feature 089).
  * Run: node --experimental-vm-modules packages/engine/scripts/generate-midi-fixtures.mjs
  * (or via ts-node / after build)
  */
@@ -165,3 +165,108 @@ function buildFormat0() {
 
 writeFileSync(join(outDir, 'f09-format0.mid'), buildFormat0());
 console.log('wrote', join(outDir, 'f09-format0.mid'));
+
+// --- Feature 089 fixtures (PPQ 480: beat = 480, 16th = 120, 4/4 bar = 1920) ---
+const BEAT = 480;
+const BAR = 1920;
+
+function track(midi, { name, channel, program }) {
+  const t = midi.addTrack();
+  t.name = name;
+  t.channel = channel;
+  if (program != null) t.instrument.number = program;
+  return t;
+}
+
+// F10 — bar-range lanes + gap fill: synth riff (bars 1–2) and vocal (bars 3–4) share
+// pulse1; guitar offbeats fill the gaps; one synth note crosses its toBar boundary.
+{
+  const midi = new Midi();
+  midi.header.setTempo(120);
+  const vocal = track(midi, { name: 'Vocal', channel: 0, program: 52 });
+  const synth = track(midi, { name: 'Synth Riff', channel: 1, program: 81 });
+  const guitar = track(midi, { name: 'Guitar', channel: 2, program: 27 });
+  const bass = track(midi, { name: 'Bass', channel: 3, program: 33 });
+  const strings = track(midi, { name: 'Strings', channel: 4, program: 48 });
+  for (let i = 0; i < 16; i++) {
+    vocal.addNote({ midi: 72 + (i % 4) * 2, ticks: i * BEAT, durationTicks: BEAT });
+    synth.addNote({ midi: 79, ticks: i * BEAT, durationTicks: i === 7 ? 3 * 240 : 240 });
+    guitar.addNote({ midi: 64, ticks: i * BEAT + 240, durationTicks: 240 });
+  }
+  for (let bar = 0; bar < 4; bar++) {
+    bass.addNote({ midi: 40, ticks: bar * BAR, durationTicks: BAR });
+    strings.addNote({ midi: 60, ticks: bar * BAR, durationTicks: BAR });
+  }
+  write('f10-lanes.mid', midi);
+}
+
+// F11 — mono policies: chord lead (highest + legato tail), chord bass (lowest),
+// overlapping sequencer line (newest, transposed up an octave).
+{
+  const midi = new Midi();
+  midi.header.setTempo(120);
+  const lead = track(midi, { name: 'Chord Lead', channel: 0, program: 81 });
+  const bass = track(midi, { name: 'Chord Bass', channel: 1, program: 33 });
+  const seq = track(midi, { name: 'Seq', channel: 2, program: 80 });
+  for (let i = 0; i < 4; i++) {
+    for (const p of [60, 64, 67]) lead.addNote({ midi: p, ticks: i * BEAT, durationTicks: BEAT });
+    for (const p of [36, 43]) bass.addNote({ midi: p, ticks: i * BEAT, durationTicks: BEAT });
+  }
+  lead.addNote({ midi: 72, ticks: BAR, durationTicks: BAR });
+  lead.addNote({ midi: 69, ticks: BAR + BEAT, durationTicks: 240 });
+  lead.addNote({ midi: 65, ticks: BAR + 3 * BEAT, durationTicks: BEAT });
+  seq.addNote({ midi: 60, ticks: BAR, durationTicks: 960 });
+  seq.addNote({ midi: 62, ticks: BAR + 240, durationTicks: 960 });
+  seq.addNote({ midi: 64, ticks: BAR + 480, durationTicks: 960 });
+  write('f11-mono.mid', midi);
+}
+
+// F12 — tempo map + window + nudge: a 200 BPM count-in bar, then 96 BPM; the song
+// grid is one sixteenth late; bar 5 is an outro trimmed by endBar.
+{
+  const midi = new Midi();
+  midi.header.tempos = [
+    { ticks: 0, bpm: 200 },
+    { ticks: BAR, bpm: 96 },
+  ];
+  midi.header.update();
+  const click = track(midi, { name: 'Count-in', channel: 0, program: 115 });
+  const lead = track(midi, { name: 'Lead', channel: 1, program: 81 });
+  for (let i = 0; i < 4; i++) click.addNote({ midi: 84, ticks: i * BEAT, durationTicks: 120 });
+  for (let i = 0; i < 16; i++) {
+    lead.addNote({ midi: 60 + (i % 5), ticks: BAR + i * BEAT + 120, durationTicks: 240 });
+  }
+  write('f12-tempo-window.mid', midi);
+}
+
+// F13 — triplet-eighth grid at 135 BPM (import with ticksPerBeat 3).
+{
+  const midi = new Midi();
+  midi.header.setTempo(135);
+  const lead = track(midi, { name: 'Triplet Lead', channel: 0, program: 81 });
+  const TRIPLET_EIGHTH = BEAT / 3;
+  for (let i = 0; i < 24; i++) {
+    lead.addNote({ midi: [67, 64, 60][i % 3], ticks: i * TRIPLET_EIGHTH, durationTicks: TRIPLET_EIGHTH });
+  }
+  write('f13-triplet.mid', midi);
+}
+
+// F14 — duplicate track, sound-effect track, and a drum kit with a non-GM note (87).
+{
+  const midi = new Midi();
+  midi.header.setTempo(120);
+  const lead = track(midi, { name: 'Lead', channel: 0, program: 81 });
+  const copy = track(midi, { name: 'Lead Copy', channel: 1, program: 81 });
+  const sfx = track(midi, { name: 'SFX', channel: 2, program: 122 });
+  const drums = track(midi, { name: 'Drums', channel: 9 });
+  for (let i = 0; i < 8; i++) {
+    const note = { midi: 72 + (i % 3), ticks: i * BEAT, durationTicks: 240 };
+    lead.addNote(note);
+    copy.addNote(note);
+    drums.addNote({ midi: i % 2 === 0 ? 36 : 38, ticks: i * BEAT, durationTicks: 120 });
+    drums.addNote({ midi: 87, ticks: i * BEAT + 240, durationTicks: 120 });
+  }
+  sfx.addNote({ midi: 90, ticks: 0, durationTicks: BAR });
+  sfx.addNote({ midi: 90, ticks: BAR, durationTicks: BAR });
+  write('f14-dup-unmapped.mid', midi);
+}
