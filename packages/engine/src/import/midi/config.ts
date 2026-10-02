@@ -8,10 +8,15 @@ import type {
   MidiChipId,
   MidiConvertOptions,
   MidiImportConfig,
+  MonoPolicy,
+  PackingMode,
   QuantizeGrid,
   QuantizeMode,
   QuantizeOptions,
+  ResolvedMidiConvertOptions,
+  TempoPolicy,
   TrackMapping,
+  UnmappedTracksMode,
 } from './types.js';
 import {
   buildProgramFamilyByProgram,
@@ -42,6 +47,11 @@ const SUPPORTED_CHIPS = new Set<MidiChipId>(['gameboy', 'nes']);
 const CHIP_ROLES = new Set<ChipRole>(['pulse1', 'pulse2', 'wave', 'triangle', 'noise', 'dmc']);
 const QUANTIZE_MODES = new Set<QuantizeMode>(['nearest', 'floor', 'ceil', 'strict']);
 const QUANTIZE_GRIDS = new Set<QuantizeGrid>(['1/4', '1/8', '1/16', '1/32']);
+const MONO_POLICIES = ['earliest', 'highest', 'lowest', 'newest'] as const;
+const PACKING_MODES = ['streams', 'lanes'] as const;
+const UNMAPPED_MODES = ['auto', 'drop'] as const;
+const TEMPO_POLICIES = ['first', 'longest'] as const;
+const DRUM_TARGETS = new Set<ChipRole>(['noise', 'dmc']);
 /** BeatBax identifiers used in `inst` names, `inst(...)` tokens, and channel bindings. */
 const BAX_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 
@@ -57,7 +67,19 @@ export function defaultQuantizeOptions(): QuantizeOptions {
   };
 }
 
-export function defaultConvertOptions(chip: MidiChipId): MidiConvertOptions {
+/** Fill the optional arrangement fields of a caller-built options object with their defaults. */
+export function withConvertDefaults(options: MidiConvertOptions): ResolvedMidiConvertOptions {
+  return {
+    ...options,
+    packing: options.packing ?? 'streams',
+    unmappedTracks: options.unmappedTracks ?? 'auto',
+    tempo: options.tempo ?? 'first',
+    nudge: options.nudge ?? 0,
+    annotate: options.annotate ?? false,
+  };
+}
+
+export function defaultConvertOptions(chip: MidiChipId): ResolvedMidiConvertOptions {
   return {
     chip,
     ticksPerBeat: DEFAULT_TICKS_PER_BEAT,
@@ -70,6 +92,11 @@ export function defaultConvertOptions(chip: MidiChipId): MidiConvertOptions {
     dmcReinforcement: { enabled: false },
     programFamilyByProgram: buildProgramFamilyByProgram(),
     familyArticulations: mergeFamilyArticulations(),
+    packing: 'streams',
+    unmappedTracks: 'auto',
+    tempo: 'first',
+    nudge: 0,
+    annotate: false,
   };
 }
 
@@ -165,6 +192,73 @@ function parseIntInRange(raw: unknown, lo: number, hi: number, context: string):
   return n;
 }
 
+function parseIntegerAtLeast(raw: unknown, min: number, context: string): number {
+  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < min) {
+    throw new Error(`${context} must be an integer >= ${min}; got ${JSON.stringify(raw)}`);
+  }
+  return raw;
+}
+
+function parseEnum<T extends string>(raw: unknown, values: readonly T[], context: string): T {
+  if (typeof raw !== 'string' || !(values as readonly string[]).includes(raw)) {
+    throw new Error(`${context} must be one of ${values.join('|')}; got ${JSON.stringify(raw)}`);
+  }
+  return raw as T;
+}
+
+function parseMidiNoteArray(raw: unknown, context: string): number[] {
+  if (!Array.isArray(raw)) {
+    throw new Error(`${context} must be an array of MIDI note numbers 0–127; got ${JSON.stringify(raw)}`);
+  }
+  return raw.map((x, i) => {
+    if (typeof x !== 'number' || !Number.isInteger(x) || x < 0 || x > 127) {
+      throw new Error(`${context}[${i}] must be an integer in 0–127; got ${JSON.stringify(x)}`);
+    }
+    return x;
+  });
+}
+
+/** Validate the 089 arrangement fields of one `trackMappings[]` entry. */
+function parseMappingArrangement(tm: Record<string, unknown>, target: ChipRole, prefix: string): Partial<TrackMapping> {
+  const out: Partial<TrackMapping> = {};
+  if (tm.fromBar != null) out.fromBar = parseIntegerAtLeast(tm.fromBar, 1, `${prefix}.fromBar`);
+  if (tm.toBar != null) out.toBar = parseIntegerAtLeast(tm.toBar, 1, `${prefix}.toBar`);
+  if (out.fromBar != null && out.toBar != null && out.fromBar > out.toBar) {
+    throw new Error(`${prefix}.fromBar (${out.fromBar}) must be <= toBar (${out.toBar})`);
+  }
+  if (tm.mono != null) out.mono = parseEnum<MonoPolicy>(tm.mono, MONO_POLICIES, `${prefix}.mono`);
+
+  const isDrum = DRUM_TARGETS.has(target);
+  if (tm.transpose != null) {
+    if (isDrum) throw new Error(`${prefix}.transpose is only allowed on melodic targets`);
+    if (typeof tm.transpose !== 'number' || !Number.isInteger(tm.transpose)) {
+      throw new Error(`${prefix}.transpose must be an integer number of semitones; got ${JSON.stringify(tm.transpose)}`);
+    }
+    out.transpose = tm.transpose;
+  }
+  if (tm.fold != null) {
+    if (isDrum) throw new Error(`${prefix}.fold is only allowed on melodic targets`);
+    const fold = parseMidiNoteArray(tm.fold, `${prefix}.fold`);
+    if (fold.length !== 2) {
+      throw new Error(`${prefix}.fold must be [lo, hi]; got ${JSON.stringify(tm.fold)}`);
+    }
+    const [lo, hi] = fold as [number, number];
+    if (hi - lo < 12) {
+      throw new Error(`${prefix}.fold range must span at least 12 semitones (hi - lo >= 12); got [${lo}, ${hi}]`);
+    }
+    out.fold = [lo, hi];
+  }
+  if (tm.include != null) {
+    if (!isDrum) throw new Error(`${prefix}.include is only allowed on noise or dmc targets`);
+    out.include = parseMidiNoteArray(tm.include, `${prefix}.include`);
+  }
+  if (tm.exclude != null) {
+    if (!isDrum) throw new Error(`${prefix}.exclude is only allowed on noise or dmc targets`);
+    out.exclude = parseMidiNoteArray(tm.exclude, `${prefix}.exclude`);
+  }
+  return out;
+}
+
 function parseDutyCycle(raw: unknown, context: string): number {
   const n = parseFiniteNumber(raw, context);
   if (!DUTY_CYCLE_VALUES.has(n)) {
@@ -258,7 +352,8 @@ export function resolveConvertOptions(args: {
   sectionBars?: number;
   strict?: boolean;
   title?: string;
-}): MidiConvertOptions {
+  annotate?: boolean;
+}): ResolvedMidiConvertOptions {
   const cfg = args.config ?? {};
   const chip = parseChipId(args.chip || cfg.chip);
   const base = defaultConvertOptions(chip);
@@ -319,6 +414,14 @@ export function resolveConvertOptions(args: {
     programFamilyByProgram: buildProgramFamilyByProgram(cfg.programFamilies),
     familyArticulations: mergeFamilyArticulations(cfg.families),
     title: args.title ?? (typeof cfg.title === 'string' && cfg.title.trim() ? cfg.title.trim() : undefined),
+    packing: cfg.packing ?? base.packing,
+    unmappedTracks: cfg.unmappedTracks ?? base.unmappedTracks,
+    bpm: cfg.bpm,
+    tempo: cfg.tempo ?? base.tempo,
+    startBar: cfg.startBar,
+    endBar: cfg.endBar,
+    nudge: cfg.nudge ?? base.nudge,
+    annotate: args.annotate ?? cfg.annotate ?? base.annotate,
   };
 }
 
@@ -442,9 +545,38 @@ export function parseImportConfig(raw: unknown): MidiImportConfig {
           tm.drumMap && typeof tm.drumMap === 'object' && !Array.isArray(tm.drumMap)
             ? (tm.drumMap as Record<string, string>)
             : undefined,
+        ...parseMappingArrangement(tm, target, `trackMappings[${i}]`),
       });
     }
     out.trackMappings = mappings;
+  }
+  if (o.packing != null) out.packing = parseEnum<PackingMode>(o.packing, PACKING_MODES, 'packing');
+  if (o.unmappedTracks != null) {
+    out.unmappedTracks = parseEnum<UnmappedTracksMode>(o.unmappedTracks, UNMAPPED_MODES, 'unmappedTracks');
+  }
+  if (o.bpm != null) {
+    if (typeof o.bpm !== 'number' || !Number.isFinite(o.bpm) || o.bpm <= 0) {
+      throw new Error(`bpm must be a number > 0; got ${JSON.stringify(o.bpm)}`);
+    }
+    out.bpm = o.bpm;
+  }
+  if (o.tempo != null) out.tempo = parseEnum<TempoPolicy>(o.tempo, TEMPO_POLICIES, 'tempo');
+  if (o.startBar != null) out.startBar = parseIntegerAtLeast(o.startBar, 1, 'startBar');
+  if (o.endBar != null) out.endBar = parseIntegerAtLeast(o.endBar, 1, 'endBar');
+  if (out.startBar != null && out.endBar != null && out.endBar < out.startBar) {
+    throw new Error(`endBar (${out.endBar}) must be >= startBar (${out.startBar})`);
+  }
+  if (o.nudge != null) {
+    if (typeof o.nudge !== 'number' || !Number.isInteger(o.nudge)) {
+      throw new Error(`nudge must be an integer number of sixteenths; got ${JSON.stringify(o.nudge)}`);
+    }
+    out.nudge = o.nudge;
+  }
+  if (o.annotate != null) {
+    if (typeof o.annotate !== 'boolean') {
+      throw new Error(`annotate must be true or false; got ${JSON.stringify(o.annotate)}`);
+    }
+    out.annotate = o.annotate;
   }
   return out;
 }

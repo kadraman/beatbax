@@ -193,18 +193,26 @@ None.
   1. Translate each `songs/covers/midi/<song>.split.json` into an importer config.
   2. Convert the original `.mid` for both chips.
   3. Diff per-channel note content against the current split-based `.bax`.
-  4. Record differences in `specs/features/089-midi-import-arrangement/parity.md`.
+  4. Record differences in `specs/complete/089-midi-import-arrangement/parity.md`.
 
 ## Migration and compatibility
 
 - Existing configs: unchanged output unless they use `ticksPerBeat` ≠ 4. Those now get a scaled `bpm` so they play at the source speed (FR-040). Document this in `docs/features/midi-importer.md` and the release notes.
+- Drum notes quantized to more than one step are now written as a one-step hit plus rests (FR-041) instead of `name:N`, which the resolver played as one step and left the drum channel short. Documented alongside FR-040.
 - `songs/covers`:
   - recipes become plain importer configs, so the `.split.mid` and generated `.json` files are no longer needed;
   - `split-midi.mjs` can be retired after the parity run;
-  - `annotate-bax.mjs` remains for the hand-written improvement ideas, and can read the importer's factual block instead of computing stats itself.
+  - `annotate-bax.mjs` remains for the hand-written improvement ideas, and can read the importer's factual block instead of computing stats itself. (Superseded 2026-10-01: the operator retired `annotate-bax.mjs` with `split-midi.mjs`; `--annotate` covers the factual block, and the hand-written ideas stay in the existing `.bax` headers and `.split.json` notes.)
 - Public engine API: additive only (`inspectMidiParseResult`, new option fields, `PackResult.mappingStats`).
 
-## Open implementation questions
+## Implementation decisions (2026-09-30)
 
-- Whether `mappingStats` should also be exposed on `ConversionSummary` (useful for Desktop later) or stay internal to annotation.
-- OQ-1, OQ-2 and OQ-6 (issue #213) are resolved. OQ-3 (confirm the step-duration contract) should be answered before T030; OQ-4 and OQ-5 do not block implementation.
+- `mappingStats` is exposed as optional `ConversionSummary.mappingStats` (one entry per config mapping; `undefined` when the config has no mappings), so Desktop can show per-mapping results later. It is additive and absent for 006-style runs without mappings.
+- Notes removed by `include`/`exclude` count as `filtered` in `mappingStats`: ignored by choice, not dropped, and not handed to auto-mapping.
+- In `unmappedTracks: "auto"` mode, notes of a mapped track that fall outside every matching bar range are auto-mapped like any unmapped note; in `"drop"` mode they are listed in `unmapped_dropped`.
+- A mapping that places no notes is listed under "Mappings with no output" in the annotation block rather than under a channel.
+- Under a `bpm` override (and `tempo: "longest"`), `tempo_map_ignored` lists every tempo event whose rounded bpm differs from the chosen one. `tempo: "first"` keeps the 006 message and event list unchanged.
+- Window and nudge are applied by `applyNudge` / `applyWindow` in `timing.ts` around the unchanged 006 `quantizeNotes`.
+- A bar range starting after the last source bar is a `bar_range_outside_song` conversion warning (spec edge cases), since the song length is unknown at config parse time.
+- All open questions (OQ-1 to OQ-6) are resolved.
+- FR-041 (one-step drum hits) is applied in `packPercussion` (`pack.ts`) before noise stack resolution and DMC packing, so merged noise timelines and DMC lines keep the song length. Against the pre-089 engine it changes 44 of the 432 byte-identity conversions, all drum or DMC patterns (and pattern order and count where bars now deduplicate); F01–F09 goldens at default options are unchanged. Covered by `midi-arrangement-lanes.test.ts` ("drum hits are one step long").

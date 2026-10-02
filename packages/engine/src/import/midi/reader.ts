@@ -4,7 +4,7 @@
  * should read the file themselves and pass the buffer to `readMidiBytes`.
  */
 import * as ToneMidi from '@tonejs/midi';
-import type { MidiParseResult, MidiRawNote, MidiTempoEvent, MidiTimeSigEvent } from './types.js';
+import type { MidiParseResult, MidiRawNote, MidiTempoEvent, MidiTimeSigEvent, MidiTrackInfo } from './types.js';
 
 /** Resolve Midi constructor across CJS/ESM interop shapes (Jest + Node ESM). */
 function resolveMidiCtor(): new (data?: ArrayBuffer | ArrayLike<number>) => any {
@@ -64,6 +64,7 @@ export function readMidiBytes(bytes: Uint8Array | ArrayBuffer): MidiParseResult 
   );
 
   const notes: MidiRawNote[] = [];
+  const tracks: MidiTrackInfo[] = [];
   let formatHint: MidiParseResult['formatHint'] = 'unknown';
   if (midi.tracks.length === 1) formatHint = '0';
   else if (midi.tracks.length > 1) formatHint = '1';
@@ -72,6 +73,13 @@ export function readMidiBytes(bytes: Uint8Array | ArrayBuffer): MidiParseResult 
     const program = track.instrument?.number ?? 0;
     const trackName = track.name || `track${sourceTrackIndex}`;
     const trackChannel = typeof track.channel === 'number' ? track.channel : 0;
+    tracks.push({
+      index: sourceTrackIndex,
+      name: trackName,
+      channel: trackChannel,
+      program,
+      programName: typeof track.instrument?.name === 'string' ? track.instrument.name : '',
+    });
 
     track.notes.forEach((note: any, sourceEventIndex: number) => {
       const midiChannel = resolveNoteMidiChannel(note, trackChannel);
@@ -106,5 +114,6 @@ export function readMidiBytes(bytes: Uint8Array | ArrayBuffer): MidiParseResult 
     tempos,
     timeSignatures,
     trackCount: midi.tracks.length,
+    tracks,
   };
 }
