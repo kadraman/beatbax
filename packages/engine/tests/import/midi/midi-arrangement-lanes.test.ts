@@ -170,6 +170,60 @@ describe('089 US1: bar-range mappings and lanes', () => {
     expect(channelBars(result.source, 1)[0]).toBe('C5:4 C5:4 C5:4 C5:4');
   });
 
+  test('streams mode: a note matching two ranged mappings is heard on both targets', () => {
+    const parsed = parseResult(quarters(0, 72, 1, 2));
+    const result = convertWith(parsed, {
+      trackMappings: [
+        { midiTrack: 0, target: 'pulse1', instrument: 'a', fromBar: 1, toBar: 2 },
+        { midiTrack: 0, target: 'pulse2', instrument: 'b', fromBar: 2 },
+      ],
+    });
+    expect(channelBars(result.source, 1)).toEqual(['C5:4 C5:4 C5:4 C5:4', 'C5:4 C5:4 C5:4 C5:4']);
+    expect(channelBars(result.source, 2)).toEqual(['.:16', 'C5:4 C5:4 C5:4 C5:4']);
+    expect(result.summary.mappingStats!.map((s) => s.matched)).toEqual([8, 4]);
+    expect(result.summary.notesDropped).toBe(0);
+    expectVerifies(result.source);
+  });
+
+  test('streams mode: an arrangement mapping receives the note alongside the 006 best match', () => {
+    const parsed = parseResult(quarters(0, 72, 1, 1));
+    const result = convertWith(parsed, {
+      trackMappings: [
+        { midiTrack: 0, target: 'pulse1', instrument: 'a' },
+        { midiTrack: 0, target: 'pulse2', instrument: 'b', mono: 'highest' },
+      ],
+    });
+    expect(channelBars(result.source, 1)[0]).toBe('C5:4 C5:4 C5:4 C5:4');
+    expect(channelBars(result.source, 2)[0]).toBe('C5:4 C5:4 C5:4 C5:4');
+  });
+
+  test('streams mode: 006-style mappings still pick a single best match', () => {
+    const parsed = parseResult(quarters(0, 72, 1, 1));
+    const result = convertWith(parsed, {
+      trackMappings: [
+        { midiTrack: 0, target: 'pulse1', instrument: 'a' },
+        { midiTrack: 0, target: 'pulse2', instrument: 'b' },
+      ],
+    });
+    expect(result.summary.channelsPacked).toBe(1);
+    expect(result.source).toMatch(/^channel 1 => inst a /m);
+    expect(result.summary.mappingStats!.map((s) => s.matched)).toEqual([4, 0]);
+  });
+
+  test('streams mode: ranged mappings differing only in selector specificity keep the most specific one', () => {
+    const parsed = parseResult(quarters(0, 72, 1, 1));
+    const result = convertWith(parsed, {
+      trackMappings: [
+        { midiTrack: 0, target: 'pulse1', instrument: 'a', fromBar: 1 },
+        { midiTrack: 0, midiChannel: 1, target: 'pulse1', instrument: 'a', fromBar: 1 },
+      ],
+    });
+    expect(result.summary.mappingStats!.map((s) => s.matched)).toEqual([0, 4]);
+    expect(result.summary.channelsPacked).toBe(1);
+    expect(channelBars(result.source, 1)[0]).toBe('C5:4 C5:4 C5:4 C5:4');
+    expect(result.summary.notesDropped).toBe(0);
+  });
+
   test('bar numbers are source bars measured with the first time signature', () => {
     // 2/4 source: a bar is 8 sixteenths, so source bar 3 starts at step 16.
     const notes = [rawNote(0, 72, 0, 2), rawNote(0, 74, 8, 2), rawNote(0, 76, 16, 2)];
@@ -369,6 +423,34 @@ describe('drum hits are one step long', () => {
     const dmc = [...patterns(result.source).entries()].filter(([name]) => name.startsWith('dmc_'));
     expect(dmc.length).toBeGreaterThan(0);
     for (const [, body] of dmc) expect(body).not.toMatch(/_dmc:\d/);
+    expect(new Set(channelSteps(result.source))).toEqual(new Set([32]));
+    expectVerifies(result.source);
+  });
+
+  /** A one-bar melody and a four-step kick starting on its last step. */
+  function heldDrumAcrossBar() {
+    const drum = { midiChannel: 9, isDrum: true, program: 0 };
+    return parseResult([...quarters(0, 72, 1, 1), rawNote(9, 36, 15, 4, drum)]);
+  }
+
+  test.each([
+    ['streams', {}],
+    ['lanes', { packing: 'lanes', trackMappings: [{ midiTrack: 9, target: 'noise' }] }],
+  ])('%s: a held drum crossing the last bar line still counts toward the song length', (_mode, cfg) => {
+    const result = convertWith(heldDrumAcrossBar(), cfg);
+    expect(result.summary.barsGenerated).toBe(2);
+    expect(channelBars(result.source, 4)).toEqual(['.:15 kick', '.:16']);
+    expect(new Set(channelSteps(result.source))).toEqual(new Set([32]));
+    expectVerifies(result.source);
+  });
+
+  test('NES: a held DMC-reinforced drum crossing the last bar line keeps the song length', () => {
+    const result = convertWith(
+      heldDrumAcrossBar(),
+      { dmcReinforcement: { enabled: true, kickSample: '@nes/kick', snareSample: '@nes/snare' } },
+      'nes',
+    );
+    expect(result.summary.barsGenerated).toBe(2);
     expect(new Set(channelSteps(result.source))).toEqual(new Set([32]));
     expectVerifies(result.source);
   });

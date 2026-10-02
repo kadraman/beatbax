@@ -1,5 +1,6 @@
 ---
 "@beatbax/engine": minor
+"@beatbax/cli": minor
 ---
 
 Readable names in `beatbax import midi` output (feature 090, [#214](https://github.com/kadraman/beatbax/issues/214)).

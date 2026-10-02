@@ -122,6 +122,28 @@ describe('089 US2: transpose and fold', () => {
     expect(adjustPitch(5, { transpose: -12 })).toBeNull();
   });
 
+  test('fold lands on the nearest in-range octave at the boundaries', () => {
+    expect(adjustPitch(24, { fold: [36, 59] })).toBe(36);
+    expect(adjustPitch(71, { fold: [36, 59] })).toBe(59);
+    expect(adjustPitch(36, { fold: [36, 59] })).toBe(36);
+    expect(adjustPitch(59, { fold: [36, 59] })).toBe(59);
+    expect(adjustPitch(61, { transpose: -60, fold: [60, 72] })).toBe(61);
+  });
+
+  test('fold runs in constant time for extreme transpose values', () => {
+    expect(adjustPitch(60, { transpose: 12 * 1e12 + 1, fold: [60, 72] })).toBe(61);
+    expect(adjustPitch(60, { transpose: -(12 * 1e12) - 1, fold: [60, 72] })).toBe(71);
+    // MAX_SAFE_INTEGER ≡ 7 (mod 12), so 60 + transpose has pitch class 7 and folds to 67.
+    expect(adjustPitch(60, { transpose: Number.MAX_SAFE_INTEGER, fold: [60, 72] })).toBe(67);
+    for (const transpose of [1e300, -1e300]) {
+      const p = adjustPitch(0, { transpose, fold: [60, 72] });
+      expect(p).not.toBeNull();
+      expect(p!).toBeGreaterThanOrEqual(60);
+      expect(p!).toBeLessThanOrEqual(72);
+      expect((((p! - (transpose % 12)) % 12) + 12) % 12).toBe(0);
+    }
+  });
+
   test('pitch_out_of_range notes are dropped, counted and aggregated per mapping', () => {
     const parsed = parseResult([rawNote(0, 120, 0, 4), rawNote(0, 122, 4, 4), rawNote(0, 60, 8, 4)]);
     const result = convertWith(parsed, {

@@ -181,7 +181,7 @@ export function resolveTiming(
     policy: tempo.policy,
     ignoredTempos: tempo.ignored,
     barMidiTicks,
-    nudgeMidiTicks: (options.nudge * parsed.ppq) / 4,
+    nudgeMidiTicks: ((options.nudge ?? 0) * parsed.ppq) / 4,
     windowStartTick: options.startBar != null ? barTick(options.startBar) : 0,
     windowEndTick: options.endBar != null ? barTick(options.endBar + 1) : undefined,
     songBars,

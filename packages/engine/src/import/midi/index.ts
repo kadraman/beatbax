@@ -8,7 +8,7 @@ import {
   ensureAllMappingStats,
   pushArrangementDiagnostics,
 } from './arrangement.js';
-import { resolveConvertOptions } from './config.js';
+import { resolveConvertOptions, withConvertDefaults } from './config.js';
 import { emitBaxSource } from './emit.js';
 import { packChannels } from './pack.js';
 import { quantizeNotes } from './quantize.js';
@@ -41,7 +41,14 @@ export type {
   ConversionDiagnostic,
   MappingStats,
 };
-export type { MonoPolicy, PackingMode, TempoPolicy, UnmappedTracksMode, TrackMapping } from './types.js';
+export type {
+  MonoPolicy,
+  PackingMode,
+  ResolvedMidiConvertOptions,
+  TempoPolicy,
+  UnmappedTracksMode,
+  TrackMapping,
+} from './types.js';
 export {
   resolveConvertOptions,
   parseImportConfig,
@@ -168,9 +175,10 @@ function safeTitle(options: MidiConvertOptions, parsed: MidiParseResult, inputLa
  */
 export function convertMidiParseResult(
   parsed: MidiParseResult,
-  options: MidiConvertOptions,
+  convertOptions: MidiConvertOptions,
   inputLabel?: string,
 ): MidiConvertResult {
+  const options = withConvertDefaults(convertOptions);
   const diagnostics: ConversionDiagnostic[] = [];
 
   if (parsed.notes.length === 0) {

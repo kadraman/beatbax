@@ -179,16 +179,24 @@ export interface MidiConvertOptions {
   familyArticulations: Record<GmFamily, FamilyArticulation>;
   /** Song title for emitted metadata (defaults from MIDI name / filename). */
   title?: string;
-  packing: PackingMode;
-  unmappedTracks: UnmappedTracksMode;
+  /** Default `streams`. */
+  packing?: PackingMode;
+  /** Default `auto`. */
+  unmappedTracks?: UnmappedTracksMode;
   bpm?: number;
-  tempo: TempoPolicy;
+  /** Default `first`. */
+  tempo?: TempoPolicy;
   startBar?: number;
   endBar?: number;
-  /** Source sixteenths (may be negative). */
-  nudge: number;
-  annotate: boolean;
+  /** Source sixteenths (may be negative). Default 0. */
+  nudge?: number;
+  /** Default false. */
+  annotate?: boolean;
 }
+
+/** `MidiConvertOptions` with the optional arrangement fields filled with their defaults. */
+export type ResolvedMidiConvertOptions = MidiConvertOptions &
+  Required<Pick<MidiConvertOptions, 'packing' | 'unmappedTracks' | 'tempo' | 'nudge' | 'annotate'>>;
 
 export interface MidiRawNote {
   /** Absolute start in MIDI PPQ ticks. */
@@ -252,6 +260,11 @@ export interface QuantizedNote {
   isDrum: boolean;
   /** Shift applied during quantization (BeatBax ticks). */
   shiftTicks: number;
+  /**
+   * Length before a drum hit was shortened to one step (FR-041). Counts toward
+   * the song length only; `durationTicks` is what gets emitted.
+   */
+  extentTicks?: number;
 }
 
 export interface ClassifiedStream {
@@ -305,6 +318,8 @@ export interface MappingStats {
 export interface PackedHit {
   startTick: number;
   durationTicks: number;
+  /** See `QuantizedNote.extentTicks`. */
+  extentTicks?: number;
   /** Melodic note name (C4) or drum token (kick). */
   token: string;
   velocity: number;

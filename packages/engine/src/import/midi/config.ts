@@ -13,6 +13,7 @@ import type {
   QuantizeGrid,
   QuantizeMode,
   QuantizeOptions,
+  ResolvedMidiConvertOptions,
   TempoPolicy,
   TrackMapping,
   UnmappedTracksMode,
@@ -66,7 +67,19 @@ export function defaultQuantizeOptions(): QuantizeOptions {
   };
 }
 
-export function defaultConvertOptions(chip: MidiChipId): MidiConvertOptions {
+/** Fill the optional arrangement fields of a caller-built options object with their defaults. */
+export function withConvertDefaults(options: MidiConvertOptions): ResolvedMidiConvertOptions {
+  return {
+    ...options,
+    packing: options.packing ?? 'streams',
+    unmappedTracks: options.unmappedTracks ?? 'auto',
+    tempo: options.tempo ?? 'first',
+    nudge: options.nudge ?? 0,
+    annotate: options.annotate ?? false,
+  };
+}
+
+export function defaultConvertOptions(chip: MidiChipId): ResolvedMidiConvertOptions {
   return {
     chip,
     ticksPerBeat: DEFAULT_TICKS_PER_BEAT,
@@ -340,7 +353,7 @@ export function resolveConvertOptions(args: {
   strict?: boolean;
   title?: string;
   annotate?: boolean;
-}): MidiConvertOptions {
+}): ResolvedMidiConvertOptions {
   const cfg = args.config ?? {};
   const chip = parseChipId(args.chip || cfg.chip);
   const base = defaultConvertOptions(chip);

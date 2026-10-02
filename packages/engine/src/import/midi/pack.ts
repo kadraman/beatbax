@@ -187,6 +187,7 @@ function packDrumNotes(
         startTick: dest,
         durationTicks: Math.max(1, Math.min(n.durationTicks, 1)),
         shiftTicks: n.shiftTicks + d,
+        extentTicks: undefined,
       };
       onFlamCopy(n, nudged);
       occupied.set(dest, nudged);
@@ -223,6 +224,7 @@ function toHits(
   return notes.map((n) => ({
     startTick: n.startTick,
     durationTicks: n.durationTicks,
+    ...(n.extentTicks != null ? { extentTicks: n.extentTicks } : {}),
     token: noteTokenForHit(n, isDrum),
     velocity: n.velocity,
     instrument: forceInstTag ? instrument : undefined,
@@ -376,8 +378,8 @@ function packPercussion(
   // duration is not a sustain and would shift every later hit on the channel.
   const oneShot = (notes: QuantizedNote[]) =>
     notes.map((n) => {
-        if (n.durationTicks <= 1) return n;
-      const hit: QuantizedNote = { ...n, durationTicks: 1 };
+      if (n.durationTicks <= 1) return n;
+      const hit: QuantizedNote = { ...n, durationTicks: 1, extentTicks: n.durationTicks };
       drumMapByNote.set(hit, drumMapByNote.get(n));
       const mi = mappingByNote.get(n);
       if (mi != null) mappingByNote.set(hit, mi);
@@ -507,6 +509,7 @@ function mergeSlots(
       hits.push({
         startTick: t.note.startTick,
         durationTicks: t.note.durationTicks,
+        ...(t.note.extentTicks != null ? { extentTicks: t.note.extentTicks } : {}),
         token: t.isDrum ? t.instrument : noteTokenForHit(t.note, false),
         velocity: t.note.velocity,
         instrument: needInst ? t.instrument : undefined,

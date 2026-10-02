@@ -1,4 +1,11 @@
-import { defaultConvertOptions, parseImportConfig, resolveConvertOptions } from '../../../src/import/midi';
+import {
+  convertMidiParseResult,
+  defaultConvertOptions,
+  parseImportConfig,
+  resolveConvertOptions,
+  type MidiConvertOptions,
+} from '../../../src/import/midi';
+import { parseResult, rawNote } from './arrangement-helpers';
 
 describe('089 arrangement config parsing', () => {
   test('accepts every new field', () => {
@@ -46,6 +53,15 @@ describe('089 arrangement config parsing', () => {
     expect(opts.startBar).toBeUndefined();
     expect(opts.endBar).toBeUndefined();
     expect(base.packing).toBe('streams');
+  });
+
+  test('a hand-built options object without the new fields converts like the defaults', () => {
+    const { packing, unmappedTracks, tempo, nudge, annotate, ...legacy } = defaultConvertOptions('gameboy');
+    const legacyOptions: MidiConvertOptions = legacy;
+    const parsed = parseResult([rawNote(0, 60, 0, 4), rawNote(0, 64, 4, 4), rawNote(0, 67, 9, 3)]);
+    const result = convertMidiParseResult(parsed, legacyOptions, 'legacy.mid');
+    expect(result.source).not.toMatch(/NaN/);
+    expect(result.source).toBe(convertMidiParseResult(parsed, defaultConvertOptions('gameboy'), 'legacy.mid').source);
   });
 
   test('CLI annotate flag wins over config', () => {

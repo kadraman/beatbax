@@ -194,7 +194,7 @@ export function buildPatternsAndSequences(
   let maxTick = 0;
   for (const ch of channels) {
     for (const h of ch.hits) {
-      maxTick = Math.max(maxTick, h.startTick + h.durationTicks);
+      maxTick = Math.max(maxTick, h.startTick + Math.max(h.durationTicks, h.extentTicks ?? 0));
     }
   }
   let barCount = Math.max(1, Math.ceil(maxTick / patternTicks));

@@ -217,10 +217,10 @@ function mappingSignature(m: TrackMapping): string {
 }
 
 /**
- * Lane mode: keep every match, except that mappings differing only in selector
+ * Every applicable match (spec FR-014), except that mappings differing only in selector
  * specificity keep the most specific one, and each drum target gets at most one mapping.
  */
-function laneMatches(matches: MappingMatch[]): MappingMatch[] {
+function applicableMatches(matches: MappingMatch[]): MappingMatch[] {
   const bySignature = new Map<string, MappingMatch>();
   const drumByTarget = new Map<ChipRole, MappingMatch>();
   for (const m of matches) {
@@ -236,16 +236,35 @@ function laneMatches(matches: MappingMatch[]): MappingMatch[] {
   return [...bySignature.values(), ...drumByTarget.values()].sort((a, b) => a.index - b.index);
 }
 
+/**
+ * Streams mode: 006-style mappings keep the 006 single best match (FR-001); arrangement
+ * mappings each receive the note, alongside that best match (FR-014).
+ */
+function streamMatches(matches: MappingMatch[]): MappingMatch[] {
+  const legacy = bestMatch(matches.filter((m) => !usesArrangementFields(m.mapping)));
+  const arrangement = matches.filter((m) => usesArrangementFields(m.mapping));
+  if (!legacy) return applicableMatches(arrangement);
+  return applicableMatches([legacy, ...arrangement].sort((a, b) => a.index - b.index));
+}
+
 /** Transpose then fold (spec FR-022); `null` when the pitch leaves MIDI 0–127. */
 export function adjustPitch(pitch: number, m: Pick<TrackMapping, 'transpose' | 'fold'>): number | null {
-  let p = pitch + (m.transpose ?? 0);
+  const transpose = m.transpose ?? 0;
+  let p = pitch + transpose;
   if (m.fold) {
     const [lo, hi] = m.fold;
-    while (p < lo) p += 12;
-    while (p > hi) p -= 12;
+    // `transpose` is an unbounded integer, so derive the pitch class from `transpose % 12`
+    // (exact for any double) rather than from `p`, which may have lost precision.
+    const pitchClass = mod12(pitch + (transpose % 12));
+    if (p < lo) p = lo + mod12(pitchClass - lo);
+    else if (p > hi) p = hi - mod12(hi - pitchClass);
   }
   if (p < 0 || p > 127) return null;
   return p;
+}
+
+function mod12(n: number): number {
+  return ((n % 12) + 12) % 12;
 }
 
 function familyForNotes(notes: QuantizedNote[], options: MidiConvertOptions): GmFamily {
@@ -347,7 +366,7 @@ export function classifyStreams(
       accepted.push(match);
     }
 
-    const chosen = lanes ? laneMatches(accepted) : [bestMatch(accepted)].filter((m): m is MappingMatch => !!m);
+    const chosen = lanes ? applicableMatches(accepted) : streamMatches(accepted);
     if (chosen.length > 0) {
       for (const match of chosen) addMapped(note, match);
       continue;
