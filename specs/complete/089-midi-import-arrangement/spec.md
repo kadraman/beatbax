@@ -2,10 +2,10 @@
 title: "Arrangement-aware MIDI import"
 id: 89
 slug: "midi-import-arrangement"
-status: specified
+status: complete
 authors: ["Cursor Agent"]
 created: 2026-09-27
-updated: 2026-09-27
+updated: 2026-09-30
 issue: "https://github.com/kadraman/beatbax/issues/213"
 area: engine
 ---
@@ -25,7 +25,7 @@ Extend the shipped CLI MIDI → `.bax` conversion (feature **006**, `specs/compl
 - **inspect** a MIDI file's tracks before writing a config;
 - optionally emit a factual **arrangement notes** comment header.
 
-No BeatBax language syntax changes. Output remains ordinary `.bax` source. When none of the new config fields or flags are used, output is byte-identical to 006. The single intended exception is the tempo fix for `ticksPerBeat` ≠ 4 (FR-040).
+No BeatBax language syntax changes. Output remains ordinary `.bax` source. When none of the new config fields or flags are used, output is byte-identical to 006. The intended exceptions are the tempo fix for `ticksPerBeat` ≠ 4 (FR-040) and one-step drum hits (FR-041).
 
 ## Problem
 
@@ -105,7 +105,8 @@ The composer wants the generated `.bax` to record where each part came from and 
 
 ### Edge cases
 
-- `fromBar` > `toBar`, a bar range outside the song, or `endBar` < `startBar`: config error at parse time.
+- `fromBar` > `toBar` or `endBar` < `startBar`: config error at parse time.
+- A bar range (mapping or window) starting after the last source bar: `bar_range_outside_song` warning at conversion. The config parser has no MIDI file, so this cannot be a parse-time error; the mapping simply produces no output.
 - Two mappings for the same track and overlapping bar ranges with **different** targets: allowed (the track is heard on both channels in that range).
 - Two mappings for the same track, same target, overlapping ranges: allowed; the second only fills gaps (FR-011).
 - `fold` range narrower than 12 semitones: config error (a pitch class may not fit).
@@ -121,7 +122,7 @@ The composer wants the generated `.bax` to record where each part came from and 
 
 Config compatibility
 
-- **FR-001**: All new fields are optional. A config that uses none of them, run without the new CLI flags, MUST produce byte-identical output to 006, except for the tempo fix in FR-040 when `ticksPerBeat` ≠ 4.
+- **FR-001**: All new fields are optional. A config that uses none of them, run without the new CLI flags, MUST produce byte-identical output to 006, except for the tempo fix in FR-040 when `ticksPerBeat` ≠ 4 and the drum-hit fix in FR-041.
 - **FR-002**: New fields MUST be validated at config-parse time with the same error style as 006 (`trackMappings[i].field …`). Unknown keys remain ignored.
 
 Bar-range mappings and lanes
@@ -156,6 +157,7 @@ Inspect
 
 - **FR-050**: `beatbax import midi --inspect <file.mid>` prints, without writing files: PPQ, time signature(s), bar count, every tempo event with its bar and the longest-held tempo, and per track: index, MIDI channel (1-based), GM program number and name, track name, note count, pitch range, first/last bar, activity per 8-bar block, and "duplicate of T*n*" when the track's note list is identical to an earlier track's.
 - **FR-051**: The inspect report MUST be deterministic and produced by a browser-safe engine API returning structured data; the CLI formats it.
+- **FR-052**: `--inspect --json` prints the structured report from FR-051 as pretty-printed JSON instead of the text report. `--json` without `--inspect` is a CLI error.
 
 Arrangement notes
 
@@ -169,6 +171,7 @@ Diagnostics and summary
 Behaviour change to 006
 
 - **FR-040**: 006 currently writes the source bpm unchanged when `ticksPerBeat` ≠ 4, so such imports play at 4 / `ticksPerBeat` × the source speed. FR-032 corrects this for every import, including configs that use no other 089 field (OQ-1). The change MUST be documented in `docs/features/midi-importer.md` and the release notes.
+- **FR-041**: Named drum tokens are one-shot hits lasting one step (006 spec; the resolver ignores `:N` on them). 006 wrote a drum note quantized to more than one step as `name:N`, which resolves to a single step and shifts every later event on the noise or DMC channel out of sync with the other channels (and can raise `mono_conflict` when merged noise hits then overlap). Every drum hit on the noise and DMC channels MUST be emitted as one step followed by rests (`kick .:3`, not `kick:4`), for every import. Found during the SC-002 parity run, where `split-midi.mjs` had masked it by writing one-step drum notes. The change MUST be documented with FR-040.
 
 ### Non-goals
 
@@ -176,7 +179,7 @@ Behaviour change to 006
 - Editorial improvement suggestions (macro / effect / DCM ideas) in the annotation header; those stay hand-written.
 - Converting to several chips in one run.
 - A Desktop / Web import UI.
-- Changing 006 behaviour for configs that do not use the new fields (other than FR-040).
+- Changing 006 behaviour for configs that do not use the new fields (other than FR-040 and FR-041).
 - Keeping `songs/covers/tools/split-midi.mjs`; it can be retired once parity is shown (SC-002).
 
 ## Success criteria
@@ -188,16 +191,16 @@ Behaviour change to 006
 
 ## Assumptions
 
-- The PCM renderer and scheduler play one step as a sixteenth of the written `bpm` (observed: `tickSeconds = secondsPerBeat / 4` in `packages/engine/src/audio/pcmRenderer.ts`). FR-032 depends on this; see OQ-3.
+- One step plays as a sixteenth of the written `bpm` (global timing contract, OQ-3). FR-032 depends on this.
 - `@tonejs/midi` remains the reader; inspect uses the same parse result as conversion.
 
 ## Open questions
 
 - **OQ-1** *(resolved 2026-09-27)*: FR-032 tempo scaling for `ticksPerBeat` ≠ 4 applies **by default**. It is treated as a bug fix to 006 and called out in the docs and release notes.
 - **OQ-2** *(resolved 2026-09-27)*: `fromBar`/`toBar`/`startBar`/`endBar` count **source bars**, measured with the first time signature (what a DAW shows). A warning is emitted if the source time signature changes.
-- **OQ-3**: Confirm the step-duration contract (one step = one sixteenth of `bpm`) is the specified behaviour, or point to the spec that defines it.
-- **OQ-4**: Should `tempo` default flip to `"longest"` in a later release? *Recommendation: no — keep `"first"` for compatibility; recommend `"longest"` in docs.*
-- **OQ-5**: Should `--inspect` also offer `--json` output for tooling? *Recommendation: yes, low cost once FR-051's structured API exists.*
+- **OQ-3** *(resolved 2026-09-30)*: One step is one sixteenth note of `bpm` (`60 / bpm / 4` seconds). Codified in [specs/global/language.md](../../global/language.md) (Timing contract) and [docs/grammar/metadata-directives.md](../../../docs/grammar/metadata-directives.md).
+- **OQ-4** *(resolved 2026-09-30)*: No. `tempo` keeps the `"first"` default for compatibility; docs recommend `"longest"` for files with a count-in.
+- **OQ-5** *(resolved 2026-09-30)*: Yes. `--inspect --json` prints the FR-051 structured report as JSON (FR-052).
 - **OQ-6** *(resolved 2026-09-27)*: GitHub issue https://github.com/kadraman/beatbax/issues/213.
 
 ## References

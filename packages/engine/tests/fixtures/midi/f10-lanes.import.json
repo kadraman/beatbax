@@ -1,0 +1,10 @@
+{
+  "packing": "lanes",
+  "unmappedTracks": "drop",
+  "trackMappings": [
+    { "midiTrack": 1, "target": "pulse1", "instrument": "synth", "fromBar": 1, "toBar": 2 },
+    { "midiTrack": 0, "target": "pulse1", "instrument": "vocal", "fromBar": 3, "toBar": 4 },
+    { "midiTrack": 2, "target": "pulse1", "instrument": "guitar" },
+    { "midiTrack": 3, "target": "wave", "instrument": "bass" }
+  ]
+}

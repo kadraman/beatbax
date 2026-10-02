@@ -2,6 +2,7 @@
 
 > **Canonical timing model (source of truth)**  
 > Song tempo is set with `**bpm`**. Bar/beat grouping in the editor and resolver uses `**stepsPerBar**` (default `4`).  
+> **One step lasts one sixteenth note at `bpm`**: step duration in seconds is `60 / bpm / 4`, so four steps make one beat and `C4:8` lasts two beats. `stepsPerBar` changes bar grouping and numbering only, never step duration.  
 > The engine uses a **fixed internal tick resolution**; it is not configurable per song.  
 > `**time`** is a deprecated alias for `stepsPerBar` (parser warning). `**ticksPerStep**` is deprecated and **ignored** (parser warning).  
 > Feature specs under `docs/features/complete/` link here for timing behavior. Peggy grammar excerpts may still list `time` / `ticksPerStep` as parseable tokens (backward compatibility); they are **not** active song settings.

@@ -144,9 +144,11 @@ For a single `.uge`, omit the output path to write `{basename}.ins` beside the s
 beatbax import midi song.mid song.bax --chip gameboy
 beatbax convert midi2bax song.mid song.bax --chip nes --config mapping.json
 beatbax import midi song.mid --chip gameboy --dry-run
+beatbax import midi song.mid --inspect            # per-track report, writes nothing
+beatbax import midi song.mid song.bax --chip gameboy --config arrange.json --annotate
 ```
 
-Converts a Standard MIDI File into editable BeatBax source (chip kits, `pat`/`seq` reuse, drum tokens). `--chip` is required (`gameboy` | `nes`). See [docs/features/midi-importer.md](../../docs/features/midi-importer.md) for options and config schema.
+Converts a Standard MIDI File into editable BeatBax source (chip kits, `pat`/`seq` reuse, drum tokens). `--chip` is required (`gameboy` | `nes`) except with `--inspect` (add `--json` for a JSON report). The config can place parts by bar range on binding channel lanes, pick chord reduction, tempo, window and nudge; `--annotate` explains what each mapping kept and dropped. See [docs/features/midi-importer.md](../../docs/features/midi-importer.md) for options and config schema.
 
 ### Convert WAV to NES DMC
 

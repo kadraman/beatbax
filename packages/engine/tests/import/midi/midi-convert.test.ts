@@ -257,9 +257,9 @@ describe('packing', () => {
     const result = convertMidiToBax(bytes, defaultConvertOptions('gameboy'), 'sections');
     expect(result.source).toMatch(/# --- Section 1: Bars 1-8 ---/);
     expect(result.source).toMatch(/# --- Section 2: Bars 9-16 ---/);
-    expect(result.source).toMatch(/seq lead_s01 =/);
-    expect(result.source).toMatch(/seq lead_s02 =/);
-    expect(result.source).toMatch(/channel 1 => inst \S+ seq lead_s01 lead_s02/);
+    expect(result.source).toMatch(/seq lead_s01_seq =/);
+    expect(result.source).toMatch(/seq lead_s02_seq =/);
+    expect(result.source).toMatch(/channel 1 => inst \S+ seq lead_s01_seq lead_s02_seq$/m);
     expectParses(result.source);
 
     const mono = convertMidiToBax(

@@ -179,24 +179,25 @@ function roleSuffix(role: ChipRole): '_p1' | '_p2' | '_bass' | null {
 
 /**
  * Deterministic instrument name for a GM family packed onto a chip role.
- * Bass-family on the bass role stays `bass`; drums keep percussion token names.
+ * Melodic names end in `_inst` (bass family on the bass role is `bass_inst`); drums keep
+ * percussion token names because patterns use them as hit tokens.
  */
 export function instrumentNameForFamilyRole(family: GmFamily, role: ChipRole): string {
   if (role === 'noise') return 'hihat';
   if (role === 'dmc') return DMC_KICK;
   const suffix = roleSuffix(role);
-  if (!suffix) return family;
-  if (family === 'bass' && suffix === '_bass') return 'bass';
-  return `${family}${suffix}`;
+  if (!suffix) return `${family}_inst`;
+  if (family === 'bass' && suffix === '_bass') return 'bass_inst';
+  return `${family}${suffix}_inst`;
 }
 
-/** Parse `{family}_p1|_p2|_bass` or bare `bass` / known drum names. */
+/** Parse `{family}_p1|_p2|_bass` or bare `bass`, each with or without `_inst`; drum names give null. */
 export function parseFamilyRoleFromInstrumentName(
   name: string,
 ): { family: GmFamily; role: ChipRole } | null {
   if (DRUM_NAMES.has(name)) return null;
-  if (name === 'bass') return { family: 'bass', role: 'wave' };
-  const m = /^(piano|guitar|bass|strings|pad|lead)_(p1|p2|bass)$/.exec(name);
+  if (name === 'bass' || name === 'bass_inst') return { family: 'bass', role: 'wave' };
+  const m = /^(piano|guitar|bass|strings|pad|lead)_(p1|p2|bass)(?:_inst)?$/.exec(name);
   if (!m) return null;
   const family = m[1] as GmFamily;
   const role: ChipRole = m[2] === 'p1' ? 'pulse1' : m[2] === 'p2' ? 'pulse2' : 'wave';
