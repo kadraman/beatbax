@@ -7,7 +7,7 @@
 - [spec.md](spec.md) — WHAT / WHY (CLI conversion; not Desktop MIDI step-entry)
 - [plan.md](plan.md) — HOW
 - [tasks.md](tasks.md) — T001–T020 complete
-- Follow-up: feature **089** `midi-import-arrangement` ([specs/features/089-midi-import-arrangement/](../../features/089-midi-import-arrangement/))
+- Follow-up: feature **089** `midi-import-arrangement` ([specs/complete/089-midi-import-arrangement/](../089-midi-import-arrangement/))
 - [fixtures.md](fixtures.md) — F01–F09 CI fixtures + S01–S10 stretch songs
 
 Product language may say “conversion”; slug remains `midi-importer` for continuity.

@@ -16,20 +16,36 @@ if (fs.existsSync(legacyEnginePublic)) {
   console.log('Removed legacy public/engine copy');
 }
 
+/**
+ * A folder with its own `.git` (nested repository, submodule or worktree) holds
+ * songs that are not part of this repository and must never be published.
+ */
+function isSeparateRepo(dir) {
+  return fs.existsSync(path.join(dir, '.git'));
+}
+
 function copyRecursive(src, dest) {
   if (!fs.existsSync(src)) return false;
   fs.mkdirSync(dest, { recursive: true });
   const entries = fs.readdirSync(src, { withFileTypes: true });
   for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue;
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) copyRecursive(srcPath, destPath);
-    else fs.copyFileSync(srcPath, destPath);
+    if (entry.isDirectory()) {
+      if (isSeparateRepo(srcPath)) {
+        console.log('Skipped separate repository', path.relative(repoRoot, srcPath));
+        continue;
+      }
+      copyRecursive(srcPath, destPath);
+    } else fs.copyFileSync(srcPath, destPath);
   }
   return true;
 }
 
 if (fs.existsSync(songsSrc)) {
+  // Start clean so files removed or excluded at the source do not linger in public/.
+  fs.rmSync(songsTarget, { recursive: true, force: true });
   copyRecursive(songsSrc, songsTarget);
   console.log('Copied songs ->', songsTarget);
 } else {

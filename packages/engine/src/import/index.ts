@@ -76,10 +76,15 @@ export {
   hitsToBarTokens,
   hashTokens,
   emitBaxSource,
+  inspectMidiBytes,
+  inspectMidiParseResult,
   type MidiConvertOptions,
   type MidiConvertResult,
   type MidiImportConfig,
   type ConversionSummary,
   type ConversionDiagnostic,
+  type MappingStats,
+  type MidiInspectReport,
+  type MidiInspectTrack,
 } from './midi/index.js';
 

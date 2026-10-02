@@ -1,0 +1,8 @@
+{
+  "packing": "lanes",
+  "trackMappings": [
+    { "midiTrack": 0, "target": "pulse1", "instrument": "lead", "mono": "highest" },
+    { "midiTrack": 1, "target": "wave", "instrument": "bass", "mono": "lowest" },
+    { "midiTrack": 2, "target": "pulse2", "instrument": "arp", "mono": "newest", "transpose": 12 }
+  ]
+}

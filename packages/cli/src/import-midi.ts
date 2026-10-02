@@ -5,14 +5,16 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, resolve } from 'path';
 import {
   convertMidiToBax,
+  inspectMidiBytes,
   parseImportConfig,
   resolveConvertOptions,
   type ConversionDiagnostic,
   type MidiImportConfig,
+  type MidiInspectReport,
 } from '@beatbax/engine/import';
 
 export interface MidiImportCliOptions {
-  chip: string;
+  chip?: string;
   config?: string;
   quantize?: string;
   grid?: string;
@@ -23,6 +25,72 @@ export interface MidiImportCliOptions {
   strict?: boolean;
   title?: string;
   verbose?: boolean;
+  inspect?: boolean;
+  json?: boolean;
+  annotate?: boolean;
+}
+
+function formatBars(first: number, last: number): string {
+  return first === last ? String(first) : `${first}-${last}`;
+}
+
+/** Deterministic text form of the engine inspect report (spec FR-050). */
+export function formatInspectReport(report: MidiInspectReport): string {
+  const lines: string[] = [];
+  const title = report.name ? `"${report.name}"` : '(untitled)';
+  lines.push(
+    `MIDI inspect: ${title} — PPQ ${report.ppq}, ${report.trackCount} track(s), ${report.bars} bar(s)`,
+  );
+  const sigs = report.timeSignatures.length
+    ? report.timeSignatures.map((t) => `${t.numerator}/${t.denominator} @ bar ${t.bar}`).join(', ')
+    : '4/4 (none in file)';
+  lines.push(`Time signatures: ${sigs}`);
+  const tempos = report.tempos.length
+    ? report.tempos.map((t) => `${t.bpm} @ bar ${t.bar}`).join(', ')
+    : '120 (none in file)';
+  lines.push(`Tempos: ${tempos}`);
+  lines.push(`First tempo: ${report.firstBpm} bpm; longest-held tempo: ${report.longestBpm} bpm`);
+  lines.push('');
+
+  const header = ['Track', 'Ch', 'Program', 'Name', 'Notes', 'Range', 'Bars', `Activity/${report.activityBlockBars} bars`];
+  const rows = report.tracks.map((t) => [
+    t.id,
+    String(t.channel),
+    t.programName ? `${t.program} ${t.programName}` : String(t.program),
+    t.name || '-',
+    String(t.notes),
+    t.lowPitch === t.highPitch ? t.lowNote : `${t.lowNote}-${t.highNote}`,
+    formatBars(t.firstBar, t.lastBar),
+    t.activity.join(' ') + (t.duplicateOf ? `  (duplicate of ${t.duplicateOf})` : ''),
+  ]);
+  const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i]!.length)));
+  const fmt = (cells: string[]) =>
+    cells
+      .map((c, i) => (i === cells.length - 1 ? c : c.padEnd(widths[i]!)))
+      .join('  ')
+      .trimEnd();
+  lines.push(fmt(header));
+  for (const r of rows) lines.push(fmt(r));
+  if (rows.length === 0) lines.push('(no tracks with notes)');
+  return lines.join('\n');
+}
+
+function runMidiInspect(input: string, outputPath: string | undefined, options: MidiImportCliOptions, fail: (msg: string) => never): void {
+  const ignored: string[] = [];
+  if (options.chip) ignored.push('--chip');
+  if (options.config) ignored.push('--config');
+  if (outputPath) ignored.push('output path');
+  if (ignored.length) {
+    console.error(`Warning: --inspect ignores ${ignored.join(', ')} (inspect never writes files)`);
+  }
+
+  let report: MidiInspectReport;
+  try {
+    report = inspectMidiBytes(readFileSync(input));
+  } catch (err: any) {
+    fail(`Error: MIDI inspect failed: ${err.message ?? err}`);
+  }
+  console.log(options.json ? JSON.stringify(report, null, 2) : formatInspectReport(report));
 }
 
 function printDiagnostics(diagnostics: ConversionDiagnostic[], verbose: boolean): void {
@@ -42,6 +110,17 @@ export function runMidiImport(
   const input = resolve(inputPath);
   if (!existsSync(input)) {
     fail(`Error: File not found: ${inputPath}`);
+  }
+
+  if (options.json && !options.inspect) {
+    fail('Error: --json requires --inspect');
+  }
+  if (options.inspect) {
+    runMidiInspect(input, outputPath, options, fail);
+    return;
+  }
+  if (!options.chip) {
+    fail('Error: --chip is required (gameboy | nes)');
   }
 
   let config: MidiImportConfig | null = null;
@@ -83,7 +162,7 @@ export function runMidiImport(
   let resolved;
   try {
     resolved = resolveConvertOptions({
-      chip: options.chip,
+      chip: options.chip!,
       config,
       quantize: options.quantize,
       grid: options.grid,
@@ -92,6 +171,7 @@ export function runMidiImport(
       sectionBars,
       strict: options.strict === true,
       title: options.title,
+      annotate: options.annotate === true ? true : undefined,
     });
   } catch (err: any) {
     fail(`Error: ${err.message ?? err}`);
@@ -131,7 +211,7 @@ export function runMidiImport(
 /** Shared option binder for import midi / convert midi2bax. */
 export function midiImportOptionDefs(): { flags: string; description: string; defaultValue?: string }[] {
   return [
-    { flags: '--chip <chip>', description: 'Target chip (required): gameboy | nes' },
+    { flags: '--chip <chip>', description: 'Target chip (required unless --inspect): gameboy | nes' },
     { flags: '--config <file>', description: 'Optional JSON mapping/quantize override' },
     { flags: '--quantize <mode>', description: 'nearest | floor | ceil | strict' },
     { flags: '--grid <grid>', description: '1/4 | 1/8 | 1/16 | 1/32' },
@@ -144,5 +224,8 @@ export function midiImportOptionDefs(): { flags: string; description: string; de
     { flags: '--dry-run', description: 'Print conversion summary only; do not write .bax' },
     { flags: '--strict', description: 'Fail on strict quantize / conversion errors' },
     { flags: '--title <name>', description: 'Override song name metadata' },
+    { flags: '--inspect', description: 'Print a per-track report of the MIDI file; writes nothing' },
+    { flags: '--json', description: 'With --inspect: print the report as JSON' },
+    { flags: '--annotate', description: 'Prepend a comment block explaining channel mappings, drops and timing' },
   ];
 }

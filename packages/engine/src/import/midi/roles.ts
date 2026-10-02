@@ -3,6 +3,7 @@
  */
 import { midiToNote } from '../../util/music.js';
 import { gmFamilyFromProgram, instrumentNameForFamilyRole, DMC_KICK, DMC_SNARE } from './kit.js';
+import { createArrangementContext, statsFor, type ArrangementContext } from './arrangement.js';
 import type { ChipRole, GmFamily } from './types.js';
 import type {
   ClassifiedStream,
@@ -122,30 +123,148 @@ function priorityForRole(role: ChipRole): number {
   }
 }
 
-function findOverride(
+/** 006 selector score: > 0 when the mapping's track/channel selector matches the note. */
+function selectorScore(note: QuantizedNote, m: TrackMapping): number {
+  // Prefer explicit track+channel, then track, then channel.
+  let score = 0;
+  if (m.midiTrack != null && m.midiTrack === note.sourceTrackIndex) score += 2;
+  if (m.midiChannel != null && m.midiChannel === note.midiChannel + 1) score += 2; // config uses 1-based
+  if (m.midiChannel != null && m.midiChannel === note.midiChannel) score += 1; // also allow 0-based
+  if (m.midiTrack == null && m.midiChannel == null) score = 0;
+  // If only one dimension specified, require match
+  if (m.midiTrack != null && m.midiTrack !== note.sourceTrackIndex) return -1;
+  if (m.midiChannel != null) {
+    const ch = m.midiChannel;
+    if (ch !== note.midiChannel && ch !== note.midiChannel + 1) return -1;
+  }
+  return score;
+}
+
+export interface MappingMatch {
+  mapping: TrackMapping;
+  index: number;
+  score: number;
+}
+
+function isDrumTarget(role: ChipRole): boolean {
+  return role === 'noise' || role === 'dmc';
+}
+
+/** True when the mapping uses any feature-089 field. */
+export function usesArrangementFields(m: TrackMapping): boolean {
+  return (
+    m.fromBar != null ||
+    m.toBar != null ||
+    m.mono != null ||
+    m.transpose != null ||
+    m.fold != null ||
+    m.include != null ||
+    m.exclude != null
+  );
+}
+
+function inBarRange(note: QuantizedNote, m: TrackMapping, ctx: ArrangementContext): boolean {
+  if (m.fromBar != null && note.startTick < ctx.barStartTick(m.fromBar)) return false;
+  if (m.toBar != null && note.startTick >= ctx.barStartTick(m.toBar + 1)) return false;
+  return true;
+}
+
+function passesDrumFilter(pitch: number, m: TrackMapping): boolean {
+  if (m.include && !m.include.includes(pitch)) return false;
+  if (m.exclude && m.exclude.includes(pitch)) return false;
+  return true;
+}
+
+/**
+ * Every mapping whose selector and bar range match the note, in config order
+ * (spec FR-010, FR-014). Include/exclude filtering is applied by the caller.
+ */
+export function findOverrides(
   note: QuantizedNote,
   mappings: TrackMapping[] | undefined,
-): TrackMapping | undefined {
-  if (!mappings || mappings.length === 0) return undefined;
-  // Prefer explicit track+channel, then track, then channel.
-  const scored = mappings
-    .map((m) => {
-      let score = 0;
-      if (m.midiTrack != null && m.midiTrack === note.sourceTrackIndex) score += 2;
-      if (m.midiChannel != null && m.midiChannel === note.midiChannel + 1) score += 2; // config uses 1-based
-      if (m.midiChannel != null && m.midiChannel === note.midiChannel) score += 1; // also allow 0-based
-      if (m.midiTrack == null && m.midiChannel == null) score = 0;
-      // If only one dimension specified, require match
-      if (m.midiTrack != null && m.midiTrack !== note.sourceTrackIndex) return { m, score: -1 };
-      if (m.midiChannel != null) {
-        const ch = m.midiChannel;
-        if (ch !== note.midiChannel && ch !== note.midiChannel + 1) return { m, score: -1 };
-      }
-      return { m, score };
-    })
-    .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score);
-  return scored[0]?.m;
+  ctx: ArrangementContext,
+): MappingMatch[] {
+  if (!mappings || mappings.length === 0) return [];
+  const out: MappingMatch[] = [];
+  mappings.forEach((mapping, index) => {
+    const score = selectorScore(note, mapping);
+    if (score > 0 && inBarRange(note, mapping, ctx)) out.push({ mapping, index, score });
+  });
+  return out;
+}
+
+/** 006 choice: highest score, first in config order on ties. */
+function bestMatch(matches: MappingMatch[]): MappingMatch | undefined {
+  let best: MappingMatch | undefined;
+  for (const m of matches) if (!best || m.score > best.score) best = m;
+  return best;
+}
+
+/** Everything about a mapping except its track/channel selector. */
+function mappingSignature(m: TrackMapping): string {
+  return JSON.stringify([
+    m.target,
+    m.instrument ?? null,
+    m.fromBar ?? null,
+    m.toBar ?? null,
+    m.mono ?? null,
+    m.transpose ?? null,
+    m.fold ?? null,
+    m.include ?? null,
+    m.exclude ?? null,
+    m.drumMap ?? null,
+  ]);
+}
+
+/**
+ * Every applicable match (spec FR-014), except that mappings differing only in selector
+ * specificity keep the most specific one, and each drum target gets at most one mapping.
+ */
+function applicableMatches(matches: MappingMatch[]): MappingMatch[] {
+  const bySignature = new Map<string, MappingMatch>();
+  const drumByTarget = new Map<ChipRole, MappingMatch>();
+  for (const m of matches) {
+    if (isDrumTarget(m.mapping.target)) {
+      const prev = drumByTarget.get(m.mapping.target);
+      if (!prev || m.score > prev.score) drumByTarget.set(m.mapping.target, m);
+      continue;
+    }
+    const sig = mappingSignature(m.mapping);
+    const prev = bySignature.get(sig);
+    if (!prev || m.score > prev.score) bySignature.set(sig, m);
+  }
+  return [...bySignature.values(), ...drumByTarget.values()].sort((a, b) => a.index - b.index);
+}
+
+/**
+ * Streams mode: 006-style mappings keep the 006 single best match (FR-001); arrangement
+ * mappings each receive the note, alongside that best match (FR-014).
+ */
+function streamMatches(matches: MappingMatch[]): MappingMatch[] {
+  const legacy = bestMatch(matches.filter((m) => !usesArrangementFields(m.mapping)));
+  const arrangement = matches.filter((m) => usesArrangementFields(m.mapping));
+  if (!legacy) return applicableMatches(arrangement);
+  return applicableMatches([legacy, ...arrangement].sort((a, b) => a.index - b.index));
+}
+
+/** Transpose then fold (spec FR-022); `null` when the pitch leaves MIDI 0–127. */
+export function adjustPitch(pitch: number, m: Pick<TrackMapping, 'transpose' | 'fold'>): number | null {
+  const transpose = m.transpose ?? 0;
+  let p = pitch + transpose;
+  if (m.fold) {
+    const [lo, hi] = m.fold;
+    // `transpose` is an unbounded integer, so derive the pitch class from `transpose % 12`
+    // (exact for any double) rather than from `p`, which may have lost precision.
+    const pitchClass = mod12(pitch + (transpose % 12));
+    if (p < lo) p = lo + mod12(pitchClass - lo);
+    else if (p > hi) p = hi - mod12(hi - pitchClass);
+  }
+  if (p < 0 || p > 127) return null;
+  return p;
+}
+
+function mod12(n: number): number {
+  return ((n % 12) + 12) % 12;
 }
 
 function familyForNotes(notes: QuantizedNote[], options: MidiConvertOptions): GmFamily {
@@ -159,32 +278,112 @@ export function classifyStreams(
   notes: QuantizedNote[],
   options: MidiConvertOptions,
   diagnostics: ConversionDiagnostic[],
+  ctx: ArrangementContext = createArrangementContext(options),
 ): ClassifiedStream[] {
   const buckets = new Map<string, ClassifiedStream>();
+  const lanes = options.packing === 'lanes';
+
+  const addNote = (key: string, note: QuantizedNote, init: () => ClassifiedStream) => {
+    let stream = buckets.get(key);
+    if (!stream) {
+      stream = init();
+      buckets.set(key, stream);
+    }
+    stream.notes.push(note);
+  };
+
+  const addMapped = (note: QuantizedNote, match: MappingMatch) => {
+    const m = match.mapping;
+    const stats = statsFor(ctx, match.index, m);
+    const role = roleForChip(m.target, options.chip);
+    const drumTarget = role === 'noise' || role === 'dmc';
+
+    let n = note;
+    if (!drumTarget && (m.transpose != null || m.fold != null)) {
+      const pitch = adjustPitch(note.pitch, m);
+      if (pitch == null) {
+        stats.pitchOutOfRange += 1;
+        ctx.classifyDropped += 1;
+        return;
+      }
+      if (pitch !== note.pitch) n = { ...n, pitch };
+    }
+    if (m.toBar != null) {
+      const end = ctx.barStartTick(m.toBar + 1);
+      if (n.startTick + n.durationTicks > end) n = { ...n, durationTicks: Math.max(1, end - n.startTick) };
+    }
+    stats.matched += 1;
+
+    const gmFamily = note.isDrum ? undefined : gmFamilyFromProgram(note.program, options.programFamilyByProgram);
+    let instrument: string;
+    let instrumentLocked = false;
+    if (m.instrument) {
+      instrument = m.instrument;
+      instrumentLocked = true;
+    } else if (drumTarget) {
+      instrument = role === 'dmc' ? DMC_KICK : 'hihat';
+    } else {
+      instrument = instrumentNameForFamilyRole(gmFamily ?? 'lead', role);
+    }
+    const isDrum = drumTarget || note.isDrum;
+    const lane = lanes && !isDrum;
+    if (!isDrum) stats.instrument = instrument;
+    else if (!stats.instrument) stats.instrument = drumTarget ? role : instrument;
+
+    const key = lane
+      ? `lane:${m.target}:${match.index}`
+      : `ovr:${m.target}:${instrument}:${note.sourceTrackIndex}:${note.midiChannel}` +
+        (usesArrangementFields(m) ? `:m${match.index}` : '');
+
+    addNote(key, n, () => ({
+      id: key,
+      roleHint: role,
+      instrument,
+      gmFamily,
+      instrumentLocked,
+      mappingOverride: true,
+      isDrum,
+      drumMap: m.drumMap,
+      notes: [],
+      sourceTrackIndex: note.sourceTrackIndex,
+      midiChannel: note.midiChannel,
+      priority: priorityForRole(role),
+      mappingIndex: match.index,
+      lane,
+      mono: lane ? (m.mono ?? 'earliest') : isDrum ? undefined : m.mono,
+    }));
+  };
 
   for (const note of notes) {
-    const override = findOverride(note, options.trackMappings);
+    const accepted: MappingMatch[] = [];
+    let filtered = false;
+    for (const match of findOverrides(note, options.trackMappings, ctx)) {
+      if (isDrumTarget(match.mapping.target) && !passesDrumFilter(note.pitch, match.mapping)) {
+        statsFor(ctx, match.index, match.mapping).filtered += 1;
+        filtered = true;
+        continue;
+      }
+      accepted.push(match);
+    }
+
+    const chosen = lanes ? applicableMatches(accepted) : streamMatches(accepted);
+    if (chosen.length > 0) {
+      for (const match of chosen) addMapped(note, match);
+      continue;
+    }
+    // Ignored by every matching mapping's include/exclude.
+    if (filtered) continue;
+    if (options.unmappedTracks === 'drop') {
+      const label = `T${note.sourceTrackIndex} ch${note.midiChannel + 1}`;
+      ctx.unmappedDropped.set(label, (ctx.unmappedDropped.get(label) ?? 0) + 1);
+      continue;
+    }
+
     let role: ChipRole;
     let instrument: string;
     let isDrum = note.isDrum;
     let gmFamily: GmFamily | undefined;
-    let instrumentLocked = false;
-    let drumMap: ClassifiedStream['drumMap'];
-
-    if (override) {
-      role = roleForChip(override.target, options.chip);
-      gmFamily = note.isDrum ? undefined : gmFamilyFromProgram(note.program, options.programFamilyByProgram);
-      drumMap = override.drumMap;
-      if (override.instrument) {
-        instrument = override.instrument;
-        instrumentLocked = true;
-      } else if (role === 'noise' || role === 'dmc') {
-        instrument = role === 'dmc' ? DMC_KICK : 'hihat';
-      } else {
-        instrument = instrumentNameForFamilyRole(gmFamily ?? 'lead', role);
-      }
-      if (role === 'noise' || role === 'dmc') isDrum = true;
-    } else if (note.isDrum) {
+    if (note.isDrum) {
       role = 'noise';
       instrument = mapDrumPitch(note.pitch);
       isDrum = true;
@@ -198,31 +397,24 @@ export function classifyStreams(
       instrument = instrumentNameForFamilyRole(gmFamily, role);
     }
 
-    const key = override
-      ? `ovr:${override.target}:${instrument}:${note.sourceTrackIndex}:${note.midiChannel}`
-      : isDrum
-        ? `drum:${note.sourceTrackIndex}:${note.midiChannel}`
-        : `trk:${note.sourceTrackIndex}:${note.midiChannel}:${instrument}`;
+    const key = isDrum
+      ? `drum:${note.sourceTrackIndex}:${note.midiChannel}`
+      : `trk:${note.sourceTrackIndex}:${note.midiChannel}:${instrument}`;
 
-    let stream = buckets.get(key);
-    if (!stream) {
-      stream = {
-        id: key,
-        roleHint: role,
-        instrument,
-        gmFamily,
-        instrumentLocked,
-        mappingOverride: override != null,
-        isDrum,
-        drumMap,
-        notes: [],
-        sourceTrackIndex: note.sourceTrackIndex,
-        midiChannel: note.midiChannel,
-        priority: priorityForRole(role),
-      };
-      buckets.set(key, stream);
-    }
-    stream.notes.push(note);
+    addNote(key, note, () => ({
+      id: key,
+      roleHint: role,
+      instrument,
+      gmFamily,
+      instrumentLocked: false,
+      mappingOverride: false,
+      isDrum,
+      drumMap: undefined,
+      notes: [],
+      sourceTrackIndex: note.sourceTrackIndex,
+      midiChannel: note.midiChannel,
+      priority: priorityForRole(role),
+    }));
   }
 
   // Refine melodic roles using pitch-range when still on generic pulse1 from defaults.

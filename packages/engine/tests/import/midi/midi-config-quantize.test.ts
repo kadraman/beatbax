@@ -423,13 +423,13 @@ describe('reuse helpers', () => {
       {
         channelIndex: 1,
         role: 'pulse1',
-        defaultInstrument: 'lead_p1',
+        defaultInstrument: 'lead_p1_inst',
         hits: mkHits(60),
       },
       {
         channelIndex: 3,
         role: 'wave',
-        defaultInstrument: 'bass',
+        defaultInstrument: 'bass_inst',
         hits: mkHits(36),
       },
     ];
@@ -438,11 +438,11 @@ describe('reuse helpers', () => {
     const reuse = buildPatternsAndSequences(channels, opts, []);
     expect(reuse.sectionCount).toBe(2);
     expect(reuse.channelPlans.map((c) => c.sequenceNames)).toEqual([
-      ['lead_s01', 'lead_s02'],
-      ['bass_s01', 'bass_s02'],
+      ['lead_s01_seq', 'lead_s02_seq'],
+      ['bass_s01_seq', 'bass_s02_seq'],
     ]);
-    expect(reuse.sequences.find((s) => s.name === 'lead_s01')?.playlist).toHaveLength(8);
-    expect(reuse.sequences.find((s) => s.name === 'lead_s02')?.playlist).toHaveLength(8);
+    expect(reuse.sequences.find((s) => s.name === 'lead_s01_seq')?.playlist).toHaveLength(8);
+    expect(reuse.sequences.find((s) => s.name === 'lead_s02_seq')?.playlist).toHaveLength(8);
 
     const mono = buildPatternsAndSequences(channels, { ...opts, sectionBars: 0 }, []);
     expect(mono.sectionCount).toBe(1);

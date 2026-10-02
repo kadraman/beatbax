@@ -14,10 +14,19 @@ function copyFile(src, dest) {
   fs.copyFileSync(src, dest);
 }
 
+/**
+ * A folder with its own `.git` (nested repository, submodule or worktree) holds
+ * songs that are not part of this repository and must never be bundled.
+ */
+function isSeparateRepo(dir) {
+  return fs.existsSync(path.join(dir, '.git'));
+}
+
 function copyTree(src, dest) {
-  if (!fs.existsSync(src)) return;
+  if (!fs.existsSync(src) || isSeparateRepo(src)) return;
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue;
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
     if (entry.isDirectory()) copyTree(srcPath, destPath);
@@ -36,7 +45,7 @@ function copyChipExampleSongs() {
 
   for (const chipDir of EXAMPLE_CHIP_DIRS) {
     const chipPath = path.join(songsSrc, chipDir);
-    if (!fs.existsSync(chipPath)) continue;
+    if (!fs.existsSync(chipPath) || isSeparateRepo(chipPath)) continue;
 
     for (const entry of fs.readdirSync(chipPath, { withFileTypes: true })) {
       if (!entry.isFile() || !entry.name.endsWith('.bax')) continue;

@@ -1110,9 +1110,6 @@ function midiImportAction(input: string, output: string | undefined, options: an
   const globalOpts = program.opts();
   configureLoggerFromCLI(options, globalOpts);
   const strict = options.strict === true || globalOpts?.strict === true;
-  if (!options.chip) {
-    failCommand('Error: --chip is required (gameboy | nes)');
-  }
   runMidiImport(
     input,
     output,
@@ -1128,6 +1125,9 @@ function midiImportAction(input: string, output: string | undefined, options: an
       strict,
       title: options.title,
       verbose: options.verbose === true || globalOpts?.verbose === true,
+      inspect: options.inspect === true,
+      json: options.json === true,
+      annotate: options.annotate === true,
     },
     failCommand,
   );

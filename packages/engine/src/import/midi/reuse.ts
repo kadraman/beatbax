@@ -133,9 +133,56 @@ export function sectionCountForBars(barCount: number, sectionBars: number): numb
 }
 
 function sectionSeqName(prefix: string, sectionIndex: number, sectionCount: number, sectionBars: number): string {
-  // Legacy monolithic name when sectioning disabled.
   if (sectionBars <= 0 || sectionCount <= 1) return `${prefix}_seq`;
-  return `${prefix}_s${String(sectionIndex + 1).padStart(2, '0')}`;
+  return `${prefix}_s${String(sectionIndex + 1).padStart(2, '0')}_seq`;
+}
+
+/** Length in steps of an all-rest bar, or null when the bar holds anything else. */
+function restSteps(tokens: string[]): number | null {
+  let steps = 0;
+  for (const t of tokens) {
+    if (t === '.') {
+      steps += 1;
+      continue;
+    }
+    const m = /^\.:(\d+)$/.exec(t);
+    if (!m) return null;
+    steps += parseInt(m[1]!, 10);
+  }
+  return steps;
+}
+
+/**
+ * Name interned patterns (spec 090): all-rest bars are `rest_x<steps>_pat`; the rest are
+ * `<prefix>_<n>_pat`, numbered per prefix in creation order. Returned in emit order:
+ * rest patterns by length, then channel patterns in creation order.
+ */
+function namePatterns(created: PatternDef[], prefixByHash: Map<string, string>): PatternDef[] {
+  const used = new Set<string>();
+  const rests: { def: PatternDef; steps: number }[] = [];
+  const byPrefix = new Map<string, PatternDef[]>();
+  for (const def of created) {
+    const steps = restSteps(def.tokens);
+    if (steps != null && !used.has(`rest_x${steps}_pat`)) {
+      def.name = `rest_x${steps}_pat`;
+      used.add(def.name);
+      rests.push({ def, steps });
+      continue;
+    }
+    const prefix = prefixByHash.get(def.hash)!;
+    const list = byPrefix.get(prefix) ?? [];
+    list.push(def);
+    byPrefix.set(prefix, list);
+  }
+  for (const [prefix, list] of byPrefix) {
+    const width = Math.max(2, String(list.length).length);
+    list.forEach((def, i) => {
+      def.name = `${prefix}_${String(i + 1).padStart(width, '0')}_pat`;
+    });
+  }
+  rests.sort((a, b) => a.steps - b.steps);
+  const restDefs = new Set(rests.map((r) => r.def));
+  return [...restDefs, ...created.filter((def) => !restDefs.has(def))];
 }
 
 export function buildPatternsAndSequences(
@@ -147,7 +194,7 @@ export function buildPatternsAndSequences(
   let maxTick = 0;
   for (const ch of channels) {
     for (const h of ch.hits) {
-      maxTick = Math.max(maxTick, h.startTick + h.durationTicks);
+      maxTick = Math.max(maxTick, h.startTick + Math.max(h.durationTicks, h.extentTicks ?? 0));
     }
   }
   let barCount = Math.max(1, Math.ceil(maxTick / patternTicks));
@@ -157,25 +204,23 @@ export function buildPatternsAndSequences(
   const sectionCount = sectionCountForBars(barCount, sectionBars);
   const chunkSize = sectionCount === 1 ? barCount : sectionBars;
 
-  // Shared rest pattern
+  // Bars are interned by content hash; names are assigned once every bar is known.
   const patternByHash = new Map<string, PatternDef>();
-  const patterns: PatternDef[] = [];
+  const prefixByHash = new Map<string, string>();
+  const created: PatternDef[] = [];
   let patternsReused = 0;
-  let restPattern: PatternDef | null = null;
 
   function intern(tokens: string[], sourceBarIndex: number, prefix: string): string {
     const hash = hashTokens(tokens);
-    const existing = patternByHash.get(hash);
-    if (existing) {
+    if (patternByHash.has(hash)) {
       patternsReused += 1;
-      return existing.name;
+      return hash;
     }
-    const name = `${prefix}_${hash}`;
-    const def: PatternDef = { name, tokens, hash, sourceBarIndex };
+    const def: PatternDef = { name: hash, tokens, hash, sourceBarIndex };
     patternByHash.set(hash, def);
-    patterns.push(def);
-    if (isRestOnly(tokens) && !restPattern) restPattern = def;
-    return name;
+    prefixByHash.set(hash, prefix);
+    created.push(def);
+    return hash;
   }
 
   const sequences: SequenceDef[] = [];
@@ -217,6 +262,10 @@ export function buildPatternsAndSequences(
       sequenceNames,
     });
   }
+
+  const patterns = namePatterns(created, prefixByHash);
+  const nameByHash = new Map(patterns.map((p) => [p.hash, p.name]));
+  for (const s of sequences) s.playlist = s.playlist.map((h) => nameByHash.get(h)!);
 
   diagnostics.push({
     level: 'info',
