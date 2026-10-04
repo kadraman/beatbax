@@ -28,7 +28,14 @@ import {
   setupCodeLensPreview,
   triggerInstNotePreview,
   stopInstPreview,
+  getCodeLensCategoryFlags,
 } from '../src/editor/codelens-preview';
+import {
+  settingCodeLensPatterns,
+  settingCodeLensSequences,
+  settingCodeLensInstruments,
+  settingCodeLensEffects,
+} from '../src/stores/settings.store';
 import { Player } from '@beatbax/engine/audio/playback';
 import { chipRegistry } from '@beatbax/engine/chips';
 import * as monaco from 'monaco-editor';
@@ -104,6 +111,105 @@ describe('CodeLens Preview provider', () => {
     eventBus.emit('parse:success', { ast: {}, valid: false });
     const afterInvalid = capturedProvider.provideCodeLenses(model);
     expect(afterInvalid.lenses).toEqual([]);
+  });
+
+  describe('category settings', () => {
+    const source = [
+      'chip gameboy',
+      'pat melody = C4 D4',
+      'seq main = melody',
+      'inst lead type=pulse1 duty=50 env=12,down',
+      'effect wobble = vib:4,3',
+    ].join('\n');
+    const model = {
+      getLineCount: () => 5,
+      getLineContent: (ln: number) => source.split('\n')[ln - 1],
+    };
+    const categorySettings = {
+      patterns: settingCodeLensPatterns,
+      sequences: settingCodeLensSequences,
+      instruments: settingCodeLensInstruments,
+      effects: settingCodeLensEffects,
+    };
+    let provider: any;
+    let dispose: () => void;
+
+    function lensKinds(): Record<string, number> {
+      const counts: Record<string, number> = { pat: 0, seq: 0, inst: 0, effect: 0 };
+      for (const lens of provider.provideCodeLenses(model).lenses) {
+        const kind = String(lens.id).split('-')[1];
+        counts[kind] = (counts[kind] ?? 0) + 1;
+      }
+      return counts;
+    }
+
+    beforeEach(() => {
+      (monaco.languages.registerCodeLensProvider as jest.Mock).mockImplementation((_lang: string, prov: any) => {
+        provider = prov;
+        return { dispose: jest.fn() };
+      });
+      dispose = setupCodeLensPreview({} as any, eventBus as any, () => source);
+      eventBus.emit('parse:success', { ast: {}, valid: true });
+    });
+
+    afterEach(() => {
+      dispose();
+      for (const setting of Object.values(categorySettings)) setting.set(true);
+    });
+
+    it('shows every category by default', () => {
+      expect(getCodeLensCategoryFlags()).toEqual({
+        patterns: true, sequences: true, instruments: true, effects: true,
+      });
+      expect(lensKinds()).toEqual({ pat: 2, seq: 2, inst: 5, effect: 3 });
+    });
+
+    it.each([
+      ['patterns', { pat: 0, seq: 2, inst: 5, effect: 3 }],
+      ['sequences', { pat: 2, seq: 0, inst: 5, effect: 3 }],
+      ['instruments', { pat: 2, seq: 2, inst: 0, effect: 3 }],
+      ['effects', { pat: 2, seq: 2, inst: 5, effect: 0 }],
+    ] as const)('hides only %s lenses when that category is off', (category, expected) => {
+      categorySettings[category].set(false);
+      expect(lensKinds()).toEqual(expected);
+    });
+
+    it('hides all preview lenses when every category is off', () => {
+      for (const setting of Object.values(categorySettings)) setting.set(false);
+      expect(lensKinds()).toEqual({ pat: 0, seq: 0, inst: 0, effect: 0 });
+    });
+
+    it('asks Monaco to refresh lenses when a category changes', () => {
+      const listener = jest.fn();
+      provider.onDidChange(listener);
+      settingCodeLensSequences.set(false);
+      expect(listener).toHaveBeenCalledWith(provider);
+    });
+
+    it('stops the active preview when a category changes', async () => {
+      const stop = jest.spyOn(Player.prototype, 'stop');
+      const playAST = jest.spyOn(Player.prototype, 'playAST').mockResolvedValue(undefined as any);
+      mockParse.mockReturnValue({ imports: [], insts: { lead: { type: 'pulse1' } }, chip: 'gameboy' });
+
+      triggerInstNotePreview('lead', 'C4', { sustain: true });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(playAST).toHaveBeenCalled();
+      expect(stop).not.toHaveBeenCalled();
+
+      settingCodeLensPatterns.set(false);
+      expect(stop).toHaveBeenCalled();
+
+      playAST.mockRestore();
+      stop.mockRestore();
+    });
+
+    it('stops listening to category changes after dispose', () => {
+      const listener = jest.fn();
+      provider.onDidChange(listener);
+      dispose();
+      settingCodeLensEffects.set(false);
+      expect(listener).not.toHaveBeenCalled();
+    });
   });
 
   it('resolves step-entry audition instrument from a pat line via channel usage', () => {

@@ -126,7 +126,12 @@ export interface ChipPlugin {
 
   // Optional: Pre-load sample data before headless PCM rendering begins.
   // Implement this when your chip loads samples asynchronously (e.g. DMC).
-  preloadForPCM?(insts: Record<string, InstrumentDef>): Promise<void>;
+  // Load failures are non-fatal: report them through options.onWarn when it is
+  // provided (the Player forwards them to the host UI), otherwise console.warn.
+  preloadForPCM?(
+    insts: Record<string, InstrumentDef>,
+    options?: { onWarn?: (warning: { component: string; message: string }) => void },
+  ): Promise<void>;
 
   // Optional: Convert instrument to native format
   instrumentToNative?(inst: InstrumentDef): any;

@@ -34,6 +34,20 @@ export function countAIChangeDiff(diff: AIChangeDiff): {
   return { added, removed, modified, total: added + removed + modified };
 }
 
+/** True when every changed line (old and new side) is blank or a `#` / `//` comment. */
+export function onlyCommentLinesChanged(next: string, diff: AIChangeDiff): boolean {
+  const isCommentOrBlank = (text: string | undefined): boolean => {
+    const line = (text ?? '').trim();
+    return !line || line.startsWith('#') || line.startsWith('//');
+  };
+  const nextLines = next.split(/\r?\n/);
+  const newSide = [...diff.added, ...diff.modified.flatMap((block) => block.newLines)]
+    .map((lineNumber) => nextLines[lineNumber - 1]);
+  const oldSide = [...diff.removed, ...diff.modified].flatMap((block) => block.removed.map((row) => row.text));
+  const changed = [...newSide, ...oldSide];
+  return changed.length > 0 && changed.every(isCommentOrBlank);
+}
+
 export function formatAIChangeBanner(diff: AIChangeDiff): string {
   const { added, removed, modified } = countAIChangeDiff(diff);
   const parts: string[] = [];
@@ -195,6 +209,15 @@ function collapseModifications(raw: AIChangeDiff): AIChangeDiff {
   }
 
   return { added: [...addedSet], removed: pureRemoved, modified };
+}
+
+/**
+ * Re-terminate `text` with the line ending used by `reference` (CRLF or LF), so
+ * a model reply diffs against the editor content line for line.
+ */
+export function matchLineEndings(text: string, reference: string): string {
+  const lf = text.replace(/\r\n?/g, '\n');
+  return reference.includes('\r\n') ? lf.replace(/\n/g, '\r\n') : lf;
 }
 
 /**

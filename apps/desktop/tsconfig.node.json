@@ -4,6 +4,7 @@
   "exclude": ["tests/__mocks__"],
   "compilerOptions": {
     "composite": true,
+    "noEmit": true,
     "types": ["electron-vite/node", "node", "jest"]
   }
 }

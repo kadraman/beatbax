@@ -27,6 +27,30 @@ describe('extractEditExplanation', () => {
     expect(extractEditExplanation(reply)).toContain('drum fill');
   });
 
+  it('drops lines echoed from the previous-edit history stub', () => {
+    const stub = [
+      '[Previous Edit] Applied a full-song update. The live song is in [EDITOR CONTENT].',
+      '**Explanation:**',
+      'Added a two-bar drum fill after the verse.',
+      '- Added pattern `fill` — `pat fill = snare snare`',
+      'Stats: 1 changed lines, +1',
+      'Do not reuse the previous full file from this turn.',
+    ].join('\n');
+    const reply = [
+      'Added a two-bar drum fill after the verse.',
+      '- Added pattern `fill` — `pat fill = snare snare`',
+      'Stats: 2 changed lines, +2',
+      'Do not reuse the previous full file from this turn.',
+      '```bax',
+      'play',
+      '```',
+      '**Explanation:**',
+      'Added vibrato variations of the lead melody.',
+    ].join('\n');
+    expect(extractEditExplanation(reply, [stub])).toBe('**Explanation:**\nAdded vibrato variations of the lead melody.');
+    expect(extractEditExplanation(reply)).toContain('Do not reuse');
+  });
+
   it('drops filler and unfenced song dumps', () => {
     expect(extractEditExplanation('Here is the updated song:\n```bax\nplay\n```')).toBe('');
     expect(extractEditExplanation('chip gameboy\nbpm 120\npat x = C4\nplay')).toBe('');

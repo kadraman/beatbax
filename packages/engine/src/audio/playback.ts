@@ -14,6 +14,7 @@ import BufferedRenderer from './bufferedRenderer.js';
 import { get as getEffect, clearEffectState } from '../effects/index.js';
 import { createLogger } from '../util/logger.js';
 import { chipRegistry } from '../chips/index.js';
+import type { ChipWarning } from '../chips/types.js';
 import { applyInlineRenderEffects } from './inlineMacroEffects.js';
 
 const log = createLogger('player');
@@ -158,6 +159,8 @@ export class Player {
   public onPositionChange?: (channelId: number, eventIndex: number, totalEvents: number) => void;
   /** Called on each analyser tick (throttled to uiUpdateHz) when per-channel analysers are enabled. */
   public onChannelWaveform?: (payload: ChannelWaveformPayload) => void;
+  /** Non-fatal playback problems from chip plugins (e.g. a DMC sample that failed to load). */
+  public onWarn?: (warning: ChipWarning) => void;
   private currentEventIndex: Map<number, number> = new Map(); // channelId → event index
   private totalEvents: Map<number, number> = new Map(); // channelId → total count
   private _repeatTimer: any = null;
@@ -382,7 +385,9 @@ export class Player {
     // Pre-load plugin samples (e.g. remote DMC files) so createPlaybackNodes()
     // finds them in cache on the first call, avoiding silent notes.
     if (activePlugin?.preloadForPCM && ast.insts) {
-      await activePlugin.preloadForPCM(ast.insts as Record<string, any>);
+      await activePlugin.preloadForPCM(ast.insts as Record<string, any>, {
+        onWarn: this.onWarn ? (warning) => this.onWarn?.(warning) : undefined,
+      });
     }
 
     // Schedule all channels starting 100ms from now on the audio clock

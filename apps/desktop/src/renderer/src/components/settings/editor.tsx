@@ -6,6 +6,10 @@ import {
   settingFileReload,
   settingBeatDecorations,
   settingCodeLens,
+  settingCodeLensEffects,
+  settingCodeLensInstruments,
+  settingCodeLensPatterns,
+  settingCodeLensSequences,
   settingDefaultBpm,
   settingFoldComments,
   settingFontSize,
@@ -45,6 +49,10 @@ export function EditorSettingsSection(): React.JSX.Element {
   const fileReload = useStoreValue(settingFileReload);
   const wordWrap = useStoreValue(settingWordWrap);
   const codeLens = useStoreValue(settingCodeLens);
+  const codeLensPatterns = useStoreValue(settingCodeLensPatterns);
+  const codeLensSequences = useStoreValue(settingCodeLensSequences);
+  const codeLensInstruments = useStoreValue(settingCodeLensInstruments);
+  const codeLensEffects = useStoreValue(settingCodeLensEffects);
   const beatDecorations = useStoreValue(settingBeatDecorations);
   const defaultBpm = useStoreValue(settingDefaultBpm);
   const songArtist = useStoreValue(settingSongArtist);
@@ -168,7 +176,33 @@ export function EditorSettingsSection(): React.JSX.Element {
           (window as any).__beatbax_editor?.editor?.updateOptions?.({ codeLens: value });
         }}
       />
-      <NoteText>CodeLens adds a clickable Play button above each pat and inst definition so you can preview a pattern or instrument note without running the whole song.</NoteText>
+      <div className="bb-settings-subgroup" style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <ToggleRow
+          checked={codeLensPatterns}
+          disabled={!codeLens}
+          label="Pattern previews (pat)"
+          onChange={(value) => settingCodeLensPatterns.set(value)}
+        />
+        <ToggleRow
+          checked={codeLensSequences}
+          disabled={!codeLens}
+          label="Sequence previews (seq)"
+          onChange={(value) => settingCodeLensSequences.set(value)}
+        />
+        <ToggleRow
+          checked={codeLensInstruments}
+          disabled={!codeLens}
+          label="Instrument previews (inst)"
+          onChange={(value) => settingCodeLensInstruments.set(value)}
+        />
+        <ToggleRow
+          checked={codeLensEffects}
+          disabled={!codeLens}
+          label="Effect previews (effect)"
+          onChange={(value) => settingCodeLensEffects.set(value)}
+        />
+      </div>
+      <NoteText>CodeLens adds inline preview actions above pat, seq, inst, and effect definitions. Pattern and sequence previews play one item on one channel; use Pattern Grid section focus to hear all channels together.</NoteText>
 
       <ToggleRow
         checked={beatDecorations}
@@ -369,6 +403,10 @@ export function resetEditorDefaults(): void {
   settingWordWrap.set(false);
   settingFoldComments.set(false);
   settingCodeLens.set(true);
+  settingCodeLensPatterns.set(true);
+  settingCodeLensSequences.set(true);
+  settingCodeLensInstruments.set(true);
+  settingCodeLensEffects.set(true);
   settingBeatDecorations.set(true);
   settingDefaultBpm.set(128);
   settingSongArtist.set('');

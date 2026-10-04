@@ -6,11 +6,11 @@
 
 GATE: complete before implementation. Re-check after design changes.
 
-- [ ] No invented syntax or undocumented language behavior
-- [ ] AST / ISM / scheduler / expansion impact identified (or N/A)
-- [ ] Plugins remain isolated; core does not gain plugin dependencies
-- [ ] Determinism and compatibility preserved (or migration documented)
-- [ ] Tests planned for new behavior
+- [x] No invented syntax or undocumented language behavior (`scale` and `lock` are defined in [spec.md](spec.md) and documented in `docs/grammar/metadata-directives.md`)
+- [x] AST / ISM / scheduler / expansion impact identified: optional `ast.scale` and `ChannelNode.lock`; no ISM or scheduler change
+- [x] Plugins remain isolated; core does not gain plugin dependencies
+- [x] Determinism and compatibility preserved: additive, diagnostics only; source is never rewritten
+- [x] Tests planned for new behavior
 
 ## Testing Strategy
 

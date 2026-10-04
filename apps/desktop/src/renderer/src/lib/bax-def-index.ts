@@ -146,6 +146,23 @@ export function collectSemanticChangeLines(previous: string, next: string): numb
   return [...lines].sort((a, b) => a - b);
 }
 
+const MERGEABLE_LINE_RE = /^(pat|seq|effect|inst|channel)\s/;
+
+/**
+ * Non-definition, non-comment lines in `candidate` that `previous` lacks —
+ * {@link tryMergeChangedDefinitions} drops these (e.g. a changed `play` line).
+ */
+export function collectUnmergedLines(previous: string, candidate: string): string[] {
+  const known = new Set(previous.split('\n').map(normBody));
+  const unmerged = new Set<string>();
+  for (const raw of candidate.split('\n')) {
+    const line = normBody(raw);
+    if (!line || line.startsWith('#') || line.startsWith('//') || MERGEABLE_LINE_RE.test(line) || known.has(line)) continue;
+    unmerged.add(line);
+  }
+  return [...unmerged];
+}
+
 /**
  * Merge only changed/new top-level definitions from `candidate` into `previous`,
  * preserving comments, metadata, and unchanged lines verbatim.

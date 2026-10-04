@@ -2,10 +2,10 @@
 title: "Readable names in MIDI import output"
 id: 90
 slug: "midi-import-naming"
-status: in-progress
+status: complete
 authors: ["Cursor Agent"]
 created: 2026-10-01
-updated: 2026-10-01
+updated: 2026-10-02
 issue: "https://github.com/kadraman/beatbax/issues/214"
 area: engine
 ---

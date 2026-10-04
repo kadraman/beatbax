@@ -366,6 +366,16 @@ export interface ChipInstrumentConstraintNote {
   message: string;
 }
 
+/** Non-fatal problem reported by a chip plugin (for example a sample that failed to load). */
+export interface ChipWarning {
+  component: string;
+  message: string;
+}
+
+export interface ChipPreloadOptions {
+  onWarn?: (warning: ChipWarning) => void;
+}
+
 // ─── Plugin ───────────────────────────────────────────────────────────────────
 
 /**
@@ -528,8 +538,10 @@ export interface ChipPlugin {
    * very first `noteOn` + `render()` call.
    *
    * @param insts - All instrument definitions in the current song.
+   * @param options - Optional `onWarn` callback for non-fatal load failures.
+   *   When omitted, plugins log failures to the console.
    */
-  preloadForPCM?(insts: Record<string, InstrumentNode>): Promise<void>;
+  preloadForPCM?(insts: Record<string, InstrumentNode>, options?: ChipPreloadOptions): Promise<void>;
 
   /**
    * Optional conversion of an instrument to the chip's native format.

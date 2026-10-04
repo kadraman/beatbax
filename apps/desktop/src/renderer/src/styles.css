@@ -2609,6 +2609,7 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 
 /* Note text */
 .bb-settings-note { font-size: 12px; color: #777; margin: 0; line-height: 1.6; }
+.bb-settings-note a { color: #4ea1ff; }
 
 /* Warning banner */
 .bb-settings-warning {
@@ -2809,6 +2810,7 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 [data-theme="light"] .bb-settings-label { color: #222; }
 [data-theme="light"] .bb-settings-radio-label { color: #222; }
 [data-theme="light"] .bb-settings-note { color: #666; }
+[data-theme="light"] .bb-settings-note a { color: #0066b8; }
 [data-theme="light"] .bb-settings-preset-tick { color: #888; }
 [data-theme="light"] .bb-settings-radio-desc { color: #666; }
 
@@ -8523,6 +8525,24 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   color: #d4a017;
 }
 .bb-chat-ctx-hover--full .bb-chat-ctx-hover__hint { color: #e08080; }
+.bb-chat-ctx-hover__hint-text {
+  margin: 0;
+  line-height: 1.4;
+}
+.bb-chat-ctx-hover__action {
+  margin-top: 6px;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.bb-chat-ctx-hover__action:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); }
+.bb-chat-ctx-hover__action:focus-visible { outline: 1px solid currentColor; outline-offset: 1px; }
+.bb-chat-ctx-hover__action:disabled { opacity: 0.5; cursor: default; }
+[data-theme=light] .bb-chat-ctx-hover__action:hover:not(:disabled) { background: rgba(0, 0, 0, 0.06); }
 [data-theme=light] .bb-chat-ctx-hover {
   background: #fff;
   border-color: rgba(0, 0, 0, 0.12);

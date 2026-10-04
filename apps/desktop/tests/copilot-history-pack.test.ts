@@ -1,5 +1,6 @@
 import type { ChatMessage } from '@beatbax/app-core/stores/chat.store';
 import {
+  earlierEditRequestsNote,
   packCopilotHistoryForModel,
   packHistoryExcludingCurrentUser,
   splitContextBudgetMessages,
@@ -37,6 +38,44 @@ describe('packCopilotHistoryForModel', () => {
     expect(packed[1].content).toContain('Added pattern `drums`');
     expect(packed[1].content).not.toContain('```bax');
     expect(history[1].content).toContain('```bax');
+  });
+
+  it('omits prior Edit turns and their requests when omitEditTurns is set', () => {
+    const packed = packCopilotHistoryForModel([
+      msg({ role: 'user', content: 'what is bpm?' }),
+      msg({ role: 'assistant', content: 'bpm sets tempo.', replyMode: 'ask' }),
+      msg({ role: 'user', content: 'add drums' }),
+      msg({ role: 'assistant', content: largeSong, replyMode: 'edit', applied: true }),
+    ], undefined, { omitEditTurns: true });
+    expect(packed.map((message) => message.content)).toEqual(['what is bpm?', 'bpm sets tempo.']);
+  });
+
+  it('lists the requests behind omitted Edit turns, excluding the in-flight prompt', () => {
+    const note = earlierEditRequestsNote([
+      msg({ role: 'user', content: 'what is bpm?' }),
+      msg({ role: 'assistant', content: 'bpm sets tempo.', replyMode: 'ask' }),
+      msg({ role: 'user', content: 'add vibrato to the lead' }),
+      msg({ role: 'assistant', content: largeSong, replyMode: 'edit', applied: true }),
+      msg({ role: 'user', content: 'now do the same for the bass' }),
+    ], 'now do the same for the bass');
+    expect(note).toContain('[Earlier Edit requests in this chat');
+    expect(note).toContain('- add vibrato to the lead');
+    expect(note).not.toContain('what is bpm?');
+    expect(note).not.toContain('now do the same');
+  });
+
+  it('lists a repeated earlier request once', () => {
+    const note = earlierEditRequestsNote([
+      msg({ role: 'user', content: 'add a fill' }),
+      msg({ role: 'assistant', content: largeSong, replyMode: 'edit', applied: true }),
+      msg({ role: 'user', content: 'add a fill' }),
+      msg({ role: 'assistant', content: largeSong, replyMode: 'edit', applied: true }),
+    ], 'next');
+    expect(note.match(/- add a fill/g)).toHaveLength(1);
+  });
+
+  it('returns no earlier-requests note without prior Edit turns', () => {
+    expect(earlierEditRequestsNote([msg({ role: 'user', content: 'add drums' })], 'add drums')).toBe('');
   });
 
   it('does not stub short Ask replies', () => {
@@ -102,6 +141,16 @@ describe('packCopilotHistoryForModel', () => {
     ], '');
     expect(split.userText).toBe('and chip?');
     expect(split.historyTexts).toEqual(['what is bpm?', 'beats per minute', 'sound chip']);
+  });
+
+  it('counts Edit-mode history as sent: earlier Edit turns become the requests note', () => {
+    const split = splitContextBudgetMessages([
+      msg({ role: 'user', content: 'add drums' }),
+      msg({ role: 'assistant', content: largeSong, replyMode: 'edit', applied: true }),
+    ], 'now quieter', undefined, { omitEditTurns: true });
+    expect(split.historyTexts).toHaveLength(1);
+    expect(split.historyTexts[0]).toContain('- add drums');
+    expect(split.historyTexts[0]).not.toContain('[Previous Edit]');
   });
 
   it('uses the composer draft as This message and keeps prior turns in Chat', () => {

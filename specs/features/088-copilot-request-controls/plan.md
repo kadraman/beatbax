@@ -38,7 +38,7 @@ Keep request building provider-generic: a new shared negotiation module owns the
 | `packages/app-core/src/stores/chat.store.ts` | `AISettings` gains `editReplyTokens`, `askReplyTokens` (`'auto' \| number`), `reasoningEffort` (`'auto' \| 'provider-default' \| 'off' \| 'minimal' \| 'low' \| 'medium' \| 'high' \| 'custom'`) and `reasoningEffortCustom?: string`; load/save/clamp/validate; `ChatTokenUsage.reasoningTokens?` and `reasoningPresent?` merged by `addTokenUsage` |
 | `apps/desktop/src/renderer/src/components/settings/ai.tsx` | Collapsible **Advanced** section, effective-value labels (including "Sent as `minimal` for this model" / "does not accept reasoning effort"), Custom text field, window-overflow warning, Reset to Auto; include new fields in `saveChatSettings` and `resetAIDefaults` |
 | `specs/complete/052-ai-chatbot-assistant/spec.md` | Point the token-limit paragraph at spec 088 |
-| `specs/features/017-copilot-local-ollama/spec.md` | Mention the fitted Edit reply budget and the pre-send warning next to `num_ctx` guidance, and Reasoning effort Off for thinking models on windows of 16k or less |
+| `specs/complete/017-copilot-local-ollama/spec.md` | Mention the fitted Edit reply budget and the pre-send warning next to `num_ctx` guidance, and Reasoning effort Off for thinking models on windows of 16k or less |
 
 ## Implementation
 

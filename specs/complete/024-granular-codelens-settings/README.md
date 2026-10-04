@@ -1,7 +1,7 @@
 # Granular CodeLens preview settings
 
 - **ID**: 024
-- **Status**: specified
+- **Status**: complete
 - **Area**: desktop
 - **Issue**: https://github.com/kadraman/beatbax/issues/205
 - [spec.md](spec.md) — WHAT / WHY
