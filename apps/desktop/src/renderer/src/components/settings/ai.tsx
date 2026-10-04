@@ -16,6 +16,8 @@ import { isLocalAiEndpoint } from '../../lib/ai-endpoint';
 import { useStoreValue } from '../../hooks/useStoreValue';
 import { NoteText, PresetRangeField, RadioGroup, SectionHeading, SelectField, TextField } from './form';
 
+const COPILOT_QA_SCENARIOS_URL = 'https://github.com/kadraman/beatbax/blob/main/docs/qa/copilot-test-scenarios.md';
+
 interface AIModelListResult {
   ok: boolean;
   models: string[];
@@ -521,7 +523,12 @@ export function AISettingsSection(): React.JSX.Element {
         value={settings.contextWindowTokens}
       />
       <NoteText>
-        The model’s maximum tokens in Ask and Edit — this is what the Copilot footer percentage uses. OpenAI defaults to 128k; for Ollama set it to the same <code>num_ctx</code> you configured. Separate from the Ask song excerpt above.
+        The model’s maximum tokens in Ask and Edit — this is what the Copilot footer percentage uses. OpenAI defaults to 128k. Ollama and LM Studio default to 16,384, the recommended minimum <code>num_ctx</code> for Edit mode; set this to the same <code>num_ctx</code> you configured (for example <code>OLLAMA_CONTEXT_LENGTH=16384</code>). Use 32,768 for long chats or songs over 200 lines. Separate from the Ask song excerpt above.
+      </NoteText>
+      <NoteText>
+        Checking a model or provider? Run the{' '}
+        <a href={COPILOT_QA_SCENARIOS_URL} rel="noreferrer" target="_blank">Copilot test scenarios</a>
+        {' '}(including the local Ollama checks).
       </NoteText>
       <div className="bb-settings-row">
         <span className="bb-settings-label">Prompt recall</span>

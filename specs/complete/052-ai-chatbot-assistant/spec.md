@@ -89,7 +89,7 @@ The BeatBax language has a non-trivial surface area: instruments, patterns, sequ
 
 A **Copilot panel** in the desktop app’s right-side stack (alongside Channel Mixer, Pattern Grid, etc.). It renders a conversation thread with a text input. The user can ask questions or request code generation in two modes:
 
-- **Edit mode** — the AI outputs a complete updated song in a ` ```bax ``` ` block (applied to the editor) plus a short what/why explanation after the fence. Parse-error self-correction runs up to **2** times; incomplete-song repair runs up to **2** additional times. Replies that would wipe most of the song (snippet-only responses) are blocked by the apply guard. The Edit instructions scope changes to the request: no renaming, deduplicating, or reorganising existing definitions, and no edits to unrelated patterns, sequences, or channels (unrelated lines are copied verbatim). When the message carries a `[Referenced editor Lines N–M]` block, edits are confined to those lines, the definitions they reference, and any new definitions they need.
+- **Edit mode** — the AI outputs a complete updated song in a ` ```bax ``` ` block (applied to the editor) plus a short what/why explanation after the fence. Parse-error self-correction runs up to **2** times; incomplete-song repair runs up to **2** additional times. Replies that would wipe most of the song (snippet-only responses) are blocked by the apply guard. The Edit instructions scope changes to the request: no renaming, deduplicating, or reorganising existing definitions, and no edits to unrelated patterns, sequences, or channels (unrelated lines are copied verbatim). When the message carries a `[Referenced editor Lines N–M]` block, edits are confined to those lines, the definitions they reference, and any new definitions they need. How replies that reformat the song, leave definitions out, or go through repair retries are merged, explained, and reported is specified in [017 § Edit apply behaviour with local models](../017-copilot-local-ollama/spec.md#edit-apply-behaviour-with-local-models).
 - **Ask mode** — the AI answers questions and can include code snippets, but does not auto-apply anything.
 
 The mode toggle is persisted under `beatbax:ai.mode` (`chatMode` in app-core).
@@ -127,7 +127,7 @@ Undefined effect references in this song (will be ignored): leadVib — add an e
   No current errors or warnings.
 ```
 
-The last 10 messages from the **active session** are included before the current user message. Oversized prior **Edit** replies (full fenced `.bax` songs) are replaced with a short stub (change summary + line counts) so they do not dominate the window — the live song is always in `[EDITOR CONTENT]`. If packed history still exceeds a soft ~2.5k-token budget, the oldest turns are dropped. Use **New chat** when switching songs or when the footer context meter is high/full.
+The last 10 messages from the **active session** are included before the current user message. Oversized prior **Edit** replies (full fenced `.bax` songs) are replaced with a short stub (change summary + line counts) so they do not dominate the window — the live song is always in `[EDITOR CONTENT]`. If packed history still exceeds a soft ~2.5k-token budget, the oldest turns are dropped. In **Edit** mode the desktop app leaves earlier Edit turns out entirely and lists their requests in the new message instead (see [017 § Edit apply behaviour with local models](../017-copilot-local-ollama/spec.md)). Use **New chat** when switching songs or when the footer context meter is high/full.
 
 The Copilot header has a session switcher and a **+** New chat button. Delete a session from the menu to discard a thread. **Clear ↑/↓ prompts** in Settings → AI only forgets input recall (not chat sessions).
 
@@ -135,7 +135,7 @@ The Copilot header has a session switcher and a **+** New chat button. Delete a 
 
 ### Context meter and token usage
 
-The footer meter estimates the **next** request as instructions + song + packed history + current draft + reserved completion (8192 Edit / 2048 Ask), using chars/4 until the provider returns `usage`. Fill levels: OK, high (~70%), full (~90%+). Hover the meter for a VS Code-style popup (stacked bar + token rows). An empty chat is not 0% — the system prompt (including the song) and reserved reply space are always counted.
+The footer meter estimates the **next** request as instructions + song + packed history + current draft + reserved completion (8192 Edit / 2048 Ask), using chars/4 until the provider returns `usage`. Fill levels: OK, high (~70%), full (~90%+). Hover the meter for a VS Code-style popup (stacked bar + token rows). An empty chat is not 0% — the system prompt (including the song) and reserved reply space are always counted. When the meter is high or full, the popup offers a **Start a new chat** button only if chat history is using part of the window. With no history, it explains that the instructions, song, and reserved reply fill the window and offers **Open AI settings** to raise the Model token window instead.
 
 Set **Settings → AI → Model token window** to the model’s real token limit (Ask and Edit). OpenAI defaults to 128k (200k for `o3`); Ollama/LM Studio default to 16k — match this to `num_ctx`.
 

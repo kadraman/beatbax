@@ -146,7 +146,10 @@ export async function assertRemoteAssetUrl(rawUrl: string): Promise<URL> {
     throw new Error('Remote asset URL must not include an explicit port.')
   }
   if (!(await isRemoteAssetHostAllowed(parsed.hostname))) {
-    throw new Error(`Remote asset host '${parsed.hostname}' is not in the Desktop allowlist.`)
+    throw new Error(
+      `Remote asset host '${parsed.hostname}' is not in the Desktop allowlist. ` +
+      'Add it under Settings → Advanced → Remote host allowlist.',
+    )
   }
 
   return parsed

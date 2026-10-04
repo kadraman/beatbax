@@ -94,6 +94,26 @@ export function collectCopilotEditChanges(previous: string, next: string): Copil
   return changes.sort((a, b) => a.lineNumber - b.lineNumber);
 }
 
+/**
+ * pat/seq/effect names an Edit explanation mentions that were not changed.
+ * Empty when any mentioned definition did change, so an explanation that notes
+ * "kept melody_pat as-is" next to a real edit is not flagged. Instrument names
+ * are skipped because they are often ordinary words ("a snare hit").
+ */
+export function unchangedDefinitionsMentioned(explanation: string, previous: string, next: string): string[] {
+  if (!explanation.trim()) return [];
+  const changed = new Set(collectCopilotEditChanges(previous, next)
+    .filter((change) => change.action !== 'moved')
+    .map((change) => change.name));
+  const known = new Set<string>();
+  for (const def of [...collectBaxDefs(previous).values(), ...collectBaxDefs(next).values()]) {
+    if (def.kind === 'pattern' || def.kind === 'sequence' || def.kind === 'effect') known.add(def.name);
+  }
+  const mentioned = [...known].filter((name) => new RegExp(`\\b${name}\\b`).test(explanation));
+  if (mentioned.length === 0 || mentioned.some((name) => changed.has(name))) return [];
+  return mentioned;
+}
+
 /** Revert a single Copilot edit against the editor's current content. */
 export function revertCopilotEditChange(
   content: string,
