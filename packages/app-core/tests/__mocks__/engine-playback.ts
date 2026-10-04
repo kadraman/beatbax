@@ -4,6 +4,7 @@ export class Player {
   onComplete: (() => void) | null = null;
   onRepeat: (() => void) | null = null;
   onPositionChange: ((channelId: number, eventIndex: number, totalEvents: number) => void) | null = null;
+  onWarn?: (warning: { component: string; message: string }) => void;
   constructor(_ctx?: any) {}
   async playAST(_song: any) { return; }
   stop() { return; }

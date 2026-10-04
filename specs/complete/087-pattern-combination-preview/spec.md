@@ -16,7 +16,7 @@ related:
   - "docs/features/complete/sequence-arrangements.md"
   - "docs/features/song-composition-abstractions.md"
   - "docs/features/complete/daw-channel-mixer.md"
-  - "docs/features/granular-codelens-settings.md"
+  - "docs/features/complete/granular-codelens-settings.md"
 ---
 ## Summary
 

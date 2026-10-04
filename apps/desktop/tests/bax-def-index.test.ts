@@ -5,10 +5,12 @@ import { resolve } from 'path';
 import {
   collectBaxDefs,
   collectSemanticChangeLines,
+  collectUnmergedLines,
   insertDefinitionLine,
   tryMergeChangedDefinitions,
 } from '../src/renderer/src/lib/bax-def-index';
-import { computeLineChangeDiff, countAIChangeDiff } from '../src/renderer/src/lib/line-change-diff';
+import { collectCopilotEditChanges, revertCopilotEditChange } from '../src/renderer/src/lib/copilot-edit-changes';
+import { computeLineChangeDiff, countAIChangeDiff, matchLineEndings } from '../src/renderer/src/lib/line-change-diff';
 
 const sampleSongPath = resolve(__dirname, '../../../songs/sample.bax');
 const sampleSong = readFileSync(sampleSongPath, 'utf8');
@@ -69,9 +71,52 @@ describe('tryMergeChangedDefinitions', () => {
     expect(merged).toContain('play auto repeat');
   });
 
+  it('merges a reply that left definitions out, keeping the existing ones', () => {
+    const previous = 'chip gameboy\npat a = C4\npat b = D4\nseq s = a b\nchannel 1 => inst lead seq s\nplay\n';
+    const partial = 'chip gameboy\npat a = C4\npat c = E4<vib:3,5>\nseq s = a b c\nchannel 1 => inst lead seq s\nplay\n';
+    const merged = tryMergeChangedDefinitions(previous, partial);
+    expect(merged).toContain('pat b = D4');
+    expect(merged).toContain('pat c = E4<vib:3,5>');
+    expect(merged).toContain('seq s = a b c');
+  });
+
+  it('round-trips merge and full revert on a CRLF song with an LF reply', () => {
+    const baseline = sampleSong.replace(/\r?\n/g, '\r\n');
+    const reply = baseline.replace(/\r\n/g, '\n')
+      .replace(
+        'pat drums_alt_pat     = (snare . . .)*2 perc . . . . . . .',
+        'pat drums_alt_pat = (snare . . .) (snare . hihat .)\npat melody_var = C5<vib:3,5>:4 E5:4',
+      )
+      .replace('seq lead_seq = melody_pat melody_alt_pat fill_pat melody_pat', 'seq lead_seq = melody_pat melody_var fill_pat melody_pat');
+    const replyMatched = matchLineEndings(reply, baseline);
+    expect(countAIChangeDiff(computeLineChangeDiff(baseline, replyMatched)).total).toBe(3);
+
+    const applied = matchLineEndings(tryMergeChangedDefinitions(baseline, replyMatched)!, baseline);
+    const changes = collectCopilotEditChanges(baseline, applied);
+    expect(changes.map((change) => `${change.action}:${change.id}`)).toEqual([
+      'updated:pattern:drums_alt_pat',
+      'added:pattern:melody_var',
+      'updated:sequence:lead_seq',
+    ]);
+    const reverted = changes.reduce((content, change) => revertCopilotEditChange(content, change, baseline), applied);
+    expect(matchLineEndings(reverted, baseline)).toBe(baseline);
+  });
+
   it('collectBaxDefs tracks 1-based line numbers', () => {
     const defs = collectBaxDefs('chip gameboy\npat p = C5\nplay');
     expect(defs.get('pattern:p')?.lineNumber).toBe(2);
+  });
+});
+
+describe('collectUnmergedLines', () => {
+  it('lists changed non-definition lines and ignores definitions, comments, and whitespace', () => {
+    const previous = '# lead\nchip gameboy\nbpm 120\npat a = C4\nplay auto\n';
+    const candidate = '# new comment\nchip  gameboy\nbpm 140\npat a = C4 E4\npat b = D4\nplay auto repeat\n';
+    expect(collectUnmergedLines(previous, candidate)).toEqual(['bpm 140', 'play auto repeat']);
+  });
+
+  it('ignores CRLF versus LF differences', () => {
+    expect(collectUnmergedLines('chip gameboy\r\nplay\r\n', 'chip gameboy\nplay\n')).toEqual([]);
   });
 });
 

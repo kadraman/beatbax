@@ -290,6 +290,117 @@ test('remote asset allowlist settings gate desktop fetch bridge', async () => {
   }
 });
 
+test('DMC playback loads allowlisted remote samples through main and reports blocked hosts', async () => {
+  test.setTimeout(60_000);
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-e2e-dmc-'));
+  const songPath = path.join(tempDir, 'dmc-remote.bax');
+  writeFileSync(songPath, [
+    'chip nes',
+    'bpm 120',
+    'inst kick_gh type=dmc dmc_rate=15 dmc_loop=false dmc_sample="github:kadraman/beatbax-samples/dmc/kick.dmc"',
+    'inst snare_x type=dmc dmc_rate=15 dmc_loop=false dmc_sample="https://example.com/blocked-snare.dmc"',
+    'pat beat = kick_gh . snare_x . kick_gh . snare_x .',
+    'seq main = beat',
+    'channel 5 => inst kick_gh seq main',
+    'play',
+    '',
+  ].join('\n'), 'utf8');
+
+  const { electronApp, page, consoleErrors } = await launchDesktopApp([songPath]);
+  const consoleWarnings: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'warning') consoleWarnings.push(msg.text());
+  });
+
+  await electronApp.evaluate(() => {
+    const state = globalThis as unknown as {
+      __beatbaxFetchUrls?: string[];
+      fetch?: (input: string | URL) => Promise<{
+        status: number;
+        ok: boolean;
+        statusText: string;
+        headers: { get: (name: string) => string | null };
+        arrayBuffer: () => Promise<ArrayBuffer>;
+      }>;
+    };
+    state.__beatbaxFetchUrls = [];
+    state.fetch = async (input: string | URL) => {
+      state.__beatbaxFetchUrls?.push(String(input));
+      return {
+        status: 200,
+        ok: true,
+        statusText: 'OK',
+        headers: { get: () => null },
+        arrayBuffer: async () => new Uint8Array([0x55, 0xaa, 0x55, 0xaa]).buffer,
+      };
+    };
+  });
+
+  try {
+    await page.evaluate(async () => {
+      const api = (window as unknown as {
+        electronAPI: { setRemoteAssetAllowlist: (hosts: string[]) => Promise<string[]> };
+      }).electronAPI;
+      await api.setRemoteAssetAllowlist([]);
+    });
+    await expect(page.locator('.status-document-name')).toHaveText('dmc-remote.bax', { timeout: 15_000 });
+
+    await page.getByRole('button', { name: /Play current song/i }).click();
+    const blockedWarning = page.locator('.output-message.output-warning', {
+      hasText: "NES DMC: failed to load sample 'https://example.com/blocked-snare.dmc'",
+    });
+    await expect(blockedWarning).toBeVisible({ timeout: 15_000 });
+    await expect(blockedWarning.locator('.output-source')).toHaveText('[playback]');
+    await expect(blockedWarning.locator('.output-text')).toHaveText(
+      "NES DMC: failed to load sample 'https://example.com/blocked-snare.dmc': Remote asset host 'example.com' is not in the Desktop allowlist. Add it under Settings → Advanced → Remote host allowlist.",
+    );
+    await expect(page.locator('.output-message.output-warning', { hasText: 'kick.dmc' })).toHaveCount(0);
+    await page.getByRole('button', { name: /Stop playback/i }).click();
+
+    const fetchUrls = await electronApp.evaluate(() => {
+      return ((globalThis as unknown as { __beatbaxFetchUrls?: string[] }).__beatbaxFetchUrls ?? []).slice();
+    });
+    expect(fetchUrls).toEqual([
+      'https://raw.githubusercontent.com/kadraman/beatbax-samples/main/dmc/kick.dmc',
+    ]);
+    expect(consoleWarnings.join('\n')).not.toContain('kick.dmc');
+    expect(consoleWarnings.join('\n')).not.toMatch(/failed to fetch/i);
+    expect(filterBenignConsoleErrors(consoleErrors)).toEqual([]);
+  } finally {
+    await electronApp.close();
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('renderer CSP blocks direct remote fetches', async () => {
+  test.setTimeout(60_000);
+  const { electronApp, page } = await launchDesktopApp();
+
+  try {
+    const result = await page.evaluate(async () => {
+      const violations: string[] = [];
+      document.addEventListener('securitypolicyviolation', (event) => {
+        violations.push(event.effectiveDirective);
+      });
+      let fetchError = '';
+      try {
+        await fetch('https://raw.githubusercontent.com/kadraman/beatbax/main/songs/sample.bax');
+      } catch (error) {
+        fetchError = (error as Error).message || String(error);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+      return { fetchError, violations, csp: meta?.getAttribute('content') ?? '' };
+    });
+
+    expect(result.csp).toContain("connect-src 'self'");
+    expect(result.fetchError).not.toBe('');
+    expect(result.violations).toContain('connect-src');
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test('pattern grid renders desktop React UI and navigates to patterns', async () => {
   test.setTimeout(60_000);
   const { electronApp, page, consoleErrors } = await launchDesktopApp([sampleSongPath]);

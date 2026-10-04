@@ -6,6 +6,7 @@ import {
   collectCopilotEditChanges,
   resolveCopilotChangeLineNumber,
   revertCopilotEditChange,
+  unchangedDefinitionsMentioned,
 } from '../src/renderer/src/lib/copilot-edit-changes';
 import { collectSemanticChangeLines } from '../src/renderer/src/lib/bax-def-index';
 import { computeLineChangeDiff, countAIChangeDiff } from '../src/renderer/src/lib/line-change-diff';
@@ -110,6 +111,39 @@ describe('revertCopilotEditChange', () => {
 
     const reverted = revertCopilotEditChange(next, moved, previous);
     expect(collectCopilotEditChanges(previous, reverted)).toHaveLength(0);
+  });
+});
+
+describe('unchangedDefinitionsMentioned', () => {
+  const previous = [
+    'pat drums_pat = snare . . .',
+    'pat bass_pat = C3 G2',
+    'seq drums_seq = drums_pat',
+    'play',
+  ].join('\n');
+  const next = previous.replace('pat bass_pat = C3 G2', 'pat bass_pat = C3 G2 C3 G2');
+
+  it('lists mentioned definitions when none of them changed', () => {
+    expect(unchangedDefinitionsMentioned('Added a fill to drums_pat and drums_seq.', previous, next))
+      .toEqual(['drums_pat', 'drums_seq']);
+  });
+
+  it('returns nothing when a mentioned definition changed', () => {
+    expect(unchangedDefinitionsMentioned('Doubled bass_pat; drums_pat is unchanged.', previous, next)).toEqual([]);
+  });
+
+  it('does not count a definition that only moved as changed', () => {
+    const commented = `# drums\n# more drums\n${previous}`;
+    expect(unchangedDefinitionsMentioned('Added a fill to drums_pat.', commented, previous)).toEqual(['drums_pat']);
+  });
+
+  it('ignores instrument names used as ordinary words', () => {
+    const withInst = `inst snare type=noise\n${previous}`;
+    expect(unchangedDefinitionsMentioned('Added a snare hit.', withInst, withInst.replace('C3 G2', 'C3 G2 C3'))).toEqual([]);
+  });
+
+  it('returns nothing when no definition is mentioned', () => {
+    expect(unchangedDefinitionsMentioned('Added a drum fill.', previous, next)).toEqual([]);
   });
 });
 

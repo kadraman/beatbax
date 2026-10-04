@@ -2,11 +2,11 @@
 title: "Granular CodeLens preview settings"
 id: 24
 slug: "granular-codelens-settings"
-status: "specified"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-08-28"
-updated: "2026-09-03"
+updated: "2026-10-02"
 issue: "https://github.com/kadraman/beatbax/issues/205"
 area: "desktop"
 related:
@@ -70,6 +70,7 @@ flowchart TD
 
 - **Master off:** Monaco `codeLens: false`; provider not visible regardless of sub-flags.
 - **Master on:** Monaco `codeLens: true`; provider skips disabled categories.
+- Category toggles cover the preview lenses in the table above. The instrument editor **Edit** lens on `inst` lines is not a preview and stays governed by the Instrument Editor feature flag.
 
 ### Default values
 

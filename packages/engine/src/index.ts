@@ -30,7 +30,7 @@ export type { InstrumentNode, InstMap, AST, PatternEvent, SequenceItem, ChannelN
 
 // ─── Plugin system ────────────────────────────────────────────────────────────
 
-export type { ChipPlugin, ChipChannelBackend, ValidationError, SongValidationContext, ChipSongContext, ChipUIContributions, ChipHelpSection, ChipHelpContext, ChipNewSongWizard, ChipInstrumentEditor, ChipInstrumentTypeDef, ChipInstrumentFieldDef, ChipInstrumentMacroDef, ChipInstrumentWaveformDef, ChipInstrumentPreset, ChipInstrumentConstraintNote } from './chips/types.js';
+export type { ChipPlugin, ChipChannelBackend, ValidationError, SongValidationContext, ChipSongContext, ChipUIContributions, ChipHelpSection, ChipHelpContext, ChipNewSongWizard, ChipInstrumentEditor, ChipInstrumentTypeDef, ChipInstrumentFieldDef, ChipInstrumentMacroDef, ChipInstrumentWaveformDef, ChipInstrumentPreset, ChipInstrumentConstraintNote, ChipWarning, ChipPreloadOptions } from './chips/types.js';
 export { ChipRegistry, chipRegistry, gameboyPlugin, getSongValidationIssues } from './chips/index.js';
 export type { ExporterPlugin, ExportOptions, ExporterUIContribution } from './export/types.js';
 export { ExporterRegistry, exporterRegistry } from './export/registry.js';

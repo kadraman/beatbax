@@ -30,6 +30,32 @@ import { buildImportResolverOptions } from '../import/import-resolver-options.js
 import { findChannelForNamedItem } from './preview-channel-resolve.js';
 import { resolvePreviewChannel } from './instrument-editor-schema.js';
 import { FeatureFlag, isFeatureEnabled } from '../utils/feature-flags.js';
+import {
+  settingCodeLensPatterns,
+  settingCodeLensSequences,
+  settingCodeLensInstruments,
+  settingCodeLensEffects,
+} from '../stores/settings.store.js';
+
+export interface CodeLensCategoryFlags {
+  patterns: boolean;
+  sequences: boolean;
+  instruments: boolean;
+  effects: boolean;
+}
+
+/**
+ * Per-category CodeLens preview toggles. The master `editor.codelens` setting
+ * is applied separately through Monaco's `codeLens` editor option.
+ */
+export function getCodeLensCategoryFlags(): CodeLensCategoryFlags {
+  return {
+    patterns: settingCodeLensPatterns.get(),
+    sequences: settingCodeLensSequences.get(),
+    instruments: settingCodeLensInstruments.get(),
+    effects: settingCodeLensEffects.get(),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Instrument resolution
@@ -1028,6 +1054,12 @@ export function setupCodeLensPreview(
   });
   const unsubParseError = eventBus.on('parse:error',   () => { hasValidParse = false; stopPreview(); });
   const unsubPlaybackStarted = eventBus.on('playback:started', () => stopPreview());
+  const unsubCategoryFlags = [
+    settingCodeLensPatterns,
+    settingCodeLensSequences,
+    settingCodeLensInstruments,
+    settingCodeLensEffects,
+  ].map((setting) => setting.listen(() => notifyChange()));
 
   // ── Register CodeLens provider ────────────────────────────────────────────
   providerInstance = {
@@ -1045,6 +1077,7 @@ export function setupCodeLensPreview(
 
       const lenses: monaco.languages.CodeLens[] = [];
       const lineCount = model.getLineCount();
+      const categories = getCodeLensCategoryFlags();
 
       for (let ln = 1; ln <= lineCount; ln++) {
         const line = model.getLineContent(ln);
@@ -1052,6 +1085,7 @@ export function setupCodeLensPreview(
         // ── pat definitions ──────────────────────────────────────────────
         const patMatch = line.match(/^\s*pat\s+([A-Za-z0-9_-]+)\s*=/);
         if (patMatch) {
+          if (!categories.patterns) continue;
           const patternName = patMatch[1];
           const activeKey = previewState?.key;
           const isActive = activeKey === `pat:${patternName}` || activeKey === `loop:${patternName}`;
@@ -1080,6 +1114,7 @@ export function setupCodeLensPreview(
         // ── seq definitions ──────────────────────────────────────────────
         const seqMatch = line.match(/^\s*seq\s+([A-Za-z0-9_-]+)\s*=/);
         if (seqMatch) {
+          if (!categories.sequences) continue;
           const seqName = seqMatch[1];
           const activeKey = previewState?.key;
           const isActive = activeKey === `seq:${seqName}` || activeKey === `seq-loop:${seqName}`;
@@ -1116,6 +1151,7 @@ export function setupCodeLensPreview(
               command: { id: 'beatbax.editInstrument', title: 'Edit', arguments: [instName] },
             });
           }
+          if (!categories.instruments) continue;
           // Sample-based instruments (type=dmc) get a single ▶ Sample button
           // instead of individual note buttons — DMC samples have no meaningful pitch.
           const isSampleBased = /\btype=dmc\b/.test(line);
@@ -1150,6 +1186,7 @@ export function setupCodeLensPreview(
         // ── effect definitions ────────────────────────────────────────────
         const effectMatch = line.match(/^\s*effect\s+([A-Za-z0-9_-]+)\s*=/);
         if (effectMatch) {
+          if (!categories.effects) continue;
           const effectName = effectMatch[1];
           const activeKey = previewState?.key;
           const isActive = activeKey === `effect:${effectName}` || activeKey === `effect-loop:${effectName}` || activeKey === `effect-slow:${effectName}`;
@@ -1194,6 +1231,7 @@ export function setupCodeLensPreview(
     unsubParseSuccess();
     unsubParseError();
     unsubPlaybackStarted();
+    unsubCategoryFlags.forEach((unsub) => unsub());
     providerRegistration.dispose();
     changeListeners = [];
     if (_codeLensSetupDispose === dispose) {

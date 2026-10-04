@@ -1,7 +1,7 @@
 # Copilot — Local models (Ollama)
 
 - **ID**: 017
-- **Status**: in-progress
+- **Status**: complete
 - **Area**: desktop
 - **Issue**: https://github.com/kadraman/beatbax/issues/202
 - [spec.md](spec.md) — WHAT / WHY
