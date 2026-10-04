@@ -561,6 +561,37 @@ describe('NES DMC sample resolution', () => {
     await expect(resolveDMCSample('http://example.com/sample.dmc')).rejects.toThrow('unsupported');
   });
 
+  test('preloadForPCM reports failed samples through onWarn instead of the console', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const onWarn = jest.fn();
+
+    await nesPlugin.preloadForPCM!(
+      { snare: { type: 'dmc', dmc_sample: 'ftp://example.com/missing-snare.dmc' } as any },
+      { onWarn },
+    );
+
+    expect(onWarn).toHaveBeenCalledTimes(1);
+    expect(onWarn.mock.calls[0][0]).toEqual({
+      component: 'nes-dmc',
+      message: expect.stringContaining("NES DMC: failed to load sample 'ftp://example.com/missing-snare.dmc'"),
+    });
+    expect(onWarn.mock.calls[0][0].message).toMatch(/unsupported/);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  test('preloadForPCM falls back to console.warn without onWarn', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await nesPlugin.preloadForPCM!(
+      { snare: { type: 'dmc', dmc_sample: 'ftp://example.com/missing-snare.dmc' } as any },
+    );
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "NES DMC preload: failed to load 'ftp://example.com/missing-snare.dmc':",
+      expect.stringMatching(/unsupported/),
+    );
+  });
+
   test('desktop bridge resolves remote DMC samples without renderer fetch', async () => {
     const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
     const fetchSpy = jest.fn();

@@ -72,7 +72,7 @@ describe('copilot-token-budget', () => {
     expect(hover.usedLabel).toBe(`${formatTokenCount(budget.total)} / ${formatTokenCount(budget.window)}`);
     expect(hover.rows.map((row) => row.label)).toEqual([
       'Instructions + song',
-      'Chat',
+      'Chat history',
       'This message',
       'Room for reply',
     ]);
@@ -80,14 +80,27 @@ describe('copilot-token-budget', () => {
     expect(hover.hint).toBeUndefined();
   });
 
-  it('hints to start a new chat when the window is tight', () => {
+  it('offers a new chat when chat history is using a tight window', () => {
     const full = estimateContextBudget({
       systemText: 'x'.repeat(12000),
-      historyTexts: [],
+      historyTexts: ['y'.repeat(4000)],
       userText: 'hello',
       reservedOutput: 8192,
       windowTokens: 8192,
     });
-    expect(contextBudgetHover(full).hint).toBe('Start a new chat');
+    expect(contextBudgetHover(full).hint).toMatchObject({ action: 'new-chat', actionLabel: 'Start a new chat' });
+  });
+
+  it('points to the token window setting when a new chat cannot free space', () => {
+    // Fresh Edit chat on sample.bax at 16k: instructions + song + reserved reply ≈ 81%.
+    const fresh = estimateContextBudget({
+      systemText: 'x'.repeat(20400),
+      historyTexts: [],
+      userText: '',
+      reservedOutput: 8192,
+      windowTokens: 16384,
+    });
+    expect(fresh.level).toBe('high');
+    expect(contextBudgetHover(fresh).hint).toMatchObject({ action: 'open-settings', actionLabel: 'Open AI settings' });
   });
 });

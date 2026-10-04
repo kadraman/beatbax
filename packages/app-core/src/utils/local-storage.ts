@@ -48,6 +48,14 @@ export const StorageKey = {
   FOLD_COMMENTS: 'editor.foldComments',
   /** CodeLens previews enabled (boolean). */
   CODELENS: 'editor.codelens',
+  /** CodeLens previews on `pat` lines (boolean; applies when CODELENS is on). */
+  CODELENS_PATTERNS: 'editor.codelens.patterns',
+  /** CodeLens previews on `seq` lines (boolean; applies when CODELENS is on). */
+  CODELENS_SEQUENCES: 'editor.codelens.sequences',
+  /** CodeLens previews on `inst` lines (boolean; applies when CODELENS is on). */
+  CODELENS_INSTRUMENTS: 'editor.codelens.instruments',
+  /** CodeLens previews on `effect` lines (boolean; applies when CODELENS is on). */
+  CODELENS_EFFECTS: 'editor.codelens.effects',
   /** Beat decorations enabled (boolean). */
   BEAT_DECORATIONS: 'editor.beatDecorations',
   /** Editor font size (number). */

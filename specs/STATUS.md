@@ -1,6 +1,6 @@
 # Specification status index
 
-Assign the next feature id as **091** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **092** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
@@ -8,7 +8,6 @@ Assign the next feature id as **091** (one past the highest id below). Process: 
 - **002** `vscode-plugin` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/21 — [specs/features/002-vscode-plugin/](specs/features/002-vscode-plugin/)
 - **003** `ai-chatbot-rag` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/66 — [specs/features/003-ai-chatbot-rag/](specs/features/003-ai-chatbot-rag/)
 - **005** `plugin-starter-template` — in-progress — plugin — issue: https://github.com/kadraman/beatbax/issues/86 — [specs/features/005-plugin-starter-template/](specs/features/005-plugin-starter-template/)
-- **007** `scale-awareness` — specified — language — issue: https://github.com/kadraman/beatbax/issues/102 — [specs/features/007-scale-awareness/](specs/features/007-scale-awareness/)
 - **008** `song-composition-abstractions` — specified — language — issue: https://github.com/kadraman/beatbax/issues/125 — [specs/features/008-song-composition-abstractions/](specs/features/008-song-composition-abstractions/)
 - **009** `c64-sid-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/199 — [specs/features/009-c64-sid-chip-plugin/](specs/features/009-c64-sid-chip-plugin/)
 - **010** `c64-sid-goattracker-exporter` — specified — export — issue: https://github.com/kadraman/beatbax/issues/200 — [specs/features/010-c64-sid-goattracker-exporter/](specs/features/010-c64-sid-goattracker-exporter/)
@@ -18,15 +17,12 @@ Assign the next feature id as **091** (one past the highest id below). Process: 
 - **014** `pattern-grid-seek-and-loop` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/190 — [specs/features/014-pattern-grid-seek-and-loop/](specs/features/014-pattern-grid-seek-and-loop/)
 - **015** `song-timing-pattern-grid-inspector` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/191 — [specs/features/015-song-timing-pattern-grid-inspector/](specs/features/015-song-timing-pattern-grid-inspector/)
 - **016** `hugetracker-uge-converter` — specified — cli — issue: https://github.com/kadraman/beatbax/issues/151 — [specs/features/016-hugetracker-uge-converter/](specs/features/016-hugetracker-uge-converter/)
-- **017** `copilot-local-ollama` — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/202 — [specs/features/017-copilot-local-ollama/](specs/features/017-copilot-local-ollama/)
 - **018** `performance-mode-video-recording` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/192 — [specs/features/018-performance-mode-video-recording/](specs/features/018-performance-mode-video-recording/)
-- **019** `desktop-dmc-main-process-ipc` — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/203 — [specs/features/019-desktop-dmc-main-process-ipc/](specs/features/019-desktop-dmc-main-process-ipc/)
 - **020** `spectrum-cpc-arkos-exporter-phase-2` — specified — export — issue: https://github.com/kadraman/beatbax/issues/162 — [specs/features/020-spectrum-cpc-arkos-exporter-phase-2/](specs/features/020-spectrum-cpc-arkos-exporter-phase-2/)
 - **022** `motifs-and-loop-templates` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/204 — [specs/features/022-motifs-and-loop-templates/](specs/features/022-motifs-and-loop-templates/)
 - **023** `sega-mega-drive-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/193 — [specs/features/023-sega-mega-drive-chip-plugin/](specs/features/023-sega-mega-drive-chip-plugin/)
-- **024** `granular-codelens-settings` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/205 — [specs/features/024-granular-codelens-settings/](specs/features/024-granular-codelens-settings/)
 - **088** `copilot-request-controls` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/212 — [specs/features/088-copilot-request-controls/](specs/features/088-copilot-request-controls/)
-- **090** `midi-import-naming` (readable `_inst` / `_pat` / `_seq` names in MIDI import output) — in-progress — engine — issue: https://github.com/kadraman/beatbax/issues/214 — [specs/features/090-midi-import-naming/](specs/features/090-midi-import-naming/)
+- **091** `desktop-devtools-and-diagnostics` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/217 — [specs/features/091-desktop-devtools-and-diagnostics/](specs/features/091-desktop-devtools-and-diagnostics/)
 ## Complete (`specs/complete/`)
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
@@ -34,6 +30,11 @@ Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this e
 - **004** `daw-channel-mixer` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/75 — [specs/complete/004-daw-channel-mixer/](specs/complete/004-daw-channel-mixer/)
 - **006** `midi-importer` (CLI MIDI → `.bax` conversion) — complete — engine — issue: https://github.com/kadraman/beatbax/issues/101 — [specs/complete/006-midi-importer/](specs/complete/006-midi-importer/)
 - **089** `midi-import-arrangement` (arrangement-aware MIDI import, follow-up to 006) — complete — engine — issue: https://github.com/kadraman/beatbax/issues/213 — [specs/complete/089-midi-import-arrangement/](specs/complete/089-midi-import-arrangement/) — operator-local `songs/covers` parity shown and `split-midi.mjs` retired 2026-10-01 ([parity.md](specs/complete/089-midi-import-arrangement/parity.md))
+- **090** `midi-import-naming` (readable `_inst` / `_pat` / `_seq` names in MIDI import output) — complete — engine — issue: https://github.com/kadraman/beatbax/issues/214 — [specs/complete/090-midi-import-naming/](specs/complete/090-midi-import-naming/)
+- **007** `scale-awareness` — complete — language — issue: https://github.com/kadraman/beatbax/issues/102 — [specs/complete/007-scale-awareness/](specs/complete/007-scale-awareness/)
+- **017** `copilot-local-ollama` — complete (Discard-remaining residue tracked in https://github.com/kadraman/beatbax/issues/218) — desktop — issue: https://github.com/kadraman/beatbax/issues/202 — [specs/complete/017-copilot-local-ollama/](specs/complete/017-copilot-local-ollama/)
+- **019** `desktop-dmc-main-process-ipc` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/203 — [specs/complete/019-desktop-dmc-main-process-ipc/](specs/complete/019-desktop-dmc-main-process-ipc/)
+- **024** `granular-codelens-settings` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/205 — [specs/complete/024-granular-codelens-settings/](specs/complete/024-granular-codelens-settings/)
 - **021** `instrument-editor-panel` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/169 — [specs/complete/021-instrument-editor-panel/](specs/complete/021-instrument-editor-panel/)
 - **025** `arpeggio-effect` — complete — language — issue: _none_ — [specs/complete/025-arpeggio-effect/](specs/complete/025-arpeggio-effect/)
 - **026** `exporter_plugin_system` — complete — export — issue: https://github.com/kadraman/beatbax/issues/89 — [specs/complete/026-exporter_plugin_system/](specs/complete/026-exporter_plugin_system/)

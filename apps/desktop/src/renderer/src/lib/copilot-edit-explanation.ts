@@ -2,6 +2,10 @@
 const EXPLANATION_CHAR_LIMIT = 1000;
 
 const FENCE_RE = /```[\s\S]*?```/g;
+/** Fixed lines from `stubEditAssistantContent` in copilot-history-pack. */
+const HISTORY_STUB_LINE_RE = /^(\[Previous Edit\]|Stats: |Do not reuse the previous full file)/;
+/** Shorter echoed lines are usually generic headings ("**Explanation:**") worth keeping. */
+const MIN_ECHOED_LINE_CHARS = 32;
 const FILLER_LINE_RE = /^(here'?s|here is|below is|sure[,.]?|ok[,.]?)\s+(the\s+)?(updated|full|complete|new)?\s*(song|file|code)\s*:?\.?\s*$/i;
 
 function looksLikeSongDump(text: string): boolean {
@@ -29,10 +33,22 @@ function normalizeExplanation(text: string): string {
 
 /**
  * Pulls the model's what/why prose out of an Edit reply, ignoring ```bax fences.
+ * Lines copied verbatim from `echoedHistory` (prior assistant turns sent to the
+ * model) are dropped — small models sometimes parrot the previous-edit stub.
  */
-export function extractEditExplanation(content: string): string {
+export function extractEditExplanation(content: string, echoedHistory: readonly string[] = []): string {
   if (!content.trim()) return '';
-  return normalizeExplanation(content.replace(FENCE_RE, '\n'));
+  const prose = content.replace(FENCE_RE, '\n');
+  if (echoedHistory.length === 0) return normalizeExplanation(prose);
+  const echoed = new Set(
+    echoedHistory.flatMap((text) => text.split(/\r?\n/).map((line) => line.trim()))
+      .filter((line) => line.length >= MIN_ECHOED_LINE_CHARS),
+  );
+  return normalizeExplanation(
+    prose.split(/\r?\n/)
+      .filter((line) => !HISTORY_STUB_LINE_RE.test(line.trim()) && !echoed.has(line.trim()))
+      .join('\n'),
+  );
 }
 
 /**

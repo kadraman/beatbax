@@ -74,8 +74,16 @@ function dropOldestUntilBudget(packed: PackedChatMessage[], budget: number): Pac
 export function packCopilotHistoryForModel(
   messages: ChatMessage[],
   limit = MODEL_HISTORY_LIMIT,
+  options: { omitEditTurns?: boolean } = {},
 ): PackedChatMessage[] {
-  const recent = messages.filter((message) => !message.system).slice(-limit);
+  let recent = messages.filter((message) => !message.system).slice(-limit);
+  if (options.omitEditTurns) {
+    recent = recent.filter((message, index) => {
+      if (isOversizedEditPayload(message)) return false;
+      const next = recent[index + 1];
+      return !(message.role === 'user' && next && isOversizedEditPayload(next));
+    });
+  }
   const packed = recent.map((message) => ({
     role: message.role,
     content: isOversizedEditPayload(message)
@@ -94,15 +102,47 @@ export function packHistoryExcludingCurrentUser(
   messages: ChatMessage[],
   userText: string,
   limit = MODEL_HISTORY_LIMIT,
+  options: { omitEditTurns?: boolean } = {},
 ): PackedChatMessage[] {
+  return packCopilotHistoryForModel(withoutCurrentUser(messages, userText), limit, options);
+}
+
+function withoutCurrentUser(messages: ChatMessage[], userText: string): ChatMessage[] {
   const last = messages[messages.length - 1];
-  const withoutCurrent = last
+  return last
     && last.role === 'user'
     && !last.system
     && userMessageMatchesPrompt(last, userText)
     ? messages.slice(0, -1)
     : messages;
-  return packCopilotHistoryForModel(withoutCurrent, limit);
+}
+
+const EARLIER_REQUEST_MAX = 3;
+const EARLIER_REQUEST_CHARS = 200;
+
+/**
+ * User requests whose Edit turns `omitEditTurns` leaves out of history, so a
+ * follow-up such as "now do the same for the bass" still has its referent.
+ */
+export function earlierEditRequestsNote(
+  messages: ChatMessage[],
+  userText: string,
+  limit = MODEL_HISTORY_LIMIT,
+): string {
+  const recent = withoutCurrentUser(messages, userText).filter((message) => !message.system).slice(-limit);
+  const requests = recent
+    .filter((message, index) => message.role === 'user'
+      && recent[index + 1] !== undefined
+      && isOversizedEditPayload(recent[index + 1]))
+    .map((message) => (message.display ?? message.content).trim().replace(/\s+/g, ' '))
+    .filter((text, index, all) => text && all.lastIndexOf(text) === index)
+    .slice(-EARLIER_REQUEST_MAX)
+    .map((text) => `- ${text.length > EARLIER_REQUEST_CHARS ? `${text.slice(0, EARLIER_REQUEST_CHARS - 1)}…` : text}`);
+  if (requests.length === 0) return '';
+  return [
+    '[Earlier Edit requests in this chat — any changes they made are already in [EDITOR CONTENT]; do not repeat them, use them only to understand references in the new request]',
+    ...requests,
+  ].join('\n');
 }
 
 function lastUserMessageIndex(messages: ChatMessage[]): number {
@@ -117,31 +157,42 @@ function lastUserMessageIndex(messages: ChatMessage[]): number {
  * Context-meter split: composer draft is "This message" when present;
  * otherwise the last sent user turn is, so the row is not stuck at 0
  * after a reply. That user turn is omitted from Chat so totals still add up.
+ * With `omitEditTurns` (Edit mode) the history matches what is sent: prior
+ * Edit turns are left out and the earlier-requests note is counted instead.
  */
 export function splitContextBudgetMessages(
   messages: ChatMessage[],
   draftUserText: string,
   limit = MODEL_HISTORY_LIMIT,
+  options: { omitEditTurns?: boolean } = {},
 ): { userText: string; historyTexts: string[] } {
+  const withNote = (texts: string[], note: string): string[] => (
+    options.omitEditTurns && note ? [...texts, note] : texts
+  );
   const draft = draftUserText.trim();
   if (draft) {
     return {
       userText: draftUserText,
-      historyTexts: packHistoryExcludingCurrentUser(messages, draftUserText, limit)
-        .map((message) => message.content),
+      historyTexts: withNote(
+        packHistoryExcludingCurrentUser(messages, draftUserText, limit, options).map((message) => message.content),
+        earlierEditRequestsNote(messages, draftUserText, limit),
+      ),
     };
   }
   const lastUserIndex = lastUserMessageIndex(messages);
   if (lastUserIndex < 0) {
     return {
       userText: '',
-      historyTexts: packCopilotHistoryForModel(messages, limit).map((message) => message.content),
+      historyTexts: packCopilotHistoryForModel(messages, limit, options).map((message) => message.content),
     };
   }
   const lastUser = messages[lastUserIndex];
   const withoutLastUser = messages.slice(0, lastUserIndex).concat(messages.slice(lastUserIndex + 1));
   return {
     userText: lastUser.display ?? lastUser.content,
-    historyTexts: packCopilotHistoryForModel(withoutLastUser, limit).map((message) => message.content),
+    historyTexts: withNote(
+      packCopilotHistoryForModel(withoutLastUser, limit, options).map((message) => message.content),
+      earlierEditRequestsNote(messages.slice(0, lastUserIndex), '', limit),
+    ),
   };
 }

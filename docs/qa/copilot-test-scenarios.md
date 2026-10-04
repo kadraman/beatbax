@@ -3,10 +3,10 @@ title: "CoPilot Test Scenarios"
 status: active
 authors: ["kadraman"]
 created: 2026-06-21
-updated: 2026-08-22
+updated: 2026-10-04
 related:
   - docs/features/complete/ai-chatbot-assistant.md
-  - docs/features/copilot-local-ollama.md
+  - docs/features/complete/copilot-local-ollama.md
   - docs/features/desktop-client-enhancements.md
 ---
 
@@ -22,45 +22,53 @@ CoPilot should be treated as a code-editing feature, not a generic chatbot. In e
 
 Track manual passes and automation separately. Update this table when a scenario is re-tested after significant Copilot or UI changes.
 
-| Status | Meaning |
-| ------ | ------- |
-| **Manual pass** | Exercised end-to-end in the desktop app by a human tester |
-| **Not tested** | Not yet manually verified against current behavior |
-| **Automated** | Covered by a unit or e2e test (may still need periodic manual spot-checks) |
 
-| # | Scenario | Status | Verified by | Date | Notes |
-| - | -------- | ------ | ----------- | ---- | ----- |
-| 1 | Melody variation with vibrato | Manual pass | kadraman | 2026-07-10 | |
-| 2 | Bass variation | Manual pass | kadraman | 2026-07-10 | |
-| 3 | Drum fill | Manual pass | kadraman | 2026-07-10 | |
-| 4 | Wavetable arpeggio variation | Manual pass | kadraman | 2026-07-10 | |
-| 5 | Small targeted edit | Manual pass | kadraman | 2026-07-10 | |
-| 6 | Repair existing parse error | Manual pass | kadraman | 2026-07-10 | |
-| 7 | Repair CoPilot's previous bad edit | Manual pass | kadraman | 2026-07-10 | |
-| 8 | Explain current song (Ask) | Manual pass | kadraman | 2026-07-10 | |
-| 9 | Explain valid syntax (Ask) | Manual pass | kadraman | 2026-07-10 | |
-| 10 | Valid key, successful request | Manual pass | kadraman | 2026-07-10 | |
-| 11 | Invalid key | Manual pass | kadraman | 2026-07-10 | |
-| 12 | Valid key, no quota | Not tested | — | — | Schedule retest after error-normalization changes |
-| 13 | Network timeout | Not tested | — | — | Schedule retest (cloud + local; see #23) |
-| 14 | Curated model selection | Manual pass | kadraman | 2026-07-10 | |
-| 15 | Custom model ID | Not tested | — | — | Schedule retest after model dropdown changes |
-| 16 | Live model fetch | Manual pass | kadraman | 2026-07-10 | |
-| 17 | API key save and clear | Manual pass | kadraman | 2026-07-10 | |
-| 18 | Startup restore | Manual pass | kadraman | 2026-07-10 | |
-| 19 | Prompt input history | Manual pass | kadraman | 2026-07-10 | |
-| 20 | Edit review (Keep / Discard) | Manual pass | kadraman | 2026-07-10 | |
-| 21 | Ollama Edit with adequate context | Not tested | — | — | Requires Ollama + `qwen2.5-coder:7b`, `num_ctx` ≥ 16k |
-| 22 | Ollama snippet blocked | Not tested | — | — | Low `num_ctx` or tiny model |
-| 23 | Local request timeout / warm-up | Not tested | — | — | First request after Ollama restart |
-| 24 | Wave instrument quieter (`volume=` not `gm=`) | Not tested | — | — | Requires chip reference in Copilot context |
-| 25 | New chat / session switch | Not tested | — | — | Header **+** New chat; session menu switches/deletes; previous transcript restored on switch |
-| 26 | Context meter + token usage | Not tested | — | — | Footer %; last-turn `prompt → completion` when provider returns `usage` |
-| 27 | Explain `[arrangement]` info diagnostic | Not tested | — | — | Open phased/monolithic song; Ask about section-focus info squiggle; expect explanation + restructure command, not forced rewrite |
+| Status          | Meaning                                                                    |
+| --------------- | -------------------------------------------------------------------------- |
+| **Manual pass** | Exercised end-to-end in the desktop app by a human tester                  |
+| **Not tested**  | Not yet manually verified against current behavior                         |
+| **Automated**   | Covered by a unit or e2e test (may still need periodic manual spot-checks) |
+
+
+
+| #   | Scenario                                      | Status      | Verified by | Date       | Notes                                                                                                                            |
+| --- | --------------------------------------------- | ----------- | ----------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Melody variation with vibrato                 | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 2   | Bass variation                                | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 3   | Drum fill                                     | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 4   | Wavetable arpeggio variation                  | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 5   | Small targeted edit                           | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 6   | Repair existing parse error                   | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 7   | Repair CoPilot's previous bad edit            | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 8   | Explain current song (Ask)                    | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 9   | Explain valid syntax (Ask)                    | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 10  | Valid key, successful request                 | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 11  | Invalid key                                   | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 12  | Valid key, no quota                           | Not tested  | —           | —          | Schedule retest after error-normalization changes                                                                                |
+| 13  | Network timeout                               | Not tested  | —           | —          | Schedule retest (cloud + local; see #23)                                                                                         |
+| 14  | Curated model selection                       | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 15  | Custom model ID                               | Not tested  | —           | —          | Schedule retest after model dropdown changes                                                                                     |
+| 16  | Live model fetch                              | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 17  | API key save and clear                        | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 18  | Startup restore                               | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 19  | Prompt input history                          | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 20  | Edit review (Keep / Discard)                  | Manual pass | kadraman    | 2026-07-10 |                                                                                                                                  |
+| 21  | Ollama Edit with adequate context             | Not tested  | —           | —          | Requires Ollama + `qwen2.5-coder:7b`, `num_ctx` ≥ 16k                                                                            |
+| 22  | Ollama snippet blocked                        | Not tested  | —           | —          | Low `num_ctx` or tiny model                                                                                                      |
+| 23  | Local request timeout / warm-up               | Not tested  | —           | —          | First request after Ollama restart                                                                                               |
+| 24  | Wave instrument quieter (`volume=` not `gm=`) | Not tested  | —           | —          | Requires chip reference in Copilot context                                                                                       |
+| 25  | New chat / session switch                     | Not tested  | —           | —          | Header **+** New chat; session menu switches/deletes; previous transcript restored on switch                                     |
+| 26  | Context meter + token usage                   | Not tested  | —           | —          | Footer %; last-turn `prompt → completion` when provider returns `usage`                                                          |
+| 27  | Explain `[arrangement]` info diagnostic       | Not tested  | —           | —          | Open phased/monolithic song; Ask about section-focus info squiggle; expect explanation + restructure command, not forced rewrite |
+| 28  | Edit card matches the editor after retries    | Not tested  | —           | —          | Local 7B model; repair retries, merged definitions, *Not merged* note, follow-up Edit in the same chat (spec 017 Phase 3)        |
+| 29  | Every unapplied Edit shows **Not applied**    | Not tested  | —           | —          | Parse failure, incomplete song, repair without a song, reply without a `bax` block                                               |
+
 
 **Automated (partial):** `apps/desktop/tests/copilot-context.test.ts` — prompt assembly (includes `[ARRANGEMENT LAYOUT HINTS]`). `copilot-token-budget.test.ts` / `copilot-history-pack.test.ts` / `ai-chat-completion.test.ts` — meter math, Edit-history stubs, `usage` parsing. `packages/app-core/tests/chat-store-sessions.test.ts` — multi-session store. Light e2e in `desktop-integration.spec.ts` — Copilot panel mount/startup only.
 
 ---
+
+
 
 ## Test Goals
 
@@ -72,6 +80,8 @@ Track manual passes and automation separately. Update this table when a scenario
 6. Automated tests capture the highest-risk regressions once a scenario is understood.
 
 ---
+
+
 
 ## Baseline Setup
 
@@ -91,13 +101,15 @@ Before each scenario:
   - `Ask` for explanations.
   - `Edit` for code changes.
 
+
+
 ### Local Ollama baseline
 
 When testing local inference (scenarios 21–23), use this setup in addition to the steps above:
 
 1. Install [Ollama](https://ollama.com/) and run `ollama serve`.
 2. Pull the recommended model: `ollama pull qwen2.5-coder:7b`.
-3. Set context length to at least **16384** (see [copilot-local-ollama.md](features/copilot-local-ollama.md)).
+3. Set context length to at least **16384** (see [copilot-local-ollama.md](../features/complete/copilot-local-ollama.md)).
 4. In BeatBax: **Settings → AI** → **Ollama (local)** → endpoint `http://localhost:11434/v1` → model `qwen2.5-coder:7b` (use **Refresh** to list installed models). No API key.
 5. Expect the **first request after restarting Ollama** to take 1–3 minutes (model load). BeatBax waits up to **5 minutes** per local request.
 
@@ -110,7 +122,11 @@ After each edit-mode response:
 
 ---
 
+
+
 ## Syntax Correctness Scenarios
+
+
 
 ### 1. Melody Variation With Vibrato
 
@@ -119,7 +135,7 @@ Starting file: `songs/sample.bax`
 Prompt:
 
 ```text
-I would like it to be similar to melody_pat with different variations in notes and use some effects like vibrato.
+Add a new lead pattern that is a variation of melody_pat: keep its rhythm, change some of the notes, and add vibrato to a few of them. Use the new pattern in lead_seq.
 ```
 
 Expected behavior:
@@ -150,6 +166,8 @@ seq melody_var
 ```bax
 play melody_pat, melody_var, bass_pat
 ```
+
+
 
 ### 2. Bass Variation
 
@@ -187,6 +205,8 @@ Context / validation checks:
 - If the model returns invalid syntax, Edit mode validates with the parser before apply. Copilot automatically retries up to 2 times with the parse errors, then shows `⚠ Not applied — editor unchanged` if still invalid.
 - If the model returns only a snippet (missing `play`, `channel`, or most of the file), apply is blocked the same way — the editor is not replaced.
 
+
+
 ### 3. Drum Fill
 
 Prompt:
@@ -202,6 +222,8 @@ Expected behavior:
 - Uses rests (`.`) and instrument names as tokens.
 - Does not invent notes like `hi-hat` if the instrument is named `hihat`.
 
+
+
 ### 4. Wavetable Arpeggio Variation
 
 Prompt:
@@ -215,6 +237,8 @@ Expected behavior:
 - Modifies or adds a wave/arp pattern.
 - Updates `seq wave_seq` or channel 3 references.
 - Does not alter `melody_pat` or `lead_seq` except when required.
+
+
 
 ### 5. Small Targeted Edit
 
@@ -230,6 +254,8 @@ Expected behavior:
 - Does not reorder sections or rewrite the full composition unnecessarily.
 - Preserves metadata, patterns, sequences, channels, and play directive.
 
+
+
 ### 24. Wave instrument quieter (`volume=` not `gm=`)
 
 Setup: open a Game Boy song with a wave instrument that includes `gm=` (for example `dancefloor_pulse_gameboy.bax` / `inst arp_gb type=wave wave=[...] gm=82`).
@@ -242,7 +268,7 @@ The arp_gb instrument is too loud and dominates the mix how do i make it a bit q
 
 Expected behavior:
 
-- Suggests lowering the wave instrument **`volume=`** field (`volume=50` or `volume=25`; default is `100`).
+- Suggests lowering the wave instrument `volume=` field (`volume=50` or `volume=25`; default is `100`).
 - Does **not** change `gm=` — that is MIDI-export program metadata, not playback loudness.
 - Preserves the full `wave=[...]` table (never replaces it with `...` placeholders).
 - In Edit mode, only the `inst arp_gb ...` line changes aside from incidental whitespace.
@@ -254,7 +280,11 @@ Context / validation checks:
 
 ---
 
+
+
 ## Repair Scenarios
+
+
 
 ### 6. Repair Existing Parse Error
 
@@ -280,6 +310,8 @@ Expected behavior:
 - Editor banner reports removals separately (e.g. `AI: 3 removed lines`); deleted lines are highlighted at their anchor with inline `− …` hints, and ↑/↓ navigates between removal anchors as well as added lines.
 - In-place fixes (e.g. removing commas on one line) show as `AI: 1 line changed` with a yellow highlight and inline `was: − …` hint — not `1 added, 1 removed`.
 
+
+
 ### 7. Repair CoPilot's Previous Bad Edit
 
 Prompt:
@@ -296,7 +328,11 @@ Expected behavior:
 
 ---
 
+
+
 ## Ask Mode Scenarios
+
+
 
 ### 8. Explain Current Song
 
@@ -311,6 +347,8 @@ Expected behavior:
 - Does not return a replacement song.
 - Accurately identifies patterns, sequences, channels, and transforms.
 - Mentions uncertainty rather than inventing features.
+
+
 
 ### 9. Explain Valid Syntax
 
@@ -327,7 +365,11 @@ Expected behavior:
 
 ---
 
+
+
 ## Provider And Error Handling Scenarios
+
+
 
 ### 10. Valid Key, Successful Request
 
@@ -337,12 +379,16 @@ Expected behavior:
 - CoPilot request completes without browser CORS failures.
 - No raw IPC wrapper is shown.
 
+
+
 ### 11. Invalid Key
 
 Expected behavior:
 
 - Settings validation reports that the provider rejected the key.
 - CoPilot displays a readable error, not JSON or stack traces.
+
+
 
 ### 12. Valid Key, No Quota
 
@@ -357,6 +403,8 @@ OpenAI quota exceeded. Check your plan and billing details, or choose a differen
 - It does not show raw JSON like `{"error": ...}`.
 - It does not show Electron IPC wrapper text.
 
+
+
 ### 13. Network Timeout
 
 Expected behavior:
@@ -364,6 +412,8 @@ Expected behavior:
 - Settings validation reports that the provider did not respond.
 - CoPilot reports a timeout in plain language.
 - Loading state is cleared.
+
+
 
 ### 14. Curated Model Selection
 
@@ -381,6 +431,8 @@ Expected behavior:
 - Curated model choice persists across app restart.
 - Copilot footer model label matches the stored model.
 
+
+
 ### 15. Custom Model ID
 
 Steps:
@@ -394,6 +446,8 @@ Expected behavior:
 - **Custom...** is selected and the custom model ID field shows the saved value.
 - CoPilot requests use the custom model ID.
 - Switching back to a curated model from the dropdown replaces the stored model.
+
+
 
 ### 16. Live Model Fetch
 
@@ -414,7 +468,11 @@ Expected behavior:
 
 ---
 
+
+
 ## Settings And State Scenarios
+
+
 
 ### 17. API Key Save And Clear
 
@@ -426,6 +484,8 @@ Expected behavior:
 - `Clear key` empties the visible field and secure storage.
 - CoPilot immediately reflects that no key is set.
 
+
+
 ### 18. Startup Restore
 
 Expected behavior:
@@ -436,6 +496,8 @@ Expected behavior:
   - Help remains active if last active.
   - CoPilot is active only if last active.
 
+
+
 ### 19. Prompt Input History
 
 Expected behavior:
@@ -445,14 +507,18 @@ Expected behavior:
 - `Down` cycles forward and eventually restores the current draft.
 - Multiline input still supports normal arrow navigation inside text.
 
+
+
 ### 20. Edit Review (Keep / Discard)
 
 After an edit-mode apply with line highlights, the editor banner offers **Keep** and **Discard**:
 
 - **Keep** updates the applied Copilot message to `✓ Kept in editor` (summary unchanged).
 - **Discard** updates it to `↩ Discarded`, labels the summary as reverted changes, and restores the pre-edit song.
-- Edits with no line diff skip the banner and show `✓ Kept in editor` immediately.
+- Edits with no line diff skip the banner and show `⚠ Not applied — editor unchanged` (see scenario 29).
 - Ctrl+Z does not update the Copilot transcript automatically.
+
+
 
 ### 25. New Chat / Session Switch
 
@@ -464,12 +530,16 @@ Expected behavior:
 - **Clear ↑/↓ prompts** in Settings → AI does not delete chats.
 - Switching songs does not auto-create a session; start **New chat** when you want a clean thread.
 
+
+
 ### 26. Context Meter and Token Usage
 
 Expected behavior:
 
 - The footer meter shows an estimated fill % for the next request (system + history + draft + reserved completion).
-- Hover (or click) the footer meter for a compact popup: Instructions + song / Chat / This message / Room for reply. **This message** is the composer draft, or the last sent question if the box is empty. Hint “Start a new chat” when high or full.
+- Hover (or click) the footer meter for a compact popup: Instructions + song / Chat history / This message / Room for reply. **This message** is the composer draft, or the last sent question if the box is empty.
+- When high or full with chat history, the popup shows a **Start a new chat** button that starts one (disabled while a reply is loading).
+- When high or full with **no** history (for example a fresh Edit chat on `sample.bax` at 16k, about 80%), the popup explains that a new chat will not free space and shows an **Open AI settings** button instead.
 - After a cloud/OpenAI-compatible reply, the assistant message shows `prompt → completion` when `usage` is present.
 - Settings → AI **Model token window** matches the meter denominator. For Ollama, set it equal to `num_ctx`.
 - Settings → AI **Ask song excerpt** only truncates the song in Ask; Edit still sends the full song. The footer % is the token window, not this character slider.
@@ -477,29 +547,35 @@ Expected behavior:
 
 ---
 
+
+
 ## Local Ollama Scenarios
+
+
 
 ### 21. Ollama Edit With Adequate Context
 
-Starting file: `songs/sample.bax`  
+Starting file: `songs/sample.bax`
 Baseline: [Local Ollama baseline](#local-ollama-baseline) with `num_ctx` ≥ 16384.
 
 Prompt (Edit mode):
 
 ```text
-Add a short vibrato variation to the melody pattern similar to melody_pat.
+Add a copy of melody_pat called melody_vib with vibrato on the last note of each phrase, and use it in lead_seq.
 ```
 
 Expected behavior:
 
 - Copilot completes within the 5-minute local timeout (may be slow on first request after Ollama restart).
-- Returns a **full song** in a ` ```bax ``` ` block or is blocked with a clear incomplete/parse message — editor is never left with a snippet-only wipe.
+- Returns a **full song** in a ````bax ```` block or is blocked with a clear incomplete/parse message — editor is never left with a snippet-only wipe.
 - Applied song parses with no diagnostics.
+
+
 
 ### 22. Ollama Snippet Blocked
 
-Starting file: `songs/sample.bax`  
-Baseline: Ollama with **`num_ctx` 8192 or lower**, or a tiny model (`<7B`).
+Starting file: `songs/sample.bax`
+Baseline: Ollama with `num_ctx` **8192 or lower**, or a tiny model (`<7B`).
 
 Prompt (Edit mode):
 
@@ -512,6 +588,8 @@ Expected behavior:
 - If the model returns only a partial snippet (missing `play`, `channel`, or most definitions), Copilot **does not apply** it.
 - Status shows an incomplete-song or blocked message; editor content matches the pre-request song.
 - Optional: up to 2 incomplete-song repair attempts before giving up.
+
+
 
 ### 23. Local Request Timeout / Warm-Up
 
@@ -528,8 +606,67 @@ Expected behavior:
 - Loading spinner and disabled input while waiting.
 - No raw IPC or JSON errors in the Copilot thread.
 - Retry after warm-up succeeds on a reasonable prompt.
+- If **every** request times out even after warm-up, check Task Manager for leftover `llama-server.exe` processes from an earlier Ollama session (see [spec 017 § Edit mode expectations](../../specs/complete/017-copilot-local-ollama/spec.md#edit-mode-expectations)).
+
+
+
+### 28. Edit Card Matches the Editor After Retries
+
+Starting file: `songs/sample.bax` (CRLF line endings on Windows)
+Baseline: [Local Ollama baseline](#local-ollama-baseline) with a 7B coder model.
+
+Prompts (Edit mode, same chat):
+
+```text
+Add a new lead pattern that is a variation of melody_pat: keep its rhythm, change some of the notes, and add vibrato to a few of them. Use the new pattern in lead_seq.
+```
+
+```text
+Now do the same for the bass: add a variation of bass_pat with vibrato on some notes and use it in bass_seq.
+```
+
+Expected behavior:
+
+- Every change listed on the card is in the editor, and the editor banner reviews the same changes.
+- The explanation describes the requested change. It does not describe parse-repair fixes ("added the missing `drums_alt_pat`…") even when the card says *Fixed N parse errors automatically on retry*.
+- The second card's explanation does not repeat the first card's summary, `Stats:` lines, or "Do not reuse the previous full file from this turn."
+- The change count reflects real edits, not every line of the song (no CRLF vs LF noise).
+- If the reply left definitions out, existing definitions and the references to them are kept (for example `drums_alt_pat` stays in `drums_seq`), and the card shows *Merged definition updates into your song*.
+- If the reply also changed non-definition lines (for example `play`), the card lists them in a *Not merged* note and the editor keeps the original lines.
+
+
+
+### 29. Every Unapplied Edit Shows Not Applied
+
+Baseline: any provider; easiest with a small local model or low `num_ctx`.
+
+Expected behavior for each Edit turn that leaves the editor unchanged (parse errors after retries, incomplete song after retries, a repair reply without a song, no `` ```bax `` song at all, a song identical to the current one, or a reply that only removed comments or reformatted the song):
+
+- The card shows **⚠ Not applied — editor unchanged** with the reason. It never shows **✓ Kept in editor** for a reply with no changes.
+- The model's reply is available under **View returned song** (or **View reply** when it has no code block).
+- No card claims changes that are not in the editor.
+
+When a reply is applied but does not match its explanation:
+
+- If only comments or blank lines changed, the card shows *⚠ Only comments or blank lines changed…*.
+- If the explanation names patterns, sequences, or effects that were not changed, the explanation ends with *⚠ The explanation mentions …, but those were not changed.*
+
+### 30. Edit Follow-Up Uses Earlier Requests
+
+Baseline: `songs/sample.bax`, Edit mode, new chat.
+
+1. Send: "Add vibrato to the last note of each phrase in melody_pat." Keep the change.
+2. Send: "Now do the same for the bass."
+
+Expected behavior:
+
+- The second edit applies vibrato to the bass, so the model understood "the same" from the earlier request.
+- Neither turn shows "No ```bax block found"; earlier Edit replies are not sent back to the model.
+- The context meter's **Chat history** row stays small in Edit mode (earlier Edit songs are not counted).
 
 ---
+
+
 
 ## Output Quality Checks
 
@@ -548,6 +685,8 @@ For each edit-mode response, assess:
 
 ---
 
+
+
 ## Suggested Automated Coverage
 
 Add focused e2e or unit coverage as scenarios stabilize:
@@ -557,21 +696,23 @@ Add focused e2e or unit coverage as scenarios stabilize:
 3. CoPilot prompt history Up/Down behavior.
 4. Startup restore with AI enabled and active tab set to Help/Visualizer/CoPilot.
 5. CoPilot error normalization for quota, invalid key, and timeout responses.
-6. Prompt assembly snapshot or unit test that verifies the syntax reference includes invalid-syntax warnings. *(Implemented: `apps/desktop/tests/copilot-context.test.ts`.)*
-7. Edit-mode completeness guard rejects partial snippets before apply. *(Implemented: `apps/desktop/tests/copilot-apply-guard.test.ts`.)*
+6. Prompt assembly snapshot or unit test that verifies the syntax reference includes invalid-syntax warnings. *(Implemented:* `apps/desktop/tests/copilot-context.test.ts`*.)*
+7. Edit-mode completeness guard rejects partial snippets before apply. *(Implemented:* `apps/desktop/tests/copilot-apply-guard.test.ts`*.)*
 
 For AI output itself, prefer deterministic tests around prompt/context construction and post-response validation rather than asserting a live model's exact text.
 
 ---
 
+
+
 ## Future Hardening Ideas
 
-- Run returned edit-mode code through the BeatBax parser before enabling `Replace editor`. *(Implemented: Edit mode validates with `parseWithPeggy` before apply; blocked replies show parse errors in Copilot.)*
-- Reject incomplete edit responses that would replace a full song with a short snippet (missing `play`, `channel`, or most definitions). *(Implemented: `assessEditApplyGuard` in desktop Copilot.)*
+- Run returned edit-mode code through the BeatBax parser before enabling `Replace editor`. *(Implemented: Edit mode validates with* `parseWithPeggy` *before apply; blocked replies show parse errors in Copilot.)*
+- Reject incomplete edit responses that would replace a full song with a short snippet (missing `play`, `channel`, or most definitions). *(Implemented:* `assessEditApplyGuard` *in desktop Copilot.)*
 - If parsing fails, show a warning and offer `Ask CoPilot to repair`.
 - Prefer patch-style edits or structured edit plans over full-song rewrites for small changes.
 - Add a "Validate response" step that displays syntax diagnostics before applying.
 - Warn when inline effects reference undefined named presets (parser diagnostic + Copilot `[DEFINED NAMES]` / `[EFFECT GUIDANCE]` context). *(Implemented: parser warning + desktop Copilot context sections.)*
 - Include a compact grammar reference from the parser/docs in CoPilot context instead of hand-maintained prompt text.
-- Add provider-specific model presets and warnings for models that perform poorly at code editing. *(Implemented: curated per-provider model dropdown, live `/models` fetch with Refresh, and Custom... free-text in desktop Settings → AI.)*
+- Add provider-specific model presets and warnings for models that perform poorly at code editing. *(Implemented: curated per-provider model dropdown, live* `/models` *fetch with Refresh, and Custom... free-text in desktop Settings → AI.)*
 

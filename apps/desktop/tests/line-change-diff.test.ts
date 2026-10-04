@@ -2,8 +2,46 @@
 
 import {
   computeLineChangeDiff,
+  countAIChangeDiff,
   LCS_DP_MAX_CELLS,
+  matchLineEndings,
+  onlyCommentLinesChanged,
 } from '../src/renderer/src/lib/line-change-diff';
+
+describe('onlyCommentLinesChanged', () => {
+  const previous = '## Demo song\nchip gameboy\npat a = C4\nplay\n';
+
+  it('is true when only comment lines changed', () => {
+    const next = previous.replace('## Demo song', '## Demo song with a drum fill');
+    expect(onlyCommentLinesChanged(next, computeLineChangeDiff(previous, next))).toBe(true);
+  });
+
+  it('is false when a song line changed', () => {
+    const next = previous.replace('pat a = C4', 'pat a = C4 E4');
+    expect(onlyCommentLinesChanged(next, computeLineChangeDiff(previous, next))).toBe(false);
+  });
+
+  it('is false when nothing changed', () => {
+    expect(onlyCommentLinesChanged(previous, computeLineChangeDiff(previous, previous))).toBe(false);
+  });
+});
+
+describe('matchLineEndings', () => {
+  it('converts an LF reply to CRLF when the editor uses CRLF', () => {
+    expect(matchLineEndings('a\nb\n', 'x\r\ny\r\n')).toBe('a\r\nb\r\n');
+  });
+
+  it('converts CRLF and mixed endings to LF when the editor uses LF', () => {
+    expect(matchLineEndings('a\r\nb\nc\r', 'x\ny')).toBe('a\nb\nc\n');
+  });
+
+  it('keeps a CRLF diff limited to the lines that really changed', () => {
+    const editor = 'chip gameboy\r\nbpm 120\r\npat p = C5\r\nplay\r\n';
+    const reply = 'chip gameboy\nbpm 120\npat p = C5 E5\nplay\n';
+    expect(countAIChangeDiff(computeLineChangeDiff(editor, reply)).total).toBe(4);
+    expect(countAIChangeDiff(computeLineChangeDiff(editor, matchLineEndings(reply, editor))).total).toBe(1);
+  });
+});
 
 describe('computeLineChangeDiff', () => {
   it('returns no changes for identical content', () => {

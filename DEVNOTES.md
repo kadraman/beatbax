@@ -41,7 +41,7 @@ Desktop-only (gated by `FeatureFlag.AI_ASSISTANT` / `desktop-full` profile). Pri
 - **Self-correction** (Edit mode): up to **2** parse-repair attempts; up to **2** incomplete-song repair attempts; apply guard blocks snippet-only replies. Correction exchanges are not shown in the conversation history.
 - **`validateBax()` extended checks** (beyond `resolveSong()`): channel `inst` references, pattern inline/temp `inst`, sequence `:inst(name)` transforms.
 - **Persistence**: endpoint, model, `maxContextChars`, mode, history under `beatbax:ai.*`. API keys in OS secure credential store (desktop); session-only in web-ui settings if enabled.
-- **Local Ollama**: no API key; 5-minute request timeout; see [copilot-local-ollama.md](docs/features/copilot-local-ollama.md).
+- **Local Ollama**: no API key; 5-minute request timeout; see [copilot-local-ollama.md](docs/features/complete/copilot-local-ollama.md).
 - **QA**: repeatable manual scenarios in [copilot-test-scenarios.md](docs/copilot-test-scenarios.md).
 - **Security**: `marked` + `DOMPurify.sanitize()`; generated code validated, never `eval`-ed.
 - See [ai-chatbot-assistant.md](docs/features/complete/ai-chatbot-assistant.md) for architecture, RAG roadmap, and tests.

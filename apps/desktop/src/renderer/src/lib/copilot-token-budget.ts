@@ -99,14 +99,41 @@ export interface ContextBudgetHoverRow {
   percent: number;
 }
 
+export type ContextBudgetHintAction = 'new-chat' | 'open-settings';
+
+export interface ContextBudgetHint {
+  text?: string;
+  action: ContextBudgetHintAction;
+  actionLabel: string;
+}
+
 export interface ContextBudgetHoverModel {
   heading: string;
   usedLabel: string;
   percent: number;
   level: ContextBudgetLevel;
   rows: ContextBudgetHoverRow[];
-  hint?: string;
+  hint?: ContextBudgetHint;
   lastReply?: string;
+}
+
+/**
+ * Only suggest a new chat when chat history is actually using the window;
+ * otherwise the fixed part (instructions + song + reserved reply) is the cause.
+ */
+export function contextBudgetHint(budget: ContextBudgetBreakdown): ContextBudgetHint | undefined {
+  if (budget.level === 'ok') return undefined;
+  if (budget.history > 0) {
+    return {
+      action: 'new-chat',
+      actionLabel: 'Start a new chat',
+    };
+  }
+  return {
+    text: 'Instructions, the song, and room for the reply fill most of the window, so a new chat will not free space. Raise the Model token window (and num_ctx for Ollama) for more room.',
+    action: 'open-settings',
+    actionLabel: 'Open AI settings',
+  };
 }
 
 /** Segment widths for the hover stacked bar (percent of the model window). */
@@ -128,7 +155,7 @@ export function contextBudgetHover(budget: ContextBudgetBreakdown, extras?: {
   const shares = contextBudgetBarShares(budget);
   const rows: ContextBudgetHoverRow[] = [
     { key: 'system', label: 'Instructions + song', tokens: budget.system, percent: shares.system },
-    { key: 'history', label: 'Chat', tokens: budget.history, percent: shares.history },
+    { key: 'history', label: 'Chat history', tokens: budget.history, percent: shares.history },
     { key: 'message', label: 'This message', tokens: budget.message, percent: shares.message },
     { key: 'reservedOutput', label: 'Room for reply', tokens: budget.reservedOutput, percent: shares.reservedOutput },
   ];
@@ -141,7 +168,7 @@ export function contextBudgetHover(budget: ContextBudgetBreakdown, extras?: {
     percent: budget.percent,
     level: budget.level,
     rows,
-    hint: budget.level === 'ok' ? undefined : 'Start a new chat',
+    hint: contextBudgetHint(budget),
     lastReply,
   };
 }

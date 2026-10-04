@@ -10,7 +10,7 @@
  *   - `"local:<path>"` — file system (CLI/Node.js and BeatBax Desktop; blocked in web-lite)
  *   - `"https://..."`  — remote fetch (browser + Node.js 18+)
  */
-import type { ChipChannelBackend } from '../types.js';
+import type { ChipChannelBackend, ChipWarning } from '../types.js';
 import type { InstrumentNode } from '../../parser/ast.js';
 import { DMC_RATE_TABLE, getDmcRateTable, NES_CLOCK } from './periodTables.js';
 import { NES_MIX_GAIN } from './mixer.js';
@@ -620,8 +620,14 @@ export function createDmcChannel(_audioContext: BaseAudioContext): ChipChannelBa
  * in the given instrument map. This is called by the `preloadForPCM` plugin
  * hook so that the synchronous PCM renderer has data available from the first
  * `noteOn` + `render()` call, avoiding silent notes caused by the async gap.
+ *
+ * Failures are non-fatal (the affected notes stay silent). They are reported
+ * through `onWarn` when provided, otherwise logged to the console.
  */
-export async function preloadDMCSamples(refs: Iterable<string>): Promise<void> {
+export async function preloadDMCSamples(
+  refs: Iterable<string>,
+  onWarn?: (warning: ChipWarning) => void,
+): Promise<void> {
   const promises: Promise<void>[] = [];
   for (const ref of refs) {
     if (NESDMCBackend.hasCached(ref)) continue; // already loaded
@@ -629,7 +635,15 @@ export async function preloadDMCSamples(refs: Iterable<string>): Promise<void> {
       resolveDMCSample(ref)
         .then(data => { NESDMCBackend.setCached(ref, data); })
         .catch(err => {
-          console.warn(`NES DMC preload: failed to load '${ref}':`, err.message);
+          const reason = err instanceof Error ? err.message : String(err);
+          if (onWarn) {
+            onWarn({
+              component: 'nes-dmc',
+              message: `NES DMC: failed to load sample '${ref}': ${reason}`,
+            });
+          } else {
+            console.warn(`NES DMC preload: failed to load '${ref}':`, reason);
+          }
         })
     );
   }

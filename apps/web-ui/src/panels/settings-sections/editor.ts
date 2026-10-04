@@ -4,6 +4,7 @@
 
 import {
   settingWordWrap, settingFoldComments, settingCodeLens,
+  settingCodeLensPatterns, settingCodeLensSequences, settingCodeLensInstruments, settingCodeLensEffects,
   settingBeatDecorations, settingDefaultBpm, settingSongArtist, settingFontSize,
   settingMidiInputEnabled, settingMidiInputDevice, settingMidiStepLength,
   settingMidiEmitDurations, settingMidiEntryMode, settingMidiAutoAdvance,
@@ -24,11 +25,35 @@ export function buildEditorSection(): HTMLElement {
     (window as any).__beatbax_toolbar?.setWrapActive(v);
   }, settingWordWrap.subscribe));
 
+  const codeLensSubgroup = document.createElement('div');
+  codeLensSubgroup.className = 'bb-settings-subgroup';
+  codeLensSubgroup.style.paddingLeft = '20px';
+  codeLensSubgroup.style.display = 'flex';
+  codeLensSubgroup.style.flexDirection = 'column';
+  codeLensSubgroup.style.gap = '8px';
+  const codeLensCategoryRows = [
+    toggle('Pattern previews (pat)', settingCodeLensPatterns.get(), (v) => settingCodeLensPatterns.set(v)),
+    toggle('Sequence previews (seq)', settingCodeLensSequences.get(), (v) => settingCodeLensSequences.set(v)),
+    toggle('Instrument previews (inst)', settingCodeLensInstruments.get(), (v) => settingCodeLensInstruments.set(v)),
+    toggle('Effect previews (effect)', settingCodeLensEffects.get(), (v) => settingCodeLensEffects.set(v)),
+  ];
+  const setCodeLensCategoriesEnabled = (enabled: boolean): void => {
+    for (const row of codeLensCategoryRows) {
+      const input = row.querySelector('input');
+      if (input) input.disabled = !enabled;
+      row.style.opacity = enabled ? '' : '0.5';
+    }
+  };
+  codeLensSubgroup.append(...codeLensCategoryRows);
+  setCodeLensCategoriesEnabled(settingCodeLens.get());
+
   el.appendChild(toggle('Show CodeLens previews', settingCodeLens.get(), (v) => {
     settingCodeLens.set(v);
+    setCodeLensCategoriesEnabled(v);
     (window as any).__beatbax_editor?.editor?.updateOptions?.({ codeLens: v });
   }));
-  el.appendChild(noteText('CodeLens adds a clickable ▶ Play button above each pat and inst definition so you can preview a pattern or instrument note without running the whole song.'));
+  el.appendChild(codeLensSubgroup);
+  el.appendChild(noteText('CodeLens adds inline preview actions above pat, seq, inst, and effect definitions. Pattern and sequence previews play one item on one channel; use Pattern Grid section focus to hear all channels together.'));
 
   el.appendChild(toggle('Show beat decorations', settingBeatDecorations.get(), (v) => {
     settingBeatDecorations.set(v);
@@ -206,6 +231,10 @@ export function resetEditorDefaults(): void {
   settingWordWrap.set(false);
   settingFoldComments.set(false);
   settingCodeLens.set(true);
+  settingCodeLensPatterns.set(true);
+  settingCodeLensSequences.set(true);
+  settingCodeLensInstruments.set(true);
+  settingCodeLensEffects.set(true);
   settingBeatDecorations.set(true);
   settingDefaultBpm.set(128);
   settingSongArtist.set('');

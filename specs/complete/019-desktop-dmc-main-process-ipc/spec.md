@@ -2,11 +2,11 @@
 title: "Desktop DMC Remote Sample Loading via Main-Process IPC"
 id: 19
 slug: "desktop-dmc-main-process-ipc"
-status: "in-progress"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-07-15"
-updated: "2026-09-03"
+updated: "2026-10-02"
 issue: "https://github.com/kadraman/beatbax/issues/203"
 area: "desktop"
 related:
@@ -38,10 +38,12 @@ This fixes desktop playback failures caused by strict renderer CSP and preserves
 - Added allowlist persistence in desktop user data and strict host normalization/validation.
 - Added unit and integration coverage for host policy and allowlist behavior.
 
-### Remaining
+- Audited renderer network use and made the renderer CSP `connect-src 'self'` explicit (see [plan.md](plan.md) Phase 5).
+- Blocked-host errors now tell users where to add the host (Settings → Advanced → Remote host allowlist).
+- DMC sample-load failures (blocked host, HTTP error, timeout, and so on) appear as warnings in the Output panel during playback, not only in the DevTools console, which packaged builds do not expose.
+- E2E coverage for DMC playback with allowed and blocked remote samples, and for the renderer CSP.
 
-- Optional CSP tightening follow-up once all renderer network requirements are audited.
-- Additional broad e2e coverage for full DMC playback scenarios beyond targeted fetch/allowlist integration checks.
+- Packaged desktop build parity check for allowlist behaviour (manual, 2026-10-02).
 
 ---
 
@@ -123,6 +125,10 @@ Implemented enhancement:
 - apps/desktop/src/renderer/index.html
 - apps/desktop/src/renderer/src/components/settings/advanced.tsx
 - packages/engine/src/chips/nes/dmc.ts
+- packages/engine/src/chips/nes/plugin.ts
+- packages/engine/src/chips/types.ts
+- packages/engine/src/audio/playback.ts
+- packages/app-core/src/playback/playback-manager.ts
 - apps/desktop/tests/ipc-handlers.test.ts
 - apps/desktop/tests/e2e/desktop-integration.spec.ts
 
@@ -140,12 +146,15 @@ Current status against criteria:
 
 - Criteria 1, 3, and 5 are satisfied by implemented code and automated tests.
 - Criteria 4 remains satisfied (web/CLI behavior preserved in engine tests).
-- Criteria 2 is partially satisfied: targeted integration and policy flow are validated; broader packaged playback verification remains pending.
+- Criteria 2 is satisfied in desktop dev builds (e2e: DMC playback with allowed and blocked hosts) and was verified manually in a packaged build on 2026-10-02.
 
 ---
 
 ## Open Questions
 
 1. Should the built-in allowlist include only raw.githubusercontent.com initially, or additional trusted hosts by default?
+   - **Resolved (2026-10-02):** only `raw.githubusercontent.com`. `github:` refs and `https://github.com/.../blob/...` URLs both resolve to that host; users add others in Settings → Advanced.
 2. Should blocked-host diagnostics include direct remediation guidance in output/status UI (for example, Settings -> Advanced -> Remote host allowlist)?
+   - **Resolved (2026-10-02):** yes. The error reads "Remote asset host '<host>' is not in the Desktop allowlist. Add it under Settings → Advanced → Remote host allowlist." It is shown in the Output panel as a `[playback]` warning, prefixed with `NES DMC: failed to load sample '<ref>':`, once per play.
 3. Should this IPC remote fetch contract be generalized for other remote asset consumers beyond DMC in a follow-up feature?
+   - **Deferred:** remote instrument imports are the first other consumer and are currently blocked by the renderer CSP. Tracked in [#216](https://github.com/kadraman/beatbax/issues/216); it needs its own spec.

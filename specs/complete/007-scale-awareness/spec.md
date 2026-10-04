@@ -2,11 +2,11 @@
 title: "Scale Awareness — Scale Locking, Snapping, and Channel Locks"
 id: 7
 slug: "scale-awareness"
-status: "specified"
+status: "complete"
 authors:
   - "GitHub Copilot"
 created: "2026-04-27"
-updated: "2026-09-03"
+updated: "2026-10-03"
 issue: "https://github.com/kadraman/beatbax/issues/102"
 area: "language"
 ---
@@ -258,7 +258,7 @@ Future enhancement: MIDI export could optionally emit a key signature meta-event
 ### Documentation Updates
 
 - Add `scale` and `lock` to `docs/language/metadata-directives.md`
-- Add a scale-awareness section to the [docs tutorial](https://beatbax.com/docs/tutorial/overview)
+- Add a scale-awareness guide to the website docs: shipped as [Metadata Directives → Scale and channel locks](https://beatbax.com/docs/language/metadata-directives#scale-and-channel-locks) (with per-lock demos), linked from the [tutorial overview](https://beatbax.com/docs/tutorial/overview) as an optional topic
 - Update `docs/formats/ast-schema.md` to document the new `scale` and `lock` fields
 
 ---

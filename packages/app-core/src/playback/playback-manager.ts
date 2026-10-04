@@ -359,6 +359,22 @@ export class PlaybackManager {
          log.debug('Player.playAST:', this.player.playAST);
       }
 
+      // Chip plugin warnings (e.g. DMC samples that failed to load) would
+      // otherwise only reach the devtools console, which packaged builds hide.
+      // Loop restarts re-run the preload, so report each message once per play().
+      const reportedPlaybackWarnings = new Set<string>();
+      this.player.onWarn = (warning) => {
+        if (reportedPlaybackWarnings.has(warning.message)) return;
+        reportedPlaybackWarnings.add(warning.message);
+        this.eventBus.emit('output:message', {
+          type: 'warning',
+          message: warning.message,
+          source: 'playback',
+          focus: true,
+        });
+        options.onWarn?.(warning);
+      };
+
       // Wire per-channel analyser when enabled
       if (this._perChannelAnalyserEnabled) {
         this.player.setPerChannelAnalyser(true);

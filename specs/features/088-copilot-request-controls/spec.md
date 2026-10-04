@@ -11,7 +11,7 @@ issue: "https://github.com/kadraman/beatbax/issues/212"
 area: "desktop"
 related:
   - "specs/complete/052-ai-chatbot-assistant/spec.md"
-  - "specs/features/017-copilot-local-ollama/spec.md"
+  - "specs/complete/017-copilot-local-ollama/spec.md"
 ---
 
 # Feature Specification: Copilot request controls and budget diagnostics

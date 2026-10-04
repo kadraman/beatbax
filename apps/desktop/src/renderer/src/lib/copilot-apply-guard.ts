@@ -122,7 +122,7 @@ export function assessEditApplyGuard(previous: string, candidate: string): Apply
   if (prevLines >= 20 && candLines < minLines) {
     return {
       ok: false,
-      reason: `Copilot returned only ${candLines} line${candLines === 1 ? '' : 's'} but your song has ${prevLines}. This looks like a snippet, not the full file — the editor was not changed. Try a larger model or raise Ollama \`num_ctx\` (see docs/features/copilot-local-ollama.md).`,
+      reason: `Copilot returned only ${candLines} line${candLines === 1 ? '' : 's'} but your song has ${prevLines}. This looks like a snippet, not the full file — the editor was not changed. Try a larger model or raise Ollama \`num_ctx\` (see docs/features/complete/copilot-local-ollama.md).`,
     };
   }
 
@@ -209,6 +209,7 @@ export function buildMissingBaxRepairPrompt(userRequest: string, previousSong: s
     `Original request: ${userRequest.trim()}`,
     '',
     'Return the **complete** updated song as a single ```bax fenced code block.',
+    'Apply the changes you described in your previous reply. Returning the current song unchanged is not a valid answer.',
     'Change only what was requested; copy all other lines verbatim from the current song.',
     'After the closing fence you may add 2–4 sentences explaining what you changed.',
     '',

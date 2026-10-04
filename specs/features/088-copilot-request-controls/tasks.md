@@ -46,5 +46,5 @@
 ## Polish
 
 - [ ] T900 Add QA scenarios for SC-001–SC-003, SC-006, SC-007 and the Ollama fallback cases to `docs/qa/copilot-test-scenarios.md`
-- [ ] T901 Point the token-limit paragraph in `specs/complete/052-ai-chatbot-assistant/spec.md` at this spec; in `specs/features/017-copilot-local-ollama/spec.md`, note the fitted Edit reply budget, the pre-send warning, and Reasoning effort Off for thinking models on windows of 16k or less
+- [ ] T901 Point the token-limit paragraph in `specs/complete/052-ai-chatbot-assistant/spec.md` at this spec; in `specs/complete/017-copilot-local-ollama/spec.md`, note the fitted Edit reply budget, the pre-send warning, and Reasoning effort Off for thinking models on windows of 16k or less
 - [ ] T902 Run `npm test`; move this folder to `specs/complete/088-copilot-request-controls/` and update `specs/STATUS.md` when shipped

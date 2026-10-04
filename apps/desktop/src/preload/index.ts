@@ -10,13 +10,20 @@ import type {
   MenuAction,
 } from '../shared/electron-api';
 import { IPC_CHANNELS } from '../shared/ipc';
+import { stripIpcErrorPrefix } from '../shared/ipc-error';
 
 const electronAPI: ElectronAPI = {
   openFile: (options?: DesktopOpenFileOptions) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_FILE, options),
   openBundledExample: (virtualPath: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.OPEN_BUNDLED_EXAMPLE, virtualPath),
   saveFile: (options: DesktopSaveFileOptions, data: Uint8Array) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_FILE, options, data),
-  fetchRemoteAsset: (request: DesktopRemoteAssetRequest) => ipcRenderer.invoke(IPC_CHANNELS.FETCH_REMOTE_ASSET, request),
+  fetchRemoteAsset: async (request: DesktopRemoteAssetRequest) => {
+    try {
+      return await ipcRenderer.invoke(IPC_CHANNELS.FETCH_REMOTE_ASSET, request);
+    } catch (error) {
+      throw new Error(stripIpcErrorPrefix(error instanceof Error ? error.message : String(error)));
+    }
+  },
   getRemoteAssetAllowlist: () => ipcRenderer.invoke(IPC_CHANNELS.GET_REMOTE_ASSET_ALLOWLIST),
   setRemoteAssetAllowlist: (hosts: string[]) => ipcRenderer.invoke(IPC_CHANNELS.SET_REMOTE_ASSET_ALLOWLIST, hosts),
   writeFileSync: (targetPath: string, data: Uint8Array) => {

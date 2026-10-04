@@ -26,6 +26,8 @@ export type {
   ChipInstrumentWaveformDef,
   ChipInstrumentPreset,
   ChipInstrumentConstraintNote,
+  ChipWarning,
+  ChipPreloadOptions,
   ChipInstrumentWidget,
   ChipWaveformShape,
   ChipConsoleVariant,

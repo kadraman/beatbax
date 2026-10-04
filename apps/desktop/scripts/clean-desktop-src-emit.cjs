@@ -1,46 +1,55 @@
 /**
- * Remove co-located TypeScript emit (*.js, *.jsx, *.d.ts) from apps/desktop/src.
- * Source of truth is *.ts / *.tsx — these emits are gitignored and break dev when
- * tooling resolves them instead of the TypeScript sources.
+ * Remove co-located TypeScript emit from apps/desktop:
+ *   - *.js, *.jsx, *.d.ts under src/ and tests/ (except tracked files below)
+ *   - electron.vite.config.js / .d.ts (electron-vite loads .js before .ts)
+ *   - tsconfig.*.tsbuildinfo
+ * Source of truth is *.ts / *.tsx. These emits are gitignored, but tooling
+ * resolves them instead of the TypeScript sources (Playwright runs stale
+ * *.spec.js copies; electron-vite builds with a stale config).
  */
 const fs = require('node:fs');
 const path = require('node:path');
 
-const srcRoot = path.join(__dirname, '..', 'src');
-const allowlistedDts = new Set([
-  path.normalize(path.join(srcRoot, 'preload', 'index.d.ts')),
-  path.normalize(path.join(srcRoot, 'renderer', 'src', 'env.d.ts')),
-]);
+const desktopRoot = path.join(__dirname, '..');
+const keep = new Set([
+  path.join(desktopRoot, 'src', 'preload', 'index.d.ts'),
+  path.join(desktopRoot, 'src', 'renderer', 'src', 'env.d.ts'),
+  path.join(desktopRoot, 'tests', 'test-types.d.ts'),
+  path.join(desktopRoot, 'tests', '__mocks__', 'styleMock.js'),
+].map((file) => path.normalize(file)));
+
+function isEmit(name) {
+  return name.endsWith('.js') || name.endsWith('.jsx') || name.endsWith('.d.ts');
+}
 
 function walk(dir, removed) {
+  if (!fs.existsSync(dir)) return;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       walk(full, removed);
       continue;
     }
-    const norm = path.normalize(full);
-    if (entry.name.endsWith('.js') || entry.name.endsWith('.jsx')) {
+    if (isEmit(entry.name) && !keep.has(path.normalize(full))) {
       fs.unlinkSync(full);
-      removed.push(path.relative(srcRoot, full));
-      continue;
-    }
-    if (entry.name.endsWith('.d.ts') && !allowlistedDts.has(norm)) {
-      fs.unlinkSync(full);
-      removed.push(path.relative(srcRoot, full));
+      removed.push(path.relative(desktopRoot, full));
     }
   }
 }
 
-if (!fs.existsSync(srcRoot)) {
-  console.log('apps/desktop/src not found — nothing to clean');
-  process.exit(0);
+const removed = [];
+walk(path.join(desktopRoot, 'src'), removed);
+walk(path.join(desktopRoot, 'tests'), removed);
+
+for (const name of fs.readdirSync(desktopRoot)) {
+  if (/^electron\.vite\.config\.(js|d\.ts)$/.test(name) || /^tsconfig\..+\.tsbuildinfo$/.test(name)) {
+    fs.unlinkSync(path.join(desktopRoot, name));
+    removed.push(name);
+  }
 }
 
-const removed = [];
-walk(srcRoot, removed);
 if (removed.length === 0) {
-  console.log('No co-located TypeScript emit files in apps/desktop/src');
+  console.log('No co-located TypeScript emit files in apps/desktop');
 } else {
-  console.log(`Removed ${removed.length} co-located emit file(s) from apps/desktop/src`);
+  console.log(`Removed ${removed.length} co-located emit file(s) from apps/desktop`);
 }

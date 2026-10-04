@@ -3,7 +3,7 @@
  *
  * Registered automatically by ChipRegistry alongside Game Boy.
  */
-import type { ChipPlugin, ChipChannelBackend } from '../types.js';
+import type { ChipPlugin, ChipChannelBackend, ChipPreloadOptions } from '../types.js';
 import type { InstrumentNode } from '../../parser/ast.js';
 import { version } from '../../version.js';
 import { createPulseChannel } from './pulse.js';
@@ -77,7 +77,7 @@ const nesPlugin: ChipPlugin = {
     return resolveRawDMCSample(ref);
   },
 
-  async preloadForPCM(insts: Record<string, InstrumentNode>): Promise<void> {
+  async preloadForPCM(insts: Record<string, InstrumentNode>, options?: ChipPreloadOptions): Promise<void> {
     const refs = new Set<string>();
     for (const inst of Object.values(insts)) {
       if (typeof inst.dmc_sample === 'string') {
@@ -85,7 +85,7 @@ const nesPlugin: ChipPlugin = {
       }
     }
     if (refs.size > 0) {
-      await preloadDMCSamples(refs);
+      await preloadDMCSamples(refs, options?.onWarn);
     }
   },
 

@@ -33,13 +33,14 @@ import {
   type CopilotSession,
 } from '@beatbax/app-core/stores/chat.store';
 import { buildCopilotContext } from '../../lib/copilot-context';
-import { packHistoryExcludingCurrentUser, splitContextBudgetMessages } from '../../lib/copilot-history-pack';
+import { earlierEditRequestsNote, packHistoryExcludingCurrentUser, splitContextBudgetMessages } from '../../lib/copilot-history-pack';
 import {
   completionTokenLimit,
   contextBudgetHover,
   estimateContextBudget,
   formatTokenCount,
   type ContextBudgetBreakdown,
+  type ContextBudgetHintAction,
   type ContextBudgetHoverModel,
 } from '../../lib/copilot-token-budget';
 import {
@@ -48,6 +49,7 @@ import {
   normalizeAIChatCompletionResult,
   parseAIChatCompletionResponse,
 } from '../../../../shared/ai-chat-completion';
+import { stripIpcErrorPrefix } from '../../../../shared/ipc-error';
 import { buildMinimalEditFixPrompt } from '../../lib/copilot-edit-fix-prompt';
 import {
   type ArrangementLayoutFixAction,
@@ -72,14 +74,16 @@ import {
 } from '../../lib/copilot-selection-prompt';
 import { adjustCopilotInputHeight } from '../../lib/copilot-input-resize';
 import { assessEditApplyGuard, buildIncompleteSongRepairPrompt, buildMissingBaxRepairPrompt, tryMergeSnippetIntoSong } from '../../lib/copilot-apply-guard';
-import { collectBaxDefs, tryMergeChangedDefinitions } from '../../lib/bax-def-index';
-import { buildLegacyChangeSummary, collectCopilotEditChanges } from '../../lib/copilot-edit-changes';
+import { collectBaxDefs, collectUnmergedLines, tryMergeChangedDefinitions } from '../../lib/bax-def-index';
+import { buildLegacyChangeSummary, collectCopilotEditChanges, unchangedDefinitionsMentioned } from '../../lib/copilot-edit-changes';
 import { extractEditExplanation, wrapBaxTokensForMarkdown } from '../../lib/copilot-edit-explanation';
 import { readPersistedDocument } from '../../lib/desktop-session';
 import { isLocalAiEndpoint } from '../../lib/ai-endpoint';
 import {
   computeLineChangeDiff,
   countAIChangeDiff,
+  matchLineEndings,
+  onlyCommentLinesChanged,
   type AIChangeDiff,
 } from '../../lib/line-change-diff';
 import { icon } from '../../utils/icons';
@@ -529,10 +533,16 @@ function CopilotContextMeter({
   budget,
   lastPrompt,
   lastCompletion,
+  actionsDisabled,
+  onNewChat,
+  onOpenSettings,
 }: {
   budget: ContextBudgetBreakdown;
   lastPrompt?: number;
   lastCompletion?: number;
+  actionsDisabled: boolean;
+  onNewChat: () => void;
+  onOpenSettings: () => void;
 }): React.JSX.Element {
   const hover = useMemo(
     () => contextBudgetHover(budget, { lastPrompt, lastCompletion }),
@@ -618,14 +628,37 @@ function CopilotContextMeter({
         </span>
         <span className="bb-chat-ctx-meter__label">{budget.percent}%</span>
       </button>
-      {open ? <CopilotContextHover model={hover} /> : null}
+      {open ? (
+        <CopilotContextHover
+          actionsDisabled={actionsDisabled}
+          model={hover}
+          onHintAction={(action) => {
+            setOpen(false);
+            if (action === 'new-chat') onNewChat();
+            else onOpenSettings();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
-function CopilotContextHover({ model }: { model: ContextBudgetHoverModel }): React.JSX.Element {
+function CopilotContextHover({
+  model,
+  actionsDisabled,
+  onHintAction,
+}: {
+  model: ContextBudgetHoverModel;
+  actionsDisabled: boolean;
+  onHintAction: (action: ContextBudgetHintAction) => void;
+}): React.JSX.Element {
   return (
-    <div className={`bb-chat-ctx-hover bb-chat-ctx-hover--${model.level}`} id="bb-chat-ctx-hover" role="tooltip">
+    <div
+      aria-label={model.heading}
+      className={`bb-chat-ctx-hover bb-chat-ctx-hover--${model.level}`}
+      id="bb-chat-ctx-hover"
+      role="dialog"
+    >
       <div className="bb-chat-ctx-hover__head">
         <span className="bb-chat-ctx-hover__title">{model.heading}</span>
         <span className="bb-chat-ctx-hover__used">{model.usedLabel}</span>
@@ -655,7 +688,19 @@ function CopilotContextHover({ model }: { model: ContextBudgetHoverModel }): Rea
       {model.lastReply ? (
         <p className="bb-chat-ctx-hover__last">Last reply {model.lastReply}</p>
       ) : null}
-      {model.hint ? <p className="bb-chat-ctx-hover__hint">{model.hint}</p> : null}
+      {model.hint ? (
+        <div className="bb-chat-ctx-hover__hint">
+          {model.hint.text ? <p className="bb-chat-ctx-hover__hint-text">{model.hint.text}</p> : null}
+          <button
+            className="bb-chat-ctx-hover__action"
+            disabled={model.hint.action === 'new-chat' && actionsDisabled}
+            onClick={() => onHintAction(model.hint!.action)}
+            type="button"
+          >
+            {model.hint.actionLabel}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -871,11 +916,7 @@ function CopilotEditSummary({
 }
 
 function userFacingAIError(error: unknown): string {
-  const raw = (error as Error).message || String(error);
-  return raw
-    .replace(/^Error invoking remote method '[^']+':\s*/i, '')
-    .replace(/^Error:\s*/i, '')
-    .trim();
+  return stripIpcErrorPrefix((error as Error).message || String(error));
 }
 
 async function readDesktopAIAPIKey(): Promise<string | null> {
@@ -1018,7 +1059,7 @@ function ChatMessageView({
           <span className="bb-chat-applied-hint">Fix the issue above and try again, or edit manually.</span>
         </div>
         <details className="bb-chat-applied-details">
-          <summary>View returned song</summary>
+          <summary>{hasCodeBlocks ? 'View returned song' : 'View reply'}</summary>
           {body}
         </details>
       </div>
@@ -1252,11 +1293,14 @@ function DesktopCopilotPanel({
   ): Promise<{ content: string; usage?: ChatTokenUsage }> => {
     const controller = new AbortController();
     abortRef.current = controller;
-    const packedHistory = packHistoryExcludingCurrentUser(chatHistory.get(), userText);
+    const packedHistory = packHistoryExcludingCurrentUser(chatHistory.get(), userText, undefined, {
+      omitEditTurns: activeMode === 'edit',
+    });
+    const earlierRequests = activeMode === 'edit' ? earlierEditRequestsNote(chatHistory.get(), userText) : '';
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: buildCopilotContext(effectiveSettings, activeMode, getEditorContent, getDiagnostics) },
       ...packedHistory,
-      { role: 'user', content: userText },
+      { role: 'user', content: earlierRequests ? `${earlierRequests}\n\n${userText}` : userText },
       ...(additionalMessages ?? []),
     ];
     // Edit mode must return the entire song, so it needs a generous output
@@ -1436,11 +1480,16 @@ function DesktopCopilotPanel({
       let incompleteRepairAttempts = 0;
       let mergedSnippet = false;
       let mergedDefinitions = false;
+      let unmergedLines: string[] = [];
       let lineDiff: AIChangeDiff | undefined;
       let reviewPending = false;
 
       if (activeMode === 'edit') {
-        applyExplanation = extractEditExplanation(response);
+        const echoedHistory = packHistoryExcludingCurrentUser(chatHistory.get(), text)
+          .filter((message) => message.role === 'assistant')
+          .map((message) => message.content);
+        const explain = (reply: string): string => extractEditExplanation(reply, echoedHistory);
+        applyExplanation = explain(response);
         let baxCode = extractBaxCode(response);
         let noBaxAttempts = 0;
         while (baxCode === null && noBaxAttempts < MAX_NO_BAX_REPAIR_ATTEMPTS) {
@@ -1456,7 +1505,7 @@ function DesktopCopilotPanel({
             { role: 'user', content: repairPrompt },
           ]);
           if (requestGen !== requestGenRef.current || cancelledRef.current) return;
-          applyExplanation = extractEditExplanation(response) || applyExplanation;
+          applyExplanation = applyExplanation || explain(response);
           baxCode = extractBaxCode(response);
         }
         if (baxCode !== null) {
@@ -1465,6 +1514,17 @@ function DesktopCopilotPanel({
             if (requestGen !== requestGenRef.current || cancelledRef.current) return;
             const validation = validateBaxSource(baxCode);
             if (validation.ok) break;
+
+            // A reply that left definitions out fails on its own but may merge cleanly;
+            // a repair would instead drop references to the missing definitions.
+            const current = getEditorContent();
+            const defMerged = tryMergeChangedDefinitions(current, matchLineEndings(baxCode, current));
+            if (defMerged && validateBaxSource(defMerged).ok) {
+              unmergedLines = collectUnmergedLines(current, baxCode);
+              baxCode = defMerged;
+              mergedDefinitions = true;
+              break;
+            }
 
             if (parseRepairAttempts >= MAX_PARSE_REPAIR_ATTEMPTS) {
               setStatus('⚠ Copilot could not produce valid BeatBax after retries — editor not changed.');
@@ -1486,17 +1546,23 @@ function DesktopCopilotPanel({
               { role: 'user', content: repairPrompt },
             ]);
             if (requestGen !== requestGenRef.current || cancelledRef.current) return;
-            applyExplanation = extractEditExplanation(response) || applyExplanation;
+            // Repair replies describe fixes to the model's own draft, not the user's request.
+            applyExplanation = applyExplanation || explain(response);
             const repaired = extractBaxCode(response);
             if (repaired === null) {
               setStatus('⚠ Repair attempt did not return a song — editor not changed.');
-              finishAssistant(response, { replyMode: activeMode });
+              finishAssistant(response, {
+                applyBlocked: true,
+                replyMode: activeMode,
+                changeSummary: ['Parse-repair attempt did not return a song.'],
+              });
               return;
             }
             baxCode = repaired;
           }
 
           const previous = getEditorContent();
+          baxCode = matchLineEndings(baxCode, previous);
           const trySnippetMerge = (): boolean => {
             if (baxCode === null) return false;
             const merged = tryMergeSnippetIntoSong(previous, baxCode);
@@ -1541,11 +1607,15 @@ function DesktopCopilotPanel({
               { role: 'user', content: incompletePrompt },
             ]);
             if (requestGen !== requestGenRef.current || cancelledRef.current) return;
-            applyExplanation = extractEditExplanation(response) || applyExplanation;
+            applyExplanation = applyExplanation || explain(response);
             const expanded = extractBaxCode(response);
             if (expanded === null) {
               setStatus('⚠ Repair attempt did not return a song — editor not changed.');
-              finishAssistant(response, { replyMode: activeMode });
+              finishAssistant(response, {
+                applyBlocked: true,
+                replyMode: activeMode,
+                changeSummary: ['Incomplete-song repair attempt did not return a song.'],
+              });
               return;
             }
             baxCode = expanded;
@@ -1554,22 +1624,46 @@ function DesktopCopilotPanel({
           const diagnosticsBefore = getDiagnostics();
           let applyCode = baxCode;
           const rawDiffCount = countAIChangeDiff(computeLineChangeDiff(previous, baxCode)).total;
-          if (rawDiffCount > 8) {
+          if (rawDiffCount > 8 && !mergedDefinitions) {
             const defMerged = tryMergeChangedDefinitions(previous, baxCode);
             if (defMerged) {
               const mergedValidation = validateBaxSource(defMerged);
               if (mergedValidation.ok) {
                 const mergedCount = countAIChangeDiff(computeLineChangeDiff(previous, defMerged)).total;
                 if (mergedCount > 0 && mergedCount < rawDiffCount) {
+                  unmergedLines = collectUnmergedLines(previous, baxCode);
                   applyCode = defMerged;
                   mergedDefinitions = true;
                 }
               }
+            } else if (
+              !collectCopilotEditChanges(previous, baxCode).some((change) => change.action !== 'moved')
+              && collectUnmergedLines(previous, baxCode).length === 0
+            ) {
+              setStatus('⚠ Copilot only removed comments or reformatted the song — editor not changed.');
+              finishAssistant(response, {
+                applyBlocked: true,
+                replyMode: activeMode,
+                changeSummary: [
+                  'Copilot\'s reply only removed comments, reformatted, or reordered lines — no definitions changed, so the editor was not changed.',
+                ],
+              });
+              return;
             }
           }
+          applyCode = matchLineEndings(applyCode, previous);
           lineDiff = computeLineChangeDiff(previous, applyCode);
           const diffCounts = countAIChangeDiff(lineDiff);
           reviewPending = diffCounts.total > 0 && Boolean(previous.trim());
+          if (diffCounts.total === 0 && previous.trim()) {
+            setStatus('⚠ Copilot returned the current song unchanged — editor not changed.');
+            finishAssistant(response, {
+              applyBlocked: true,
+              replyMode: activeMode,
+              changeSummary: ['Copilot returned the current song unchanged, so no changes were made.'],
+            });
+            return;
+          }
           onReplaceEditor(applyCode, { beginCopilotReview: reviewPending });
           if (reviewPending) onHighlightChanges(lineDiff, previous);
           setStatus('');
@@ -1596,10 +1690,27 @@ function DesktopCopilotPanel({
             );
           }
           if (mergedDefinitions) {
+            if (unmergedLines.length > 0) {
+              const shown = unmergedLines.slice(0, 3)
+                .map((line) => `"${line.length > 60 ? `${line.slice(0, 59)}…` : line}"`);
+              const more = unmergedLines.length > 3 ? ` (+${unmergedLines.length - 3} more)` : '';
+              applyNotes.unshift(
+                `Not merged — only pat/seq/inst/effect/channel lines are merged: ${shown.join(', ')}${more}`,
+              );
+            }
             applyNotes.unshift('Merged definition updates into your song (preserved comments and formatting).');
           }
           if (mergedSnippet) {
             applyNotes.unshift('Applied a single-line pattern/sequence update (model returned a snippet).');
+          }
+          if (onlyCommentLinesChanged(applyCode, lineDiff)) {
+            applyNotes = applyNotes.filter((note) => !note.startsWith('Adjusted '));
+            applyNotes.unshift('⚠ Only comments or blank lines changed — no patterns, sequences, instruments, or other song lines were edited.');
+          }
+          const unchangedMentioned = unchangedDefinitionsMentioned(applyExplanation, previous, applyCode);
+          if (unchangedMentioned.length > 0) {
+            const names = unchangedMentioned.slice(0, 4).map((name) => `\`${name}\``).join(', ');
+            applyExplanation += `\n\n*⚠ The explanation mentions ${names}, but ${unchangedMentioned.length === 1 ? 'it was' : 'those were'} not changed. The changes below are what reached the editor.*`;
           }
         } else {
           setStatus('⚠ Copilot did not return an applicable song, so the editor was not changed. Try again.');
@@ -1620,6 +1731,10 @@ function DesktopCopilotPanel({
           applyNotes,
           applyExplanation: applyExplanation || undefined,
           documentName: readPersistedDocument().name,
+        } : activeMode === 'edit' ? {
+          replyMode: activeMode,
+          applyBlocked: true,
+          changeSummary: ['Copilot did not return a full song in a `bax` code block.'],
         } : { replyMode: activeMode },
       );
     } catch (error) {
@@ -1780,7 +1895,7 @@ function DesktopCopilotPanel({
   }, [getDiagnostics, getEditorContent, history, mode, settings, visible]);
 
   const contextBudget = useMemo(() => {
-    const split = splitContextBudgetMessages(history, draftUserText);
+    const split = splitContextBudgetMessages(history, draftUserText, undefined, { omitEditTurns: mode === 'edit' });
     return estimateContextBudget({
       systemText: systemPromptText,
       historyTexts: split.historyTexts,
@@ -2001,9 +2116,12 @@ function DesktopCopilotPanel({
       <div className="bb-chat-footer">
         <div className="bb-chat-footer-meta">
           <CopilotContextMeter
+            actionsDisabled={loading}
             budget={contextBudget}
             lastCompletion={lastUsage?.completionTokens}
             lastPrompt={lastUsage?.promptTokens}
+            onNewChat={startNewChat}
+            onOpenSettings={onOpenSettings}
           />
           <CopilotModePicker mode={mode} onChange={(next) => chatMode.set(next)} />
           <span className="bb-chat-model-label" title={modelLabel}>{modelLabel}</span>

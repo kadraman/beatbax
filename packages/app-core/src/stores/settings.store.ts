@@ -85,6 +85,10 @@ export function getEffectiveAutoSaveDelay(): number {
 }
 export const settingFoldComments    = boolAtom(StorageKey.FOLD_COMMENTS,     false);
 export const settingCodeLens        = boolAtom(StorageKey.CODELENS,          true);
+export const settingCodeLensPatterns    = boolAtom(StorageKey.CODELENS_PATTERNS,    true);
+export const settingCodeLensSequences   = boolAtom(StorageKey.CODELENS_SEQUENCES,   true);
+export const settingCodeLensInstruments = boolAtom(StorageKey.CODELENS_INSTRUMENTS, true);
+export const settingCodeLensEffects     = boolAtom(StorageKey.CODELENS_EFFECTS,     true);
 export const settingBeatDecorations = boolAtom(StorageKey.BEAT_DECORATIONS,  true);
 export const settingDefaultBpm      = numberAtom(StorageKey.BPM,              128);
 export const settingSongArtist      = stringAtom<string>(StorageKey.SONG_ARTIST, '');
@@ -173,6 +177,10 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.WORD_WRAP,
     StorageKey.FOLD_COMMENTS,
     StorageKey.CODELENS,
+    StorageKey.CODELENS_PATTERNS,
+    StorageKey.CODELENS_SEQUENCES,
+    StorageKey.CODELENS_INSTRUMENTS,
+    StorageKey.CODELENS_EFFECTS,
     StorageKey.BEAT_DECORATIONS,
     StorageKey.BPM,
     StorageKey.SONG_ARTIST,

@@ -18,4 +18,4 @@
 
 - [x] T900 Update `docs/features/midi-importer.md`, add `.changeset/midi-import-naming.md`, note the change in `specs/complete/006-midi-importer/spec.md`
 - [x] T901 `npm test` green
-- [ ] T902 Move this folder to `specs/complete/090-midi-import-naming/` and update `specs/STATUS.md` when shipped (issue [#214](https://github.com/kadraman/beatbax/issues/214))
+- [x] T902 Move this folder to `specs/complete/090-midi-import-naming/` and update `specs/STATUS.md` when shipped (issue [#214](https://github.com/kadraman/beatbax/issues/214))

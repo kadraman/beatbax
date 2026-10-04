@@ -6,11 +6,11 @@
 
 GATE: complete before implementation. Re-check after design changes.
 
-- [ ] No invented syntax or undocumented language behavior
-- [ ] AST / ISM / scheduler / expansion impact identified (or N/A)
-- [ ] Plugins remain isolated; core does not gain plugin dependencies
-- [ ] Determinism and compatibility preserved (or migration documented)
-- [ ] Tests planned for new behavior
+- [x] No invented syntax or undocumented language behavior (editor settings only)
+- [x] AST / ISM / scheduler / expansion impact identified: N/A
+- [x] Plugins remain isolated; core does not gain plugin dependencies
+- [x] Determinism and compatibility preserved: all categories default to on, so existing installs are unchanged
+- [x] Tests planned for new behavior
 
 ## Implementation
 

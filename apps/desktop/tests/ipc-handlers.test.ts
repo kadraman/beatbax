@@ -288,9 +288,9 @@ describe('remote asset URL policy', () => {
     );
   });
 
-  it('rejects disallowed hosts', async () => {
+  it('rejects disallowed hosts with remediation guidance', async () => {
     await expect(assertRemoteAssetUrl('https://example.com/sample.dmc')).rejects.toThrow(
-      "Remote asset host 'example.com' is not in the Desktop allowlist.",
+      "Remote asset host 'example.com' is not in the Desktop allowlist. Add it under Settings → Advanced → Remote host allowlist.",
     );
   });
 
