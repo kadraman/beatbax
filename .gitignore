@@ -170,6 +170,7 @@ apps/desktop/tests/**/*.js
 !apps/desktop/tests/__mocks__/styleMock.js
 apps/desktop/tests/**/*.d.ts
 !apps/desktop/tests/test-types.d.ts
+apps/desktop/test-results
 
 # generate tools
 tools

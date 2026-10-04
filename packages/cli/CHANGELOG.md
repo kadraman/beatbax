@@ -1,5 +1,50 @@
 # @beatbax/cli
 
+## 0.6.0
+
+### Minor Changes
+
+- 6c144fd: Arrangement-aware MIDI import (feature 089, [#213](https://github.com/kadraman/beatbax/issues/213)): describe which part plays where in the import config instead of pre-splitting the MIDI file.
+
+  **Behaviour change:** imports with `ticksPerBeat` other than 4 now write `bpm` as `round(source bpm × ticksPerBeat / 4)`, so they play at the source speed. Previously the source bpm was written unchanged, so a `ticksPerBeat: 3` import played 4/3 too fast. Imports with the default `ticksPerBeat: 4` are unchanged.
+
+  **Fix:** drum notes longer than one step are now written as a one-step hit plus rests (`kick .:3`) instead of `kick:4`. Named drum tokens always play for one step, so the old output left the noise and DMC channels shorter than the rest of the song and pushed later hits out of time.
+
+  **Engine**
+  - `trackMappings[]` gain `fromBar` / `toBar` (source bars), `mono` (`earliest` | `highest` | `lowest` | `newest`, with a legato tail rule), `transpose` / `fold` for melodic targets, and `include` / `exclude` for noise and DMC targets. A track may appear in several mappings.
+  - Top-level `packing: "lanes"` makes mapping targets binding: mappings sharing a target fill one channel in config order, and overlapping notes are dropped and counted per mapping (`lane_overlap`).
+  - Top-level `unmappedTracks: "drop"`, `bpm`, `tempo: "longest"`, `startBar` / `endBar` window, `nudge`, and `annotate`.
+  - `inspectMidiBytes()` / `inspectMidiParseResult()` return a deterministic per-track report (channels, programs, ranges, activity, duplicate tracks, tempos with bars).
+  - Optional `ConversionSummary.mappingStats` with kept and dropped counts per mapping.
+  - Configs that use none of the new fields produce the same output as before, apart from the tempo and drum-length fixes above.
+
+  **CLI**
+  - `beatbax import midi song.mid --inspect` (no `--chip` needed) prints the track report; `--json` prints it as JSON.
+  - `--annotate` starts the output with a comment block listing each channel's mappings, kept and dropped notes by reason, and timing decisions.
+
+- 6c144fd: Readable names in `beatbax import midi` output (feature 090, [#214](https://github.com/kadraman/beatbax/issues/214)).
+
+  **Behaviour change:** generated names follow the `_inst` / `_pat` / `_seq` convention. Patterns are numbered in the order they first play (`lead_01_pat`) instead of named by content hash, all-rest bars share one `rest_x16_pat` (length in steps), sequences are `lead_seq` or `lead_s01_seq`, and generated melodic instruments are `lead_p1_inst`, `bass_inst`, …. Drum instruments (`kick`, `snare`, …) and instrument names from the config are unchanged. The music is identical; only names and pattern order differ.
+
+- abaeeb5: Add CLI MIDI → .bax import (`beatbax import midi` / `convert midi2bax`) for Game Boy and NES.
+
+  **Engine**
+  - Convert SMF (format 0/1) via `@tonejs/midi`: quantize, GM family kits, track/role packing with `inst()` multiplex, bar reuse / `*N` compression, and optional NES DMC kick/snare reinforcement.
+  - Optional `--config` JSON for `trackMappings`, `programFamilies` / `families`, quantize, `drumFlamTicks`, and `sectionBars` (default 8 Pattern Grid sections; `0` = monolithic).
+  - Per-note MIDI channel resolution (format-0 multi-channel), drum-map-aware DMC reinforcement, and validated config/CLI integers (e.g. reject fractional `--section-bars`).
+  - Align MIDI export GM program defaults and the Game Boy new-song kit with importer round-trip heuristics.
+
+  **CLI**
+  - Wire `import midi` / `convert midi2bax` with `--chip`, `--config`, quantize/grid, overlap, `--section-bars`, `--dry-run`, `--strict`, and `--title`.
+
+### Patch Changes
+
+- Updated dependencies [ed62c55]
+- Updated dependencies [6c144fd]
+- Updated dependencies [6c144fd]
+- Updated dependencies [abaeeb5]
+  - @beatbax/engine@0.26.0
+
 ## 0.5.1
 
 ### Patch Changes
