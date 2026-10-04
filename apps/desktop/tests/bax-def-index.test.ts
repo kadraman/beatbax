@@ -118,6 +118,12 @@ describe('collectUnmergedLines', () => {
   it('ignores CRLF versus LF differences', () => {
     expect(collectUnmergedLines('chip gameboy\r\nplay\r\n', 'chip gameboy\nplay\n')).toEqual([]);
   });
+
+  it('ignores // comment lines', () => {
+    const previous = '// lead\nchip gameboy\nplay\n';
+    const candidate = '// new lead\n  // indented note\nchip gameboy\nplay\n';
+    expect(collectUnmergedLines(previous, candidate)).toEqual([]);
+  });
 });
 
 describe('insertDefinitionLine', () => {

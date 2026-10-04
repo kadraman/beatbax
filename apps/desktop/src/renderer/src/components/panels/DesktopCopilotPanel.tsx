@@ -1505,7 +1505,7 @@ function DesktopCopilotPanel({
             { role: 'user', content: repairPrompt },
           ]);
           if (requestGen !== requestGenRef.current || cancelledRef.current) return;
-          applyExplanation = explain(response) || applyExplanation;
+          applyExplanation = applyExplanation || explain(response);
           baxCode = extractBaxCode(response);
         }
         if (baxCode !== null) {

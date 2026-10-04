@@ -1059,7 +1059,11 @@ export function setupCodeLensPreview(
     settingCodeLensSequences,
     settingCodeLensInstruments,
     settingCodeLensEffects,
-  ].map((setting) => setting.listen(() => notifyChange()));
+  ].map((setting) => setting.listen(() => {
+    // Hiding a category would also hide the Stop lens of a preview it owns.
+    stopPreview();
+    notifyChange();
+  }));
 
   // ── Register CodeLens provider ────────────────────────────────────────────
   providerInstance = {

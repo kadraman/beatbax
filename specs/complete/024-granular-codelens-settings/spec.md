@@ -70,6 +70,7 @@ flowchart TD
 
 - **Master off:** Monaco `codeLens: false`; provider not visible regardless of sub-flags.
 - **Master on:** Monaco `codeLens: true`; provider skips disabled categories.
+- Changing any category toggle stops the active CodeLens preview, so a looping preview never keeps playing after its **Stop** lens is hidden.
 - Category toggles cover the preview lenses in the table above. The instrument editor **Edit** lens on `inst` lines is not a preview and stays governed by the Instrument Editor feature flag.
 
 ### Default values

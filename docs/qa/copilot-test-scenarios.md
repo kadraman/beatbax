@@ -515,7 +515,7 @@ After an edit-mode apply with line highlights, the editor banner offers **Keep**
 
 - **Keep** updates the applied Copilot message to `✓ Kept in editor` (summary unchanged).
 - **Discard** updates it to `↩ Discarded`, labels the summary as reverted changes, and restores the pre-edit song.
-- Edits with no line diff skip the banner and show `✓ Kept in editor` immediately.
+- Edits with no line diff skip the banner and show `⚠ Not applied — editor unchanged` (see scenario 29).
 - Ctrl+Z does not update the Copilot transcript automatically.
 
 
@@ -640,7 +640,7 @@ Expected behavior:
 
 Baseline: any provider; easiest with a small local model or low `num_ctx`.
 
-Expected behavior for each Edit turn that leaves the editor unchanged (parse errors after retries, incomplete song after retries, a repair reply without a song, no ````bax` song at all, a song identical to the current one, or a reply that only removed comments or reformatted the song):
+Expected behavior for each Edit turn that leaves the editor unchanged (parse errors after retries, incomplete song after retries, a repair reply without a song, no `` ```bax `` song at all, a song identical to the current one, or a reply that only removed comments or reformatted the song):
 
 - The card shows **⚠ Not applied — editor unchanged** with the reason. It never shows **✓ Kept in editor** for a reply with no changes.
 - The model's reply is available under **View returned song** (or **View reply** when it has no code block).

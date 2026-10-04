@@ -157,7 +157,7 @@ export function collectUnmergedLines(previous: string, candidate: string): strin
   const unmerged = new Set<string>();
   for (const raw of candidate.split('\n')) {
     const line = normBody(raw);
-    if (!line || line.startsWith('#') || MERGEABLE_LINE_RE.test(line) || known.has(line)) continue;
+    if (!line || line.startsWith('#') || line.startsWith('//') || MERGEABLE_LINE_RE.test(line) || known.has(line)) continue;
     unmerged.add(line);
   }
   return [...unmerged];

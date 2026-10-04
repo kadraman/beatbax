@@ -186,6 +186,23 @@ describe('CodeLens Preview provider', () => {
       expect(listener).toHaveBeenCalledWith(provider);
     });
 
+    it('stops the active preview when a category changes', async () => {
+      const stop = jest.spyOn(Player.prototype, 'stop');
+      const playAST = jest.spyOn(Player.prototype, 'playAST').mockResolvedValue(undefined as any);
+      mockParse.mockReturnValue({ imports: [], insts: { lead: { type: 'pulse1' } }, chip: 'gameboy' });
+
+      triggerInstNotePreview('lead', 'C4', { sustain: true });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(playAST).toHaveBeenCalled();
+      expect(stop).not.toHaveBeenCalled();
+
+      settingCodeLensPatterns.set(false);
+      expect(stop).toHaveBeenCalled();
+
+      playAST.mockRestore();
+      stop.mockRestore();
+    });
+
     it('stops listening to category changes after dispose', () => {
       const listener = jest.fn();
       provider.onDidChange(listener);

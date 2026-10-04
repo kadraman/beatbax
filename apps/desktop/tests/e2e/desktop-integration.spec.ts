@@ -349,7 +349,10 @@ test('DMC playback loads allowlisted remote samples through main and reports blo
     const blockedWarning = page.locator('.output-message.output-warning', {
       hasText: "NES DMC: failed to load sample 'https://example.com/blocked-snare.dmc'",
     });
-    await expect(blockedWarning).toBeVisible({ timeout: 15_000 });
+    // Validation warnings can switch the bottom pane back to Problems after playback opens Output.
+    await expect(blockedWarning).toBeAttached({ timeout: 15_000 });
+    await page.locator('.bb-bottom-tab', { hasText: 'Output' }).click();
+    await expect(blockedWarning).toBeVisible();
     await expect(blockedWarning.locator('.output-source')).toHaveText('[playback]');
     await expect(blockedWarning.locator('.output-text')).toHaveText(
       "NES DMC: failed to load sample 'https://example.com/blocked-snare.dmc': Remote asset host 'example.com' is not in the Desktop allowlist. Add it under Settings → Advanced → Remote host allowlist.",
