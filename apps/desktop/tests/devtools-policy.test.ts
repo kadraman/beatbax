@@ -3,7 +3,7 @@
 import { EventEmitter } from 'node:events';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, promises as fsPromises, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import type { BrowserWindow } from 'electron';
 import {
   createDevToolsPolicy,
@@ -187,6 +187,62 @@ describe('createDevToolsPolicy', () => {
     expect(window.webContents.closeDevTools).toHaveBeenCalled();
     expect(window.webContents.opened).toBe(false);
     expect(onChange).toHaveBeenLastCalledWith({ allowed: false, source: 'off', saved: false });
+  });
+
+  it('serializes overlapping updates so writes and broadcasts finish in call order', async () => {
+    const realWriteFile = fsPromises.writeFile.bind(fsPromises);
+    let active = 0;
+    let maxActive = 0;
+    let calls = 0;
+    const writeSpy = jest.spyOn(fsPromises, 'writeFile').mockImplementation(async (...args) => {
+      const delay = calls++ === 0 ? 30 : 0;
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      await realWriteFile(...(args as Parameters<typeof realWriteFile>));
+      active -= 1;
+    });
+    try {
+      const onChange = jest.fn();
+      const policy = packagedPolicy({ onChange });
+      await policy.load();
+
+      const results = await Promise.all([policy.setEnabled(true), policy.setEnabled(false)]);
+
+      expect(maxActive).toBe(1);
+      expect(results.map((state) => state.saved)).toEqual([true, false]);
+      expect(onChange.mock.calls.map(([state]) => state.saved)).toEqual([true, false]);
+      expect(policy.getState().saved).toBe(false);
+      expect(await readDevToolsSetting(settingsPath)).toBe(false);
+    } finally {
+      writeSpy.mockRestore();
+    }
+  });
+
+  it('keeps processing updates after a failed write', async () => {
+    const writeSpy = jest.spyOn(fsPromises, 'writeFile').mockRejectedValueOnce(new Error('disk full'));
+    try {
+      const onChange = jest.fn();
+      const policy = packagedPolicy({ onChange });
+      await policy.load();
+
+      const failed = policy.setEnabled(true);
+      const next = policy.setEnabled(true);
+      await expect(failed).rejects.toThrow('disk full');
+      await expect(next).resolves.toEqual({ allowed: true, source: 'setting', saved: true });
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(await readDevToolsSetting(settingsPath)).toBe(true);
+    } finally {
+      writeSpy.mockRestore();
+    }
+  });
+
+  it('does not let a pending load overwrite a later update', async () => {
+    const policy = packagedPolicy();
+    const loading = policy.load();
+    await policy.setEnabled(true);
+    await loading;
+    expect(policy.getState().saved).toBe(true);
   });
 
   it('rejects non-boolean values', async () => {

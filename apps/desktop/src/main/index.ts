@@ -6,7 +6,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
 import { addRecentFileEntry, attachWindowStateEvents, clearRecentFileEntries, registerDesktopIpcHandlers, openLogsFolder, openRecentFile, readRecentFiles } from './ipc-handlers';
 import { createDevToolsPolicy } from './devtools-policy';
-import { createDiagnosticsLog, logDiagnostics, setDiagnosticsLog } from './diagnostics-log';
+import { createDiagnosticsLog, logDiagnostics, logDiagnosticsSync, setDiagnosticsLog } from './diagnostics-log';
 import { installAppMenu } from './menu';
 import type { AppMenuHandlers } from './menu';
 import { readNativeMenuCheckState } from './menu-check-state';
@@ -86,8 +86,9 @@ function initDiagnosticsLog(): void {
 }
 
 // `uncaughtExceptionMonitor` observes without replacing Electron's default error dialog.
+// It does not delay exit, so the entry must be written synchronously.
 process.on('uncaughtExceptionMonitor', (error) => {
-  logDiagnostics('error', 'main', 'Uncaught exception', error);
+  logDiagnosticsSync('error', 'main', 'Uncaught exception', error);
 });
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled promise rejection in main process:', reason);

@@ -12,6 +12,12 @@ import type { ValidationIssue } from '../types/validation.js';
 
 const log = createLogger('ui:event-bus');
 
+/**
+ * `source`: parse, import, or song-resolution failure; the message may quote song text.
+ * `runtime`: audio/player failure after the song resolved.
+ */
+export type PlaybackErrorKind = 'source' | 'runtime';
+
 // Event type definitions
 export interface BeatBaxEvents {
   // Editor events
@@ -29,7 +35,7 @@ export interface BeatBaxEvents {
   'playback:repeated': { volumePct?: number };
   'playback:paused': void;
   'playback:resumed': void;
-  'playback:error': { error: Error };
+  'playback:error': { error: Error; kind: PlaybackErrorKind };
   'playback:position': { current: number; total: number };
   'master-volume:changed': { volumePct: number; source?: 'transport' | 'mixer' | 'settings' };
   // Real-time position tracking

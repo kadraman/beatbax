@@ -22,7 +22,7 @@ import {
   resolveSaveDialogDefaultPath,
 } from './last-file-dialog'
 import type { DevToolsPolicy } from './devtools-policy'
-import { createRendererLogGate, getDiagnosticsLog, logDiagnostics } from './diagnostics-log'
+import { createRendererLogGate, describeErrorSafely, getDiagnosticsLog, logDiagnostics } from './diagnostics-log'
 
 const TEXT_FILE_FILTERS = [
   { name: 'BeatBax Songs', extensions: ['bax', 'uge', 'txt'] },
@@ -778,7 +778,7 @@ async function createAIChatCompletion(request: unknown): Promise<AIChatCompletio
         throw new Error('AI request timed out.')
       }
       if (!(error instanceof AIProviderResponseError)) {
-        logDiagnostics('warn', 'copilot', `AI request failed (${failureContext}): ${(error as Error).message}`)
+        logDiagnostics('warn', 'copilot', `AI request failed (${failureContext}): ${describeErrorSafely(error)}`)
       }
       throw error
     } finally {

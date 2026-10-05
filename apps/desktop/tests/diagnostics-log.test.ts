@@ -6,6 +6,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import {
   createDiagnosticsLog,
   createRendererLogGate,
+  describeErrorSafely,
   formatDiagnosticsEntry,
   redactDiagnostics,
 } from '../src/main/diagnostics-log';
@@ -48,8 +49,44 @@ describe('redactDiagnostics', () => {
     expect(redacted).toContain('Authorization: [redacted]');
   });
 
-  it('ignores very short secrets so ordinary words survive', () => {
-    expect(redactDiagnostics('the play button', ['play'])).toBe('the play button');
+  it('redacts registered secrets of any length', () => {
+    expect(redactDiagnostics('key abc used', ['abc'])).toBe('key [redacted] used');
+  });
+
+  it('ignores empty secrets', () => {
+    expect(redactDiagnostics('unchanged text', [''])).toBe('unchanged text');
+  });
+
+  it('redacts the longer secret first when one key prefixes another', () => {
+    const redacted = redactDiagnostics('keys abc and abcdef', ['abc', 'abcdef']);
+    expect(redacted).toBe('keys [redacted] and [redacted]');
+    expect(redacted).not.toContain('def');
+  });
+});
+
+describe('describeErrorSafely', () => {
+  it('omits the message, which can quote a provider body', () => {
+    let error: unknown;
+    try {
+      JSON.parse('{"error":"provider secret reply"');
+    } catch (e) {
+      error = e;
+    }
+    expect(describeErrorSafely(error)).toBe('SyntaxError');
+  });
+
+  it('includes a system error code from the error or its cause', () => {
+    const fetchFailure = Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } });
+    expect(describeErrorSafely(fetchFailure)).toBe('TypeError ECONNREFUSED');
+    expect(describeErrorSafely(Object.assign(new Error('x'), { code: 'ENOTFOUND' }))).toBe('Error ENOTFOUND');
+  });
+
+  it('rejects names and codes that are not plain identifiers', () => {
+    const odd = Object.assign(new Error('x'), { code: 'reply: hello' });
+    odd.name = 'Provider said: hello';
+    expect(describeErrorSafely(odd)).toBe('Error');
+    expect(describeErrorSafely('a thrown string')).toBe('Error');
+    expect(describeErrorSafely(null)).toBe('Error');
   });
 });
 
@@ -116,6 +153,47 @@ describe('createDiagnosticsLog', () => {
     const text = readFileSync(log.filePath, 'utf8');
     expect(text).toContain('request with [redacted] failed');
     expect(text).toContain('later super-secret-key-1');
+  });
+
+  it('writes logSync entries before returning, redacted', () => {
+    const log = createDiagnosticsLog({ dir: path.join(dir, 'logs'), now: fixedNow });
+    log.setSecret('ai-api-key', 'super-secret-key-1');
+    const error = new Error('boom with super-secret-key-1');
+    error.stack = 'Error: boom with super-secret-key-1\n    at main (index.ts:1:1)';
+    log.logSync('error', 'main', 'Uncaught exception', error);
+
+    expect(readFileSync(log.filePath, 'utf8')).toBe([
+      '2026-10-02T19:14:03.123Z [error] [main] Uncaught exception',
+      '  Error: boom with [redacted]',
+      '  at main (index.ts:1:1)',
+      '',
+    ].join('\n'));
+  });
+
+  it('rotates synchronously at the size limit', () => {
+    writeFileSync(path.join(dir, 'beatbax.log'), 'x'.repeat(190));
+    const log = createDiagnosticsLog({ dir, maxBytes: 200, now: fixedNow });
+    log.logSync('error', 'main', 'Uncaught exception');
+    expect(readFileSync(path.join(dir, 'beatbax.old.log'), 'utf8')).toBe('x'.repeat(190));
+    expect(readFileSync(path.join(dir, 'beatbax.log'), 'utf8')).toContain('Uncaught exception');
+  });
+
+  it('keeps async and sync writes in one size budget', async () => {
+    const log = createDiagnosticsLog({ dir, maxBytes: 200, now: fixedNow });
+    log.append('warn', 'test', `queued ${'x'.repeat(100)}`);
+    await log.flush();
+    log.logSync('error', 'main', `fatal ${'y'.repeat(100)}`);
+    expect(readFileSync(path.join(dir, 'beatbax.old.log'), 'utf8')).toContain('queued');
+    expect(readFileSync(path.join(dir, 'beatbax.log'), 'utf8')).toContain('fatal');
+  });
+
+  it('never throws from logSync and falls back when the folder cannot be written', () => {
+    const blocker = path.join(dir, 'not-a-directory');
+    writeFileSync(blocker, 'file');
+    const fallback = jest.fn(() => { throw new Error('console gone'); });
+    const log = createDiagnosticsLog({ dir: path.join(blocker, 'logs'), now: fixedNow, fallback });
+    expect(() => log.logSync('error', 'main', 'Uncaught exception')).not.toThrow();
+    expect(fallback).toHaveBeenCalledWith('error', expect.stringContaining('Uncaught exception'));
   });
 
   it('falls back silently when the folder cannot be written', async () => {
