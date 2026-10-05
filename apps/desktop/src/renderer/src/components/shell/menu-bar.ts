@@ -39,6 +39,10 @@ const MAX_RECENT = 8;
 const ABOUT_URL = 'https://github.com/kadraman/beatbax';
 const DOCS_URL = 'https://beatbax.com/docs/intro';
 const TUTORIAL_URL = 'https://beatbax.com/docs/tutorial/overview';
+const FOCUSABLE_MENU_ITEM = [
+  '[role="menuitem"]:not([aria-disabled="true"]):not([hidden])',
+  '[role="menuitemcheckbox"]:not([aria-disabled="true"]):not([hidden])',
+].join(', ');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -121,6 +125,10 @@ export interface MenuBarOptions {
   onShowAbout?: () => void;
   /** Open Monaco Command Palette (F1 / Ctrl+Shift+P). */
   onOpenCommandPalette?: () => void;
+  /** Adds View → Toggle Developer Tools (hidden until `setDevToolsAvailable(true)`). */
+  onToggleDevTools?: () => void;
+  /** Adds Help → Open Logs Folder (desktop). */
+  onOpenLogsFolder?: () => void;
 
   // ── Keyboard shortcut control ───────────────────────────────────────────────
   /**
@@ -340,6 +348,12 @@ export class MenuBar {
     if (enabled) { li.tabIndex = -1; } else { li.removeAttribute('tabindex'); }
   }
 
+  /** Show or hide a menu item or separator at runtime by its id. */
+  setItemHidden(id: string, hidden: boolean): void {
+    const li = this.el.querySelector<HTMLElement>(`[data-item-id="${id}"]`);
+    if (li) li.hidden = hidden;
+  }
+
   /** Update the checkmark for a checkable menu item. */
   setItemChecked(id: string, checked: boolean): void {
     const li = this.el.querySelector<HTMLElement>(`[data-item-id="${id}"]`);
@@ -465,6 +479,8 @@ export class MenuBar {
       const li = document.createElement('li');
       li.className = 'bb-menu__sep';
       li.setAttribute('role', 'separator');
+      if (def.id) li.dataset.itemId = def.id;
+      li.hidden = !!def.hidden;
       return li;
     }
 
@@ -473,6 +489,7 @@ export class MenuBar {
     }
 
     const li = document.createElement('li');
+    li.hidden = !!def.hidden;
     const checkable = !!def.checkable;
     li.setAttribute('role', checkable ? 'menuitemcheckbox' : 'menuitem');
     li.className = 'bb-menu__item' + (def.disabled ? ' bb-menu__item--disabled' : '');
@@ -843,7 +860,26 @@ export class MenuBar {
         shortcut: menuShortcut('tools.openSettings'),
         action: () => this.opts.onShowSettings?.(),
       },
+      ...(this.opts.onToggleDevTools
+        ? [
+            { type: 'separator', id: 'toggle-devtools-sep', hidden: true } as const,
+            {
+              type: 'item',
+              label: 'Toggle Developer Tools',
+              id: 'toggle-devtools',
+              hidden: true,
+              shortcut: shortcutPlatform === 'darwin' ? 'Alt+Cmd+I' : 'Ctrl+Shift+I',
+              action: () => this.opts.onToggleDevTools?.(),
+            } as const,
+          ]
+        : []),
     ];
+  }
+
+  /** Show View → Toggle Developer Tools only while the main process allows it. */
+  setDevToolsAvailable(available: boolean): void {
+    this.setItemHidden('toggle-devtools-sep', !available);
+    this.setItemHidden('toggle-devtools', !available);
   }
 
   private helpItems(): MenuItemDef[] {
@@ -882,6 +918,18 @@ export class MenuBar {
           label: 'Examples',
           id: 'examples',
           lazyChildren: () => this.exampleItems(),
+        },
+      );
+    }
+
+    if (this.opts.onOpenLogsFolder) {
+      items.push(
+        { type: 'separator' },
+        {
+          type: 'item',
+          label: 'Open Logs Folder',
+          id: 'open-logs-folder',
+          action: () => this.opts.onOpenLogsFolder?.(),
         },
       );
     }
@@ -1040,9 +1088,7 @@ export class MenuBar {
   }
 
   private firstFocusableMenuItem(panel: HTMLElement): HTMLElement | null {
-    return panel.querySelector<HTMLElement>(
-      '[role="menuitem"]:not([aria-disabled="true"]), [role="menuitemcheckbox"]:not([aria-disabled="true"])',
-    );
+    return panel.querySelector<HTMLElement>(FOCUSABLE_MENU_ITEM);
   }
 
   private closeAll(): void {
@@ -1062,11 +1108,7 @@ export class MenuBar {
   private handleItemKeydown(e: KeyboardEvent, current: HTMLElement): void {
     const panel = current.closest<HTMLElement>('.bb-menu__panel, .bb-menu__sub-panel');
     if (!panel) return;
-    const items = Array.from(
-      panel.querySelectorAll<HTMLElement>(
-        '[role="menuitem"]:not([aria-disabled="true"]), [role="menuitemcheckbox"]:not([aria-disabled="true"])',
-      ),
-    );
+    const items = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_MENU_ITEM));
     const idx = items.indexOf(current);
 
     if (e.key === 'ArrowDown') {
@@ -1251,6 +1293,8 @@ interface BaseItemDef {
   /** Stable id for lookups (optional). */
   id?: string;
   disabled?: boolean;
+  /** Start hidden; toggle with `setItemHidden`. */
+  hidden?: boolean;
 }
 
 interface ActionItemDef extends BaseItemDef {
@@ -1264,6 +1308,8 @@ interface ActionItemDef extends BaseItemDef {
 
 interface SeparatorDef {
   type: 'separator';
+  id?: string;
+  hidden?: boolean;
 }
 
 interface SubmenuItemDef extends BaseItemDef {

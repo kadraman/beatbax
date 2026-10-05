@@ -171,7 +171,15 @@ Packaged build on Windows (and macOS when available):
 - Existing installs have no `desktop-diagnostics.json`, so developer tools stay unavailable, matching today's effective behaviour on Windows and Linux. On macOS the native View menu item disappears until the setting is enabled; this is intentional and noted in release notes.
 - The log file is new; nothing to migrate.
 
-## Open implementation questions
+## Resolved implementation questions
 
-1. Use the `electron-log` package instead of the in-house writer? The plan prefers in-house (about 100 lines, no new dependency, redaction under our control). Revisit if requirements grow to include multiple transports.
-2. Should the macOS native View menu item be shown but disabled (rather than hidden) when developer tools are off? The spec currently says hidden.
+Resolved 2026-10-05 (T001):
+
+1. The log writer is in-house, not `electron-log`: about 100 lines, no new dependency, and redaction stays under our control. Revisit if requirements grow to include multiple transports.
+2. The macOS native View menu item is hidden (not shown disabled) when developer tools are off, as the spec says.
+
+Implementation notes:
+
+- `optimizer.watchWindowShortcuts` also blocks Ctrl/Cmd+Minus and Ctrl/Cmd+Shift+Equal in every build. The packaged-build `decideShortcut` keeps blocking those so packaged behaviour is unchanged apart from developer tools.
+- Main-process uncaught exceptions are observed with `process.on('uncaughtExceptionMonitor')`, not `uncaughtException`, so Electron's default error dialog is kept.
+- In development builds the policy's shortcut handler runs alongside `watchWindowShortcuts` and only handles the developer tools shortcut, so Ctrl+Shift+I keeps working on Windows and Linux after the hidden native menu item is removed.

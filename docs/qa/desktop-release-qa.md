@@ -46,6 +46,8 @@ Confirm these remain covered (or note gaps):
 - Loop and live transport controls wired
 - Save (e.g. Ctrl/Cmd+S) writes edits back to the opened file
 - Open `.bax` reloads in the editor when another process writes the file (clean buffer)
+- Developer tools are off by default (packaged policy), can be enabled from Settings → Advanced, and `--devtools` allows them for the session only
+- Diagnostics log records the startup line, Output warnings, and renderer errors with stacks, without song text; Open Logs Folder opens the logs folder
 
 ## Manual validation (primary platform)
 
@@ -70,6 +72,11 @@ Confirm these remain covered (or note gaps):
 | Example songs path | | macOS: `~/Documents/BeatBax/Examples`; Win/Linux: File → Examples / `resources/songs` |
 | `.bax` startup from argv / file association | | |
 | Theme sync / Settings toolbar shortcut | | |
+| Packaged: developer tools off by default | | Fresh profile: no View → Toggle Developer Tools; Ctrl+Shift+I / Alt+Cmd+I do nothing |
+| Packaged: enable and disable developer tools without restarting | | Settings → Advanced → Enable developer tools (accept the warning); disabling closes them |
+| Packaged: `--devtools` launch flag | | Developer tools allowed for the session; Settings shows the launch-flag note; saved setting unchanged |
+| Help → Open Logs Folder | | Opens the folder containing `beatbax.log` (see [desktop-troubleshooting.md](../ui/desktop-troubleshooting.md)) |
+| Startup error screen buttons | | Force a renderer startup error: Open logs folder works; Open developer tools only when allowed, otherwise the `--devtools` hint |
 
 ## Installer / integrity spot-checks
 
