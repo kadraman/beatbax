@@ -37,8 +37,6 @@ BeatBax Desktop vX.Y.Z — Per-category CodeLens previews, more reliable
   - NES DMC sample-load warnings now appear in the Output panel, once per
     play. Remote asset errors are easier to read, and a blocked host points to
     Settings → Advanced → Remote host allowlist.
-  - Copilot: Discard remaining restores the song exactly as it was before the
-    edit when no changes were kept, including line endings and comments.
 
   Note: Windows installers are still not Authenticode-signed; SmartScreen may
   warn — use More info, then Run anyway (see README.txt). Verify downloads with
