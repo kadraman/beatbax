@@ -199,3 +199,6 @@ media/drawings/prompt.txt
 passwords.txt
 *_creds.txt
 docs/keys/beatbax-release-private.asc
+
+# Local clone of beatbax-covers (no longer a submodule)
+songs/covers/
