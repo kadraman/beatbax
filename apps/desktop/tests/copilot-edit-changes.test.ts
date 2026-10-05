@@ -4,6 +4,7 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import {
   collectCopilotEditChanges,
+  discardRemainingCopilotEditChanges,
   resolveCopilotChangeLineNumber,
   revertCopilotEditChange,
   unchangedDefinitionsMentioned,
@@ -111,6 +112,51 @@ describe('revertCopilotEditChange', () => {
 
     const reverted = revertCopilotEditChange(next, moved, previous);
     expect(collectCopilotEditChanges(previous, reverted)).toHaveLength(0);
+  });
+});
+
+describe('discardRemainingCopilotEditChanges', () => {
+  const baseline = [
+    '# Sample song',
+    'pat melody_pat = C4 E4 G4 C5',
+    'pat bass_pat = C2 . G2 .',
+    'seq main = melody_pat bass_pat',
+    'play',
+  ].join('\r\n');
+  const edited = [
+    '# Sample song',
+    '##   vib  : added vibrato to the last note of each phrase in melody_pat',
+    '',
+    'pat melody_pat = C4 E4 G4 C5<vib:4,3>',
+    'pat bass_pat = C2 . G2 G2',
+    'seq main = melody_pat bass_pat',
+    'play',
+  ].join('\r\n');
+
+  function review(statuses: Array<'pending' | 'kept' | 'discarded'>) {
+    const changes = collectCopilotEditChanges(baseline, edited);
+    expect(changes).toHaveLength(statuses.length);
+    return changes.map((change, index) => ({ ...change, status: statuses[index] }));
+  }
+
+  it('restores the baseline verbatim when nothing was kept, including non-definition lines', () => {
+    const result = discardRemainingCopilotEditChanges(edited, review(['pending', 'pending', 'pending']), baseline);
+    expect(result.content).toBe(baseline);
+    expect(result.changes.map((change) => change.status)).toEqual(['discarded', 'discarded', 'discarded']);
+  });
+
+  it('restores the baseline when earlier changes were already discarded', () => {
+    const changes = review(['discarded', 'pending', 'pending']);
+    const partlyReverted = revertCopilotEditChange(edited, changes[0], baseline);
+    const result = discardRemainingCopilotEditChanges(partlyReverted, changes, baseline);
+    expect(result.content).toBe(baseline);
+  });
+
+  it('keeps kept changes and reverts only pending definitions', () => {
+    const result = discardRemainingCopilotEditChanges(edited, review(['kept', 'pending', 'pending']), baseline);
+    expect(result.content).toContain('pat melody_pat = C4 E4 G4 C5<vib:4,3>');
+    expect(result.content).toContain('pat bass_pat = C2 . G2 .');
+    expect(result.changes.map((change) => change.status)).toEqual(['kept', 'discarded', 'discarded']);
   });
 });
 

@@ -29,6 +29,7 @@ import {
 import {
   collectCopilotEditChanges,
   describeCopilotEditChange,
+  discardRemainingCopilotEditChanges,
   refreshCopilotEditChangeLines,
   resolveCopilotChangeLineNumber,
   revertCopilotEditChange,
@@ -216,14 +217,13 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
       const model = monacoEditor?.getModel();
       const snapshot = pendingAIChange;
       if (restore && model && monacoEditor) {
-        let content = model.getValue();
-        for (const change of snapshot.changes!) {
-          if (change.status !== 'pending') continue;
-          content = revertCopilotEditChange(content, change, snapshot.baselineContent);
-          change.status = 'discarded';
-        }
-        applyReviewEditorContent(content, 'copilot-review-discard-remaining');
-        snapshot.changes = refreshCopilotEditChangeLines(content, snapshot.changes!);
+        const discarded = discardRemainingCopilotEditChanges(
+          model.getValue(),
+          snapshot.changes!,
+          snapshot.baselineContent,
+        );
+        applyReviewEditorContent(discarded.content, 'copilot-review-discard-remaining');
+        snapshot.changes = discarded.changes;
       } else if (snapshot.changes) {
         snapshot.changes = snapshot.changes.map((change) => (
           change.status === 'pending' ? { ...change, status: 'kept' as const } : change
