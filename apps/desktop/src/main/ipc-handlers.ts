@@ -21,6 +21,8 @@ import {
   resolveOpenDialogDefaultPath,
   resolveSaveDialogDefaultPath,
 } from './last-file-dialog'
+import type { DevToolsPolicy } from './devtools-policy'
+import { createRendererLogGate, describeErrorSafely, getDiagnosticsLog, logDiagnostics } from './diagnostics-log'
 
 const TEXT_FILE_FILTERS = [
   { name: 'BeatBax Songs', extensions: ['bax', 'uge', 'txt'] },
@@ -282,6 +284,27 @@ export interface DesktopIpcHandlersOptions {
   getWindow: () => BrowserWindow | null
   recentFilesPath: string
   onRecentFilesChanged?: () => void
+  devToolsPolicy: DevToolsPolicy
+}
+
+/** Open the diagnostics logs folder in the OS file manager, creating it if needed. */
+export async function openLogsFolder(): Promise<void> {
+  const logsDir = app.getPath('logs')
+  await fs.mkdir(logsDir, { recursive: true })
+  const failure = await shell.openPath(logsDir)
+  if (failure) logDiagnostics('warn', 'main', `Could not open logs folder: ${failure}`)
+}
+
+function rememberAIAPIKeyForRedaction(apiKey: string): void {
+  getDiagnosticsLog()?.setSecret('ai-api-key', apiKey.trim())
+}
+
+function aiProviderHost(endpoint: string): string {
+  try {
+    return new URL(endpoint).host
+  } catch {
+    return 'unknown provider'
+  }
 }
 
 let desktopIpcHandlersRegistered = false
@@ -647,6 +670,9 @@ function aiChatTimeoutMs(endpoint: string, maxTokens: number): number {
   return AI_CHAT_TIMEOUT_REMOTE_MS
 }
 
+/** Already logged with its HTTP status; the message may echo provider text, so it is not logged. */
+class AIProviderResponseError extends Error {}
+
 /** AbortController for the in-flight AI chat request (if any). */
 let activeAIChatAbort: AbortController | null = null
 let aiChatUserCancelled = false
@@ -666,7 +692,9 @@ async function createAIChatCompletion(request: unknown): Promise<AIChatCompletio
   aiChatUserCancelled = false
 
   const payload = sanitizeAIChatRequest(request)
+  getDiagnosticsLog()?.setSecret('ai-request-key', payload.apiKey)
   const url = endpointChatCompletionsURL(payload.endpoint)
+  const failureContext = `${aiProviderHost(payload.endpoint)}, model ${payload.model}`
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (payload.apiKey) headers.Authorization = `Bearer ${payload.apiKey}`
 
@@ -741,11 +769,16 @@ async function createAIChatCompletion(request: unknown): Promise<AIChatCompletio
         }
         if (adapted) continue
       }
-      throw new Error(formatProviderError(response.status, text))
+      logDiagnostics('warn', 'copilot', `AI request failed: HTTP ${response.status} (${failureContext})`)
+      throw new AIProviderResponseError(formatProviderError(response.status, text))
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
         if (aiChatUserCancelled) throw new Error('AI request cancelled.')
+        logDiagnostics('warn', 'copilot', `AI request timed out (${failureContext})`)
         throw new Error('AI request timed out.')
+      }
+      if (!(error instanceof AIProviderResponseError)) {
+        logDiagnostics('warn', 'copilot', `AI request failed (${failureContext}): ${describeErrorSafely(error)}`)
       }
       throw error
     } finally {
@@ -842,7 +875,10 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
   if (desktopIpcHandlersRegistered) return
   desktopIpcHandlersRegistered = true
 
-  const { getWindow, recentFilesPath, onRecentFilesChanged } = options
+  const { getWindow, recentFilesPath, onRecentFilesChanged, devToolsPolicy } = options
+  const rendererLogGate = createRendererLogGate()
+
+  void readSecureAIAPIKey().then(rememberAIAPIKeyForRedaction)
 
   documentFileWatcher = createDocumentFileWatcher({
     onChange: (payload: DesktopDocumentChangedPayload) => {
@@ -859,6 +895,7 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
     })
     watchOpChain = next.catch((error) => {
       console.error('desktop document watch op failed', error)
+      logDiagnostics('error', 'main', 'Document watch operation failed', error)
     })
     return next
   }
@@ -917,6 +954,7 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
       payload = toFileBuffer(data)
     } catch (error) {
       console.error('desktop writeFileSync rejected payload', error)
+      logDiagnostics('warn', 'main', 'File write rejected', error)
       return
     }
     fs.mkdir(path.dirname(safePath), { recursive: true })
@@ -929,6 +967,7 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
       })
       .catch((error) => {
         console.error('desktop writeFileSync failed', error)
+        logDiagnostics('error', 'main', 'File write failed', error)
       })
   })
 
@@ -947,11 +986,14 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
   ipcMain.handle(IPC_CHANNELS.AI_GET_API_KEY, async () => readSecureAIAPIKey())
 
   ipcMain.handle(IPC_CHANNELS.AI_SET_API_KEY, async (_event, apiKey: string) => {
-    await writeSecureAIAPIKey(typeof apiKey === 'string' ? apiKey : '')
+    const value = typeof apiKey === 'string' ? apiKey : ''
+    await writeSecureAIAPIKey(value)
+    rememberAIAPIKeyForRedaction(value)
   })
 
   ipcMain.handle(IPC_CHANNELS.AI_CLEAR_API_KEY, async () => {
     await clearSecureAIAPIKey()
+    rememberAIAPIKeyForRedaction('')
   })
 
   ipcMain.handle(
@@ -1003,6 +1045,7 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
       })
       .catch((error) => {
         console.error('Failed to open recent file', error)
+        logDiagnostics('error', 'main', 'Failed to open recent file', error)
       })
   })
 
@@ -1028,8 +1071,26 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
   })
 
   ipcMain.on(IPC_CHANNELS.WINDOW_TOGGLE_DEVTOOLS, () => {
-    getWindow()?.webContents.toggleDevTools()
+    devToolsPolicy.toggle(getWindow())
   })
+
+  ipcMain.handle(IPC_CHANNELS.GET_DEVTOOLS_STATE, () => devToolsPolicy.getState())
+
+  ipcMain.handle(IPC_CHANNELS.SET_DEVTOOLS_ENABLED, async (_event, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') throw new Error('Developer tools setting must be true or false.')
+    return devToolsPolicy.setEnabled(enabled)
+  })
+
+  ipcMain.on(IPC_CHANNELS.DIAGNOSTICS_LOG, (event, entry: unknown) => {
+    const key = event.sender.id
+    const dropped = rendererLogGate.takeDropped(key)
+    if (dropped > 0) logDiagnostics('warn', 'renderer', `${dropped} renderer log entries dropped`)
+    const accepted = rendererLogGate.accept(key, entry)
+    if (!accepted) return
+    getDiagnosticsLog()?.append(accepted.level, accepted.source, accepted.message, accepted.stack)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.OPEN_LOGS_FOLDER, () => openLogsFolder())
 
   ipcMain.handle(IPC_CHANNELS.WINDOW_QUERY_STATE, () => {
     const window = getWindow()
@@ -1046,6 +1107,7 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
         watcher.watch(assertAbsoluteFilePath(typeof filePath === 'string' ? filePath : ''))
       } catch (error) {
         console.error('desktop watchDocument failed', error)
+        logDiagnostics('warn', 'main', 'Document watch failed', error)
       }
     })
   })

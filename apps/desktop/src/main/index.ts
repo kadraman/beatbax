@@ -1,9 +1,12 @@
 import { app, BrowserWindow, nativeImage, shell, ipcMain, session } from 'electron';
 import { existsSync } from 'node:fs';
+import os from 'node:os';
 import { join, resolve, isAbsolute } from 'node:path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
-import { addRecentFileEntry, attachWindowStateEvents, clearRecentFileEntries, registerDesktopIpcHandlers, openRecentFile, readRecentFiles } from './ipc-handlers';
+import { addRecentFileEntry, attachWindowStateEvents, clearRecentFileEntries, registerDesktopIpcHandlers, openLogsFolder, openRecentFile, readRecentFiles } from './ipc-handlers';
+import { createDevToolsPolicy } from './devtools-policy';
+import { createDiagnosticsLog, logDiagnostics, logDiagnosticsSync, setDiagnosticsLog } from './diagnostics-log';
 import { installAppMenu } from './menu';
 import type { AppMenuHandlers } from './menu';
 import { readNativeMenuCheckState } from './menu-check-state';
@@ -61,6 +64,49 @@ if (is.dev) {
 
 const recentFilesPath = join(app.getPath('userData'), 'recent-files.json');
 
+const devToolsDevelopment = !app.isPackaged && process.env.BEATBAX_E2E_PACKAGED_DEVTOOLS_POLICY !== '1';
+const devToolsPolicy = createDevToolsPolicy({
+  settingsPath: join(app.getPath('userData'), 'desktop-diagnostics.json'),
+  development: devToolsDevelopment,
+  launchFlag: app.commandLine.hasSwitch('devtools'),
+  onChange: (state) => {
+    getMainWindow()?.webContents.send(IPC_CHANNELS.DEVTOOLS_STATE_CHANGED, state);
+    void refreshMenu();
+  },
+});
+
+function initDiagnosticsLog(): void {
+  app.setAppLogsPath(process.env.BEATBAX_E2E_LOGS_DIR || undefined);
+  setDiagnosticsLog(createDiagnosticsLog({ dir: app.getPath('logs') }));
+  logDiagnostics(
+    'info',
+    'startup',
+    `BeatBax ${app.getVersion()} (Electron ${process.versions.electron}, ${process.platform} ${os.release()} ${process.arch})`,
+  );
+}
+
+// `uncaughtExceptionMonitor` observes without replacing Electron's default error dialog.
+// It does not delay exit, so the entry must be written synchronously.
+process.on('uncaughtExceptionMonitor', (error) => {
+  logDiagnosticsSync('error', 'main', 'Uncaught exception', error);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection in main process:', reason);
+  logDiagnostics('error', 'main', 'Unhandled promise rejection', reason);
+});
+app.on('render-process-gone', (_event, _webContents, details) => {
+  if (details.reason === 'clean-exit') return;
+  logDiagnostics('error', 'main', `Renderer process gone: ${details.reason} (exit code ${details.exitCode})`);
+});
+app.on('child-process-gone', (_event, details) => {
+  if (details.reason === 'clean-exit') return;
+  logDiagnostics(
+    'error',
+    'main',
+    `Child process gone: ${details.name ?? details.type} ${details.reason} (exit code ${details.exitCode})`,
+  );
+});
+
 function getMainWindow(): BrowserWindow | null {
   if (!mainWindow || mainWindow.isDestroyed()) return null;
   return mainWindow;
@@ -94,6 +140,7 @@ function dispatchMenuAction(action: MenuAction): void {
     } catch (error) {
       pendingStartupMenuAction = null;
       console.error('Failed to dispatch menu action', action, error);
+      logDiagnostics('error', 'main', `Failed to dispatch menu action ${action}`, error);
     }
   })();
 }
@@ -106,6 +153,11 @@ const menuHandlers: AppMenuHandlers = {
   },
   onClearRecent: () => {
     void clearRecentFileEntries(recentFilesPath).then(refreshMenu);
+  },
+  isDevToolsAllowed: () => devToolsPolicy.isAllowed(),
+  onToggleDevTools: () => devToolsPolicy.toggle(getMainWindow()),
+  onOpenLogsFolder: () => {
+    void openLogsFolder().catch((error) => logDiagnostics('warn', 'main', 'Could not open logs folder', error));
   },
 };
 
@@ -154,6 +206,7 @@ async function sendOpenedFile(filePath: string): Promise<void> {
     await refreshMenu();
   } catch (error) {
     console.error('Failed to open desktop file', error);
+    logDiagnostics('error', 'main', 'Failed to open desktop file', error);
   }
 }
 
@@ -213,9 +266,11 @@ async function createWindow(): Promise<void> {
 
   mainWindow.webContents.on('preload-error', (_event, path, error) => {
     console.error('Preload script failed:', path, error);
+    logDiagnostics('error', 'main', `Preload script failed: ${path}`, error);
   });
   mainWindow.webContents.on('did-fail-load', (_event, code, description, url) => {
     console.error('Renderer failed to load:', code, description, url);
+    logDiagnostics('error', 'main', `Renderer failed to load: ${code} ${description} ${url}`);
   });
 
   // Web MIDI requires explicit session permission handlers in Electron.
@@ -262,6 +317,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.whenReady().then(async () => {
+  initDiagnosticsLog();
   configureMacDevDockIcon();
   electronApp.setAppUserModelId('com.beatbax.desktop');
   installMidiPermissionHandlers(session.defaultSession);
@@ -284,8 +340,10 @@ app.whenReady().then(async () => {
     app.setAsDefaultProtocolClient('beatbax');
   }
 
+  await devToolsPolicy.load();
   app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window);
+    if (devToolsDevelopment) optimizer.watchWindowShortcuts(window);
+    devToolsPolicy.attachToWindow(window);
   });
 
   queueStartupSongPaths();
@@ -296,6 +354,7 @@ app.whenReady().then(async () => {
     onRecentFilesChanged: () => {
       void refreshMenu();
     },
+    devToolsPolicy,
   });
 
   ipcMain.on(IPC_CHANNELS.FILE_OPENED_REQUEST, (_event, filePath?: string) => {

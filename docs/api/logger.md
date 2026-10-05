@@ -337,6 +337,7 @@ log.error('Playback failed', error);
 ## Production Safety
 
 - Default log level is `error` (only errors are logged)
+- BeatBax Desktop also writes warnings and errors to a diagnostics log file, independently of the levels set here or with `window.beatbaxDebug`. See [Desktop troubleshooting](../ui/desktop-troubleshooting.md).
 - Debug logs can be safely left in production code
 - Use `log.debug()` for verbose development logging
 - Use `log.info()` for important user-facing events
