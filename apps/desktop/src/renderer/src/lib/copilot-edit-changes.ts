@@ -149,6 +149,26 @@ export function revertCopilotEditChange(
   return insertDefinitionLine(content, previous);
 }
 
+/**
+ * Discard every pending change. When nothing was kept the result is the
+ * baseline verbatim, because per-definition reverts cannot undo comment or
+ * blank lines the edit added outside definitions.
+ */
+export function discardRemainingCopilotEditChanges<T extends CopilotEditChange & { status: CopilotChangeReviewStatus }>(
+  content: string,
+  changes: T[],
+  baseline: string,
+): { content: string; changes: T[] } {
+  let next = content;
+  const settled = changes.map((change): T => {
+    if (change.status !== 'pending') return change;
+    next = revertCopilotEditChange(next, change, baseline);
+    return { ...change, status: 'discarded' };
+  });
+  if (!settled.some((change) => change.status === 'kept')) next = baseline;
+  return { content: next, changes: refreshCopilotEditChangeLines(next, settled) };
+}
+
 /** Refresh scroll targets after the editor content changes during review. */
 export function refreshCopilotEditChangeLines<T extends CopilotEditChange>(
   content: string,
