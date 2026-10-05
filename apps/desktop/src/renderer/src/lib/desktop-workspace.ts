@@ -33,6 +33,7 @@ import type { PanelMenuId, PanelMenuState } from '../components/shell/panels-men
 import { StatusBar } from '../components/shell/status-bar';
 import { ThemeManager } from './theme-manager';
 import { installGlobalErrorHandlers } from '../utils/error-boundary';
+import { installDiagnosticsForwarder, logDiagnostics } from './diagnostics-log';
 import { KeyboardShortcuts } from '../utils/keyboard-shortcuts';
 import { setupDesktopCopilot, type DesktopCopilotHandle } from './desktop-copilot';
 import { setupDesktopEditor, type DesktopEditorSetupHandle } from './desktop-editor-setup';
@@ -322,7 +323,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   const channelMixerRef: { current: DesktopChannelMixerHandle | null } = { current: null };
   let statusBar: StatusBar | null = null;
 
-  cleanups.push(installGlobalErrorHandlers((message) => {
+  cleanups.push(installDiagnosticsForwarder(eventBus));
+  cleanups.push(installGlobalErrorHandlers((message, error) => {
+    logDiagnostics('error', 'renderer', message, error);
     problemsPanel.addMessage({
       type: 'error',
       message: `Uncaught error: ${message}`,

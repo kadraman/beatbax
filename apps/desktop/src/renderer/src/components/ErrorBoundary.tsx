@@ -1,4 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { logDiagnostics } from '../lib/diagnostics-log';
+import { FatalErrorScreen } from './FatalErrorScreen';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -17,17 +19,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('BeatBax Desktop renderer error:', error, info.componentStack);
+    logDiagnostics('error', 'renderer', `BeatBax Desktop failed to start: ${error.message}`, error);
   }
 
   render(): ReactNode {
     if (this.state.error) {
-      return (
-        <div className="desktop-fatal">
-          <h1>BeatBax Desktop failed to start</h1>
-          <pre>{this.state.error.message}</pre>
-          <p>Use View → Toggle Developer Tools for the full stack trace.</p>
-        </div>
-      );
+      return <FatalErrorScreen error={this.state.error} />;
     }
     return this.props.children;
   }

@@ -405,6 +405,12 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   text-align: center;
 }
 
+.desktop-fatal__actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
 .desktop-fatal pre,
 .editor-pane--error {
   max-width: 720px;
@@ -9637,5 +9643,9 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   background: rgba(161, 38, 13, 0.08);
   border-color: rgba(161, 38, 13, 0.2);
 }
+
+/* ─── Menu items hidden at runtime (e.g. View → Toggle Developer Tools) ──── */
+.bb-menu__item[hidden],
+.bb-menu__sep[hidden] { display: none; }
 
 

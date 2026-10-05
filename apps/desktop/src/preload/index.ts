@@ -6,6 +6,8 @@ import type {
   DesktopRemoteAssetRequest,
   DesktopSaveFileOptions,
   DesktopWindowState,
+  DevToolsState,
+  DiagnosticsLogEntry,
   ElectronAPI,
   MenuAction,
 } from '../shared/electron-api';
@@ -76,6 +78,20 @@ const electronAPI: ElectronAPI = {
   toggleMaximizeWindow: () => ipcRenderer.send(IPC_CHANNELS.WINDOW_TOGGLE_MAXIMIZE),
   closeWindow: () => ipcRenderer.send(IPC_CHANNELS.WINDOW_CLOSE),
   toggleDevTools: () => ipcRenderer.send(IPC_CHANNELS.WINDOW_TOGGLE_DEVTOOLS),
+  getDevToolsState: () => ipcRenderer.invoke(IPC_CHANNELS.GET_DEVTOOLS_STATE) as Promise<DevToolsState>,
+  setDevToolsEnabled: (enabled: boolean) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SET_DEVTOOLS_ENABLED, enabled) as Promise<DevToolsState>,
+  onDevToolsStateChanged: (callback: (state: DevToolsState) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: DevToolsState): void => callback(state);
+    ipcRenderer.on(IPC_CHANNELS.DEVTOOLS_STATE_CHANGED, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.DEVTOOLS_STATE_CHANGED, listener);
+  },
+  logDiagnostics: (entry: DiagnosticsLogEntry) => {
+    ipcRenderer.send(IPC_CHANNELS.DIAGNOSTICS_LOG, entry);
+  },
+  openLogsFolder: async () => {
+    await ipcRenderer.invoke(IPC_CHANNELS.OPEN_LOGS_FOLDER);
+  },
   queryWindowState: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_QUERY_STATE) as Promise<DesktopWindowState>,
   onWindowStateChanged: (callback: (state: DesktopWindowState) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, state: DesktopWindowState) => callback(state);
