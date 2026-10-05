@@ -138,9 +138,15 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
     onToggleFoldAll: () => viewPrefsHandlers.onToggleFoldAll(),
     onToggleAutoSave: () => settingAutoSave.set(!settingAutoSave.get()),
     onToggleAI: () => copilot?.toggle() ?? false,
+    onToggleDevTools: () => window.electronAPI?.toggleDevTools(),
+    onOpenLogsFolder: () => { void window.electronAPI?.openLogsFolder(); },
     getToolbarVisible: () => toolbar.isVisible(),
     getTransportVisible: () => transportBar.isVisible(),
   });
+
+  const api = window.electronAPI;
+  void api?.getDevToolsState().then((state) => menuBar.setDevToolsAvailable(state.allowed)).catch(() => undefined);
+  const unsubDevTools = api?.onDevToolsStateChanged((state) => menuBar.setDevToolsAvailable(state.allowed));
 
   menuBar.setWrapTextChecked(settingWordWrap.get());
   menuBar.setFoldAllChecked(settingFoldComments.get());
@@ -171,6 +177,7 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
       unsubWrap();
       unsubFold();
       unsubAutoSave();
+      unsubDevTools?.();
       menuBar.dispose();
     },
   };

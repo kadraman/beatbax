@@ -22,6 +22,17 @@ BeatBax Desktop vX.Y.Z — Per-category CodeLens previews, more reliable
     fills the window; a fresh chat that is already near the limit offers
     Open AI settings instead.
 
+  Diagnostics
+  - Warnings and errors are written to a log file you can attach to bug
+    reports: Help → Open Logs Folder. Song text, Copilot prompts and API keys
+    are never logged.
+  - Developer tools are off by default. Turn them on in Settings → Advanced →
+    Enable developer tools, or for one session with the --devtools launch
+    flag. On macOS, View → Toggle Developer Tools now only appears when they
+    are enabled.
+  - The startup error screen has Open logs folder and (when allowed) Open
+    developer tools buttons, instead of pointing at a menu that may not exist.
+
   Fixes
   - NES DMC sample-load warnings now appear in the Output panel, once per
     play. Remote asset errors are easier to read, and a blocked host points to

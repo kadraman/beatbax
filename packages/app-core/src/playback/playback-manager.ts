@@ -5,7 +5,7 @@
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong, resolveImports } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
-import type { EventBus } from '../utils/event-bus.js';
+import type { EventBus, PlaybackErrorKind } from '../utils/event-bus.js';
 import { buildImportResolverOptions } from '../import/import-resolver-options.js';
 import { channelStates, setChannelMuted, setChannelSoloed } from '../stores/channel.store.js';
 import { createLogger } from '@beatbax/engine/util/logger';
@@ -144,6 +144,7 @@ export class PlaybackManager {
     log.debug('=== PlaybackManager.play() called ===');
     log.debug('Source length:', source.length, 'characters');
 
+    let errorKind: PlaybackErrorKind = 'source';
     try {
       // Stop any existing playback
       if (this.state.isPlaying) {
@@ -176,13 +177,7 @@ export class PlaybackManager {
             },
           }));
         } catch (importErr: any) {
-          const error = new Error(`Import failed: ${importErr.message || String(importErr)}`);
-          this.state.error = error;
-          this.eventBus.emit('parse:error', { error, message: error.message });
-          this.eventBus.emit('playback:error', { error });
-          parseStatus.set('error');
-          playbackError.set(error.message);
-          throw error;
+          throw new Error(`Import failed: ${importErr.message || String(importErr)}`);
         }
       }
 
@@ -308,6 +303,7 @@ export class PlaybackManager {
           }
         }
       });
+      errorKind = 'runtime';
 
       // Note: We don't emit validation:warnings here because validation is
       // handled by the editor's live validation system. Emitting here would
@@ -512,7 +508,7 @@ export class PlaybackManager {
       this.state.error = error as Error;
       const errorMessage = this.formatParseError(error);
       this.eventBus.emit('parse:error', { error: error as Error, message: errorMessage });
-      this.eventBus.emit('playback:error', { error: error as Error });
+      this.eventBus.emit('playback:error', { error: error as Error, kind: errorKind });
       parseStatus.set('error');
       playbackError.set(errorMessage);
       throw error;

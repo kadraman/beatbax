@@ -2,7 +2,7 @@ import { test, expect, _electron as electron } from '@playwright/test';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 
@@ -12,7 +12,7 @@ const appRoot = path.resolve(__dirname, '..', '..');
 const sampleSongPath = path.resolve(appRoot, '..', '..', 'songs', 'sample.bax');
 const trainersJourneyPath = path.resolve(appRoot, '..', '..', 'songs', 'gameboy', 'a_trainers_journey.bax');
 
-async function launchDesktopApp(extraArgs: string[] = []) {
+async function launchDesktopApp(extraArgs: string[] = [], extraEnv: Record<string, string> = {}) {
   const consoleErrors: string[] = [];
   const electronApp = await electron.launch({
     args: [
@@ -23,6 +23,7 @@ async function launchDesktopApp(extraArgs: string[] = []) {
     env: {
       ...process.env,
       BEATBAX_E2E_AI_KEY_STORE: 'memory',
+      ...extraEnv,
     },
   });
 
@@ -807,6 +808,183 @@ test('reloads the editor when the open .bax changes on disk', async () => {
 
   await electronApp.close();
   rmSync(tempDir, { recursive: true, force: true });
+});
+
+const PACKAGED_DEVTOOLS_POLICY_ENV = { BEATBAX_E2E_PACKAGED_DEVTOOLS_POLICY: '1' };
+
+type DesktopApp = Awaited<ReturnType<typeof electron.launch>>;
+type DesktopPage = Awaited<ReturnType<DesktopApp['firstWindow']>>;
+
+interface E2EDevToolsState {
+  allowed: boolean;
+  source: string;
+  saved: boolean;
+}
+
+interface E2EDevToolsApi {
+  getState(): Promise<E2EDevToolsState>;
+  setEnabled(enabled: boolean): Promise<E2EDevToolsState>;
+  toggle(): Promise<void>;
+}
+
+function devToolsApi(page: DesktopPage): E2EDevToolsApi {
+  return {
+    getState: () => page.evaluate(() => (window as unknown as {
+      electronAPI: { getDevToolsState(): Promise<E2EDevToolsState> };
+    }).electronAPI.getDevToolsState()),
+    setEnabled: (enabled: boolean) => page.evaluate((value) => (window as unknown as {
+      electronAPI: { setDevToolsEnabled(enabled: boolean): Promise<E2EDevToolsState> };
+    }).electronAPI.setDevToolsEnabled(value), enabled),
+    toggle: () => page.evaluate(() => (window as unknown as {
+      electronAPI: { toggleDevTools(): void };
+    }).electronAPI.toggleDevTools()),
+  };
+}
+
+function devToolsOpened(electronApp: DesktopApp): Promise<boolean> {
+  return electronApp.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().some((window) => window.webContents.isDevToolsOpened()));
+}
+
+/** View menu item labels from the menu users see on this platform. */
+async function visibleViewMenuLabels(electronApp: DesktopApp, page: DesktopPage): Promise<string[]> {
+  if (process.platform === 'darwin') {
+    return electronApp.evaluate(({ Menu }) => {
+      const view = Menu.getApplicationMenu()?.items.find((item) => item.label === 'View');
+      return (view?.submenu?.items ?? []).filter((item) => item.visible).map((item) => item.label);
+    });
+  }
+  return page.locator('#bb-menu-view .bb-menu__item:not([hidden]) .bb-menu__item-label').allTextContents();
+}
+
+test('developer tools are off by default and can be enabled from Settings', async () => {
+  test.setTimeout(90_000);
+  const { electronApp, page } = await launchDesktopApp([], PACKAGED_DEVTOOLS_POLICY_ENV);
+  const api = devToolsApi(page);
+
+  try {
+    await api.setEnabled(false);
+    expect(await api.getState()).toEqual({ allowed: false, source: 'off', saved: false });
+
+    await api.toggle();
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Alt+KeyI' : 'Control+Shift+KeyI');
+    await page.waitForTimeout(500);
+    expect(await devToolsOpened(electronApp)).toBe(false);
+    expect(await visibleViewMenuLabels(electronApp, page)).not.toContain('Toggle Developer Tools');
+
+    page.once('dialog', (dialog) => {
+      expect(dialog.message()).toContain('API key');
+      void dialog.accept();
+    });
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+,' : 'Control+,');
+    await expect(page.locator('.bb-settings-backdrop.bb-settings-backdrop--open')).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('tab', { name: /Advanced/i }).click();
+    const toggleRow = page.locator('.bb-settings-toggle-row').filter({ hasText: 'Enable developer tools' });
+    const checkbox = toggleRow.locator('input[type="checkbox"]');
+    // Controlled by main-process state, so it only flips once the change is confirmed.
+    await checkbox.click();
+    await expect(checkbox).toBeChecked();
+
+    await expect.poll(() => api.getState()).toEqual({ allowed: true, source: 'setting', saved: true });
+    await expect.poll(() => visibleViewMenuLabels(electronApp, page)).toContain('Toggle Developer Tools');
+
+    await api.toggle();
+    await expect.poll(() => devToolsOpened(electronApp), { timeout: 10_000 }).toBe(true);
+
+    await checkbox.click();
+    await expect(checkbox).not.toBeChecked();
+    await expect.poll(() => devToolsOpened(electronApp), { timeout: 10_000 }).toBe(false);
+    await expect.poll(() => visibleViewMenuLabels(electronApp, page)).not.toContain('Toggle Developer Tools');
+    expect(await api.getState()).toEqual({ allowed: false, source: 'off', saved: false });
+  } finally {
+    await api.setEnabled(false).catch(() => undefined);
+    await electronApp.close();
+  }
+});
+
+test('--devtools enables developer tools for the session only', async () => {
+  test.setTimeout(60_000);
+  const { electronApp, page } = await launchDesktopApp(['--devtools'], PACKAGED_DEVTOOLS_POLICY_ENV);
+  const api = devToolsApi(page);
+
+  try {
+    expect(await api.getState()).toEqual({ allowed: true, source: 'launch-flag', saved: false });
+    await api.toggle();
+    await expect.poll(() => devToolsOpened(electronApp), { timeout: 10_000 }).toBe(true);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test('diagnostics log records playback warnings and renderer errors without song source', async () => {
+  test.setTimeout(60_000);
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-e2e-logs-'));
+  const logsDir = path.join(tempDir, 'logs');
+  const songPath = path.join(tempDir, 'dmc-log.bax');
+  const songMarker = 'pat log_marker_beat';
+  writeFileSync(songPath, [
+    'chip nes',
+    'bpm 120',
+    'inst snare_x type=dmc dmc_rate=15 dmc_loop=false dmc_sample="https://example.com/blocked-snare.dmc"',
+    `${songMarker} = snare_x . snare_x .`,
+    'seq main = log_marker_beat',
+    'channel 5 => inst snare_x seq main',
+    'play',
+    '',
+  ].join('\n'), 'utf8');
+
+  const { electronApp, page } = await launchDesktopApp([songPath], { BEATBAX_E2E_LOGS_DIR: logsDir });
+  const logPath = path.join(logsDir, 'beatbax.log');
+  const readLog = (): string => {
+    try {
+      return readFileSync(logPath, 'utf8');
+    } catch {
+      return '';
+    }
+  };
+
+  try {
+    await page.evaluate(async () => {
+      const api = (window as unknown as {
+        electronAPI: { setRemoteAssetAllowlist: (hosts: string[]) => Promise<string[]> };
+      }).electronAPI;
+      await api.setRemoteAssetAllowlist([]);
+    });
+    await expect(page.locator('.status-document-name')).toHaveText('dmc-log.bax', { timeout: 15_000 });
+    await expect.poll(readLog).toMatch(/\[info\] \[startup\] BeatBax \S+ \(Electron /);
+
+    await page.getByRole('button', { name: /Play current song/i }).click();
+    await expect.poll(readLog, { timeout: 15_000 })
+      .toContain("[warn] [playback] NES DMC: failed to load sample 'https://example.com/blocked-snare.dmc'");
+    await page.getByRole('button', { name: /Stop playback/i }).click();
+
+    await page.evaluate(() => {
+      setTimeout(() => {
+        throw new Error('e2e invented renderer error');
+      }, 0);
+    });
+    await expect.poll(readLog, { timeout: 15_000 }).toContain('[error] [renderer] e2e invented renderer error');
+    expect(readLog()).toMatch(/e2e invented renderer error\n {2}\S.*\n {2}at /);
+    expect(readLog()).not.toContain(songMarker);
+
+    await electronApp.evaluate(({ shell }) => {
+      const state = globalThis as unknown as { __beatbaxOpenedPaths?: string[] };
+      state.__beatbaxOpenedPaths = [];
+      shell.openPath = async (target: string) => {
+        state.__beatbaxOpenedPaths?.push(target);
+        return '';
+      };
+    });
+    await page.evaluate(() => (window as unknown as {
+      electronAPI: { openLogsFolder(): Promise<void> };
+    }).electronAPI.openLogsFolder());
+    const openedPaths = await electronApp.evaluate(() =>
+      (globalThis as unknown as { __beatbaxOpenedPaths?: string[] }).__beatbaxOpenedPaths ?? []);
+    expect(openedPaths.map((target) => realpathSync(target))).toEqual([realpathSync(logsDir)]);
+  } finally {
+    await electronApp.close();
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test('uses platform-appropriate menu chrome', async () => {
