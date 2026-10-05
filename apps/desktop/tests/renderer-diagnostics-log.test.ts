@@ -17,7 +17,7 @@ describe('renderer diagnostics forwarder', () => {
     const bus = new EventBus();
     const dispose = installDiagnosticsForwarder(bus);
     const error = new Error('AudioContext failed');
-    bus.emit('playback:error', { error });
+    bus.emit('playback:error', { error, kind: 'runtime' });
     bus.emit('export:error', { format: 'uge', error: new Error('too many instruments') });
 
     expect(sent).toHaveBeenNthCalledWith(1, {
@@ -57,10 +57,18 @@ describe('renderer diagnostics forwarder', () => {
     dispose();
   });
 
+  it('does not forward source-kind playback errors, which quote song text', () => {
+    const bus = new EventBus();
+    const dispose = installDiagnosticsForwarder(bus);
+    bus.emit('playback:error', { error: new Error('pat melody = C4 ?'), kind: 'source' });
+    expect(sent).not.toHaveBeenCalled();
+    dispose();
+  });
+
   it('stops forwarding after dispose and tolerates a missing bridge', () => {
     const bus = new EventBus();
     installDiagnosticsForwarder(bus)();
-    bus.emit('playback:error', { error: new Error('late') });
+    bus.emit('playback:error', { error: new Error('late'), kind: 'runtime' });
     expect(sent).not.toHaveBeenCalled();
 
     delete (window as unknown as { electronAPI?: unknown }).electronAPI;

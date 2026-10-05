@@ -105,7 +105,7 @@ None. (`--devtools` is a Desktop launch flag, not a BeatBax CLI option.)
 
 - Channel `desktop:diagnostics-log` (`ipcRenderer.send`, fire-and-forget) with `{ level: 'warn' | 'error'; source: string; message: string; stack?: string }`.
 - Main validates shape, truncates `message` and `stack` to 4 KiB each, and allows at most 100 renderer entries per minute per window; excess entries are counted and written as one "N renderer log entries dropped" line when the window reopens.
-- Renderer forwarder (`lib/diagnostics-log.ts`) subscribes to app-core events: `playback:error`, `export:error`, and `output:message` with `type` `warning` or `error` (this includes the new DMC sample-load warnings from 019). It does **not** forward `parse:error` or validation results (they contain song text and fire while typing; FR-012).
+- Renderer forwarder (`lib/diagnostics-log.ts`) subscribes to app-core events: `playback:error`, `export:error`, and `output:message` with `type` `warning` or `error` (this includes the new DMC sample-load warnings from 019). It does **not** forward `parse:error` or validation results (they contain song text and fire while typing; FR-012). `PlaybackManager.play()` also emits `playback:error` for parse, import, and song-resolution failures, so that event carries `kind: 'source' | 'runtime'` and only `runtime` (audio/player failures after the song resolved) is forwarded.
 - `installGlobalErrorHandlers` (uncaught errors, unhandled rejections) and `ErrorBoundary.componentDidCatch` also forward, with stack traces.
 
 **Open logs folder**

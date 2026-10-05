@@ -13,12 +13,14 @@ export function logDiagnostics(level: DiagnosticsLogLevel, source: string, messa
 }
 
 /**
- * Forward playback, export, and Output panel warnings/errors. Parse and
- * validation results are not forwarded: they quote song text and fire while typing.
+ * Forward playback runtime, export, and Output panel warnings/errors. Parse,
+ * import, and validation failures (including `playback:error` of kind `source`)
+ * are not forwarded: they quote song text and fire while typing.
  */
 export function installDiagnosticsForwarder(eventBus: EventBus): () => void {
   const unsubscribers = [
-    eventBus.on('playback:error', ({ error }) => {
+    eventBus.on('playback:error', ({ error, kind }) => {
+      if (kind !== 'runtime') return;
       logDiagnostics('error', 'playback', error?.message ?? String(error), error);
     }),
     eventBus.on('export:error', ({ format, error }) => {

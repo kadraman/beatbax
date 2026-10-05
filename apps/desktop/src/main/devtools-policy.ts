@@ -91,6 +91,13 @@ export function createDevToolsPolicy(options: DevToolsPolicyOptions): DevToolsPo
   const platform = options.platform ?? process.platform
   let saved = false
   const windows = new Set<BrowserWindow>()
+  // Loads and updates run one at a time so overlapping writes cannot finish out of order.
+  let queue: Promise<unknown> = Promise.resolve()
+  const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
+    const next = queue.then(task)
+    queue = next.catch(() => undefined)
+    return next
+  }
 
   const getState = (): DevToolsState => resolveDevToolsState({ development, launchFlag, saved })
 
@@ -104,22 +111,26 @@ export function createDevToolsPolicy(options: DevToolsPolicyOptions): DevToolsPo
   }
 
   return {
-    async load() {
-      saved = await readDevToolsSetting(settingsPath)
-      return getState()
+    load() {
+      return enqueue(async () => {
+        saved = await readDevToolsSetting(settingsPath)
+        return getState()
+      })
     },
     getState,
     isAllowed: () => getState().allowed,
     async setEnabled(enabled) {
       if (typeof enabled !== 'boolean') throw new Error('Developer tools setting must be true or false.')
-      await writeDevToolsSetting(settingsPath, enabled)
-      saved = enabled
-      const state = getState()
-      for (const window of windows) {
-        if (!window.isDestroyed()) closeIfDisallowed(window.webContents)
-      }
-      onChange?.(state)
-      return state
+      return enqueue(async () => {
+        await writeDevToolsSetting(settingsPath, enabled)
+        saved = enabled
+        const state = getState()
+        for (const window of windows) {
+          if (!window.isDestroyed()) closeIfDisallowed(window.webContents)
+        }
+        onChange?.(state)
+        return state
+      })
     },
     toggle,
     attachToWindow(window) {

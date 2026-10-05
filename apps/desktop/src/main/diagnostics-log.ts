@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { appendFileSync, mkdirSync, promises as fs, renameSync, rmSync, statSync } from 'node:fs'
 import path from 'node:path'
 import type { DiagnosticsLogEntry } from '../shared/electron-api'
 
@@ -11,18 +11,36 @@ export const RENDERER_ENTRY_MAX_CHARS = 4096
 export const RENDERER_ENTRIES_PER_MINUTE = 100
 
 const REDACTED = '[redacted]'
-/** Shorter values are too likely to match ordinary words. */
-const MIN_SECRET_LENGTH = 8
 
 export function redactDiagnostics(text: string, secrets: Iterable<string> = []): string {
   let result = text
-  for (const secret of secrets) {
-    if (secret.length >= MIN_SECRET_LENGTH) result = result.split(secret).join(REDACTED)
+  // Longest first, so a key that prefixes another cannot leave the longer key's suffix behind.
+  const ordered = [...secrets].filter((secret) => secret.length > 0).sort((a, b) => b.length - a.length)
+  for (const secret of ordered) {
+    result = result.split(secret).join(REDACTED)
   }
   return result
     .replace(/(authorization["']?\s*[:=]\s*["']?)(?:bearer\s+)?[^\s"',}]+/gi, `$1${REDACTED}`)
     .replace(/\bbearer\s+(?!\[redacted\])[A-Za-z0-9._~+/=-]+/gi, `Bearer ${REDACTED}`)
     .replace(/\bsk-[A-Za-z0-9_-]{8,}/g, REDACTED)
+}
+
+const ERROR_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
+const ERROR_CODE = /^[A-Z][A-Z0-9_]{1,63}$/
+
+function safeErrorCode(value: unknown): string | undefined {
+  const code = (value as { code?: unknown } | null | undefined)?.code
+  return typeof code === 'string' && ERROR_CODE.test(code) ? code : undefined
+}
+
+/**
+ * Error class plus system error code (e.g. `TypeError ECONNREFUSED`), never the
+ * message: messages such as a JSON `SyntaxError` can quote the provider body.
+ */
+export function describeErrorSafely(error: unknown): string {
+  const name = error instanceof Error && ERROR_NAME.test(error.name) ? error.name : 'Error'
+  const code = safeErrorCode(error) ?? safeErrorCode((error as { cause?: unknown } | null | undefined)?.cause)
+  return code ? `${name} ${code}` : name
 }
 
 export function formatDiagnosticsEntry(
@@ -61,6 +79,12 @@ export interface DiagnosticsLog {
   append(level: DiagnosticsLevel, source: string, message: string, stack?: string): void
   /** Like `append`, taking the stack (or message) from an error. */
   log(level: DiagnosticsLevel, source: string, message: string, error?: unknown): void
+  /**
+   * Like `log`, but writes (and rotates) synchronously and never throws. For fatal
+   * paths where the process may exit before queued writes run; entries still
+   * queued by `log` may land after this one or not at all.
+   */
+  logSync(level: DiagnosticsLevel, source: string, message: string, error?: unknown): void
   /** Values (such as the stored AI API key) replaced with `[redacted]` before writing. */
   setSecret(name: string, value: string): void
   /** Resolves once every queued entry has been written or dropped. */
@@ -96,8 +120,30 @@ export function createDiagnosticsLog(options: DiagnosticsLogOptions): Diagnostic
     size += bytes
   }
 
+  const writeSync = (line: string): void => {
+    if (size === null) {
+      mkdirSync(options.dir, { recursive: true })
+      try {
+        size = statSync(filePath).size
+      } catch {
+        size = 0
+      }
+    }
+    const bytes = Buffer.byteLength(line)
+    if (size > 0 && size + bytes > maxBytes) {
+      rmSync(oldFilePath, { force: true })
+      renameSync(filePath, oldFilePath)
+      size = 0
+    }
+    appendFileSync(filePath, line, 'utf8')
+    size += bytes
+  }
+
+  const formatLine = (level: DiagnosticsLevel, source: string, message: string, stack?: string): string =>
+    redactDiagnostics(formatDiagnosticsEntry(now(), level, source, message, stack), secrets.values())
+
   const append = (level: DiagnosticsLevel, source: string, message: string, stack?: string): void => {
-    const line = redactDiagnostics(formatDiagnosticsEntry(now(), level, source, message, stack), secrets.values())
+    const line = formatLine(level, source, message, stack)
     if (failed) {
       fallback(level, line)
       return
@@ -108,12 +154,37 @@ export function createDiagnosticsLog(options: DiagnosticsLogOptions): Diagnostic
     })
   }
 
+  const errorEntry = (message: string, error: unknown): [string, string | undefined] => {
+    const stack = errorStack(error)
+    return [error !== undefined && !stack ? `${message}: ${errorMessage(error)}` : message, stack]
+  }
+
   return {
     filePath,
     append,
     log(level, source, message, error) {
-      const stack = errorStack(error)
-      append(level, source, error !== undefined && !stack ? `${message}: ${errorMessage(error)}` : message, stack)
+      append(level, source, ...errorEntry(message, error))
+    },
+    logSync(level, source, message, error) {
+      let line: string
+      try {
+        line = formatLine(level, source, ...errorEntry(message, error))
+      } catch {
+        return
+      }
+      if (!failed) {
+        try {
+          writeSync(line)
+          return
+        } catch {
+          failed = true
+        }
+      }
+      try {
+        fallback(level, line)
+      } catch {
+        /* a fatal-path logger must not throw */
+      }
     },
     setSecret(name, value) {
       if (value) secrets.set(name, value)
@@ -203,4 +274,9 @@ export function getDiagnosticsLog(): DiagnosticsLog | null {
 /** Write to the app diagnostics log; a no-op until the log is initialised. */
 export function logDiagnostics(level: DiagnosticsLevel, source: string, message: string, error?: unknown): void {
   defaultLog?.log(level, source, message, error)
+}
+
+/** Synchronous `logDiagnostics` for handlers that run just before the process may exit. */
+export function logDiagnosticsSync(level: DiagnosticsLevel, source: string, message: string, error?: unknown): void {
+  defaultLog?.logSync(level, source, message, error)
 }
