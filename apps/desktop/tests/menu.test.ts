@@ -222,6 +222,38 @@ describe('desktop native menu', () => {
     expect(wrapText.checked).toBe(true);
   });
 
+  it('shows Toggle Developer Tools in the macOS View menu only when allowed', () => {
+    if (!isMac) return;
+    const onToggleDevTools = jest.fn();
+    const labels = (allowed: boolean): MenuItemConstructorOptions[] => {
+      const template = createMenuTemplate([], { ...handlers(), isDevToolsAllowed: () => allowed, onToggleDevTools });
+      return findTopLevelMenu(template, 'View').submenu as MenuItemConstructorOptions[];
+    };
+
+    expect(labels(false).map((item) => item.label)).not.toContain('Toggle Developer Tools');
+    const item = labels(true).find((entry) => entry.label === 'Toggle Developer Tools')!;
+    expect(item.accelerator).toBe('Alt+Command+I');
+    item.click?.({} as any, mockWindow, {} as any);
+    expect(onToggleDevTools).toHaveBeenCalledTimes(1);
+    expect(mockWindow.webContents.toggleDevTools).not.toHaveBeenCalled();
+  });
+
+  it('has no hidden developer tools accelerator in the Windows/Linux native menu', () => {
+    if (isMac) return;
+    const template = createMenuTemplate([], { ...handlers(), isDevToolsAllowed: () => true });
+    const viewMenu = findTopLevelMenu(template, 'View').submenu as MenuItemConstructorOptions[];
+    expect(viewMenu.map((item) => item.label)).not.toContain('Toggle Developer Tools');
+  });
+
+  it('includes Open Logs Folder in the Help menu', () => {
+    const onOpenLogsFolder = jest.fn();
+    const template = createMenuTemplate([], { ...handlers(), onOpenLogsFolder });
+    const helpItems = findTopLevelMenu(template, 'Help').submenu as MenuItemConstructorOptions[];
+    const openLogs = helpItems.find((item) => item.label === 'Open Logs Folder')!;
+    openLogs.click?.({} as any, mockWindow, {} as any);
+    expect(onOpenLogsFolder).toHaveBeenCalledTimes(1);
+  });
+
   it('uses catalog accelerators for desktop panel toggles on macOS', () => {
     if (!isMac) return;
 

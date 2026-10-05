@@ -20,7 +20,15 @@ export type AppMenuHandlers = {
   onMenuAction: (action: MenuAction) => void;
   onOpenRecent?: (filePath: string) => void;
   onClearRecent?: () => void;
+  /** Developer tools policy; when omitted the Toggle Developer Tools item is hidden. */
+  isDevToolsAllowed?: () => boolean;
+  onToggleDevTools?: () => void;
+  onOpenLogsFolder?: () => void;
 };
+
+function openLogsFolderItem(handlers: AppMenuHandlers): MenuItemConstructorOptions {
+  return { label: 'Open Logs Folder', click: () => handlers.onOpenLogsFolder?.() };
+}
 
 function sendMenuAction(handlers: AppMenuHandlers, action: MenuAction): void {
   handlers.onMenuAction(action);
@@ -172,29 +180,27 @@ function buildMacViewMenu(
       { role: 'reload' },
       { role: 'forceReload' },
       { role: 'togglefullscreen' },
-      { type: 'separator' },
-      {
-        label: 'Toggle Developer Tools',
-        accelerator: 'Alt+Command+I',
-        click: () => handlers.getWindow()?.webContents.toggleDevTools(),
-      },
+      ...(handlers.isDevToolsAllowed?.()
+        ? [
+            { type: 'separator' } as const,
+            {
+              label: 'Toggle Developer Tools',
+              accelerator: 'Alt+Command+I',
+              click: () => handlers.onToggleDevTools?.(),
+            },
+          ]
+        : []),
     ],
   };
 }
 
-function buildBasicViewMenu(handlers: AppMenuHandlers): MenuItemConstructorOptions {
+function buildBasicViewMenu(): MenuItemConstructorOptions {
   return {
     label: 'View',
     submenu: [
       { role: 'reload' },
       { role: 'forceReload' },
       { role: 'togglefullscreen' },
-      { type: 'separator' },
-      {
-        label: 'Toggle Developer Tools',
-        accelerator: 'Ctrl+Shift+I',
-        click: () => handlers.getWindow()?.webContents.toggleDevTools(),
-      },
     ],
   };
 }
@@ -220,6 +226,8 @@ function buildMacHelpMenu(handlers: AppMenuHandlers): MenuItemConstructorOptions
       { type: 'separator' },
       { label: 'Keyboard Shortcuts…', accelerator: accel('help.showShortcuts'), click: () => sendMenuAction(handlers, 'help:shortcuts') },
       { type: 'separator' },
+      openLogsFolderItem(handlers),
+      { type: 'separator' },
       { label: 'About BeatBax', click: () => sendMenuAction(handlers, 'help:about') },
     ],
   };
@@ -243,6 +251,8 @@ function buildBasicHelpMenu(handlers: AppMenuHandlers): MenuItemConstructorOptio
           void shell.openExternal('https://beatbax.com/docs/tutorial/overview');
         },
       },
+      { type: 'separator' },
+      openLogsFolderItem(handlers),
       { type: 'separator' },
       { label: 'About BeatBax', click: () => sendMenuAction(handlers, 'help:about') },
     ],
@@ -288,7 +298,7 @@ export function createMenuTemplate(
 
   return [
     fileMenu,
-    buildBasicViewMenu(handlers),
+    buildBasicViewMenu(),
     buildBasicHelpMenu(handlers),
   ];
 }

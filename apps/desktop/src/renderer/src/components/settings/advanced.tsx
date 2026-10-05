@@ -1,4 +1,5 @@
 import { storage } from '@beatbax/app-core/utils/local-storage';
+import type { DevToolsState } from '../../../../shared/electron-api';
 import {
   settingDebugOverlay,
   settingDebugOverlayFontSize,
@@ -19,6 +20,68 @@ function getRemoteAllowlistApi(): RemoteAssetAllowlistApi | null {
   if (!api || typeof api !== 'object') return null;
   if (typeof api.getRemoteAssetAllowlist !== 'function' || typeof api.setRemoteAssetAllowlist !== 'function') return null;
   return api;
+}
+
+interface DevToolsApi {
+  getDevToolsState?: () => Promise<DevToolsState>;
+  setDevToolsEnabled?: (enabled: boolean) => Promise<DevToolsState>;
+  onDevToolsStateChanged?: (callback: (state: DevToolsState) => void) => () => void;
+}
+
+function getDevToolsApi(): Required<DevToolsApi> | null {
+  const api = (window as unknown as { electronAPI?: DevToolsApi }).electronAPI;
+  if (!api || typeof api.getDevToolsState !== 'function' || typeof api.setDevToolsEnabled !== 'function'
+    || typeof api.onDevToolsStateChanged !== 'function') return null;
+  return api as Required<DevToolsApi>;
+}
+
+export const DEVTOOLS_ENABLE_WARNING = 'Developer tools give full access to BeatBax\'s internals, including your saved AI API key. '
+  + 'Never paste code into the console unless you wrote it or fully understand it.\n\nEnable developer tools?';
+
+function DevToolsToggle(): React.JSX.Element | null {
+  const api = useMemo(() => getDevToolsApi(), []);
+  const [state, setState] = useState<DevToolsState | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!api) return;
+    let cancelled = false;
+    void api.getDevToolsState().then((next) => { if (!cancelled) setState(next); }).catch(() => undefined);
+    const unsubscribe = api.onDevToolsStateChanged((next) => setState(next));
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [api]);
+
+  if (!api || !state) return null;
+
+  const development = state.source === 'development';
+  const change = async (enabled: boolean): Promise<void> => {
+    if (enabled && !confirm(DEVTOOLS_ENABLE_WARNING)) return;
+    setError('');
+    try {
+      setState(await api.setDevToolsEnabled(enabled));
+    } catch (err) {
+      setError(`Could not change developer tools: ${(err as Error).message || 'unknown error'}.`);
+    }
+  };
+
+  return (
+    <>
+      <ToggleRow
+        checked={development || state.saved}
+        disabled={development}
+        label="Enable developer tools"
+        onChange={(value) => { void change(value); }}
+      />
+      {development ? <NoteText>Always available in development builds.</NoteText> : null}
+      {state.source === 'launch-flag'
+        ? <NoteText>Enabled for this session by the --devtools launch flag.</NoteText>
+        : null}
+      {error ? <NoteText>{error}</NoteText> : null}
+    </>
+  );
 }
 
 function parseAllowlistInput(raw: string): string[] {
@@ -91,6 +154,10 @@ export function AdvancedSettingsSection(): React.JSX.Element {
   return (
     <div className="bb-settings-section">
       <SectionHeading>Diagnostics</SectionHeading>
+      <DevToolsToggle />
+      <NoteText>
+        Warnings and errors are written to a log file you can attach to bug reports. Open it from Help → Open Logs Folder.
+      </NoteText>
       <ToggleRow
         checked={debugOverlay}
         label="Show debug overlay"
@@ -180,7 +247,9 @@ export function AdvancedSettingsSection(): React.JSX.Element {
         onClick={() => {
           if (confirm('Reset ALL BeatBax settings to defaults and reload? This cannot be undone.')) {
             storage.clear();
-            window.location.reload();
+            const devTools = getDevToolsApi();
+            void (devTools ? devTools.setDevToolsEnabled(false).catch(() => undefined) : Promise.resolve())
+              .then(() => window.location.reload());
           }
         }}
         type="button"
@@ -200,4 +269,5 @@ export function resetAdvancedDefaults(): void {
   if (api?.setRemoteAssetAllowlist) {
     void api.setRemoteAssetAllowlist([]).catch(() => undefined);
   }
+  void getDevToolsApi()?.setDevToolsEnabled(false).catch(() => undefined);
 }

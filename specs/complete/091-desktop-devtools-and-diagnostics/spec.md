@@ -2,11 +2,11 @@
 title: "Desktop developer tools opt-in and diagnostics log"
 id: 91
 slug: "desktop-devtools-and-diagnostics"
-status: "specified"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-10-02"
-updated: "2026-10-02"
+updated: "2026-10-05"
 issue: "https://github.com/kadraman/beatbax/issues/217"
 area: "desktop"
 related:
@@ -148,11 +148,13 @@ The renderer fails to start and the user sees the fatal error screen.
 - The audience is small and the self-XSS risk is low but real; a confirmation warning plus off-by-default is proportionate.
 - Users can find and attach a file from a folder opened for them; no upload flow is needed.
 
-## Open questions
+## Resolved questions
 
-1. Should packaged builds refuse to start with `--remote-debugging-port` (or quit) unless developer tools are enabled? Default for this spec: no (non-goal), because it is also a legitimate support route and cannot be fully prevented.
-2. Should the log include engine `warn`-level messages beyond those already shown in the Output panel? Default: no, to keep the log readable.
-3. Should the AI Copilot panel record request failures (status code, provider, model — never prompt content) in the log? Default: yes for errors only.
+Resolved 2026-10-05 (T001), all with the defaults proposed when the spec was written:
+
+1. Packaged builds do **not** refuse to start with `--remote-debugging-port`. It stays a non-goal: it is a legitimate support route and cannot be fully prevented.
+2. The log does **not** include engine `warn`-level messages beyond those already shown in the Output panel, to keep it readable.
+3. Copilot request failures **are** logged, errors only, with the HTTP status, provider host, and model. Prompt content, replies, and provider error bodies are never logged.
 
 ## References
 

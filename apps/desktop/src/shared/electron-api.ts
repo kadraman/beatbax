@@ -78,6 +78,25 @@ export interface DesktopWindowState {
   maximized: boolean;
 }
 
+/** Why developer tools are (or are not) available in this session. */
+export type DevToolsSource = 'development' | 'setting' | 'launch-flag' | 'off';
+
+export interface DevToolsState {
+  allowed: boolean;
+  source: DevToolsSource;
+  /** The persisted Settings value, independent of the launch flag. */
+  saved: boolean;
+}
+
+export type DiagnosticsLogLevel = 'warn' | 'error';
+
+export interface DiagnosticsLogEntry {
+  level: DiagnosticsLogLevel;
+  source: string;
+  message: string;
+  stack?: string;
+}
+
 export interface AIAPIKeyValidationResult {
   ok: boolean;
   message: string;
@@ -148,6 +167,12 @@ export interface ElectronAPI {
   closeWindow(): void;
   queryWindowState(): Promise<DesktopWindowState>;
   toggleDevTools(): void;
+  getDevToolsState(): Promise<DevToolsState>;
+  setDevToolsEnabled(enabled: boolean): Promise<DevToolsState>;
+  onDevToolsStateChanged(callback: (state: DevToolsState) => void): () => void;
+  /** Append a warning or error to the diagnostics log file (fire-and-forget). */
+  logDiagnostics(entry: DiagnosticsLogEntry): void;
+  openLogsFolder(): Promise<void>;
   onWindowStateChanged(callback: (state: DesktopWindowState) => void): () => void;
   onMenuAction(callback: (action: MenuAction) => void): () => void;
   onFileOpened(callback: (payload: DesktopFilePayload) => void): () => void;
