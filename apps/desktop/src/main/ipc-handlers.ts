@@ -12,8 +12,21 @@ import type {
   DesktopSaveFileOptions,
   AIChatCompletionRequest,
   AIChatCompletionResult,
+  AITokenParam,
+  ReasoningEffortRequest,
 } from '../shared/electron-api'
 import { parseAIChatCompletionResponse } from '../shared/ai-chat-completion'
+import {
+  CUSTOM_REASONING_EFFORT_PATTERN,
+  chatTimeoutMs,
+  createNegotiationCache,
+  isReasoningEffortLevel,
+  isReplyBudgetTooLarge,
+  negotiateChatCompletion,
+  type ChatAttemptResponse,
+  type NegotiatedChatFailure,
+  type NegotiatedChatSuccess,
+} from '../shared/ai-request-negotiation'
 import { resolveBundledSongFile, resolveExampleSongsOpenDir } from './path-utils'
 import { createDocumentFileWatcher, type DocumentFileWatcher } from './file-watcher'
 import {
@@ -601,14 +614,44 @@ function sanitizeAIChatRequest(request: unknown): AIChatCompletionRequest {
     if (typeof message.content !== 'string') throw new Error('Invalid AI message content.')
     return { role: message.role, content: message.content }
   })
-  return {
+  const sanitized: AIChatCompletionRequest = {
     endpoint: value.endpoint.trim(),
     apiKey: typeof value.apiKey === 'string' ? value.apiKey.trim() : '',
     model: value.model.trim(),
     messages,
     temperature: typeof value.temperature === 'number' ? value.temperature : 0.7,
-    maxTokens: typeof value.maxTokens === 'number' ? value.maxTokens : 1024
+    maxTokens: positiveTokenCount(value.maxTokens) ?? 1024
   }
+  const byParam = sanitizeTokensByParam(value.maxTokensByTokenParam)
+  if (byParam) sanitized.maxTokensByTokenParam = byParam
+  const reasoningEffort = sanitizeReasoningEffortRequest(value.reasoningEffort)
+  if (reasoningEffort) sanitized.reasoningEffort = reasoningEffort
+  return sanitized
+}
+
+function positiveTokenCount(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined
+}
+
+function sanitizeTokensByParam(value: unknown): Partial<Record<AITokenParam, number>> | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  const result: Partial<Record<AITokenParam, number>> = {}
+  for (const key of ['max_tokens', 'max_completion_tokens'] as const) {
+    const tokens = positiveTokenCount(record[key])
+    if (tokens !== undefined) result[key] = tokens
+  }
+  return Object.keys(result).length > 0 ? result : undefined
+}
+
+function sanitizeReasoningEffortRequest(value: unknown): ReasoningEffortRequest | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const record = value as { level?: unknown; value?: unknown }
+  if (!isReasoningEffortLevel(record.level)) return undefined
+  if (record.level !== 'custom') return { level: record.level }
+  return typeof record.value === 'string' && CUSTOM_REASONING_EFFORT_PATTERN.test(record.value)
+    ? { level: 'custom', value: record.value }
+    : undefined
 }
 
 function formatProviderError(status: number, body: string): string {
@@ -635,15 +678,10 @@ function formatProviderError(status: number, body: string): string {
     return 'The AI provider rate limit was reached. Try again later or use a different provider/key.'
   }
   const suffix = providerMessage ? ` ${providerMessage.slice(0, 240)}` : ''
-  return `The AI provider returned HTTP ${status}.${suffix}`
-}
-
-function isOpenAIEndpoint(endpoint: string): boolean {
-  try {
-    return new URL(endpoint).host.toLowerCase().endsWith('openai.com')
-  } catch {
-    return false
-  }
+  const hint = isReplyBudgetTooLarge(status, providerMessage)
+    ? ' Lower the Edit or Ask reply budget in Settings → AI → Advanced.'
+    : ''
+  return `The AI provider returned HTTP ${status}.${suffix}${hint}`
 }
 
 function isLocalAiEndpoint(endpoint: string): boolean {
@@ -657,25 +695,15 @@ function isLocalAiEndpoint(endpoint: string): boolean {
   }
 }
 
-/** Local models (16k ctx + full-song Edit) often need several minutes on first load. */
-const AI_CHAT_TIMEOUT_LOCAL_MS = 5 * 60_000
-const AI_CHAT_TIMEOUT_REMOTE_MS = 60_000
-const AI_CHAT_TIMEOUT_REMOTE_EDIT_MS = 120_000
-/** Edit-mode `max_completion_tokens`: room for reasoning plus a full-song reply. */
-const OPENAI_EDIT_COMPLETION_TOKENS = 16384
-
-function aiChatTimeoutMs(endpoint: string, maxTokens: number): number {
-  if (isLocalAiEndpoint(endpoint)) return AI_CHAT_TIMEOUT_LOCAL_MS
-  if (maxTokens > 2048) return AI_CHAT_TIMEOUT_REMOTE_EDIT_MS
-  return AI_CHAT_TIMEOUT_REMOTE_MS
+function sentReplyBudget(body: Record<string, unknown>): number {
+  const tokens = body.max_completion_tokens ?? body.max_tokens
+  return typeof tokens === 'number' ? tokens : 1024
 }
-
-/** Already logged with its HTTP status; the message may echo provider text, so it is not logged. */
-class AIProviderResponseError extends Error {}
 
 /** AbortController for the in-flight AI chat request (if any). */
 let activeAIChatAbort: AbortController | null = null
 let aiChatUserCancelled = false
+const aiNegotiationCache = createNegotiationCache()
 
 function cancelAIChatCompletion(): void {
   if (!activeAIChatAbort) return
@@ -698,37 +726,13 @@ async function createAIChatCompletion(request: unknown): Promise<AIChatCompletio
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (payload.apiKey) headers.Authorization = `Bearer ${payload.apiKey}`
 
-  // Newer OpenAI models (GPT-5 / o-series) require `max_completion_tokens`
-  // and reject a non-default `temperature`. Older models and most local
-  // providers use `max_tokens`. Start with the endpoint's likely dialect and
-  // adapt on parameter-related 400 responses.
-  let tokenParam: 'max_tokens' | 'max_completion_tokens' = isOpenAIEndpoint(payload.endpoint)
-    ? 'max_completion_tokens'
-    : 'max_tokens'
-  let includeTemperature = true
-  // Reasoning models spend hidden reasoning tokens from `max_completion_tokens`
-  // before writing any reply; at default effort a full-song Edit can exhaust
-  // the budget and return empty content with finish_reason "length".
-  let includeReasoningEffort = tokenParam === 'max_completion_tokens'
+  const local = isLocalAiEndpoint(payload.endpoint)
+  const state = aiNegotiationCache.stateFor(payload.endpoint, payload.model)
 
-  const MAX_ATTEMPTS = 4
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-    const isEditBudget = (payload.maxTokens ?? 0) > 2048
-    const completionLimit = tokenParam === 'max_completion_tokens' && isEditBudget
-      ? Math.max(payload.maxTokens ?? 0, OPENAI_EDIT_COMPLETION_TOKENS)
-      : payload.maxTokens
-    const body: Record<string, unknown> = {
-      model: payload.model,
-      messages: payload.messages,
-      stream: false,
-      [tokenParam]: completionLimit
-    }
-    if (includeTemperature) body.temperature = payload.temperature
-    if (includeReasoningEffort && tokenParam === 'max_completion_tokens') body.reasoning_effort = 'low'
-
+  const send = async (body: Record<string, unknown>): Promise<ChatAttemptResponse> => {
     const controller = new AbortController()
     activeAIChatAbort = controller
-    const timeoutMs = aiChatTimeoutMs(payload.endpoint, payload.maxTokens ?? 1024)
+    const timeoutMs = chatTimeoutMs({ local, maxTokens: sentReplyBudget(body) })
     const timeout = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const response = await fetch(url, {
@@ -737,49 +741,15 @@ async function createAIChatCompletion(request: unknown): Promise<AIChatCompletio
         body: JSON.stringify(body),
         signal: controller.signal
       })
-      if (response.ok) {
-        const data = await response.json()
-        return parseAIChatCompletionResponse(data)
-      }
-
-      const text = await response.text().catch(() => '')
-      if (response.status === 400 && attempt < MAX_ATTEMPTS - 1) {
-        const lower = text.toLowerCase()
-        let adapted = false
-        if (tokenParam === 'max_tokens' && lower.includes('max_completion_tokens')) {
-          tokenParam = 'max_completion_tokens'
-          adapted = true
-        } else if (
-          tokenParam === 'max_completion_tokens' &&
-          lower.includes('max_completion_tokens') &&
-          (lower.includes('unsupported') ||
-            lower.includes('not supported') ||
-            lower.includes('unrecognized'))
-        ) {
-          tokenParam = 'max_tokens'
-          adapted = true
-        }
-        if (includeTemperature && lower.includes('temperature')) {
-          includeTemperature = false
-          adapted = true
-        }
-        if (includeReasoningEffort && lower.includes('reasoning_effort')) {
-          includeReasoningEffort = false
-          adapted = true
-        }
-        if (adapted) continue
-      }
-      logDiagnostics('warn', 'copilot', `AI request failed: HTTP ${response.status} (${failureContext})`)
-      throw new AIProviderResponseError(formatProviderError(response.status, text))
+      if (response.ok) return { ok: true, status: response.status, data: await response.json() }
+      return { ok: false, status: response.status, text: await response.text().catch(() => '') }
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
         if (aiChatUserCancelled) throw new Error('AI request cancelled.')
         logDiagnostics('warn', 'copilot', `AI request timed out (${failureContext})`)
         throw new Error('AI request timed out.')
       }
-      if (!(error instanceof AIProviderResponseError)) {
-        logDiagnostics('warn', 'copilot', `AI request failed (${failureContext}): ${describeErrorSafely(error)}`)
-      }
+      logDiagnostics('warn', 'copilot', `AI request failed (${failureContext}): ${describeErrorSafely(error)}`)
       throw error
     } finally {
       clearTimeout(timeout)
@@ -787,7 +757,18 @@ async function createAIChatCompletion(request: unknown): Promise<AIChatCompletio
     }
   }
 
-  throw new Error('The AI provider rejected the request parameters.')
+  const outcome = await negotiateChatCompletion(payload, state, send)
+  if (outcome.ok === false) {
+    const failure = outcome as NegotiatedChatFailure
+    logDiagnostics('warn', 'copilot', `AI request failed: HTTP ${failure.status} (${failureContext})`)
+    throw new Error(formatProviderError(failure.status, failure.text))
+  }
+  const success = outcome as NegotiatedChatSuccess
+  return {
+    ...parseAIChatCompletionResponse(success.data),
+    effectiveReasoningEffort: success.effectiveReasoningEffort,
+    tokenParam: success.tokenParam
+  }
 }
 
 export async function addRecentFileEntry(

@@ -1,14 +1,33 @@
 /**
- * Copilot token estimates and context-window budget.
+ * Copilot token estimates, reply budgets and context-window budget (spec 088).
  *
- * Uses chars/4 (same convention as the RAG spec) until a provider `usage`
- * object is available from the last reply.
+ * Prose uses chars/4; BeatBax song text tokenizes at roughly chars/2. The
+ * reply budget resolved here is both sent to the provider and reserved by the
+ * footer meter.
  */
 
+import type { AISettings, ChatMode } from '@beatbax/app-core/stores/chat.store';
+import type { AITokenParam, ReasoningEffortRequest } from '../../../shared/electron-api';
+
+/** Auto reply-budget ceilings for the `max_tokens` dialect. */
 export const COMPLETION_TOKEN_LIMIT = {
   edit: 8192,
   ask: 2048,
 } as const;
+
+/** Auto Edit ceiling when the endpoint uses `max_completion_tokens` (room for reasoning). */
+export const EDIT_COMPLETION_TOKENS_CEILING = 16384;
+
+/** FR-016 floors for Auto budgets that are fitted to a small window. */
+export const REPLY_BUDGET_FLOOR = {
+  edit: 2048,
+  ask: 512,
+} as const;
+
+export const SONG_CHARS_PER_TOKEN = 2;
+export const TEXT_CHARS_PER_TOKEN = 4;
+/** Margin applied to the prompt estimate before fitting the reply budget. */
+export const PROMPT_ESTIMATE_MARGIN = 1.1;
 
 export const MODEL_HISTORY_LIMIT = 10;
 
@@ -32,7 +51,44 @@ export interface ContextBudgetBreakdown {
 
 export function estimateTokens(text: string): number {
   if (!text) return 0;
-  return Math.max(1, Math.ceil(text.length / 4));
+  return Math.max(1, Math.ceil(text.length / TEXT_CHARS_PER_TOKEN));
+}
+
+export function estimateSongTokens(songChars: number): number {
+  if (songChars <= 0) return 0;
+  return Math.ceil(songChars / SONG_CHARS_PER_TOKEN);
+}
+
+export interface PromptEstimate {
+  system: number;
+  history: number;
+  message: number;
+  prompt: number;
+}
+
+/**
+ * Prompt tokens: song text at chars/2, everything else at chars/4.
+ * `songChars` is how much of `systemText` is song (the rest is instructions).
+ * A provider-reported figure, when given, replaces the estimated total.
+ */
+export function estimatePromptTokens(input: {
+  systemText: string;
+  songChars?: number;
+  historyTexts: string[];
+  userText: string;
+  actualPromptTokens?: number;
+}): PromptEstimate {
+  const songChars = Math.min(Math.max(0, input.songChars ?? 0), input.systemText.length);
+  const instructionChars = input.systemText.length - songChars;
+  const system = estimateSongTokens(songChars)
+    + (instructionChars > 0 ? Math.ceil(instructionChars / TEXT_CHARS_PER_TOKEN) : 0);
+  const history = input.historyTexts.reduce((sum, text) => sum + estimateTokens(text), 0);
+  const message = input.userText.trim() ? estimateTokens(input.userText) : 0;
+  const estimated = system + history + message;
+  const prompt = input.actualPromptTokens != null && input.actualPromptTokens > 0
+    ? input.actualPromptTokens
+    : estimated;
+  return { system, history, message, prompt };
 }
 
 export function contextBudgetLevel(ratio: number): ContextBudgetLevel {
@@ -41,8 +97,81 @@ export function contextBudgetLevel(ratio: number): ContextBudgetLevel {
   return 'ok';
 }
 
-export function completionTokenLimit(mode: 'edit' | 'ask'): number {
-  return mode === 'edit' ? COMPLETION_TOKEN_LIMIT.edit : COMPLETION_TOKEN_LIMIT.ask;
+/** Auto reply-budget ceiling before window fitting (FR-006). */
+export function autoReplyCeiling(mode: ChatMode, tokenParam: AITokenParam = 'max_tokens'): number {
+  if (mode === 'ask') return COMPLETION_TOKEN_LIMIT.ask;
+  return tokenParam === 'max_completion_tokens' ? EDIT_COMPLETION_TOKENS_CEILING : COMPLETION_TOKEN_LIMIT.edit;
+}
+
+export function completionTokenLimit(mode: ChatMode, tokenParam: AITokenParam = 'max_tokens'): number {
+  return autoReplyCeiling(mode, tokenParam);
+}
+
+export type ReplyBudgetSettings = Pick<AISettings, 'editReplyTokens' | 'askReplyTokens'>;
+
+export interface ResolvedReplyBudget {
+  tokens: number;
+  auto: boolean;
+  /** Auto ceiling before fitting (only meaningful when `auto`). */
+  ceiling: number;
+  /** Auto budget was reduced to fit the model window. */
+  fitted: boolean;
+}
+
+/**
+ * FR-016: explicit numbers are sent as configured; Auto is
+ * `max(floor, min(ceiling, window − ceil(prompt × 1.1)))`.
+ */
+export function resolveReplyBudget(input: {
+  mode: ChatMode;
+  settings: Partial<ReplyBudgetSettings>;
+  tokenParam?: AITokenParam;
+  promptTokens: number;
+  windowTokens: number;
+}): ResolvedReplyBudget {
+  const configured = input.mode === 'edit' ? input.settings.editReplyTokens : input.settings.askReplyTokens;
+  const ceiling = autoReplyCeiling(input.mode, input.tokenParam);
+  if (typeof configured === 'number' && Number.isFinite(configured) && configured > 0) {
+    return { tokens: Math.round(configured), auto: false, ceiling, fitted: false };
+  }
+  const room = Math.round(input.windowTokens) - Math.ceil(Math.max(0, input.promptTokens) * PROMPT_ESTIMATE_MARGIN);
+  const tokens = Math.max(REPLY_BUDGET_FLOOR[input.mode], Math.min(ceiling, room));
+  return { tokens, auto: true, ceiling, fitted: tokens < ceiling };
+}
+
+/** Auto budgets for both token-limit dialects, so a dialect learned mid-request uses the right one. */
+export function resolveReplyBudgetsByTokenParam(input: {
+  mode: ChatMode;
+  settings: Partial<ReplyBudgetSettings>;
+  promptTokens: number;
+  windowTokens: number;
+}): Record<AITokenParam, number> {
+  return {
+    max_tokens: resolveReplyBudget({ ...input, tokenParam: 'max_tokens' }).tokens,
+    max_completion_tokens: resolveReplyBudget({ ...input, tokenParam: 'max_completion_tokens' }).tokens,
+  };
+}
+
+export type ReasoningEffortSettings = Pick<AISettings, 'reasoningEffort' | 'reasoningEffortCustom'>;
+
+/** Maps settings to the request; `undefined` means provider default (field never sent). */
+export function resolveReasoningEffort(settings: Partial<ReasoningEffortSettings>): ReasoningEffortRequest | undefined {
+  switch (settings.reasoningEffort) {
+    case 'provider-default':
+      return undefined;
+    case 'custom':
+      return settings.reasoningEffortCustom
+        ? { level: 'custom', value: settings.reasoningEffortCustom }
+        : { level: 'low' };
+    case 'off':
+    case 'minimal':
+    case 'low':
+    case 'medium':
+    case 'high':
+      return { level: settings.reasoningEffort };
+    default:
+      return { level: 'low' };
+  }
 }
 
 export function formatTokenCount(value: number): string {
@@ -58,6 +187,8 @@ export function formatTokenCount(value: number): string {
 
 export function estimateContextBudget(input: {
   systemText: string;
+  /** Characters of `systemText` that are song text (counted at chars/2). */
+  songChars?: number;
   historyTexts: string[];
   userText: string;
   reservedOutput: number;
@@ -65,13 +196,7 @@ export function estimateContextBudget(input: {
   /** When present, replaces the estimated prompt (system+history+message). */
   actualPromptTokens?: number;
 }): ContextBudgetBreakdown {
-  const system = estimateTokens(input.systemText);
-  const history = input.historyTexts.reduce((sum, text) => sum + estimateTokens(text), 0);
-  const message = input.userText.trim() ? estimateTokens(input.userText) : 0;
-  const estimatedPrompt = system + history + message;
-  const prompt = input.actualPromptTokens != null && input.actualPromptTokens > 0
-    ? input.actualPromptTokens
-    : estimatedPrompt;
+  const { system, history, message, prompt } = estimatePromptTokens(input);
   const reservedOutput = Math.max(0, Math.round(input.reservedOutput));
   const total = prompt + reservedOutput;
   const window = Math.max(1, Math.round(input.windowTokens));

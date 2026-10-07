@@ -10,6 +10,9 @@ const defaultSettings: AISettings = {
   model: 'gpt-4.1',
   maxContextChars: 3000,
   contextWindowTokens: 128000,
+  editReplyTokens: 'auto',
+  askReplyTokens: 'auto',
+  reasoningEffort: 'auto',
 };
 
 const sampleSong = [
@@ -108,9 +111,24 @@ describe('buildCopilotContext', () => {
 
     expect(context).toContain('Valid edit example');
     expect(context).toContain('melody_var_vib');
+    expect(context).toContain('seq lead_seq = melody_pat melody_alt_pat fill_pat melody_var_vib');
+    expect(context).not.toContain('C5<vib:3,5>:4 E5:4');
     expect(context).toContain('explaining what you changed and why');
     expect(context).not.toContain('output only the song source');
     expect(context).not.toContain('[SONG STRUCTURE]');
+  });
+
+  it('edit mode keeps sequence entries, pattern lengths, and "each" requests in scope', () => {
+    const context = buildCopilotContext(defaultSettings, 'edit', () => sampleSong, () => []);
+
+    expect(context).toContain('Keep the existing entries of every `seq` and `channel` line, in order');
+    expect(context).toContain('replace one occurrence of the pattern it was copied or varied from');
+    expect(context).toContain('keeps the original\'s length in steps');
+    expect(context).toContain('`C5 .` becomes `C5<vib:3,5> .`, not `C5<vib:3,5>:4`');
+    expect(context).toContain('apply it to every matching place');
+
+    const ask = buildCopilotContext(defaultSettings, 'ask', () => sampleSong, () => []);
+    expect(ask).not.toContain('replace one occurrence of the pattern');
   });
 
   it('buildSongStructureSummary lists patterns, sequences, and channels', () => {

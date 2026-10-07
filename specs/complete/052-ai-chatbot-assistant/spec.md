@@ -6,7 +6,7 @@ status: "complete"
 authors:
   - "kadraman"
 created: "2026-03-21"
-updated: "2026-09-03"
+updated: "2026-10-07"
 issue: "https://github.com/kadraman/beatbax/issues/61"
 area: "desktop"
 ---
@@ -89,7 +89,7 @@ The BeatBax language has a non-trivial surface area: instruments, patterns, sequ
 
 A **Copilot panel** in the desktop app’s right-side stack (alongside Channel Mixer, Pattern Grid, etc.). It renders a conversation thread with a text input. The user can ask questions or request code generation in two modes:
 
-- **Edit mode** — the AI outputs a complete updated song in a ` ```bax ``` ` block (applied to the editor) plus a short what/why explanation after the fence. Parse-error self-correction runs up to **2** times; incomplete-song repair runs up to **2** additional times. Replies that would wipe most of the song (snippet-only responses) are blocked by the apply guard. The Edit instructions scope changes to the request: no renaming, deduplicating, or reorganising existing definitions, and no edits to unrelated patterns, sequences, or channels (unrelated lines are copied verbatim). When the message carries a `[Referenced editor Lines N–M]` block, edits are confined to those lines, the definitions they reference, and any new definitions they need. How replies that reformat the song, leave definitions out, or go through repair retries are merged, explained, and reported is specified in [017 § Edit apply behaviour with local models](../017-copilot-local-ollama/spec.md#edit-apply-behaviour-with-local-models).
+- **Edit mode** — the AI outputs a complete updated song in a ` ```bax ``` ` block (applied to the editor) plus a short what/why explanation after the fence. Parse-error self-correction runs up to **2** times; incomplete-song repair runs up to **2** additional times. Replies that would wipe most of the song (snippet-only responses) are blocked by the apply guard. The Edit instructions scope changes to the request: no renaming, deduplicating, or reorganising existing definitions, and no edits to unrelated patterns, sequences, or channels (unrelated lines are copied verbatim). Existing `seq` and `channel` entries are kept in order (no removing, reordering, or extra repeats unless asked). A new pattern used in a sequence without a stated position replaces one occurrence of the pattern it was copied or varied from, so the sequence keeps its length; otherwise it is added without removing anything. A copied or varied pattern keeps the original's length in steps, and adding an effect does not change a note's duration. "Each", "every", or "all" in a request applies to every matching place. The Edit syntax example follows these rules. When the message carries a `[Referenced editor Lines N–M]` block, edits are confined to those lines, the definitions they reference, and any new definitions they need. How replies that reformat the song, leave definitions out, or go through repair retries are merged, explained, and reported is specified in [017 § Edit apply behaviour with local models](../017-copilot-local-ollama/spec.md#edit-apply-behaviour-with-local-models).
 - **Ask mode** — the AI answers questions and can include code snippets, but does not auto-apply anything.
 
 The mode toggle is persisted under `beatbax:ai.mode` (`chatMode` in app-core).
@@ -135,7 +135,7 @@ The Copilot header has a session switcher and a **+** New chat button. Delete a 
 
 ### Context meter and token usage
 
-The footer meter estimates the **next** request as instructions + song + packed history + current draft + reserved completion (8192 Edit / 2048 Ask), using chars/4 until the provider returns `usage`. Fill levels: OK, high (~70%), full (~90%+). Hover the meter for a VS Code-style popup (stacked bar + token rows). An empty chat is not 0% — the system prompt (including the song) and reserved reply space are always counted. When the meter is high or full, the popup offers a **Start a new chat** button only if chat history is using part of the window. With no history, it explains that the instructions, song, and reserved reply fill the window and offers **Open AI settings** to raise the Model token window instead.
+The footer meter estimates the **next** request as instructions + song + packed history + current draft + reserved reply (the same budget the next request sends; see [spec 088](../088-copilot-request-controls/spec.md)), using chars/4 for text and chars/2 for the song until the provider returns `usage`. Fill levels: OK, high (~70%), full (~90%+). Hover the meter for a VS Code-style popup (stacked bar + token rows). An empty chat is not 0% — the system prompt (including the song) and reserved reply space are always counted. When the meter is high or full, the popup offers a **Start a new chat** button only if chat history is using part of the window. With no history, it explains that the instructions, song, and reserved reply fill the window and offers **Open AI settings** to raise the Model token window instead.
 
 Set **Settings → AI → Model token window** to the model’s real token limit (Ask and Edit). OpenAI defaults to 128k (200k for `o3`); Ollama/LM Studio default to 16k — match this to `num_ctx`.
 
@@ -298,25 +298,30 @@ export class ChatPanel {
 
 The renderer sends chat requests through the **Electron main process** (`createAIChatCompletion` IPC in `ipc-handlers.ts`) to avoid browser CORS limits and to apply provider-specific timeouts:
 
-| Endpoint type | Timeout |
+| Endpoint type | Minimum timeout |
 |---|---|
 | Local (Ollama, LM Studio) | 5 minutes |
 | Remote, Edit mode (`maxTokens` > 2048) | 2 minutes |
 | Remote, Ask mode | 1 minute |
 
-Token limits: **8192** for Edit mode, **2048** for Ask mode. OpenAI endpoints use `max_completion_tokens`; other providers use `max_tokens`. On the `max_completion_tokens` dialect the main process also sends `reasoning_effort: "low"` and raises Edit-mode requests to **16384** completion tokens, because reasoning models (GPT-5 / o-series) spend hidden reasoning tokens from the same budget — at default effort a full-song Edit can exhaust 8192 and return empty content (`finish_reason: "length"`). If the model rejects `reasoning_effort`, it is dropped and the request retried (same adaptation as `temperature`). The API key is only included when non-empty (Ollama/LM Studio do not require one). Requests can be cancelled via the abort controller (stop button in the UI). Successful responses parse optional OpenAI-compatible `usage` and return `{ content, usage? }` (not a bare string).
+Larger reply budgets get one minute per 8,192 tokens, up to 10 minutes ([spec 088](../088-copilot-request-controls/spec.md) FR-014).
+
+Token limits, reasoning effort and parameter negotiation are specified in [spec 088 — Copilot request controls](../088-copilot-request-controls/spec.md). In short: the renderer sends a resolved reply budget (Auto fits the 16,384 / 8,192 Edit default or the 2,048 Ask default to the room left in the Model token window; Settings → AI → Advanced can override it) and a `reasoning_effort` level (Auto = `low`). The main process sends `max_completion_tokens` to OpenAI and `max_tokens` elsewhere, adapts the token parameter, `temperature` and `reasoning_effort` when the provider rejects them, and remembers those adaptations per endpoint and model for the session. The API key is only included when non-empty (Ollama/LM Studio do not require one). Requests can be cancelled via the abort controller (stop button in the UI). Successful responses parse optional OpenAI-compatible `usage` and return `{ content, usage? }` (not a bare string).
 
 ```typescript
 // Renderer (DesktopCopilotPanel.tsx)
-const maxTokens = activeMode === 'edit' ? 8192 : 2048;
+const { budget, byParam, reasoningEffort } = resolveRequestControls(settings, activeMode, promptTokens);
 const result = await window.electronAPI.createAIChatCompletion({
   endpoint: settings.endpoint,
   apiKey: settings.apiKey,
   model: settings.model,
   messages,
-  maxTokens,
+  maxTokens: budget.tokens,
+  maxTokensByTokenParam: byParam,
+  reasoningEffort,
 });
-// result.content — assistant text; result.usage — prompt/completion tokens when provided
+// result.content — assistant text; result.usage — prompt/completion (and reasoning) tokens when provided;
+// result.finishReason / tokenParam / effectiveReasoningEffort — see spec 088
 
 // Main process routes to `${endpoint}/chat/completions` with appropriate timeout.
 ```

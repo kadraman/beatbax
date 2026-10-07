@@ -2,11 +2,11 @@
 title: "Copilot request controls and budget diagnostics"
 id: 88
 slug: "copilot-request-controls"
-status: "specified"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-09-27"
-updated: "2026-09-27"
+updated: "2026-10-07"
 issue: "https://github.com/kadraman/beatbax/issues/212"
 area: "desktop"
 related:
@@ -176,7 +176,7 @@ Resolved:
 
 ## References
 
-- [Spec 052 — AI chatbot assistant](../../complete/052-ai-chatbot-assistant/spec.md) (API call implementation, token limits)
+- [Spec 052 — AI chatbot assistant](../052-ai-chatbot-assistant/spec.md) (API call implementation, token limits)
 - [Spec 017 — Copilot with local Ollama](../017-copilot-local-ollama/spec.md) (context sizing)
 - [Ollama OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility) (`reasoning_effort` values)
 - `apps/desktop/src/main/ipc-handlers.ts` — `createAIChatCompletion`

@@ -21,6 +21,16 @@ BeatBax Desktop vX.Y.Z — Per-category CodeLens previews, more reliable
   - Context meter: Start a new chat is now a button, shown when chat history
     fills the window; a fresh chat that is already near the limit offers
     Open AI settings instead.
+  - Settings → AI → Advanced adds Edit and Ask reply budgets and Reasoning
+    effort. On Auto, the reply budget fits the room left in the model token
+    window, and the context meter reserves exactly what is sent.
+  - When a reply runs out of budget, Copilot says why (for example, the
+    model spent it on reasoning) and which setting to change, instead of
+    "try again". Large songs that cannot fit get a warning before sending.
+  - Rejected request parameters are remembered for the session, so later
+    requests to the same model are sent once.
+  - Edits stay closer to the request: existing sequence entries are kept,
+    copied patterns keep their length, and "each" applies to every phrase.
 
   Diagnostics
   - Warnings and errors are written to a log file you can attach to bug

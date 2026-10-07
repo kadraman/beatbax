@@ -72,7 +72,7 @@ For each request: seed `tokenParam` from the entry (else `usesCompletionTokensPa
 
 Rejections are only recorded for values actually sent, so switching levels later re-uses what was learned: Off after a cached `none` rejection starts at `minimal`.
 
-**Timeouts.** `max(modeMinimum, ceil(maxTokens / 16384) × 120 s)`, capped at 10 min for remote endpoints; local stays 5 min minimum.
+**Timeouts.** `max(modeMinimum, min(10 min, ceil(maxTokens / 8192) × 60 s))`, where `modeMinimum` is 1 min for remote Ask (budget ≤ 2,048), 2 min for remote Edit and 5 min for local. Same rate as one 2-minute step per 16,384 tokens, but the finer step keeps the 1-minute Ask minimum that FR-014 requires.
 
 **Pre-send check.** In `send()` for Edit mode, before `generate()`: call `checkReplyFits` with the editor text length, the resolved budget and reasoning effort. If it returns a warning, render it above the composer with **Send anyway** and **Open Settings**, and return without sending. Remember a dismissal key (hash of song text + budget + effort + window) for the current chat so the same situation doesn't warn twice. Parse-repair and incomplete-song retries skip the check.
 
