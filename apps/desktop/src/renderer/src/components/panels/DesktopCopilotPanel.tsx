@@ -32,23 +32,40 @@ import {
   type CopilotChangeDetail,
   type CopilotSession,
 } from '@beatbax/app-core/stores/chat.store';
-import { buildCopilotContext } from '../../lib/copilot-context';
+import { buildCopilotContext, contextSongChars } from '../../lib/copilot-context';
 import { earlierEditRequestsNote, packHistoryExcludingCurrentUser, splitContextBudgetMessages } from '../../lib/copilot-history-pack';
 import {
-  completionTokenLimit,
   contextBudgetHover,
   estimateContextBudget,
+  estimatePromptTokens,
   formatTokenCount,
+  resolveReasoningEffort,
+  resolveReplyBudget,
+  resolveReplyBudgetsByTokenParam,
   type ContextBudgetBreakdown,
   type ContextBudgetHintAction,
   type ContextBudgetHoverModel,
 } from '../../lib/copilot-token-budget';
+import {
+  checkReplyFits,
+  describeLengthStop,
+  replyFitDismissalKey,
+  type LengthStopDiagnostic,
+} from '../../lib/copilot-budget-diagnostics';
+import {
+  learnedRequestParams,
+  learnedTokenParam,
+  publishReplyBudget,
+  recordRequestOutcome,
+} from '../../lib/copilot-request-learning';
+import { useStoreValue } from '../../hooks/useStoreValue';
 import {
   formatAssistantChatContent,
   isEmptyAIChatContent,
   normalizeAIChatCompletionResult,
   parseAIChatCompletionResponse,
 } from '../../../../shared/ai-chat-completion';
+import type { AIChatCompletionResult } from '../../../../shared/electron-api';
 import { stripIpcErrorPrefix } from '../../../../shared/ipc-error';
 import { buildMinimalEditFixPrompt } from '../../lib/copilot-edit-fix-prompt';
 import {
@@ -339,9 +356,18 @@ function formatEditStats(message: ChatMessage): string {
 
 function MessageUsage({ usage }: { usage?: ChatTokenUsage }): React.JSX.Element | null {
   if (!usage) return null;
+  const reasoningTokens = usage.reasoningTokens ?? 0;
+  const reasoningLabel = reasoningTokens > 0
+    ? ` · ${formatTokenCount(reasoningTokens)} reasoning`
+    : usage.reasoningPresent ? ' · thinking' : '';
+  const title = reasoningTokens > 0
+    ? `Prompt tokens → completion tokens (${reasoningTokens.toLocaleString('en-US')} of the completion tokens were hidden reasoning)`
+    : usage.reasoningPresent
+      ? 'Prompt tokens → completion tokens (the model returned reasoning but did not report a count)'
+      : 'Prompt tokens → completion tokens';
   return (
-    <span className="bb-chat-token-usage" title="Prompt tokens → completion tokens">
-      {formatTokenCount(usage.promptTokens)} → {formatTokenCount(usage.completionTokens)}
+    <span className="bb-chat-token-usage" title={title}>
+      {formatTokenCount(usage.promptTokens)} → {formatTokenCount(usage.completionTokens)}{reasoningLabel}
     </span>
   );
 }
@@ -964,11 +990,13 @@ function ChatMessageView({
   onReplaceSelection,
   onReplaceEditor,
   onRevealEditorChange,
+  onOpenSettings,
   showReviewActions,
   copilotReviewActions,
 }: {
   message: ChatMessage;
   mode: ChatMode;
+  onOpenSettings: () => void;
   onFixInEditMode: (snippet?: string, assistantContext?: string) => void;
   onRunLayoutFixCommand: (action: ArrangementLayoutFixAction, commandLabel: string) => void;
   onInsertSnippet: (text: string) => void;
@@ -1056,7 +1084,15 @@ function ChatMessageView({
               ))}
             </ul>
           ) : null}
-          <span className="bb-chat-applied-hint">Fix the issue above and try again, or edit manually.</span>
+          {message.openSettingsAction ? (
+            <div className="bb-chat-ask-actions">
+              <button className="bb-chat-action-btn bb-chat-action-btn--primary" onClick={onOpenSettings} type="button">
+                Open AI settings
+              </button>
+            </div>
+          ) : (
+            <span className="bb-chat-applied-hint">Fix the issue above and try again, or edit manually.</span>
+          )}
         </div>
         <details className="bb-chat-applied-details">
           <summary>{hasCodeBlocks ? 'View returned song' : 'View reply'}</summary>
@@ -1088,6 +1124,16 @@ function ChatMessageView({
     <div className="bb-chat-msg bb-chat-msg--assistant">
       <CopilotMessageHead usage={message.usage} />
       {body}
+      {message.replyNotice ? (
+        <div className="bb-chat-reply-notice">
+          <span>⚠ {message.replyNotice}</span>
+          {message.openSettingsAction ? (
+            <button className="bb-chat-action-btn" onClick={onOpenSettings} type="button">
+              Open AI settings
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {message.layoutFixAction && message.layoutFixCommandLabel ? (
         <div className="bb-chat-ask-actions">
           <button
@@ -1117,6 +1163,42 @@ function ChatMessageView({
   );
 }
 
+type GenerateResult = AIChatCompletionResult & {
+  /** Reply budget sent on the successful attempt. */
+  maxTokens: number;
+};
+
+interface PendingReplyFitWarning {
+  message: string;
+  key: string;
+  sessionId: string;
+  text: string;
+  activeMode: ChatMode;
+  displayText?: string;
+}
+
+/** One place for the reply budget and reasoning effort sent and reserved by the meter (FR-013). */
+function resolveRequestControls(settings: AISettings, mode: ChatMode, promptTokens: number) {
+  const windowTokens = settings.contextWindowTokens;
+  const tokenParam = learnedTokenParam(settings.endpoint, settings.model);
+  return {
+    budget: resolveReplyBudget({ mode, settings, tokenParam, promptTokens, windowTokens }),
+    byParam: resolveReplyBudgetsByTokenParam({ mode, settings, promptTokens, windowTokens }),
+    reasoningEffort: resolveReasoningEffort(settings),
+  };
+}
+
+function reasoningEffortKey(settings: AISettings): string {
+  return settings.reasoningEffort === 'custom'
+    ? `custom:${settings.reasoningEffortCustom ?? ''}`
+    : settings.reasoningEffort;
+}
+
+function toChatUsage(result: AIChatCompletionResult): ChatTokenUsage | undefined {
+  if (!result.usage) return undefined;
+  return result.reasoningPresent ? { ...result.usage, reasoningPresent: true } : { ...result.usage };
+}
+
 function DesktopCopilotPanel({
   panelRef,
   getEditorContent,
@@ -1141,6 +1223,9 @@ function DesktopCopilotPanel({
   const [input, setInput] = useState('');
   const [editorReferences, setEditorReferences] = useState<CopilotEditorReference[]>([]);
   const [status, setStatus] = useState('');
+  const [fitWarning, setFitWarning] = useState<PendingReplyFitWarning | null>(null);
+  const dismissedFitKeysRef = useRef(new Map<string, Set<string>>());
+  const learnedParams = useStoreValue(learnedRequestParams);
   const abortRef = useRef<AbortController | null>(null);
   const requestGenRef = useRef(0);
   const cancelledRef = useRef(false);
@@ -1285,28 +1370,47 @@ function DesktopCopilotPanel({
     },
   }), []);
 
+  const buildRequestMessages = useCallback((
+    userText: string,
+    effectiveSettings: AISettings,
+    activeMode: ChatMode,
+    additionalMessages?: Array<{ role: 'user' | 'assistant'; content: string }>,
+  ) => {
+    const packedHistory = packHistoryExcludingCurrentUser(chatHistory.get(), userText, undefined, {
+      omitEditTurns: activeMode === 'edit',
+    });
+    const earlierRequests = activeMode === 'edit' ? earlierEditRequestsNote(chatHistory.get(), userText) : '';
+    const systemText = buildCopilotContext(effectiveSettings, activeMode, getEditorContent, getDiagnostics);
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      { role: 'system', content: systemText },
+      ...packedHistory,
+      { role: 'user', content: earlierRequests ? `${earlierRequests}\n\n${userText}` : userText },
+      ...(additionalMessages ?? []),
+    ];
+    const { prompt } = estimatePromptTokens({
+      systemText,
+      songChars: contextSongChars(effectiveSettings, activeMode, getEditorContent()),
+      historyTexts: [
+        ...packedHistory.map((message) => message.content),
+        ...(earlierRequests ? [earlierRequests] : []),
+        ...(additionalMessages ?? []).map((message) => message.content),
+      ],
+      userText,
+    });
+    return { messages, promptTokens: prompt };
+  }, [getDiagnostics, getEditorContent]);
+
   const generate = useCallback(async (
     userText: string,
     effectiveSettings: AISettings,
     activeMode: ChatMode,
     additionalMessages?: Array<{ role: 'user' | 'assistant'; content: string }>,
-  ): Promise<{ content: string; usage?: ChatTokenUsage }> => {
+  ): Promise<GenerateResult> => {
     const controller = new AbortController();
     abortRef.current = controller;
-    const packedHistory = packHistoryExcludingCurrentUser(chatHistory.get(), userText, undefined, {
-      omitEditTurns: activeMode === 'edit',
-    });
-    const earlierRequests = activeMode === 'edit' ? earlierEditRequestsNote(chatHistory.get(), userText) : '';
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-      { role: 'system', content: buildCopilotContext(effectiveSettings, activeMode, getEditorContent, getDiagnostics) },
-      ...packedHistory,
-      { role: 'user', content: earlierRequests ? `${earlierRequests}\n\n${userText}` : userText },
-      ...(additionalMessages ?? []),
-    ];
-    // Edit mode must return the entire song, so it needs a generous output
-    // budget; ask mode replies are shorter. Too small a limit truncates the
-    // song mid-file and leaves no closing code fence to apply.
-    const maxTokens = completionTokenLimit(activeMode);
+    const { messages, promptTokens } = buildRequestMessages(userText, effectiveSettings, activeMode, additionalMessages);
+    const controls = resolveRequestControls(effectiveSettings, activeMode, promptTokens);
+    const maxTokens = controls.budget.tokens;
     const createAIChatCompletion = window.electronAPI?.createAIChatCompletion;
     if (typeof createAIChatCompletion === 'function') {
       const signal = controller.signal;
@@ -1317,6 +1421,8 @@ function DesktopCopilotPanel({
         messages,
         temperature: 0.7,
         maxTokens,
+        maxTokensByTokenParam: controls.byParam,
+        reasoningEffort: controls.reasoningEffort,
       });
       // Reject promptly when the renderer aborts (stop button), even though
       // the IPC call itself is cancelled via cancelAIChatCompletion in main.
@@ -1333,7 +1439,12 @@ function DesktopCopilotPanel({
               reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
               return;
             }
-            resolve(normalizeAIChatCompletionResult(value));
+            const result = normalizeAIChatCompletionResult(value);
+            recordRequestOutcome(effectiveSettings.endpoint, effectiveSettings.model, controls.reasoningEffort, result);
+            resolve({
+              ...result,
+              maxTokens: result.tokenParam ? controls.byParam[result.tokenParam] : maxTokens,
+            });
           })
           .catch((error) => {
             signal.removeEventListener('abort', onAbort);
@@ -1367,8 +1478,8 @@ function DesktopCopilotPanel({
       throw new Error(`HTTP ${response.status}: ${text}`);
     }
     const data = await response.json();
-    return parseAIChatCompletionResponse(data);
-  }, [getDiagnostics, getEditorContent]);
+    return { ...parseAIChatCompletionResponse(data), maxTokens };
+  }, [buildRequestMessages]);
 
   const submitPrompt = useCallback(async (
     text: string,
@@ -1378,6 +1489,30 @@ function DesktopCopilotPanel({
     if (!text || chatLoading.get()) {
       systemSubmitRef.current = false;
       return;
+    }
+    setFitWarning(null);
+    if (activeMode === 'edit' && settings.endpoint && !shouldTryLocalArrangementFix(activeMode, text)) {
+      const sessionId = activeCopilotSessionId.get();
+      const songText = getEditorContent();
+      const { promptTokens } = buildRequestMessages(text, settings, activeMode);
+      const { budget } = resolveRequestControls(settings, activeMode, promptTokens);
+      const warning = checkReplyFits({
+        songChars: songText.length,
+        budget,
+        windowTokens: settings.contextWindowTokens,
+        reasoningEffort: settings.reasoningEffort,
+      });
+      const key = replyFitDismissalKey({
+        songText,
+        budget: budget.tokens,
+        reasoningEffort: reasoningEffortKey(settings),
+        windowTokens: settings.contextWindowTokens,
+      });
+      if (warning && !dismissedFitKeysRef.current.get(sessionId)?.has(key)) {
+        systemSubmitRef.current = false;
+        setFitWarning({ message: warning.message, key, sessionId, text, activeMode, displayText });
+        return;
+      }
     }
     clearComposer();
     if (!settings.endpoint) {
@@ -1404,16 +1539,41 @@ function DesktopCopilotPanel({
     const requestGen = ++requestGenRef.current;
     chatLoading.set(true);
     let turnUsage: ChatTokenUsage | undefined;
+    let lastResult: GenerateResult | undefined;
     const requestCompletion = async (
       extra?: Array<{ role: 'user' | 'assistant'; content: string }>,
     ): Promise<string> => {
       const result = await generate(text, effectiveSettings, activeMode, extra);
-      turnUsage = addTokenUsage(turnUsage, result.usage);
+      lastResult = result;
+      turnUsage = addTokenUsage(turnUsage, toChatUsage(result));
       return result.content;
     };
     const finishAssistant = (content: string, meta?: Parameters<typeof pushChatMessage>[2]): void => {
       pushChatMessage('assistant', formatAssistantChatContent(content), { ...meta, usage: turnUsage });
       addCopilotSessionUsage(turnUsage);
+    };
+    const lengthStop = (): LengthStopDiagnostic | null => (lastResult
+      ? describeLengthStop({
+        content: lastResult.content,
+        finishReason: lastResult.finishReason,
+        usage: lastResult.usage,
+        reasoningPresent: lastResult.reasoningPresent,
+        budget: lastResult.maxTokens,
+        mode: activeMode,
+      })
+      : null);
+    // FR-003: a reply that hit the budget would fail the same way on retry, so no repair loops.
+    const finishIfLengthStopped = (reply: string): boolean => {
+      const stop = activeMode === 'edit' ? lengthStop() : null;
+      if (!stop) return false;
+      setStatus(`⚠ ${stop.message}`);
+      finishAssistant(reply, {
+        applyBlocked: true,
+        replyMode: activeMode,
+        changeSummary: [stop.message],
+        openSettingsAction: true,
+      });
+      return true;
     };
 
     const tryLocalArrangementFix = (): boolean => {
@@ -1467,6 +1627,7 @@ function DesktopCopilotPanel({
     try {
       let response = await requestCompletion();
       if (requestGen !== requestGenRef.current || cancelledRef.current) return;
+      if (finishIfLengthStopped(response)) return;
       let applied = false;
       let changedLines = 0;
       let linesAdded: number | undefined;
@@ -1505,6 +1666,7 @@ function DesktopCopilotPanel({
             { role: 'user', content: repairPrompt },
           ]);
           if (requestGen !== requestGenRef.current || cancelledRef.current) return;
+          if (finishIfLengthStopped(response)) return;
           applyExplanation = applyExplanation || explain(response);
           baxCode = extractBaxCode(response);
         }
@@ -1546,6 +1708,7 @@ function DesktopCopilotPanel({
               { role: 'user', content: repairPrompt },
             ]);
             if (requestGen !== requestGenRef.current || cancelledRef.current) return;
+            if (finishIfLengthStopped(response)) return;
             // Repair replies describe fixes to the model's own draft, not the user's request.
             applyExplanation = applyExplanation || explain(response);
             const repaired = extractBaxCode(response);
@@ -1607,6 +1770,7 @@ function DesktopCopilotPanel({
               { role: 'user', content: incompletePrompt },
             ]);
             if (requestGen !== requestGenRef.current || cancelledRef.current) return;
+            if (finishIfLengthStopped(response)) return;
             applyExplanation = applyExplanation || explain(response);
             const expanded = extractBaxCode(response);
             if (expanded === null) {
@@ -1716,6 +1880,7 @@ function DesktopCopilotPanel({
           setStatus('⚠ Copilot did not return an applicable song, so the editor was not changed. Try again.');
         }
       }
+      const askStop = activeMode === 'ask' ? lengthStop() : null;
       finishAssistant(
         response,
         applied ? {
@@ -1735,6 +1900,10 @@ function DesktopCopilotPanel({
           replyMode: activeMode,
           applyBlocked: true,
           changeSummary: ['Copilot did not return a full song in a `bax` code block.'],
+        } : askStop ? {
+          replyMode: activeMode,
+          replyNotice: askStop.message,
+          openSettingsAction: true,
         } : { replyMode: activeMode },
       );
     } catch (error) {
@@ -1753,9 +1922,22 @@ function DesktopCopilotPanel({
         flushSync(() => clearComposer());
       }
     }
-  }, [clearComposer, generate, getEditorContent, loading, onHighlightChanges, onReplaceEditor, settings]);
+  }, [buildRequestMessages, clearComposer, generate, getEditorContent, loading, onHighlightChanges, onReplaceEditor, settings]);
 
   submitPromptRef.current = submitPrompt;
+
+  const sendAnyway = useCallback((): void => {
+    if (!fitWarning) return;
+    const dismissed = dismissedFitKeysRef.current.get(fitWarning.sessionId) ?? new Set<string>();
+    dismissed.add(fitWarning.key);
+    dismissedFitKeysRef.current.set(fitWarning.sessionId, dismissed);
+    setFitWarning(null);
+    void submitPrompt(fitWarning.text, fitWarning.activeMode, fitWarning.displayText);
+  }, [fitWarning, submitPrompt]);
+
+  useEffect(() => {
+    setFitWarning((current) => (current && current.sessionId !== activeSessionId ? null : current));
+  }, [activeSessionId]);
 
   const applyFixInEditMode = useCallback(async (snippet?: string, assistantContext?: string) => {
     if (loading) {
@@ -1889,21 +2071,38 @@ function DesktopCopilotPanel({
     return undefined;
   }, [history]);
 
-  const systemPromptText = useMemo(() => {
-    if (!visible) return '';
-    return buildCopilotContext(settings, mode, getEditorContent, getDiagnostics);
+  const systemPrompt = useMemo(() => {
+    if (!visible) return { text: '', songChars: 0 };
+    return {
+      text: buildCopilotContext(settings, mode, getEditorContent, getDiagnostics),
+      songChars: contextSongChars(settings, mode, getEditorContent()),
+    };
   }, [getDiagnostics, getEditorContent, history, mode, settings, visible]);
 
-  const contextBudget = useMemo(() => {
+  const meter = useMemo(() => {
     const split = splitContextBudgetMessages(history, draftUserText, undefined, { omitEditTurns: mode === 'edit' });
-    return estimateContextBudget({
-      systemText: systemPromptText,
+    const promptInput = {
+      systemText: systemPrompt.text,
+      songChars: systemPrompt.songChars,
       historyTexts: split.historyTexts,
       userText: split.userText,
-      reservedOutput: completionTokenLimit(mode),
-      windowTokens: settings.contextWindowTokens,
-    });
-  }, [draftUserText, history, mode, settings.contextWindowTokens, systemPromptText]);
+    };
+    const { budget } = resolveRequestControls(settings, mode, estimatePromptTokens(promptInput).prompt);
+    return {
+      reply: budget,
+      breakdown: estimateContextBudget({
+        ...promptInput,
+        reservedOutput: budget.tokens,
+        windowTokens: settings.contextWindowTokens,
+      }),
+    };
+  }, [draftUserText, history, learnedParams, mode, settings, systemPrompt]);
+  const contextBudget = meter.breakdown;
+
+  useEffect(() => {
+    if (!visible) return;
+    publishReplyBudget({ mode, endpoint: settings.endpoint, model: settings.model, budget: meter.reply });
+  }, [meter, mode, settings.endpoint, settings.model, visible]);
 
 
   const startNewChat = useCallback((): void => {
@@ -2039,6 +2238,7 @@ function DesktopCopilotPanel({
               onReplaceEditor={onReplaceEditor}
               onReplaceSelection={onReplaceSelection}
               onRevealEditorChange={onRevealEditorChange}
+              onOpenSettings={onOpenSettings}
               showReviewActions={Boolean(
                 liveReviewMessage
                 && isSameChatMessage(message, liveReviewMessage),
@@ -2056,6 +2256,27 @@ function DesktopCopilotPanel({
       </div>
 
       <div className="bb-chat-input-row">
+        {fitWarning ? (
+          <div className="bb-chat-budget-warning" role="alert">
+            <span className="bb-chat-budget-warning-text">⚠ {fitWarning.message}</span>
+            <div className="bb-chat-budget-warning-actions">
+              <button className="bb-chat-action-btn bb-chat-action-btn--primary" onClick={sendAnyway} type="button">
+                Send anyway
+              </button>
+              <button className="bb-chat-action-btn" onClick={onOpenSettings} type="button">
+                Open Settings
+              </button>
+              <button
+                aria-label="Dismiss warning"
+                className="bb-chat-action-btn"
+                onClick={() => setFitWarning(null)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        ) : null}
         {editorReferences.length > 0 ? (
           <div className="bb-chat-ref-list" aria-label="Referenced editor lines">
             {editorReferences.map((ref) => (

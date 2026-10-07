@@ -1,0 +1,6 @@
+# Thinking model with a 16k context window, for testing reasoning effort (specs 017, 088).
+#   ollama pull qwen3:8b-q4_K_M
+#   ollama create beatbax-qwen3 -f docs/ollama/beatbax-qwen3.Modelfile
+# In BeatBax, pick `beatbax-qwen3`, set Model token window to 16384 and Reasoning effort to Off.
+FROM qwen3:8b-q4_K_M
+PARAMETER num_ctx 16384

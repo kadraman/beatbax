@@ -1,6 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
-import { chatMode, chatSettings, updateChatSettings, AI_CONTEXT_CHAR_PRESETS, MIN_CONTEXT_WINDOW_TOKENS, MAX_CONTEXT_WINDOW_TOKENS, clampContextWindowTokens, clearChatPromptHistory } from '@beatbax/app-core/stores/chat.store';
+import {
+  chatMode,
+  chatSettings,
+  updateChatSettings,
+  AI_CONTEXT_CHAR_PRESETS,
+  MIN_CONTEXT_WINDOW_TOKENS,
+  MAX_CONTEXT_WINDOW_TOKENS,
+  REPLY_BUDGET_BOUNDS,
+  clampContextWindowTokens,
+  clampReplyBudget,
+  clearChatPromptHistory,
+  isValidCustomReasoningEffort,
+  persistableChatSettings,
+  resetChatRequestControls,
+  type AISettings,
+  type ChatMode,
+  type ReasoningEffortSetting,
+  type ReplyBudgetSetting,
+} from '@beatbax/app-core/stores/chat.store';
 import {
   AI_PROVIDER_OPTIONS,
   AI_PROVIDERS,
@@ -13,6 +31,15 @@ import {
   type AIProviderKey,
 } from '@beatbax/app-core/stores/ai-models';
 import { isLocalAiEndpoint } from '../../lib/ai-endpoint';
+import { autoReplyCeiling, formatTokenCount, resolveReasoningEffort } from '../../lib/copilot-token-budget';
+import {
+  currentReplyBudget,
+  describeAutoReplyBudget,
+  describeEffectiveReasoningEffort,
+  learnedRequestParams,
+  learnedTokenParam,
+} from '../../lib/copilot-request-learning';
+import { negotiationKey } from '../../../../shared/ai-request-negotiation';
 import { useStoreValue } from '../../hooks/useStoreValue';
 import { NoteText, PresetRangeField, RadioGroup, SectionHeading, SelectField, TextField } from './form';
 
@@ -24,12 +51,7 @@ interface AIModelListResult {
   message?: string;
 }
 
-interface ChatSettingsPatch {
-  endpoint?: string;
-  model?: string;
-  maxContextChars?: number;
-  contextWindowTokens?: number;
-}
+type ChatSettingsPatch = Partial<Omit<AISettings, 'apiKey'>>;
 
 interface SecureAIKeyStore {
   clearAIAPIKey: () => Promise<void>;
@@ -141,13 +163,7 @@ async function fetchModelList(endpoint: string, apiKey: string): Promise<AIModel
 }
 
 function saveChatSettings(patch: ChatSettingsPatch): void {
-  storage.setJSON(StorageKey.CHAT_SETTINGS, {
-    endpoint: chatSettings.get().endpoint,
-    model: chatSettings.get().model,
-    maxContextChars: chatSettings.get().maxContextChars,
-    contextWindowTokens: chatSettings.get().contextWindowTokens,
-    ...patch,
-  });
+  storage.setJSON(StorageKey.CHAT_SETTINGS, persistableChatSettings({ ...chatSettings.get(), ...patch }));
 }
 
 function APIKeyField({ endpoint }: { endpoint: string }): React.JSX.Element {
@@ -452,6 +468,226 @@ function ContextWindowField({
   );
 }
 
+const REASONING_EFFORT_OPTIONS: Array<{ value: ReasoningEffortSetting; label: string }> = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'provider-default', label: 'Provider default' },
+  { value: 'off', label: 'Off' },
+  { value: 'minimal', label: 'Minimal' },
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'custom', label: 'Custom...' },
+];
+
+function ReplyBudgetField({
+  id,
+  label,
+  mode,
+  settings,
+  value,
+}: {
+  id: string;
+  label: string;
+  mode: ChatMode;
+  settings: AISettings;
+  value: ReplyBudgetSetting;
+}): React.JSX.Element {
+  const snapshot = useStoreValue(currentReplyBudget);
+  useStoreValue(learnedRequestParams);
+  const bounds = REPLY_BUDGET_BOUNDS[mode];
+  const field = mode === 'edit' ? 'editReplyTokens' : 'askReplyTokens';
+  const autoLabel = describeAutoReplyBudget(mode, settings.endpoint, settings.model, snapshot);
+  const [draft, setDraft] = useState(value === 'auto' ? '' : String(value));
+  const [draftFor, setDraftFor] = useState(value);
+  if (draftFor !== value) {
+    setDraftFor(value);
+    setDraft(value === 'auto' ? '' : String(value));
+  }
+
+  const commit = (next: ReplyBudgetSetting): void => {
+    const clamped = clampReplyBudget(next, mode);
+    setDraft(clamped === 'auto' ? '' : String(clamped));
+    if (clamped === value) return;
+    saveChatSettings({ [field]: clamped });
+    updateChatSettings({ [field]: clamped });
+  };
+
+  const windowTokens = settings.contextWindowTokens;
+  const overflow = typeof value === 'number' && value >= windowTokens * 0.5
+    ? value >= windowTokens
+      ? `This budget is at least your ${formatTokenCount(windowTokens)} model token window, so the prompt and the reply cannot both fit. Lower it or raise the Model token window (and num_ctx for Ollama).`
+      : `This budget is at least half your ${formatTokenCount(windowTokens)} model token window, so large songs or long chats may not fit. Lower it or raise the Model token window (and num_ctx for Ollama).`
+    : '';
+
+  return (
+    <>
+      <div className="bb-settings-row">
+        <label className="bb-settings-label" htmlFor={`${id}-mode`}>{label}</label>
+        <select
+          className="bb-settings-select"
+          id={`${id}-mode`}
+          onChange={(event) => {
+            if (event.currentTarget.value === 'auto') commit('auto');
+            else commit(autoReplyCeiling(mode, learnedTokenParam(settings.endpoint, settings.model)));
+          }}
+          value={value === 'auto' ? 'auto' : 'custom'}
+        >
+          <option value="auto">{autoLabel}</option>
+          <option value="custom">Custom</option>
+        </select>
+        {value !== 'auto' ? (
+          <input
+            aria-label={`${label} (tokens)`}
+            className="bb-settings-number"
+            id={id}
+            max={bounds.max}
+            min={bounds.min}
+            onBlur={() => commit(draft.trim() ? Number(draft) : 'auto')}
+            onChange={(event) => setDraft(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+            }}
+            type="number"
+            value={draft}
+          />
+        ) : null}
+      </div>
+      {overflow ? <div className="bb-settings-warning">{overflow}</div> : null}
+    </>
+  );
+}
+
+function ReasoningEffortField({ settings }: { settings: AISettings }): React.JSX.Element {
+  const learned = useStoreValue(learnedRequestParams);
+  const [pickingCustom, setPickingCustom] = useState(false);
+  const [customDraft, setCustomDraft] = useState(settings.reasoningEffortCustom ?? '');
+  const [customDraftFor, setCustomDraftFor] = useState(settings.reasoningEffortCustom);
+  const [customError, setCustomError] = useState('');
+  if (customDraftFor !== settings.reasoningEffortCustom) {
+    setCustomDraftFor(settings.reasoningEffortCustom);
+    setCustomDraft(settings.reasoningEffortCustom ?? '');
+  }
+
+  const selectValue = pickingCustom ? 'custom' : settings.reasoningEffort;
+  const showCustom = selectValue === 'custom';
+  const persist = (patch: Pick<ChatSettingsPatch, 'reasoningEffort' | 'reasoningEffortCustom'>): void => {
+    saveChatSettings(patch);
+    updateChatSettings(patch);
+  };
+
+  const commitCustom = (): void => {
+    const value = customDraft.trim();
+    if (!isValidCustomReasoningEffort(value)) {
+      setCustomError('Use 1–32 lowercase letters, digits, "-" or "_".');
+      return;
+    }
+    setCustomError('');
+    setPickingCustom(false);
+    persist({ reasoningEffort: 'custom', reasoningEffortCustom: value });
+  };
+
+  const effectiveNote = describeEffectiveReasoningEffort(
+    learned[negotiationKey(settings.endpoint, settings.model)],
+    resolveReasoningEffort(settings),
+  );
+  const options = REASONING_EFFORT_OPTIONS.map((option) => (
+    option.value === 'auto' ? { ...option, label: 'Auto (Low)' } : option
+  ));
+
+  return (
+    <>
+      <div className="bb-settings-row">
+        <label className="bb-settings-label" htmlFor="bb-ai-reasoning-effort">Reasoning effort</label>
+        <select
+          className="bb-settings-select"
+          id="bb-ai-reasoning-effort"
+          onChange={(event) => {
+            const next = event.currentTarget.value as ReasoningEffortSetting;
+            setCustomError('');
+            if (next === 'custom') {
+              if (isValidCustomReasoningEffort(settings.reasoningEffortCustom)) {
+                setPickingCustom(false);
+                persist({ reasoningEffort: 'custom' });
+              } else {
+                setPickingCustom(true);
+              }
+              return;
+            }
+            setPickingCustom(false);
+            persist({ reasoningEffort: next });
+          }}
+          value={selectValue}
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      </div>
+      {showCustom ? (
+        <div className="bb-settings-row">
+          <label className="bb-settings-label" htmlFor="bb-ai-reasoning-custom">Custom value</label>
+          <input
+            className="bb-settings-text"
+            id="bb-ai-reasoning-custom"
+            maxLength={32}
+            onBlur={commitCustom}
+            onChange={(event) => setCustomDraft(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+            }}
+            placeholder="e.g. xhigh"
+            type="text"
+            value={customDraft}
+          />
+        </div>
+      ) : null}
+      {customError ? <div className="bb-settings-warning">{customError}</div> : null}
+      {effectiveNote ? (
+        <NoteText>
+          {effectiveNote.split('`').map((part, index) => (index % 2 === 1 ? <code key={index}>{part}</code> : part))}
+        </NoteText>
+      ) : null}
+    </>
+  );
+}
+
+function AdvancedRequestControls({ settings }: { settings: AISettings }): React.JSX.Element {
+  return (
+    <details className="bb-settings-advanced">
+      <summary className="bb-settings-advanced-summary">Advanced</summary>
+      <ReplyBudgetField
+        id="bb-ai-edit-reply"
+        label="Edit reply budget"
+        mode="edit"
+        settings={settings}
+        value={settings.editReplyTokens}
+      />
+      <ReplyBudgetField
+        id="bb-ai-ask-reply"
+        label="Ask reply budget"
+        mode="ask"
+        settings={settings}
+        value={settings.askReplyTokens}
+      />
+      <NoteText>
+        The most tokens Copilot lets the model write for one reply, including hidden reasoning. Auto fits the default
+        (16,384 or 8,192 for Edit, 2,048 for Ask) to the room left in the model token window. Edit 2,048–65,536; Ask 512–16,384.
+      </NoteText>
+      <ReasoningEffortField settings={settings} />
+      <NoteText>
+        Sent as <code>reasoning_effort</code>. If the model rejects a value, Copilot tries the nearest one and remembers
+        what worked for this session. Provider default sends nothing. Off helps thinking models on small windows.
+      </NoteText>
+      <div className="bb-settings-row">
+        <span className="bb-settings-label">Request controls</span>
+        <button className="bb-settings-btn-secondary" onClick={() => resetChatRequestControls()} type="button">
+          Reset to Auto
+        </button>
+      </div>
+    </details>
+  );
+}
+
 export function AISettingsSection(): React.JSX.Element {
   const settings = useStoreValue(chatSettings);
   const mode = useStoreValue(chatMode);
@@ -525,6 +761,7 @@ export function AISettingsSection(): React.JSX.Element {
       <NoteText>
         The model’s maximum tokens in Ask and Edit — this is what the Copilot footer percentage uses. OpenAI defaults to 128k. Ollama and LM Studio default to 16,384, the recommended minimum <code>num_ctx</code> for Edit mode; set this to the same <code>num_ctx</code> you configured (for example <code>OLLAMA_CONTEXT_LENGTH=16384</code>). Use 32,768 for long chats or songs over 200 lines. Separate from the Ask song excerpt above.
       </NoteText>
+      <AdvancedRequestControls settings={settings} />
       <NoteText>
         Checking a model or provider? Run the{' '}
         <a href={COPILOT_QA_SCENARIOS_URL} rel="noreferrer" target="_blank">Copilot test scenarios</a>
@@ -556,5 +793,9 @@ export function resetAIDefaults(): void {
     model: AI_PROVIDERS.openai.defaultModel,
     maxContextChars: 12000,
     contextWindowTokens: defaultContextWindowTokens(AI_PROVIDERS.openai.endpoint, AI_PROVIDERS.openai.defaultModel),
+    editReplyTokens: 'auto',
+    askReplyTokens: 'auto',
+    reasoningEffort: 'auto',
+    reasoningEffortCustom: undefined,
   });
 }
