@@ -24,7 +24,7 @@ describe('ai-models', () => {
 
   it('maps known endpoints to provider keys', () => {
     expect(getProviderByEndpoint('https://api.openai.com/v1')).toBe('openai');
-    expect(getProviderByEndpoint('https://api.groq.com/openai/v1')).toBe('groq');
+    expect(getProviderByEndpoint('https://api.groq.com/openai/v1')).toBe('custom');
     expect(getProviderByEndpoint('http://localhost:11434/v1')).toBe('ollama');
     expect(getProviderByEndpoint('https://example.com/v1')).toBe('custom');
     expect(getProviderByEndpoint('')).toBe('openai');
@@ -32,7 +32,6 @@ describe('ai-models', () => {
 
   it('exposes model picker only for remote curated providers', () => {
     expect(providerUsesModelPicker('openai')).toBe(true);
-    expect(providerUsesModelPicker('groq')).toBe(true);
     expect(providerUsesModelPicker('ollama')).toBe(false);
     expect(providerUsesModelPicker('custom')).toBe(false);
   });

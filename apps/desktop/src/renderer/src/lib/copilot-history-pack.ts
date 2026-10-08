@@ -156,7 +156,9 @@ function lastUserMessageIndex(messages: ChatMessage[]): number {
 /**
  * Context-meter split: composer draft is "This message" when present;
  * otherwise the last sent user turn is, so the row is not stuck at 0
- * after a reply. That user turn is omitted from Chat so totals still add up.
+ * after a reply. That user turn is omitted from Chat so totals still add up,
+ * and is counted as sent (`promptContent`), not as its short display label,
+ * so the meter's reply budget matches the one the request resolved.
  * With `omitEditTurns` (Edit mode) the history matches what is sent: prior
  * Edit turns are left out and the earlier-requests note is counted instead.
  */
@@ -189,7 +191,7 @@ export function splitContextBudgetMessages(
   const lastUser = messages[lastUserIndex];
   const withoutLastUser = messages.slice(0, lastUserIndex).concat(messages.slice(lastUserIndex + 1));
   return {
-    userText: lastUser.display ?? lastUser.content,
+    userText: modelMessageContent(lastUser),
     historyTexts: withNote(
       packCopilotHistoryForModel(withoutLastUser, limit, options).map((message) => message.content),
       earlierEditRequestsNote(messages.slice(0, lastUserIndex), '', limit),

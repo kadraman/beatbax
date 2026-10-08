@@ -5,7 +5,7 @@
  * per-provider model pickers. Local/custom providers use free-text model entry.
  */
 
-export type AIProviderKey = 'openai' | 'groq' | 'ollama' | 'lmstudio' | 'custom';
+export type AIProviderKey = 'openai' | 'ollama' | 'lmstudio' | 'custom';
 
 export interface AIProviderConfig {
   label: string;
@@ -34,17 +34,6 @@ export const AI_PROVIDERS: Record<AIProviderKey, AIProviderConfig> = {
       'o3',
     ],
   },
-  groq: {
-    label: 'Groq',
-    endpoint: 'https://api.groq.com/openai/v1',
-    // Groq production text models (July 2026). The llama-3.x models are
-    // scheduled for shutdown (2026-08-16) and are intentionally omitted.
-    defaultModel: 'openai/gpt-oss-120b',
-    models: [
-      'openai/gpt-oss-120b',
-      'openai/gpt-oss-20b',
-    ],
-  },
   ollama: {
     label: 'Ollama (local)',
     endpoint: 'http://localhost:11434/v1',
@@ -67,7 +56,6 @@ export const AI_PROVIDERS: Record<AIProviderKey, AIProviderConfig> = {
 
 export const AI_PROVIDER_OPTIONS: Array<{ value: AIProviderKey; label: string }> = [
   { value: 'openai', label: AI_PROVIDERS.openai.label },
-  { value: 'groq', label: AI_PROVIDERS.groq.label },
   { value: 'ollama', label: AI_PROVIDERS.ollama.label },
   { value: 'lmstudio', label: AI_PROVIDERS.lmstudio.label },
   { value: 'custom', label: AI_PROVIDERS.custom.label },
@@ -84,7 +72,6 @@ export function getDefaultAIModel(): string {
  */
 export const DEFAULT_CONTEXT_WINDOW_TOKENS: Record<AIProviderKey, number> = {
   openai: 128000,
-  groq: 131072,
   ollama: 16384,
   lmstudio: 16384,
   custom: 16384,

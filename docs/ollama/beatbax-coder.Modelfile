@@ -1,0 +1,6 @@
+# Recommended local Copilot model with a 16k context window (spec 017).
+#   ollama pull qwen2.5-coder:7b
+#   ollama create beatbax-coder -f docs/ollama/beatbax-coder.Modelfile
+# In BeatBax, pick `beatbax-coder` and set Settings → AI → Model token window to 16384.
+FROM qwen2.5-coder:7b
+PARAMETER num_ctx 16384

@@ -1,4 +1,4 @@
-# Tasks: Copilot — Local models (Ollama)
+# Tasks: Copilot — Local models (Ollama, LM Studio)
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md)
 
@@ -35,4 +35,7 @@ Complete. The 2026-10-03 local-Ollama QA run (T020) found Edit-apply problems, f
 - [x] T040 Edit replies with zero line changes show **⚠ Not applied** instead of **✓ Kept in editor**; the missing-song retry asks the model to apply what it described (`DesktopCopilotPanel.tsx`, `copilot-apply-guard.ts`)
 - [x] T041 Edit-mode history leaves out earlier Edit turns and prefixes the request with the earlier-requests note; context meter matches (`copilot-history-pack.ts` `earlierEditRequestsNote`, `omitEditTurns` + tests)
 - [x] T042 Block reformat-only replies; comment-only warning; explanation-mismatch warning (`DesktopCopilotPanel.tsx`, `line-change-diff.ts` `onlyCommentLinesChanged`, `copilot-edit-changes.ts` `unchangedDefinitionsMentioned` + tests)
+- [x] T043 LM Studio section in [spec.md](spec.md): server start, load-time Context Length, Context Overflow → Stop at Limit, model identifier, ignored `reasoning_effort` on some engines (2026-10-08; not yet QA'd against a live LM Studio)
+- [x] T044 User guide [docs/ui/copilot-local-models.md](../../../docs/ui/copilot-local-models.md) for Ollama and LM Studio, linked from Settings → AI (`apps/desktop/src/renderer/src/components/settings/ai.tsx`)
+- [x] T045 Benchmark `qwen2.5-coder:14b` against the 7B on a 16 GB Apple M4 (2026-10-08): 14B spills to CPU, 8.6 vs 21 tokens/s, full-song Edit exceeds the 5-minute local timeout; model table, user guide and Hardware notes updated. Edit quality of the 14B not compared (needs more memory)
 - [x] T038 ~~Investigate **Discard remaining** leaving the editor different from the pre-edit song~~ — moved to bug [#218](https://github.com/kadraman/beatbax/issues/218)

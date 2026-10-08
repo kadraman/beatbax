@@ -1,6 +1,6 @@
 # Specification status index
 
-Assign the next feature id as **092** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **093** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
@@ -21,13 +21,14 @@ Assign the next feature id as **092** (one past the highest id below). Process: 
 - **020** `spectrum-cpc-arkos-exporter-phase-2` — specified — export — issue: https://github.com/kadraman/beatbax/issues/162 — [specs/features/020-spectrum-cpc-arkos-exporter-phase-2/](specs/features/020-spectrum-cpc-arkos-exporter-phase-2/)
 - **022** `motifs-and-loop-templates` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/204 — [specs/features/022-motifs-and-loop-templates/](specs/features/022-motifs-and-loop-templates/)
 - **023** `sega-mega-drive-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/193 — [specs/features/023-sega-mega-drive-chip-plugin/](specs/features/023-sega-mega-drive-chip-plugin/)
-- **088** `copilot-request-controls` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/212 — [specs/features/088-copilot-request-controls/](specs/features/088-copilot-request-controls/)
+- **092** `duplicate-definition-warnings` (parser warning for same-file `pat`/`seq`/`inst`/`effect` redefinition; Copilot repairs or blocks Edit replies that add duplicates) — specified — language — issue: https://github.com/kadraman/beatbax/issues/222 — [specs/features/092-duplicate-definition-warnings/](specs/features/092-duplicate-definition-warnings/)
 ## Complete (`specs/complete/`)
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
 
 - **004** `daw-channel-mixer` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/75 — [specs/complete/004-daw-channel-mixer/](specs/complete/004-daw-channel-mixer/)
 - **006** `midi-importer` (CLI MIDI → `.bax` conversion) — complete — engine — issue: https://github.com/kadraman/beatbax/issues/101 — [specs/complete/006-midi-importer/](specs/complete/006-midi-importer/)
+- **088** `copilot-request-controls` (reply budgets, reasoning effort, out-of-budget diagnostics) — complete (live-model QA scenarios 31–36 in `docs/qa/copilot-test-scenarios.md` pending) — desktop — issue: https://github.com/kadraman/beatbax/issues/212 — [specs/complete/088-copilot-request-controls/](specs/complete/088-copilot-request-controls/)
 - **089** `midi-import-arrangement` (arrangement-aware MIDI import, follow-up to 006) — complete — engine — issue: https://github.com/kadraman/beatbax/issues/213 — [specs/complete/089-midi-import-arrangement/](specs/complete/089-midi-import-arrangement/) — operator-local `songs/covers` parity shown and `split-midi.mjs` retired 2026-10-01 ([parity.md](specs/complete/089-midi-import-arrangement/parity.md))
 - **090** `midi-import-naming` (readable `_inst` / `_pat` / `_seq` names in MIDI import output) — complete — engine — issue: https://github.com/kadraman/beatbax/issues/214 — [specs/complete/090-midi-import-naming/](specs/complete/090-midi-import-naming/)
 - **091** `desktop-devtools-and-diagnostics` (developer tools opt-in, diagnostics log, startup error screen) — complete (packaged QA on Windows/Linux pending in the release QA checklist) — desktop — issue: https://github.com/kadraman/beatbax/issues/217 — [specs/complete/091-desktop-devtools-and-diagnostics/](specs/complete/091-desktop-devtools-and-diagnostics/)
