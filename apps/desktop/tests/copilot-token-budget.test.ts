@@ -10,6 +10,7 @@ import {
   resolveReplyBudget,
   resolveReplyBudgetsByTokenParam,
 } from '../src/renderer/src/lib/copilot-token-budget';
+import { estimateEditReplyTokens } from '../src/renderer/src/lib/copilot-budget-diagnostics';
 
 const AUTO = { editReplyTokens: 'auto', askReplyTokens: 'auto' } as const;
 
@@ -127,25 +128,9 @@ describe('copilot-token-budget', () => {
     expect(completionTokenLimit('ask')).toBe(2048);
   });
 
-  it('marks high and full windows from reserved output + prompt', () => {
-    const high = estimateContextBudget({
-      systemText: 'x'.repeat(4000),
-      historyTexts: [],
-      userText: '',
-      reservedOutput: 2048,
-      windowTokens: 4096,
-    });
-    expect(contextBudgetLevel(high.ratio)).toBe('high');
-    expect(high.level).toBe('high');
-
-    const full = estimateContextBudget({
-      systemText: 'x'.repeat(12000),
-      historyTexts: [],
-      userText: 'hello',
-      reservedOutput: 8192,
-      windowTokens: 8192,
-    });
-    expect(full.level).toBe('full');
+  it('does not warn on the fill percentage alone', () => {
+    expect(contextBudgetLevel({ total: 4000, window: 4096, history: 0, reservedOutput: 2048, replyFitted: false })).toBe('ok');
+    expect(contextBudgetLevel({ total: 5000, window: 4096, history: 0, reservedOutput: 2048, replyFitted: false })).toBe('critical');
   });
 
   it('prefers actual prompt tokens when provided', () => {
@@ -181,29 +166,124 @@ describe('copilot-token-budget', () => {
     expect(hover.lastReply).toBe('1.2k → 800');
     expect(hover.hint).toBeUndefined();
   });
+});
 
-  it('offers a new chat when chat history is using a tight window', () => {
-    const full = estimateContextBudget({
-      systemText: 'x'.repeat(12000),
-      historyTexts: ['y'.repeat(4000)],
-      userText: 'hello',
-      reservedOutput: 8192,
-      windowTokens: 8192,
+describe('meter warnings (FR-018, FR-019)', () => {
+  const INSTRUCTION_CHARS = 12_763;
+
+  function meterFor(input: {
+    songChars: number;
+    windowTokens: number;
+    historyChars?: number;
+    mode?: 'edit' | 'ask';
+    settings?: Parameters<typeof resolveReplyBudget>[0]['settings'];
+    reasoningEffort?: 'auto' | 'off';
+  }) {
+    const mode = input.mode ?? 'edit';
+    const promptInput = {
+      systemText: `${'i'.repeat(INSTRUCTION_CHARS)}${'s'.repeat(input.songChars)}`,
+      songChars: input.songChars,
+      historyTexts: input.historyChars ? ['h'.repeat(input.historyChars)] : [],
+      userText: '',
+    };
+    const { prompt } = estimatePromptTokens(promptInput);
+    const reply = resolveReplyBudget({ mode, settings: input.settings ?? AUTO, promptTokens: prompt, windowTokens: input.windowTokens });
+    return estimateContextBudget({
+      ...promptInput,
+      reservedOutput: reply.tokens,
+      windowTokens: input.windowTokens,
+      reply,
+      replyNeeded: mode === 'edit' ? estimateEditReplyTokens(input.songChars, input.reasoningEffort ?? 'auto') : undefined,
+      reasoningOff: input.reasoningEffort === 'off',
     });
-    expect(contextBudgetHover(full).hint).toMatchObject({ action: 'new-chat', actionLabel: 'Start a new chat' });
+  }
+
+  it('SC-008: no warning on a fresh sample.bax Edit chat at 16k, despite a high percentage', () => {
+    const meter = meterFor({ songChars: 7637, windowTokens: 16384 });
+    expect(meter.percent).toBeGreaterThanOrEqual(90);
+    expect(meter.level).toBe('ok');
+    expect(contextBudgetHover(meter).hint).toBeUndefined();
   });
 
-  it('points to the token window setting when a new chat cannot free space', () => {
-    // Fresh Edit chat on sample.bax at 16k: instructions + song + reserved reply ≈ 93%.
-    const fresh = estimateContextBudget({
-      systemText: 'x'.repeat(20400),
-      songChars: 7637,
-      historyTexts: [],
-      userText: '',
-      reservedOutput: 8192,
-      windowTokens: 16384,
+  it('is amber with Start a new chat when history shrinks an Auto budget that still fits the song', () => {
+    const meter = meterFor({ songChars: 7637, windowTokens: 16384, historyChars: 8000 });
+    expect(meter.replyFitted).toBe(true);
+    expect(meter.level).toBe('warning');
+    expect(contextBudgetHover(meter).hint).toEqual({
+      text: 'Chat history is shrinking the room for the reply.',
+      newChat: true,
     });
-    expect(fresh.level).toBe('full');
-    expect(contextBudgetHover(fresh).hint).toMatchObject({ action: 'open-settings', actionLabel: 'Open AI settings' });
+  });
+
+  it('SC-008: is red with both figures when the song reply does not fit (call-me-maybe.bax at 16k)', () => {
+    const meter = meterFor({ songChars: 15_500, windowTokens: 16384 });
+    expect(meter.level).toBe('critical');
+    expect(contextBudgetHover(meter).hint).toEqual({
+      text: "This song's reply needs about 8.8k tokens, but only about 4.3k fit.",
+      detail: 'Try a larger num_ctx and Model token window, Reasoning effort Off, or a cloud model.',
+      newChat: false,
+    });
+  });
+
+  it('leaves Reasoning effort Off out of the suggestion when it is already Off', () => {
+    const auto = meterFor({ songChars: 15_500, windowTokens: 16384, reasoningEffort: 'off' });
+    expect(auto.level).toBe('critical');
+    expect(contextBudgetHover(auto).hint?.detail).toBe('Try a larger num_ctx and Model token window, or a cloud model.');
+
+    const explicit = meterFor({
+      songChars: 15_500,
+      windowTokens: 128_000,
+      settings: { editReplyTokens: 4096, askReplyTokens: 'auto' },
+      reasoningEffort: 'off',
+    });
+    expect(contextBudgetHover(explicit).hint?.detail).toBe('Raise the Edit reply budget, or use a cloud model.');
+  });
+
+  it('offers a new chat on a red meter only when history is part of the prompt', () => {
+    const meter = meterFor({ songChars: 15_500, windowTokens: 16384, historyChars: 2000 });
+    expect(meter.level).toBe('critical');
+    expect(contextBudgetHover(meter).hint?.newChat).toBe(true);
+  });
+
+  it('names the Edit reply budget when an explicit budget is too small for the song', () => {
+    const meter = meterFor({
+      songChars: 15_500,
+      windowTokens: 128_000,
+      settings: { editReplyTokens: 4096, askReplyTokens: 'auto' },
+    });
+    expect(meter.level).toBe('critical');
+    expect(contextBudgetHover(meter).hint).toMatchObject({
+      text: "This song's reply needs about 8.8k tokens, but the Edit reply budget is 4.1k.",
+      detail: 'Raise the Edit reply budget, set Reasoning effort to Off, or use a cloud model.',
+    });
+  });
+
+  it('is red when an explicit budget overflows the window', () => {
+    const meter = meterFor({
+      songChars: 2000,
+      windowTokens: 16384,
+      settings: { editReplyTokens: 24576, askReplyTokens: 'auto' },
+    });
+    expect(meter.level).toBe('critical');
+    expect(contextBudgetHover(meter).hint).toMatchObject({
+      text: 'The prompt and reply budget are larger than the model window.',
+      detail: 'Lower the reply budget, or raise num_ctx and the Model token window.',
+    });
+  });
+
+  it('never applies the song-reply check in Ask mode', () => {
+    const meter = meterFor({ songChars: 15_500, windowTokens: 16384, mode: 'ask' });
+    expect(meter.replyNeeded).toBeUndefined();
+    expect(meter.level).toBe('ok');
+  });
+
+  it('is red in Ask mode when the prompt leaves no room for the floor', () => {
+    const meter = meterFor({ songChars: 15_500, windowTokens: 8192, mode: 'ask', historyChars: 2000 });
+    expect(meter.total).toBeGreaterThan(meter.window);
+    expect(meter.level).toBe('critical');
+    expect(contextBudgetHover(meter).hint).toMatchObject({
+      text: 'The prompt and reply budget are larger than the model window.',
+      newChat: true,
+    });
   });
 });

@@ -544,8 +544,10 @@ Expected behavior:
 
 - The footer meter shows an estimated fill % for the next request (system + history + draft + reserved completion).
 - Hover (or click) the footer meter for a compact popup: Instructions + song / Chat history / This message / Room for reply. **This message** is the composer draft, or the last sent question if the box is empty.
-- When high or full with chat history, the popup shows a **Start a new chat** button that starts one (disabled while a reply is loading).
-- When high or full with **no** history (for example a fresh Edit chat on `sample.bax` at 16k, about 93%), the popup explains that a new chat will not free space and shows an **Open AI settings** button instead.
+- The stacked bar in the popup matches the footer %: **Room for reply** is drawn hatched so it stands apart from the empty part of the window.
+- The meter colour follows reply risk, not the percentage (spec 088 FR-018). A fresh Edit chat on `sample.bax` at 16k reads about 93% with **no** warning, because the reply still fits.
+- **Amber**: chat history has shrunk the Auto reply budget. The popup shows *Chat history is shrinking the room for the reply.* and a **Start a new chat** button (disabled while a reply is loading).
+- **Red**: in Edit mode the song's reply will not fit the reply budget (the same check as the pre-send warning, for example `call-me-maybe.bax` at 16k), or the prompt plus reply budget exceeds the window. The popup shows the reason with both token figures and a one-line suggestion; **Start a new chat** appears only if the chat has history. There is no **Open AI settings** button in the popup.
 - After a cloud/OpenAI-compatible reply, the assistant message shows `prompt → completion` when `usage` is present.
 - Settings → AI **Model token window** matches the meter denominator. For Ollama, set it equal to `num_ctx`.
 - Settings → AI **Ask song excerpt** only truncates the song in Ask; Edit still sends the full song. The footer % is the token window, not this character slider.

@@ -87,9 +87,10 @@ export function checkReplyFits(input: {
   const estimate = estimateEditReplyTokens(input.songChars, input.reasoningEffort);
   if (estimate <= input.budget.tokens) return null;
   const need = `This song needs about ${formatTokenCount(estimate)} tokens to reply`;
+  const reasoningOff = input.reasoningEffort === 'off' ? '' : ' set Reasoning effort to Off,';
   const message = input.budget.auto
-    ? `${need}, but only about ${formatTokenCount(input.budget.tokens)} fit in your ${formatTokenCount(input.windowTokens)} model window. Raise num_ctx and the Model token window, set Reasoning effort to Off, or use a cloud model.`
-    : `${need}, but the Edit reply budget is ${formatTokenCount(input.budget.tokens)}. Raise the Edit reply budget (and the Model token window if needed), set Reasoning effort to Off, or use a cloud model.`;
+    ? `${need}, but only about ${formatTokenCount(input.budget.tokens)} fit in your ${formatTokenCount(input.windowTokens)} model window. Raise num_ctx and the Model token window,${reasoningOff} or use a cloud model.`
+    : `${need}, but the Edit reply budget is ${formatTokenCount(input.budget.tokens)}. Raise the Edit reply budget (and the Model token window if needed),${reasoningOff} or use a cloud model.`;
   return { estimate, budget: input.budget.tokens, windowTokens: input.windowTokens, message };
 }
 

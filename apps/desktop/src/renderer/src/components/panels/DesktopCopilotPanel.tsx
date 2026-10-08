@@ -43,12 +43,12 @@ import {
   resolveReplyBudget,
   resolveReplyBudgetsByTokenParam,
   type ContextBudgetBreakdown,
-  type ContextBudgetHintAction,
   type ContextBudgetHoverModel,
 } from '../../lib/copilot-token-budget';
 import {
   checkReplyFits,
   describeLengthStop,
+  estimateEditReplyTokens,
   replyFitDismissalKey,
   type LengthStopDiagnostic,
 } from '../../lib/copilot-budget-diagnostics';
@@ -561,14 +561,12 @@ function CopilotContextMeter({
   lastCompletion,
   actionsDisabled,
   onNewChat,
-  onOpenSettings,
 }: {
   budget: ContextBudgetBreakdown;
   lastPrompt?: number;
   lastCompletion?: number;
   actionsDisabled: boolean;
   onNewChat: () => void;
-  onOpenSettings: () => void;
 }): React.JSX.Element {
   const hover = useMemo(
     () => contextBudgetHover(budget, { lastPrompt, lastCompletion }),
@@ -658,10 +656,9 @@ function CopilotContextMeter({
         <CopilotContextHover
           actionsDisabled={actionsDisabled}
           model={hover}
-          onHintAction={(action) => {
+          onNewChat={() => {
             setOpen(false);
-            if (action === 'new-chat') onNewChat();
-            else onOpenSettings();
+            onNewChat();
           }}
         />
       ) : null}
@@ -672,11 +669,11 @@ function CopilotContextMeter({
 function CopilotContextHover({
   model,
   actionsDisabled,
-  onHintAction,
+  onNewChat,
 }: {
   model: ContextBudgetHoverModel;
   actionsDisabled: boolean;
-  onHintAction: (action: ContextBudgetHintAction) => void;
+  onNewChat: () => void;
 }): React.JSX.Element {
   return (
     <div
@@ -715,16 +712,26 @@ function CopilotContextHover({
         <p className="bb-chat-ctx-hover__last">Last reply {model.lastReply}</p>
       ) : null}
       {model.hint ? (
-        <div className="bb-chat-ctx-hover__hint">
-          {model.hint.text ? <p className="bb-chat-ctx-hover__hint-text">{model.hint.text}</p> : null}
-          <button
-            className="bb-chat-ctx-hover__action"
-            disabled={model.hint.action === 'new-chat' && actionsDisabled}
-            onClick={() => onHintAction(model.hint!.action)}
-            type="button"
-          >
-            {model.hint.actionLabel}
-          </button>
+        <div className="bb-chat-ctx-hover__hint" role="status">
+          <p className="bb-chat-ctx-hover__hint-text">
+            <span
+              aria-hidden="true"
+              className="bb-chat-ctx-hover__hint-icon"
+              dangerouslySetInnerHTML={{ __html: icon('exclamation-triangle', 'w-3.5 h-3.5') }}
+            />
+            <span>{model.hint.text}</span>
+          </p>
+          {model.hint.detail ? <p className="bb-chat-ctx-hover__hint-detail">{model.hint.detail}</p> : null}
+          {model.hint.newChat ? (
+            <button
+              className="bb-chat-ctx-hover__action"
+              disabled={actionsDisabled}
+              onClick={onNewChat}
+              type="button"
+            >
+              Start a new chat
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -1423,6 +1430,7 @@ function DesktopCopilotPanel({
         maxTokens,
         maxTokensByTokenParam: controls.byParam,
         reasoningEffort: controls.reasoningEffort,
+        mode: activeMode,
       });
       // Reject promptly when the renderer aborts (stop button), even though
       // the IPC call itself is cancelled via cancelAIChatCompletion in main.
@@ -2072,10 +2080,12 @@ function DesktopCopilotPanel({
   }, [history]);
 
   const systemPrompt = useMemo(() => {
-    if (!visible) return { text: '', songChars: 0 };
+    if (!visible) return { text: '', songChars: 0, editorChars: 0 };
+    const editorText = getEditorContent();
     return {
       text: buildCopilotContext(settings, mode, getEditorContent, getDiagnostics),
-      songChars: contextSongChars(settings, mode, getEditorContent()),
+      songChars: contextSongChars(settings, mode, editorText),
+      editorChars: editorText.length,
     };
   }, [getDiagnostics, getEditorContent, history, mode, settings, visible]);
 
@@ -2094,6 +2104,11 @@ function DesktopCopilotPanel({
         ...promptInput,
         reservedOutput: budget.tokens,
         windowTokens: settings.contextWindowTokens,
+        reply: budget,
+        replyNeeded: mode === 'edit' && systemPrompt.editorChars > 0
+          ? estimateEditReplyTokens(systemPrompt.editorChars, settings.reasoningEffort)
+          : undefined,
+        reasoningOff: settings.reasoningEffort === 'off',
       }),
     };
   }, [draftUserText, history, learnedParams, mode, settings, systemPrompt]);
@@ -2342,7 +2357,6 @@ function DesktopCopilotPanel({
             lastCompletion={lastUsage?.completionTokens}
             lastPrompt={lastUsage?.promptTokens}
             onNewChat={startNewChat}
-            onOpenSettings={onOpenSettings}
           />
           <CopilotModePicker mode={mode} onChange={(next) => chatMode.set(next)} />
           <span className="bb-chat-model-label" title={modelLabel}>{modelLabel}</span>

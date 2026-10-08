@@ -34,7 +34,8 @@ export const MODEL_HISTORY_LIMIT = 10;
 /** Soft cap for packed conversation history (tokens), excluding system + user. */
 export const HISTORY_TOKEN_BUDGET = 2500;
 
-export type ContextBudgetLevel = 'ok' | 'high' | 'full';
+/** FR-018: `warning` is amber, `critical` is red; neither depends on the fill percentage. */
+export type ContextBudgetLevel = 'ok' | 'warning' | 'critical';
 
 export interface ContextBudgetBreakdown {
   system: number;
@@ -47,6 +48,14 @@ export interface ContextBudgetBreakdown {
   ratio: number;
   level: ContextBudgetLevel;
   percent: number;
+  /** Reserved reply is an Auto budget (not an explicit setting). */
+  replyAuto: boolean;
+  /** Auto reply budget was shrunk below its ceiling to fit the window. */
+  replyFitted: boolean;
+  /** FR-017 full-song reply estimate (Edit mode only). */
+  replyNeeded?: number;
+  /** Reasoning effort is already Off, so suggestions leave it out. */
+  reasoningOff: boolean;
 }
 
 export function estimateTokens(text: string): number {
@@ -91,9 +100,17 @@ export function estimatePromptTokens(input: {
   return { system, history, message, prompt };
 }
 
-export function contextBudgetLevel(ratio: number): ContextBudgetLevel {
-  if (ratio >= 0.9) return 'full';
-  if (ratio >= 0.7) return 'high';
+export function contextBudgetLevel(input: {
+  total: number;
+  window: number;
+  history: number;
+  reservedOutput: number;
+  replyFitted: boolean;
+  replyNeeded?: number;
+}): ContextBudgetLevel {
+  if (input.total > input.window) return 'critical';
+  if (input.replyNeeded != null && input.replyNeeded > input.reservedOutput) return 'critical';
+  if (input.replyFitted && input.history > 0) return 'warning';
   return 'ok';
 }
 
@@ -195,12 +212,19 @@ export function estimateContextBudget(input: {
   windowTokens: number;
   /** When present, replaces the estimated prompt (system+history+message). */
   actualPromptTokens?: number;
+  /** The resolved reply budget behind `reservedOutput`; omitted means an explicit, unfitted budget. */
+  reply?: Pick<ResolvedReplyBudget, 'auto' | 'fitted'>;
+  /** FR-017 full-song reply estimate; pass only in Edit mode. */
+  replyNeeded?: number;
+  reasoningOff?: boolean;
 }): ContextBudgetBreakdown {
   const { system, history, message, prompt } = estimatePromptTokens(input);
   const reservedOutput = Math.max(0, Math.round(input.reservedOutput));
   const total = prompt + reservedOutput;
   const window = Math.max(1, Math.round(input.windowTokens));
   const ratio = total / window;
+  const replyAuto = input.reply?.auto ?? false;
+  const replyFitted = input.reply?.fitted ?? false;
   return {
     system,
     history,
@@ -210,8 +234,12 @@ export function estimateContextBudget(input: {
     total,
     window,
     ratio,
-    level: contextBudgetLevel(ratio),
+    level: contextBudgetLevel({ total, window, history, reservedOutput, replyFitted, replyNeeded: input.replyNeeded }),
     percent: Math.min(999, Math.round(ratio * 100)),
+    replyAuto,
+    replyFitted,
+    replyNeeded: input.replyNeeded,
+    reasoningOff: input.reasoningOff ?? false,
   };
 }
 
@@ -224,12 +252,12 @@ export interface ContextBudgetHoverRow {
   percent: number;
 }
 
-export type ContextBudgetHintAction = 'new-chat' | 'open-settings';
-
 export interface ContextBudgetHint {
-  text?: string;
-  action: ContextBudgetHintAction;
-  actionLabel: string;
+  text: string;
+  /** Short suggestion shown under the warning (red only). */
+  detail?: string;
+  /** Offer Start a new chat (only when chat history is part of the prompt). */
+  newChat: boolean;
 }
 
 export interface ContextBudgetHoverModel {
@@ -242,22 +270,34 @@ export interface ContextBudgetHoverModel {
   lastReply?: string;
 }
 
-/**
- * Only suggest a new chat when chat history is actually using the window;
- * otherwise the fixed part (instructions + song + reserved reply) is the cause.
- */
+/** FR-019: one-line warning for amber / red meters; none when the reply is not at risk. */
 export function contextBudgetHint(budget: ContextBudgetBreakdown): ContextBudgetHint | undefined {
-  if (budget.level === 'ok') return undefined;
-  if (budget.history > 0) {
-    return {
-      action: 'new-chat',
-      actionLabel: 'Start a new chat',
-    };
+  const newChat = budget.history > 0;
+  const largerWindowDetail = budget.reasoningOff
+    ? 'Try a larger num_ctx and Model token window, or a cloud model.'
+    : 'Try a larger num_ctx and Model token window, Reasoning effort Off, or a cloud model.';
+  if (budget.level === 'warning') {
+    return { text: 'Chat history is shrinking the room for the reply.', newChat };
+  }
+  if (budget.level !== 'critical') return undefined;
+  if (budget.replyNeeded != null && budget.replyNeeded > budget.reservedOutput) {
+    const need = `This song's reply needs about ${formatTokenCount(budget.replyNeeded)} tokens`;
+    return budget.replyAuto
+      ? { text: `${need}, but only about ${formatTokenCount(budget.reservedOutput)} fit.`, detail: largerWindowDetail, newChat }
+      : {
+          text: `${need}, but the Edit reply budget is ${formatTokenCount(budget.reservedOutput)}.`,
+          detail: budget.reasoningOff
+            ? 'Raise the Edit reply budget, or use a cloud model.'
+            : 'Raise the Edit reply budget, set Reasoning effort to Off, or use a cloud model.',
+          newChat,
+        };
   }
   return {
-    text: 'Instructions, the song, and room for the reply fill most of the window, so a new chat will not free space. Raise the Model token window (and num_ctx for Ollama) for more room.',
-    action: 'open-settings',
-    actionLabel: 'Open AI settings',
+    text: 'The prompt and reply budget are larger than the model window.',
+    detail: budget.replyAuto
+      ? largerWindowDetail
+      : 'Lower the reply budget, or raise num_ctx and the Model token window.',
+    newChat,
   };
 }
 

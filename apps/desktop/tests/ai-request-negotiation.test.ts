@@ -115,6 +115,11 @@ describe('negotiationKey', () => {
 describe('usesCompletionTokensParam', () => {
   it('guesses max_completion_tokens only for openai.com hosts', () => {
     expect(usesCompletionTokensParam('https://api.openai.com/v1')).toBe(true);
+    expect(usesCompletionTokensParam('https://openai.com/v1')).toBe(true);
+    expect(usesCompletionTokensParam('https://API.OpenAI.com:8443/v1')).toBe(true);
+    expect(usesCompletionTokensParam('https://notopenai.com/v1')).toBe(false);
+    expect(usesCompletionTokensParam('https://api.notopenai.com/v1')).toBe(false);
+    expect(usesCompletionTokensParam('https://openai.com.example.net/v1')).toBe(false);
     expect(usesCompletionTokensParam('https://api.groq.com/openai/v1')).toBe(false);
     expect(usesCompletionTokensParam('not a url')).toBe(false);
   });
@@ -122,13 +127,22 @@ describe('usesCompletionTokensParam', () => {
 
 describe('chatTimeoutMs', () => {
   it('keeps today’s minimums and scales with the budget up to 10 minutes', () => {
-    expect(chatTimeoutMs({ local: false, maxTokens: 2048 })).toBe(60_000);
-    expect(chatTimeoutMs({ local: false, maxTokens: 8192 })).toBe(120_000);
-    expect(chatTimeoutMs({ local: false, maxTokens: 16384 })).toBe(120_000);
-    expect(chatTimeoutMs({ local: false, maxTokens: 24576 })).toBe(180_000);
-    expect(chatTimeoutMs({ local: false, maxTokens: 65536 })).toBe(480_000);
-    expect(chatTimeoutMs({ local: true, maxTokens: 2048 })).toBe(300_000);
-    expect(chatTimeoutMs({ local: true, maxTokens: 65536 })).toBe(480_000);
+    expect(chatTimeoutMs({ local: false, mode: 'ask', maxTokens: 2048 })).toBe(60_000);
+    expect(chatTimeoutMs({ local: false, mode: 'ask', maxTokens: 16384 })).toBe(120_000);
+    expect(chatTimeoutMs({ local: false, mode: 'edit', maxTokens: 8192 })).toBe(120_000);
+    expect(chatTimeoutMs({ local: false, mode: 'edit', maxTokens: 16384 })).toBe(120_000);
+    expect(chatTimeoutMs({ local: false, mode: 'edit', maxTokens: 24576 })).toBe(180_000);
+    expect(chatTimeoutMs({ local: false, mode: 'edit', maxTokens: 65536 })).toBe(480_000);
+    expect(chatTimeoutMs({ local: true, mode: 'ask', maxTokens: 2048 })).toBe(300_000);
+    expect(chatTimeoutMs({ local: true, mode: 'edit', maxTokens: 65536 })).toBe(480_000);
+  });
+
+  it('gives an explicit 2,048-token Edit budget the Edit minimum, not the Ask one', () => {
+    expect(chatTimeoutMs({ local: false, mode: 'edit', maxTokens: 2048 })).toBe(120_000);
+  });
+
+  it('uses the longer Edit minimum when the mode is missing', () => {
+    expect(chatTimeoutMs({ local: false, maxTokens: 2048 })).toBe(120_000);
   });
 });
 
@@ -245,6 +259,28 @@ describe('negotiateChatCompletion', () => {
     const result = await negotiateChatCompletion(request(), createNegotiationState(), send);
     expect(result).toMatchObject({ ok: false, status: 400 });
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not flip token parameters on a max-output rejection that says unsupported', async () => {
+    const send = jest.fn(async () => rejection('max_completion_tokens is unsupported above the maximum of 16384'));
+    const state = createNegotiationState();
+    const result = await negotiateChatCompletion(
+      request({ endpoint: 'https://api.openai.com/v1', reasoningEffort: undefined, temperature: undefined }),
+      state,
+      send,
+    );
+    expect(result).toMatchObject({ ok: false, status: 400 });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(state.tokenParam).toBeUndefined();
+  });
+
+  it('does not switch to max_completion_tokens on a max-output rejection that names it', async () => {
+    const send = jest.fn(async () => rejection('max_tokens exceeds the maximum; max_completion_tokens must be at most 16384'));
+    const state = createNegotiationState();
+    const result = await negotiateChatCompletion(request({ reasoningEffort: undefined, temperature: undefined }), state, send);
+    expect(result).toMatchObject({ ok: false, status: 400 });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(state.tokenParam).toBeUndefined();
   });
 
   it('caps attempts at 6', async () => {

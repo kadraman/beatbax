@@ -128,7 +128,11 @@ export interface AIChatCompletionRequest {
   maxTokensByTokenParam?: Partial<Record<AITokenParam, number>>;
   /** Omitted means "provider default": no `reasoning_effort` field is sent. */
   reasoningEffort?: ReasoningEffortRequest;
+  /** Copilot mode; selects the remote timeout minimum. Omitted gets the longer Edit minimum. */
+  mode?: AIChatMode;
 }
+
+export type AIChatMode = 'ask' | 'edit';
 
 export type ReasoningEffortLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'custom';
 
