@@ -41,6 +41,10 @@ export interface ChatTokenUsage {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  /** Provider-reported reasoning tokens (part of `completionTokens`). */
+  reasoningTokens?: number;
+  /** A reply carried a reasoning field but no reasoning-token count. */
+  reasoningPresent?: boolean;
 }
 
 export interface AISettings {
@@ -51,7 +55,45 @@ export interface AISettings {
   maxContextChars: number;
   /** Model token window (Ask and Edit). Footer meter denominator; match Ollama num_ctx. */
   contextWindowTokens: number;
+  /** Edit reply token limit; `auto` fits the default ceiling to the model window. */
+  editReplyTokens: ReplyBudgetSetting;
+  /** Ask reply token limit; `auto` fits the default ceiling to the model window. */
+  askReplyTokens: ReplyBudgetSetting;
+  reasoningEffort: ReasoningEffortSetting;
+  /** Exact `reasoning_effort` value when `reasoningEffort` is `custom`. */
+  reasoningEffortCustom?: string;
 }
+
+export type ReplyBudgetSetting = 'auto' | number;
+
+export type ReasoningEffortSetting =
+  | 'auto'
+  | 'provider-default'
+  | 'off'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'custom';
+
+export const REASONING_EFFORT_SETTINGS: readonly ReasoningEffortSetting[] = [
+  'auto',
+  'provider-default',
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'custom',
+];
+
+/** FR-007: whole-number bounds for explicit reply budgets. */
+export const REPLY_BUDGET_BOUNDS = {
+  edit: { min: 2048, max: 65_536 },
+  ask: { min: 512, max: 16_384 },
+} as const;
+
+export const CUSTOM_REASONING_EFFORT_PATTERN = /^[a-z0-9_-]{1,32}$/;
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -113,6 +155,10 @@ export interface ChatMessage {
   /** Built-in arrangement command the user can run locally (no AI rewrite). */
   layoutFixAction?: 'split_monolithic' | 'restructure_phased' | 'add_section_markers';
   layoutFixCommandLabel?: string;
+  /** Show an "Open AI settings" action (e.g. reply budget diagnostics). */
+  openSettingsAction?: boolean;
+  /** Muted notice under the reply (e.g. "cut off at the Ask reply budget"). */
+  replyNotice?: string;
 }
 
 export interface ChatMessageMeta {
@@ -136,6 +182,8 @@ export interface ChatMessageMeta {
   usage?: ChatTokenUsage;
   layoutFixAction?: 'split_monolithic' | 'restructure_phased' | 'add_section_markers';
   layoutFixCommandLabel?: string;
+  openSettingsAction?: boolean;
+  replyNotice?: string;
 }
 
 export interface CopilotSessionTokenTotals {
@@ -201,6 +249,32 @@ export function clampContextWindowTokens(value: unknown, fallback: number): numb
   return Math.round(Math.min(MAX_CONTEXT_WINDOW_TOKENS, Math.max(MIN_CONTEXT_WINDOW_TOKENS, value)));
 }
 
+/** Explicit budgets are clamped to FR-007 bounds; anything that is not a number is Auto. */
+export function clampReplyBudget(value: unknown, mode: ChatMode): ReplyBudgetSetting {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'auto';
+  const bounds = REPLY_BUDGET_BOUNDS[mode];
+  return Math.round(Math.min(bounds.max, Math.max(bounds.min, value)));
+}
+
+export function isValidCustomReasoningEffort(value: unknown): value is string {
+  return typeof value === 'string' && CUSTOM_REASONING_EFFORT_PATTERN.test(value);
+}
+
+/** Unknown levels, or Custom without a valid value, load as Auto. */
+function sanitizeReasoningEffort(
+  level: unknown,
+  custom: unknown,
+): Pick<AISettings, 'reasoningEffort' | 'reasoningEffortCustom'> {
+  const reasoningEffortCustom = isValidCustomReasoningEffort(custom) ? custom : undefined;
+  if (!REASONING_EFFORT_SETTINGS.includes(level as ReasoningEffortSetting)) {
+    return { reasoningEffort: 'auto', reasoningEffortCustom };
+  }
+  if (level === 'custom' && !reasoningEffortCustom) {
+    return { reasoningEffort: 'auto', reasoningEffortCustom };
+  }
+  return { reasoningEffort: level as ReasoningEffortSetting, reasoningEffortCustom };
+}
+
 function newSessionId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -216,11 +290,16 @@ export function addTokenUsage(a?: ChatTokenUsage, b?: ChatTokenUsage): ChatToken
   if (!a && !b) return undefined;
   const promptTokens = (a?.promptTokens ?? 0) + (b?.promptTokens ?? 0);
   const completionTokens = (a?.completionTokens ?? 0) + (b?.completionTokens ?? 0);
-  return {
+  const sum: ChatTokenUsage = {
     promptTokens,
     completionTokens,
     totalTokens: promptTokens + completionTokens,
   };
+  if (a?.reasoningTokens !== undefined || b?.reasoningTokens !== undefined) {
+    sum.reasoningTokens = (a?.reasoningTokens ?? 0) + (b?.reasoningTokens ?? 0);
+  }
+  if (a?.reasoningPresent || b?.reasoningPresent) sum.reasoningPresent = true;
+  return sum;
 }
 
 function sanitizeUsage(value: unknown): ChatTokenUsage | undefined {
@@ -237,7 +316,12 @@ function sanitizeUsage(value: unknown): ChatTokenUsage | undefined {
   const totalTokens = typeof record.totalTokens === 'number' && Number.isFinite(record.totalTokens)
     ? Math.max(0, Math.round(record.totalTokens))
     : promptTokens + completionTokens;
-  return { promptTokens, completionTokens, totalTokens };
+  const usage: ChatTokenUsage = { promptTokens, completionTokens, totalTokens };
+  if (typeof record.reasoningTokens === 'number' && Number.isFinite(record.reasoningTokens)) {
+    usage.reasoningTokens = Math.max(0, Math.round(record.reasoningTokens));
+  }
+  if (record.reasoningPresent === true) usage.reasoningPresent = true;
+  return usage;
 }
 
 function sanitizeTokenTotals(value: unknown): CopilotSessionTokenTotals | undefined {
@@ -314,6 +398,9 @@ function loadSettings(): AISettings {
     model: getDefaultAIModel(),
     maxContextChars: 12000,
     contextWindowTokens: defaultContextWindowTokens('https://api.openai.com/v1', getDefaultAIModel()),
+    editReplyTokens: 'auto',
+    askReplyTokens: 'auto',
+    reasoningEffort: 'auto',
   };
   // Scrub any legacy key written by older versions of the app before the
   // no-persist-apiKey policy was introduced.
@@ -332,13 +419,11 @@ function loadSettings(): AISettings {
       saved.contextWindowTokens,
       defaultContextWindowTokens(endpoint, model),
     ),
+    editReplyTokens: clampReplyBudget(saved.editReplyTokens, 'edit'),
+    askReplyTokens: clampReplyBudget(saved.askReplyTokens, 'ask'),
+    ...sanitizeReasoningEffort(saved.reasoningEffort, saved.reasoningEffortCustom),
   };
-  storage.setJSON(StorageKey.CHAT_SETTINGS, {
-    endpoint: sanitized.endpoint,
-    model: sanitized.model,
-    maxContextChars: sanitized.maxContextChars,
-    contextWindowTokens: sanitized.contextWindowTokens,
-  });
+  persistSettings(sanitized);
   return sanitized;
 }
 
@@ -426,13 +511,23 @@ function withSuppressedSessionSync(fn: () => void): void {
   }
 }
 
-function persistSettings(settings: AISettings): void {
-  storage.setJSON(StorageKey.CHAT_SETTINGS, {
+/** Everything except the API key, which is never written to settings storage. */
+export function persistableChatSettings(settings: AISettings): Omit<AISettings, 'apiKey'> {
+  const persisted: Omit<AISettings, 'apiKey'> = {
     endpoint: settings.endpoint,
     model: settings.model,
     maxContextChars: settings.maxContextChars,
     contextWindowTokens: settings.contextWindowTokens,
-  });
+    editReplyTokens: settings.editReplyTokens,
+    askReplyTokens: settings.askReplyTokens,
+    reasoningEffort: settings.reasoningEffort,
+  };
+  if (settings.reasoningEffortCustom) persisted.reasoningEffortCustom = settings.reasoningEffortCustom;
+  return persisted;
+}
+
+function persistSettings(settings: AISettings): void {
+  storage.setJSON(StorageKey.CHAT_SETTINGS, persistableChatSettings(settings));
 }
 
 function persistSessions(sessions: readonly CopilotSession[]): void {
@@ -725,5 +820,23 @@ export function updateChatSettings(partial: Partial<AISettings>): void {
       defaultContextWindowTokens(next.endpoint, next.model),
     );
   }
+  if (partial.editReplyTokens !== undefined) {
+    next.editReplyTokens = clampReplyBudget(partial.editReplyTokens, 'edit');
+  }
+  if (partial.askReplyTokens !== undefined) {
+    next.askReplyTokens = clampReplyBudget(partial.askReplyTokens, 'ask');
+  }
+  if (partial.reasoningEffort !== undefined || partial.reasoningEffortCustom !== undefined) {
+    Object.assign(next, sanitizeReasoningEffort(next.reasoningEffort, next.reasoningEffortCustom));
+  }
   chatSettings.set(next);
+}
+
+/** FR-005 Reset to Auto: reply budgets and reasoning effort only. */
+export function resetChatRequestControls(): void {
+  updateChatSettings({
+    editReplyTokens: 'auto',
+    askReplyTokens: 'auto',
+    reasoningEffort: 'auto',
+  });
 }

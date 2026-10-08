@@ -142,10 +142,10 @@ Only visible when the **AI Copilot** feature flag is enabled. In the **desktop a
 
 | Setting | Type | Description |
 |---|---|---|
-| Provider preset | Select | OpenAI / Groq / Ollama (local) / LM Studio (local) / Custom |
+| Provider preset | Select | OpenAI / Ollama (local) / LM Studio (local) / Custom |
 | API endpoint | URL input | Base URL for the OpenAI-compatible API |
 | API key | Password input | **Desktop:** OS secure credential store via Electron IPC — not in `localStorage`. Optional for local Ollama/LM Studio. Validate and Clear key buttons. |
-| Model | Dropdown + Refresh + Custom | Curated models for OpenAI/Groq; live `/models` list for all providers; **Custom...** for any model ID |
+| Model | Dropdown + Refresh + Custom | Curated models for OpenAI; live `/models` list for all providers; **Custom...** for any model ID |
 | Interaction mode | Radio | Edit mode / Ask mode (`beatbax:ai.mode`) |
 | Ask song excerpt | Preset select | 4K / 8K / 12K (default) / 16K / 24K / 32K **characters** of the open song pasted into **Ask** questions. Ignored in Edit (full song). Not the model token window. |
 | Model token window | Number (tokens) | The model’s max tokens in **Ask and Edit**. Denominator for the Copilot footer %. Defaults: 128k OpenAI, 16k Ollama/LM Studio. Match Ollama `num_ctx`. |

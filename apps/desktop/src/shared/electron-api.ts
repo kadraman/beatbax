@@ -121,18 +121,44 @@ export interface AIChatCompletionRequest {
   messages: AIChatCompletionMessage[];
   temperature?: number;
   maxTokens?: number;
+  /** Omitted means "provider default": no `reasoning_effort` field is sent. */
+  reasoningEffort?: ReasoningEffortRequest;
+  /** Copilot mode; selects the remote timeout minimum. Omitted gets the longer Edit minimum. */
+  mode?: AIChatMode;
 }
+
+export type AIChatMode = 'ask' | 'edit';
+
+export type ReasoningEffortLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'custom';
+
+export interface ReasoningEffortRequest {
+  level: ReasoningEffortLevel;
+  /** Exact wire value; required when `level` is `custom`. */
+  value?: string;
+}
+
+export type AITokenParam = 'max_tokens' | 'max_completion_tokens';
 
 /** OpenAI-compatible `usage` object, normalised to camelCase. */
 export interface AIChatCompletionUsage {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  /** `usage.completion_tokens_details.reasoning_tokens`, when the provider reports it. */
+  reasoningTokens?: number;
 }
 
 export interface AIChatCompletionResult {
   content: string;
   usage?: AIChatCompletionUsage;
+  /** Provider `choices[0].finish_reason` (e.g. `stop`, `length`). */
+  finishReason?: string;
+  /** True when the reply message carried a non-empty `reasoning` / `reasoning_content` field. */
+  reasoningPresent?: boolean;
+  /** `reasoning_effort` value sent on the successful attempt; `null` when the field was omitted. */
+  effectiveReasoningEffort?: string | null;
+  /** Token-limit parameter used on the successful attempt. */
+  tokenParam?: AITokenParam;
 }
 
 export interface ElectronAPI {

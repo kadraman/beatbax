@@ -22,6 +22,23 @@ describe('parseAIChatUsage', () => {
   it('returns undefined when usage is missing', () => {
     expect(parseAIChatUsage({ choices: [] })).toBeUndefined();
   });
+
+  it('reads reasoning tokens from completion_tokens_details', () => {
+    expect(parseAIChatUsage({
+      usage: {
+        prompt_tokens: 12000,
+        completion_tokens: 8192,
+        total_tokens: 20192,
+        completion_tokens_details: { reasoning_tokens: 8192 },
+      },
+    })).toEqual({ promptTokens: 12000, completionTokens: 8192, totalTokens: 20192, reasoningTokens: 8192 });
+  });
+
+  it('omits reasoning tokens when the provider does not report them', () => {
+    expect(parseAIChatUsage({
+      usage: { prompt_tokens: 1, completion_tokens: 1, completion_tokens_details: {} },
+    })).not.toHaveProperty('reasoningTokens');
+  });
 });
 
 describe('parseAIChatCompletionResponse', () => {
@@ -38,6 +55,29 @@ describe('parseAIChatCompletionResponse', () => {
   it('falls back when content is empty', () => {
     expect(parseAIChatCompletionResponse({})).toEqual({ content: '' });
   });
+
+  it('reads finish_reason and reasoning presence', () => {
+    const result = parseAIChatCompletionResponse({
+      choices: [{ finish_reason: 'length', message: { content: '', reasoning_content: 'thinking…' } }],
+    });
+    expect(result.finishReason).toBe('length');
+    expect(result.reasoningPresent).toBe(true);
+  });
+
+  it('accepts the `reasoning` field name', () => {
+    const result = parseAIChatCompletionResponse({
+      choices: [{ finish_reason: 'stop', message: { content: 'ok', reasoning: 'x' } }],
+    });
+    expect(result.reasoningPresent).toBe(true);
+  });
+
+  it('leaves stop signals undefined when absent or empty', () => {
+    const result = parseAIChatCompletionResponse({
+      choices: [{ message: { content: 'ok', reasoning: '   ' } }],
+    });
+    expect(result.finishReason).toBeUndefined();
+    expect(result.reasoningPresent).toBeUndefined();
+  });
 });
 
 describe('normalizeAIChatCompletionResult', () => {
@@ -52,6 +92,24 @@ describe('normalizeAIChatCompletionResult', () => {
     })).toEqual({
       content: 'ok',
       usage: { promptTokens: 3, completionTokens: 1, totalTokens: 4 },
+    });
+  });
+
+  it('carries stop signals and negotiation results through IPC', () => {
+    expect(normalizeAIChatCompletionResult({
+      content: '',
+      usage: { promptTokens: 3, completionTokens: 8, totalTokens: 11, reasoningTokens: 8 },
+      finishReason: 'length',
+      reasoningPresent: true,
+      effectiveReasoningEffort: null,
+      tokenParam: 'max_completion_tokens',
+    })).toEqual({
+      content: '',
+      usage: { promptTokens: 3, completionTokens: 8, totalTokens: 11, reasoningTokens: 8 },
+      finishReason: 'length',
+      reasoningPresent: true,
+      effectiveReasoningEffort: null,
+      tokenParam: 'max_completion_tokens',
     });
   });
 });
