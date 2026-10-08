@@ -626,6 +626,7 @@ function sanitizeAIChatRequest(request: unknown): AIChatCompletionRequest {
   if (byParam) sanitized.maxTokensByTokenParam = byParam
   const reasoningEffort = sanitizeReasoningEffortRequest(value.reasoningEffort)
   if (reasoningEffort) sanitized.reasoningEffort = reasoningEffort
+  if (value.mode === 'ask' || value.mode === 'edit') sanitized.mode = value.mode
   return sanitized
 }
 
@@ -732,7 +733,7 @@ async function createAIChatCompletion(request: unknown): Promise<AIChatCompletio
   const send = async (body: Record<string, unknown>): Promise<ChatAttemptResponse> => {
     const controller = new AbortController()
     activeAIChatAbort = controller
-    const timeoutMs = chatTimeoutMs({ local, maxTokens: sentReplyBudget(body) })
+    const timeoutMs = chatTimeoutMs({ local, mode: payload.mode, maxTokens: sentReplyBudget(body) })
     const timeout = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const response = await fetch(url, {

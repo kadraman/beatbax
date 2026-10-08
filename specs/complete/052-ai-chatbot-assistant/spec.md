@@ -12,7 +12,7 @@ area: "desktop"
 ---
 ## Summary
 
-An AI chat assistant (**BeatBax Copilot**, desktop app) that helps users write, edit, and debug `.bax` song scripts. The assistant uses any **OpenAI-compatible REST API endpoint** (OpenAI, Groq, Mistral, Ollama, LM Studio, llama.cpp, etc.) — no on-device model required. It understands the full BeatBax language syntax, has access to the current editor content and active parse/validation errors, and can automatically apply generated code back into the editor with self-correction retry on parse failures.
+An AI chat assistant (**BeatBax Copilot**, desktop app) that helps users write, edit, and debug `.bax` song scripts. The assistant uses any **OpenAI-compatible REST API endpoint** (OpenAI, Mistral, Ollama, LM Studio, llama.cpp, etc.) — no on-device model required. It understands the full BeatBax language syntax, has access to the current editor content and active parse/validation errors, and can automatically apply generated code back into the editor with self-correction retry on parse failures.
 
 ---
 
@@ -38,11 +38,12 @@ Copilot is available in the **desktop app only** (`desktop-full` profile). The h
 | Preset label | Endpoint | Default model | Curated models (dropdown) |
 |---|---|---|---|
 | OpenAI | `https://api.openai.com/v1` | `gpt-5.4-mini` | `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `o3` |
-| Groq (free, fast) | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b` | `openai/gpt-oss-120b`, `openai/gpt-oss-20b` |
 | Ollama (local) | `http://localhost:11434/v1` | `qwen2.5-coder:7b` | Free-text (installed model name); see [Local Ollama guide](../copilot-local-ollama.md) |
 | LM Studio (local) | `http://localhost:1234/v1` | `local-model` | Free-text (loaded model name) |
 
 Curated model IDs are verified against each provider's catalog as of July 2026. They change over time — use **Custom...** for any newer model ID.
+
+Groq is not a preset (removed 2026-10-08). Its free tier limits each request to 8,000 tokens per minute, counting the prompt plus the requested reply budget, so every Edit request (full song in, full song out) is rejected with HTTP 413. Paid Groq plans can still be used through **Custom**.
 
 Settings → AI shows a **Model** dropdown combining curated options with models fetched **live** from the provider's `/models` endpoint, plus **Custom...** for any model ID. A **Refresh** button reloads the list on demand; the list is also loaded automatically when an endpoint has usable credentials (an API key, or any local endpoint). This means local providers (Ollama, LM Studio) show your actually-installed models, and remote providers surface newly released models without waiting for a curated-list update. Fetching goes through the desktop main process to avoid browser CORS restrictions.
 
@@ -135,7 +136,7 @@ The Copilot header has a session switcher and a **+** New chat button. Delete a 
 
 ### Context meter and token usage
 
-The footer meter estimates the **next** request as instructions + song + packed history + current draft + reserved reply (the same budget the next request sends; see [spec 088](../088-copilot-request-controls/spec.md)), using chars/4 for text and chars/2 for the song until the provider returns `usage`. Fill levels: OK, high (~70%), full (~90%+). Hover the meter for a VS Code-style popup (stacked bar + token rows). An empty chat is not 0% — the system prompt (including the song) and reserved reply space are always counted. When the meter is high or full, the popup offers a **Start a new chat** button only if chat history is using part of the window. With no history, it explains that the instructions, song, and reserved reply fill the window and offers **Open AI settings** to raise the Model token window instead.
+The footer meter estimates the **next** request as instructions + song + packed history + current draft + reserved reply (the same budget the next request sends; see [spec 088](../088-copilot-request-controls/spec.md)), using chars/4 for text and chars/2 for the song until the provider returns `usage`. The meter colour shows whether the next reply is at risk, not the fill percentage ([spec 088 FR-018](../088-copilot-request-controls/spec.md)): red when the song's reply will not fit the reply budget or the request exceeds the window, amber when chat history is shrinking an Auto reply budget, otherwise no warning. Hover the meter for a VS Code-style popup (stacked bar + token rows, with the reserved reply hatched). An empty chat is not 0% — the system prompt (including the song) and reserved reply space are always counted, so a high percentage on its own is normal. When amber or red, the popup shows a one-line warning; **Start a new chat** is offered only if chat history is part of the prompt (FR-019).
 
 Set **Settings → AI → Model token window** to the model’s real token limit (Ask and Edit). OpenAI defaults to 128k (200k for `o3`); Ollama/LM Studio default to 16k — match this to `num_ctx`.
 
@@ -301,10 +302,10 @@ The renderer sends chat requests through the **Electron main process** (`createA
 | Endpoint type | Minimum timeout |
 |---|---|
 | Local (Ollama, LM Studio) | 5 minutes |
-| Remote, Edit mode (`maxTokens` > 2048) | 2 minutes |
+| Remote, Edit mode | 2 minutes |
 | Remote, Ask mode | 1 minute |
 
-Larger reply budgets get one minute per 8,192 tokens, up to 10 minutes ([spec 088](../088-copilot-request-controls/spec.md) FR-014).
+The renderer sends the Copilot `mode` with each request, and the minimum follows it rather than the reply budget, so an explicit 2,048-token Edit budget still gets 2 minutes. Larger reply budgets get one minute per 8,192 tokens, up to 10 minutes ([spec 088](../088-copilot-request-controls/spec.md) FR-014).
 
 Token limits, reasoning effort and parameter negotiation are specified in [spec 088 — Copilot request controls](../088-copilot-request-controls/spec.md). In short: the renderer sends a resolved reply budget (Auto fits the 16,384 / 8,192 Edit default or the 2,048 Ask default to the room left in the Model token window; Settings → AI → Advanced can override it) and a `reasoning_effort` level (Auto = `low`). The main process sends `max_completion_tokens` to OpenAI and `max_tokens` elsewhere, adapts the token parameter, `temperature` and `reasoning_effort` when the provider rejects them, and remembers those adaptations per endpoint and model for the session. The API key is only included when non-empty (Ollama/LM Studio do not require one). Requests can be cancelled via the abort controller (stop button in the UI). Successful responses parse optional OpenAI-compatible `usage` and return `{ content, usage? }` (not a bare string).
 
@@ -490,7 +491,7 @@ See **[CoPilot test scenarios](../../copilot-test-scenarios.md)** for the full r
 
 - Confirm "Insert at cursor" inserts generated `pat` at cursor position
 - Confirm diagnostics appear verbatim in assembled context
-- Test with OpenAI `gpt-5.4-mini` (default) and Groq `openai/gpt-oss-120b` (default)
+- Test with OpenAI `gpt-5.4-mini` (default)
 - Switch curated models in Settings → AI and confirm the Copilot footer label updates
 - Choose **Custom...** and enter an arbitrary model ID; confirm it persists across restart
 - Test with local Ollama (`qwen2.5-coder:7b`, `num_ctx` ≥ 16k; no API key)
@@ -502,7 +503,6 @@ See **[CoPilot test scenarios](../../copilot-test-scenarios.md)** for the full r
 ## References
 
 - [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat)
-- [Groq API (free, OpenAI-compatible)](https://console.groq.com/docs/openai)
 - [Ollama REST API](https://github.com/ollama/ollama/blob/main/docs/api.md)
 - [LM Studio server docs](https://lmstudio.ai/docs/local-server)
 - [Monaco `executeEdits` API](https://microsoft.github.io/monaco-editor/typedoc/interfaces/editor.ICodeEditor.html#executeEdits)

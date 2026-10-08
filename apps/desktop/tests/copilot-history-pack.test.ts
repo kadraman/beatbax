@@ -120,26 +120,28 @@ describe('packCopilotHistoryForModel', () => {
     expect(packed).toEqual([]);
   });
 
-  it('uses the short transcript for context meter after auto-submit', () => {
+  it('counts the sent prompt, not the short transcript, for context meter after auto-submit', () => {
     const split = splitContextBudgetMessages([
       msg({
         role: 'user',
         content: '[validation] short transcript',
+        display: '[validation] short transcript',
         promptContent: 'Please explain this error and suggest how to fix it:\n\n[validation] short transcript',
       }),
       msg({ role: 'assistant', content: 'answer', replyMode: 'ask' }),
     ], '');
-    expect(split.userText).toBe('[validation] short transcript');
+    expect(split.userText).toBe('Please explain this error and suggest how to fix it:\n\n[validation] short transcript');
   });
 
   it('attributes the last sent question to This message when the composer is empty', () => {
+    const resolved = '[EDITOR REFERENCES]\nLines 1-4 of song.bax\n...\n\nand chip?';
     const split = splitContextBudgetMessages([
       msg({ role: 'user', content: 'what is bpm?' }),
       msg({ role: 'assistant', content: 'beats per minute', replyMode: 'ask' }),
-      msg({ role: 'user', content: 'verbose wrapper', display: 'and chip?' }),
+      msg({ role: 'user', content: '[song.bax:1-4] and chip?', display: '[song.bax:1-4] and chip?', promptContent: resolved }),
       msg({ role: 'assistant', content: 'sound chip', replyMode: 'ask' }),
     ], '');
-    expect(split.userText).toBe('and chip?');
+    expect(split.userText).toBe(resolved);
     expect(split.historyTexts).toEqual(['what is bpm?', 'beats per minute', 'sound chip']);
   });
 

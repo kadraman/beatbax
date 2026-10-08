@@ -79,6 +79,7 @@ describe('checkReplyFits', () => {
     const warning = checkReplyFits({ songChars, budget, windowTokens: 16_384, reasoningEffort: 'auto' });
     expect(warning).not.toBeNull();
     expect(warning?.message).toMatch(/needs about 8\.\dk tokens to reply, but only about 6\.\dk fit in your 16k model window/);
+    expect(warning?.message).toContain('set Reasoning effort to Off');
   });
 
   it('SC-006: no warning for the same song on the OpenAI 128k default window', () => {
@@ -101,6 +102,8 @@ describe('checkReplyFits', () => {
       reasoningEffort: 'off',
     });
     expect(warning?.message).toContain('Edit reply budget is 4.1k');
+    expect(warning?.message).not.toContain('Reasoning effort');
+    expect(warning?.message).toMatch(/if needed\), or use a cloud model\.$/);
   });
 });
 

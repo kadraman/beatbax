@@ -8,6 +8,7 @@
  */
 import type {
   AIChatCompletionRequest,
+  AIChatMode,
   AITokenParam,
   ReasoningEffortLevel,
   ReasoningEffortRequest,
@@ -132,7 +133,8 @@ export function createNegotiationCache(): NegotiationCache {
 /** Initial token-parameter guess; corrected by 400 replies and then cached. */
 export function usesCompletionTokensParam(endpoint: string): boolean {
   try {
-    return new URL(endpoint).host.toLowerCase().endsWith('openai.com');
+    const hostname = new URL(endpoint).hostname.toLowerCase();
+    return hostname === 'openai.com' || hostname.endsWith('.openai.com');
   } catch {
     return false;
   }
@@ -148,14 +150,17 @@ const REMOTE_EDIT_MIN_MS = 2 * MINUTE_MS;
 /** Local models (16k ctx + full-song Edit) often need several minutes on first load. */
 const LOCAL_MIN_MS = 5 * MINUTE_MS;
 const TIMEOUT_CAP_MS = 10 * MINUTE_MS;
-const ASK_BUDGET_MAX_BEFORE_EDIT_MINIMUM = 2048;
 
-/** FR-014: request timeout scaled by the reply budget, keeping today's minimums. */
-export function chatTimeoutMs(options: { local: boolean; maxTokens: number }): number {
+/**
+ * FR-014: request timeout scaled by the reply budget, keeping today's minimums.
+ * The minimum follows the request mode, since an explicit Edit budget can be as
+ * small as the Ask default.
+ */
+export function chatTimeoutMs(options: { local: boolean; mode?: AIChatMode; maxTokens: number }): number {
   const scaled = Math.ceil(Math.max(1, options.maxTokens) / 8192) * MINUTE_MS;
   const minimum = options.local
     ? LOCAL_MIN_MS
-    : options.maxTokens > ASK_BUDGET_MAX_BEFORE_EDIT_MINIMUM ? REMOTE_EDIT_MIN_MS : REMOTE_ASK_MIN_MS;
+    : options.mode === 'ask' ? REMOTE_ASK_MIN_MS : REMOTE_EDIT_MIN_MS;
   return Math.max(minimum, Math.min(TIMEOUT_CAP_MS, scaled));
 }
 
@@ -223,12 +228,15 @@ export async function negotiateChatCompletion(
     }
 
     const lower = text.toLowerCase();
+    // A too-large budget rejects the limit's value, not its name; flipping dialects would only bounce.
+    const dialectRejection = !isReplyBudgetTooLarge(response.status, providerErrorMessage(text));
     let adapted = false;
-    if (tokenParam === 'max_tokens' && lower.includes('max_completion_tokens')) {
+    if (dialectRejection && tokenParam === 'max_tokens' && lower.includes('max_completion_tokens')) {
       state.tokenParam = 'max_completion_tokens';
       adapted = true;
     } else if (
-      tokenParam === 'max_completion_tokens'
+      dialectRejection
+      && tokenParam === 'max_completion_tokens'
       && lower.includes('max_completion_tokens')
       && (lower.includes('unsupported') || lower.includes('not supported') || lower.includes('unrecognized'))
     ) {

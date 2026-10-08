@@ -48,3 +48,11 @@
 - [x] T900 Add QA scenarios for SC-001–SC-003, SC-006, SC-007 and the Ollama fallback cases to `docs/qa/copilot-test-scenarios.md`
 - [x] T901 Point the token-limit paragraph in `specs/complete/052-ai-chatbot-assistant/spec.md` at this spec; in `specs/complete/017-copilot-local-ollama/spec.md`, note the fitted Edit reply budget, the pre-send warning, and Reasoning effort Off for thinking models on windows of 16k or less
 - [x] T902 Run `npm test`; move this folder to `specs/complete/088-copilot-request-controls/` and update `specs/STATUS.md` when shipped
+
+## Follow-up: meter warnings (2026-10-08)
+
+- [x] T910 Meter level from reply risk, not fill thresholds: `estimateContextBudget` takes the resolved reply (`auto`, `fitted`) and the FR-017 reply estimate; `contextBudgetHint` returns amber / red one-line warnings without an Open AI settings action, in `apps/desktop/src/renderer/src/lib/copilot-token-budget.ts`; tests in `apps/desktop/tests/copilot-token-budget.test.ts` (FR-018, FR-019, SC-008)
+- [x] T911 Pass the reply and Edit reply estimate to the meter, render the warning icon and suggestion line, and drop the popup's settings button in `apps/desktop/src/renderer/src/components/panels/DesktopCopilotPanel.tsx`; hatched **Room for reply** segment and red/amber warning styles in `apps/desktop/src/renderer/src/styles.css`
+- [x] T912 Update the meter paragraphs in `specs/complete/052-ai-chatbot-assistant/spec.md` and `specs/complete/017-copilot-local-ollama/spec.md`, and the meter expectations in `docs/qa/copilot-test-scenarios.md`
+- [x] T913 Leave Reasoning effort Off out of the meter suggestion and the pre-send warning when it is already Off (`copilot-token-budget.ts`, `copilot-budget-diagnostics.ts` + tests)
+- [x] T914 Tidy Settings → AI → Advanced in `apps/desktop/src/renderer/src/components/settings/ai.tsx`: shared control column, one short budget note, bounds as a tooltip, the overflow warning only when a budget fills the window (edge case "Configured budget exceeds the model token window"); the meter covers smaller overflows (FR-018)

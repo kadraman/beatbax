@@ -44,6 +44,7 @@ import { useStoreValue } from '../../hooks/useStoreValue';
 import { NoteText, PresetRangeField, RadioGroup, SectionHeading, SelectField, TextField } from './form';
 
 const COPILOT_QA_SCENARIOS_URL = 'https://github.com/kadraman/beatbax/blob/main/docs/qa/copilot-test-scenarios.md';
+const COPILOT_LOCAL_MODELS_URL = 'https://github.com/kadraman/beatbax/blob/main/docs/ui/copilot-local-models.md';
 
 interface AIModelListResult {
   ok: boolean;
@@ -513,46 +514,47 @@ function ReplyBudgetField({
   };
 
   const windowTokens = settings.contextWindowTokens;
-  const overflow = typeof value === 'number' && value >= windowTokens * 0.5
-    ? value >= windowTokens
-      ? `This budget is at least your ${formatTokenCount(windowTokens)} model token window, so the prompt and the reply cannot both fit. Lower it or raise the Model token window (and num_ctx for Ollama).`
-      : `This budget is at least half your ${formatTokenCount(windowTokens)} model token window, so large songs or long chats may not fit. Lower it or raise the Model token window (and num_ctx for Ollama).`
+  const overflow = typeof value === 'number' && value >= windowTokens
+    ? `Fills your whole ${formatTokenCount(windowTokens)} model token window, leaving no room for the song or chat.`
     : '';
 
   return (
     <>
       <div className="bb-settings-row">
         <label className="bb-settings-label" htmlFor={`${id}-mode`}>{label}</label>
-        <select
-          className="bb-settings-select"
-          id={`${id}-mode`}
-          onChange={(event) => {
-            if (event.currentTarget.value === 'auto') commit('auto');
-            else commit(autoReplyCeiling(mode, learnedTokenParam(settings.endpoint, settings.model)));
-          }}
-          value={value === 'auto' ? 'auto' : 'custom'}
-        >
-          <option value="auto">{autoLabel}</option>
-          <option value="custom">Custom</option>
-        </select>
-        {value !== 'auto' ? (
-          <input
-            aria-label={`${label} (tokens)`}
-            className="bb-settings-number"
-            id={id}
-            max={bounds.max}
-            min={bounds.min}
-            onBlur={() => commit(draft.trim() ? Number(draft) : 'auto')}
-            onChange={(event) => setDraft(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') event.currentTarget.blur();
+        <div className="bb-settings-control-group">
+          <select
+            className="bb-settings-select"
+            id={`${id}-mode`}
+            onChange={(event) => {
+              if (event.currentTarget.value === 'auto') commit('auto');
+              else commit(autoReplyCeiling(mode, learnedTokenParam(settings.endpoint, settings.model)));
             }}
-            type="number"
-            value={draft}
-          />
-        ) : null}
+            value={value === 'auto' ? 'auto' : 'custom'}
+          >
+            <option value="auto">{autoLabel}</option>
+            <option value="custom">Custom</option>
+          </select>
+          {value !== 'auto' ? (
+            <input
+              aria-label={`${label} (tokens)`}
+              className="bb-settings-number"
+              id={id}
+              max={bounds.max}
+              min={bounds.min}
+              onBlur={() => commit(draft.trim() ? Number(draft) : 'auto')}
+              onChange={(event) => setDraft(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur();
+              }}
+              title={`${bounds.min.toLocaleString()}–${bounds.max.toLocaleString()} tokens`}
+              type="number"
+              value={draft}
+            />
+          ) : null}
+        </div>
       </div>
-      {overflow ? <div className="bb-settings-warning">{overflow}</div> : null}
+      {overflow ? <div className="bb-settings-inline-warning">{overflow}</div> : null}
     </>
   );
 }
@@ -598,50 +600,55 @@ function ReasoningEffortField({ settings }: { settings: AISettings }): React.JSX
     <>
       <div className="bb-settings-row">
         <label className="bb-settings-label" htmlFor="bb-ai-reasoning-effort">Reasoning effort</label>
-        <select
-          className="bb-settings-select"
-          id="bb-ai-reasoning-effort"
-          onChange={(event) => {
-            const next = event.currentTarget.value as ReasoningEffortSetting;
-            setCustomError('');
-            if (next === 'custom') {
-              if (isValidCustomReasoningEffort(settings.reasoningEffortCustom)) {
-                setPickingCustom(false);
-                persist({ reasoningEffort: 'custom' });
-              } else {
-                setPickingCustom(true);
+        <div className="bb-settings-control-group">
+          <select
+            className="bb-settings-select"
+            id="bb-ai-reasoning-effort"
+            onChange={(event) => {
+              const next = event.currentTarget.value as ReasoningEffortSetting;
+              setCustomError('');
+              if (next === 'custom') {
+                if (isValidCustomReasoningEffort(settings.reasoningEffortCustom)) {
+                  setPickingCustom(false);
+                  persist({ reasoningEffort: 'custom' });
+                } else {
+                  setPickingCustom(true);
+                }
+                return;
               }
-              return;
-            }
-            setPickingCustom(false);
-            persist({ reasoningEffort: next });
-          }}
-          value={selectValue}
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
-          ))}
-        </select>
+              setPickingCustom(false);
+              persist({ reasoningEffort: next });
+            }}
+            title="Off can help thinking models on small model windows."
+            value={selectValue}
+          >
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
       {showCustom ? (
         <div className="bb-settings-row">
           <label className="bb-settings-label" htmlFor="bb-ai-reasoning-custom">Custom value</label>
-          <input
-            className="bb-settings-text"
-            id="bb-ai-reasoning-custom"
-            maxLength={32}
-            onBlur={commitCustom}
-            onChange={(event) => setCustomDraft(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') event.currentTarget.blur();
-            }}
-            placeholder="e.g. xhigh"
-            type="text"
-            value={customDraft}
-          />
+          <div className="bb-settings-control-group">
+            <input
+              className="bb-settings-text"
+              id="bb-ai-reasoning-custom"
+              maxLength={32}
+              onBlur={commitCustom}
+              onChange={(event) => setCustomDraft(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur();
+              }}
+              placeholder="e.g. xhigh"
+              type="text"
+              value={customDraft}
+            />
+          </div>
         </div>
       ) : null}
-      {customError ? <div className="bb-settings-warning">{customError}</div> : null}
+      {customError ? <div className="bb-settings-inline-warning">{customError}</div> : null}
       {effectiveNote ? (
         <NoteText>
           {effectiveNote.split('`').map((part, index) => (index % 2 === 1 ? <code key={index}>{part}</code> : part))}
@@ -655,34 +662,31 @@ function AdvancedRequestControls({ settings }: { settings: AISettings }): React.
   return (
     <details className="bb-settings-advanced">
       <summary className="bb-settings-advanced-summary">Advanced</summary>
-      <ReplyBudgetField
-        id="bb-ai-edit-reply"
-        label="Edit reply budget"
-        mode="edit"
-        settings={settings}
-        value={settings.editReplyTokens}
-      />
-      <ReplyBudgetField
-        id="bb-ai-ask-reply"
-        label="Ask reply budget"
-        mode="ask"
-        settings={settings}
-        value={settings.askReplyTokens}
-      />
-      <NoteText>
-        The most tokens Copilot lets the model write for one reply, including hidden reasoning. Auto fits the default
-        (16,384 or 8,192 for Edit, 2,048 for Ask) to the room left in the model token window. Edit 2,048–65,536; Ask 512–16,384.
-      </NoteText>
-      <ReasoningEffortField settings={settings} />
-      <NoteText>
-        Sent as <code>reasoning_effort</code>. If the model rejects a value, Copilot tries the nearest one and remembers
-        what worked for this session. Provider default sends nothing. Off helps thinking models on small windows.
-      </NoteText>
-      <div className="bb-settings-row">
-        <span className="bb-settings-label">Request controls</span>
-        <button className="bb-settings-btn-secondary" onClick={() => resetChatRequestControls()} type="button">
-          Reset to Auto
-        </button>
+      <div className="bb-settings-advanced-body">
+        <ReplyBudgetField
+          id="bb-ai-edit-reply"
+          label="Edit reply budget"
+          mode="edit"
+          settings={settings}
+          value={settings.editReplyTokens}
+        />
+        <ReplyBudgetField
+          id="bb-ai-ask-reply"
+          label="Ask reply budget"
+          mode="ask"
+          settings={settings}
+          value={settings.askReplyTokens}
+        />
+        <NoteText>
+          Most tokens the model may write per reply, including hidden reasoning. Auto fits the reply to the room left in
+          the model token window.
+        </NoteText>
+        <ReasoningEffortField settings={settings} />
+        <div className="bb-settings-row bb-settings-row--end">
+          <button className="bb-settings-btn-secondary" onClick={() => resetChatRequestControls()} type="button">
+            Reset to Auto
+          </button>
+        </div>
       </div>
     </details>
   );
@@ -759,7 +763,8 @@ export function AISettingsSection(): React.JSX.Element {
         value={settings.contextWindowTokens}
       />
       <NoteText>
-        The model’s maximum tokens in Ask and Edit — this is what the Copilot footer percentage uses. OpenAI defaults to 128k. Ollama and LM Studio default to 16,384, the recommended minimum <code>num_ctx</code> for Edit mode; set this to the same <code>num_ctx</code> you configured (for example <code>OLLAMA_CONTEXT_LENGTH=16384</code>). Use 32,768 for long chats or songs over 200 lines. Separate from the Ask song excerpt above.
+        The model’s context size, used for the Copilot footer meter. Match Ollama’s <code>num_ctx</code> or the Context Length you load the model with in LM Studio.{' '}
+        <a href={COPILOT_LOCAL_MODELS_URL} rel="noreferrer" target="_blank">Local model setup guide</a>
       </NoteText>
       <AdvancedRequestControls settings={settings} />
       <NoteText>
