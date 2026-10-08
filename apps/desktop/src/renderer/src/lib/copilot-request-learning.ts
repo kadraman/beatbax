@@ -5,7 +5,12 @@
  */
 import type { ChatMode } from '@beatbax/app-core/stores/chat.store';
 import type { AITokenParam, ReasoningEffortRequest } from '../../../shared/electron-api';
-import { autoReplyCeiling, formatTokenCount, type ResolvedReplyBudget } from './copilot-token-budget';
+import {
+  autoReplyCeiling,
+  formatTokenCount,
+  type PromptCalibration,
+  type ResolvedReplyBudget,
+} from './copilot-token-budget';
 import {
   initialTokenParam,
   negotiationKey,
@@ -18,6 +23,8 @@ export interface LearnedRequestParams {
   requestedReasoningEffort?: ReasoningEffortRequest;
   /** Value sent on the successful attempt; `null` = field omitted. */
   effectiveReasoningEffort?: string | null;
+  /** Prompt usage from the last request that reported it (FR-016). */
+  promptCalibration?: PromptCalibration;
 }
 
 /** Reply budget the Copilot footer meter currently reserves (same value the next request sends). */
@@ -75,6 +82,24 @@ export function recordRequestOutcome(
   if (result.tokenParam) next.tokenParam = result.tokenParam;
   if (result.effectiveReasoningEffort !== undefined) next.effectiveReasoningEffort = result.effectiveReasoningEffort;
   learnedStore.set({ ...learned, [key]: next });
+}
+
+/** Record prompt usage for a request whose character estimate was `estimated`; ignored without a prompt count. */
+export function recordPromptUsage(
+  endpoint: string,
+  model: string,
+  estimated: number,
+  usage: { promptTokens?: number } | undefined,
+): void {
+  const reported = usage?.promptTokens;
+  if (!(estimated > 0) || reported == null || !(reported > 0)) return;
+  const key = negotiationKey(endpoint, model);
+  const learned = learnedStore.get();
+  learnedStore.set({ ...learned, [key]: { ...(learned[key] ?? {}), promptCalibration: { estimated, reported } } });
+}
+
+export function learnedPromptCalibration(endpoint: string, model: string): PromptCalibration | undefined {
+  return learnedStore.get()[negotiationKey(endpoint, model)]?.promptCalibration;
 }
 
 export function learnedTokenParam(endpoint: string, model: string): AITokenParam {

@@ -121,11 +121,6 @@ export interface AIChatCompletionRequest {
   messages: AIChatCompletionMessage[];
   temperature?: number;
   maxTokens?: number;
-  /**
-   * Auto reply budgets resolved per token-limit parameter, so a dialect learned
-   * mid-request uses the matching ceiling. Falls back to `maxTokens`.
-   */
-  maxTokensByTokenParam?: Partial<Record<AITokenParam, number>>;
   /** Omitted means "provider default": no `reasoning_effort` field is sent. */
   reasoningEffort?: ReasoningEffortRequest;
   /** Copilot mode; selects the remote timeout minimum. Omitted gets the longer Edit minimum. */

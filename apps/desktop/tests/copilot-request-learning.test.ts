@@ -2,9 +2,11 @@ import {
   currentReplyBudget,
   describeAutoReplyBudget,
   describeEffectiveReasoningEffort,
+  learnedPromptCalibration,
   learnedRequestParams,
   learnedTokenParam,
   publishReplyBudget,
+  recordPromptUsage,
   recordRequestOutcome,
   resetLearnedRequestParams,
 } from '../src/renderer/src/lib/copilot-request-learning';
@@ -20,6 +22,21 @@ describe('copilot-request-learning', () => {
     recordRequestOutcome(OLLAMA, 'qwen3.5', { level: 'low' }, { tokenParam: 'max_completion_tokens' });
     expect(learnedTokenParam(`${OLLAMA}/`, 'qwen3.5')).toBe('max_completion_tokens');
     expect(learnedTokenParam(OLLAMA, 'llama3')).toBe('max_tokens');
+  });
+
+  it('keeps prompt usage per endpoint and model alongside other learning', () => {
+    expect(learnedPromptCalibration(OLLAMA, 'qwen3.5')).toBeUndefined();
+    recordPromptUsage(OLLAMA, 'qwen3.5', 11_000, { promptTokens: 6_600 });
+    recordRequestOutcome(OLLAMA, 'qwen3.5', { level: 'low' }, { tokenParam: 'max_tokens' });
+    expect(learnedPromptCalibration(`${OLLAMA}/`, 'qwen3.5')).toEqual({ estimated: 11_000, reported: 6_600 });
+    expect(learnedPromptCalibration(OLLAMA, 'llama3')).toBeUndefined();
+  });
+
+  it('ignores replies without a prompt count', () => {
+    recordPromptUsage(OLLAMA, 'qwen3.5', 11_000, { promptTokens: 6_600 });
+    recordPromptUsage(OLLAMA, 'qwen3.5', 9_000, undefined);
+    recordPromptUsage(OLLAMA, 'qwen3.5', 9_000, { promptTokens: 0 });
+    expect(learnedPromptCalibration(OLLAMA, 'qwen3.5')).toEqual({ estimated: 11_000, reported: 6_600 });
   });
 
   it('notifies subscribers', () => {

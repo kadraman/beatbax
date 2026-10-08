@@ -136,7 +136,7 @@ The Copilot header has a session switcher and a **+** New chat button. Delete a 
 
 ### Context meter and token usage
 
-The footer meter estimates the **next** request as instructions + song + packed history + current draft + reserved reply (the same budget the next request sends; see [spec 088](../088-copilot-request-controls/spec.md)), using chars/4 for text and chars/2 for the song until the provider returns `usage`. The meter colour shows whether the next reply is at risk, not the fill percentage ([spec 088 FR-018](../088-copilot-request-controls/spec.md)): red when the song's reply will not fit the reply budget or the request exceeds the window, amber when chat history is shrinking an Auto reply budget, otherwise no warning. Hover the meter for a VS Code-style popup (stacked bar + token rows, with the reserved reply hatched). An empty chat is not 0% — the system prompt (including the song) and reserved reply space are always counted, so a high percentage on its own is normal. When amber or red, the popup shows a one-line warning; **Start a new chat** is offered only if chat history is part of the prompt (FR-019).
+The footer meter estimates the **next** request as instructions + song + packed history + current draft + reserved reply (the same budget the next request sends; see [spec 088](../088-copilot-request-controls/spec.md)), using chars/4 for text and chars/2 for the song. Once the provider returns `usage.prompt_tokens`, that estimate is calibrated to the model's tokenizer for the rest of the session ([spec 088 FR-016](../088-copilot-request-controls/spec.md)). The meter colour shows whether the next reply is at risk, not the fill percentage ([spec 088 FR-018](../088-copilot-request-controls/spec.md)): red when the song's reply will not fit the reply budget or the request exceeds the window, amber when chat history is shrinking an Auto reply budget, otherwise no warning. Hover the meter for a VS Code-style popup (stacked bar + token rows, with the reserved reply hatched). An empty chat is not 0% — the system prompt (including the song) and reserved reply space are always counted, so a high percentage on its own is normal. When amber or red, the popup shows a one-line warning; **Start a new chat** is offered only if chat history is part of the prompt (FR-019).
 
 Set **Settings → AI → Model token window** to the model’s real token limit (Ask and Edit). OpenAI defaults to 128k (200k for `o3`); Ollama/LM Studio default to 16k — match this to `num_ctx`.
 
@@ -311,14 +311,13 @@ Token limits, reasoning effort and parameter negotiation are specified in [spec 
 
 ```typescript
 // Renderer (DesktopCopilotPanel.tsx)
-const { budget, byParam, reasoningEffort } = resolveRequestControls(settings, activeMode, promptTokens);
+const { budget, reasoningEffort } = resolveRequestControls(settings, activeMode, promptTokens);
 const result = await window.electronAPI.createAIChatCompletion({
   endpoint: settings.endpoint,
   apiKey: settings.apiKey,
   model: settings.model,
   messages,
   maxTokens: budget.tokens,
-  maxTokensByTokenParam: byParam,
   reasoningEffort,
 });
 // result.content — assistant text; result.usage — prompt/completion (and reasoning) tokens when provided;

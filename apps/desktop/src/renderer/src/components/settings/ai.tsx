@@ -658,7 +658,12 @@ function ReasoningEffortField({ settings }: { settings: AISettings }): React.JSX
   );
 }
 
-function AdvancedRequestControls({ settings }: { settings: AISettings }): React.JSX.Element {
+export function AdvancedRequestControls({ settings }: { settings: AISettings }): React.JSX.Element {
+  const [resetCount, setResetCount] = useState(0);
+  const resetToAuto = (): void => {
+    resetChatRequestControls();
+    setResetCount((count) => count + 1);
+  };
   return (
     <details className="bb-settings-advanced">
       <summary className="bb-settings-advanced-summary">Advanced</summary>
@@ -681,9 +686,10 @@ function AdvancedRequestControls({ settings }: { settings: AISettings }): React.
           Most tokens the model may write per reply, including hidden reasoning. Auto fits the reply to the room left in
           the model token window.
         </NoteText>
-        <ReasoningEffortField settings={settings} />
+        {/* Remounted on reset so a pending Custom selection and its draft are discarded. */}
+        <ReasoningEffortField key={resetCount} settings={settings} />
         <div className="bb-settings-row bb-settings-row--end">
-          <button className="bb-settings-btn-secondary" onClick={() => resetChatRequestControls()} type="button">
+          <button className="bb-settings-btn-secondary" onClick={resetToAuto} type="button">
             Reset to Auto
           </button>
         </div>

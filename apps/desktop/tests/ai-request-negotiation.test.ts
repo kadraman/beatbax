@@ -240,17 +240,14 @@ describe('negotiateChatCompletion', () => {
     expect(server.bodies[0]).not.toHaveProperty('temperature');
   });
 
-  it('learns the token parameter and uses the matching Auto budget on later attempts', async () => {
+  it('learns the token parameter but keeps the turn\'s reply budget on the retry', async () => {
     const server = simulatedServer({ requireCompletionTokens: true });
     const state = createNegotiationState();
-    const result = await negotiateChatCompletion(
-      request({ maxTokens: 8192, maxTokensByTokenParam: { max_tokens: 8192, max_completion_tokens: 16384 } }),
-      state,
-      server.send,
-    );
+    const result = await negotiateChatCompletion(request({ maxTokens: 8192 }), state, server.send);
     expect(result).toMatchObject({ ok: true, tokenParam: 'max_completion_tokens' });
     expect(server.bodies[0]).toMatchObject({ max_tokens: 8192 });
-    expect(server.bodies[1]).toMatchObject({ max_completion_tokens: 16384 });
+    expect(server.bodies[1]).toMatchObject({ max_completion_tokens: 8192 });
+    expect(server.bodies[1]).not.toHaveProperty('max_tokens');
     expect(state.tokenParam).toBe('max_completion_tokens');
   });
 

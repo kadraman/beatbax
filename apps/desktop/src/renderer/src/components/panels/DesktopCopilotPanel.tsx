@@ -41,7 +41,6 @@ import {
   formatTokenCount,
   resolveReasoningEffort,
   resolveReplyBudget,
-  resolveReplyBudgetsByTokenParam,
   type ContextBudgetBreakdown,
   type ContextBudgetHoverModel,
 } from '../../lib/copilot-token-budget';
@@ -53,9 +52,11 @@ import {
   type LengthStopDiagnostic,
 } from '../../lib/copilot-budget-diagnostics';
 import {
+  learnedPromptCalibration,
   learnedRequestParams,
   learnedTokenParam,
   publishReplyBudget,
+  recordPromptUsage,
   recordRequestOutcome,
 } from '../../lib/copilot-request-learning';
 import { useStoreValue } from '../../hooks/useStoreValue';
@@ -1190,7 +1191,6 @@ function resolveRequestControls(settings: AISettings, mode: ChatMode, promptToke
   const tokenParam = learnedTokenParam(settings.endpoint, settings.model);
   return {
     budget: resolveReplyBudget({ mode, settings, tokenParam, promptTokens, windowTokens }),
-    byParam: resolveReplyBudgetsByTokenParam({ mode, settings, promptTokens, windowTokens }),
     reasoningEffort: resolveReasoningEffort(settings),
   };
 }
@@ -1394,7 +1394,7 @@ function DesktopCopilotPanel({
       { role: 'user', content: earlierRequests ? `${earlierRequests}\n\n${userText}` : userText },
       ...(additionalMessages ?? []),
     ];
-    const { prompt } = estimatePromptTokens({
+    const { prompt, estimated } = estimatePromptTokens({
       systemText,
       songChars: contextSongChars(effectiveSettings, activeMode, getEditorContent()),
       historyTexts: [
@@ -1403,8 +1403,9 @@ function DesktopCopilotPanel({
         ...(additionalMessages ?? []).map((message) => message.content),
       ],
       userText,
+      calibration: learnedPromptCalibration(effectiveSettings.endpoint, effectiveSettings.model),
     });
-    return { messages, promptTokens: prompt };
+    return { messages, promptTokens: prompt, estimatedPromptTokens: estimated };
   }, [getDiagnostics, getEditorContent]);
 
   const generate = useCallback(async (
@@ -1415,7 +1416,12 @@ function DesktopCopilotPanel({
   ): Promise<GenerateResult> => {
     const controller = new AbortController();
     abortRef.current = controller;
-    const { messages, promptTokens } = buildRequestMessages(userText, effectiveSettings, activeMode, additionalMessages);
+    const { messages, promptTokens, estimatedPromptTokens } = buildRequestMessages(
+      userText,
+      effectiveSettings,
+      activeMode,
+      additionalMessages,
+    );
     const controls = resolveRequestControls(effectiveSettings, activeMode, promptTokens);
     const maxTokens = controls.budget.tokens;
     const createAIChatCompletion = window.electronAPI?.createAIChatCompletion;
@@ -1428,7 +1434,6 @@ function DesktopCopilotPanel({
         messages,
         temperature: 0.7,
         maxTokens,
-        maxTokensByTokenParam: controls.byParam,
         reasoningEffort: controls.reasoningEffort,
         mode: activeMode,
       });
@@ -1449,10 +1454,8 @@ function DesktopCopilotPanel({
             }
             const result = normalizeAIChatCompletionResult(value);
             recordRequestOutcome(effectiveSettings.endpoint, effectiveSettings.model, controls.reasoningEffort, result);
-            resolve({
-              ...result,
-              maxTokens: result.tokenParam ? controls.byParam[result.tokenParam] : maxTokens,
-            });
+            recordPromptUsage(effectiveSettings.endpoint, effectiveSettings.model, estimatedPromptTokens, result.usage);
+            resolve({ ...result, maxTokens });
           })
           .catch((error) => {
             signal.removeEventListener('abort', onAbort);
@@ -1485,8 +1488,9 @@ function DesktopCopilotPanel({
       const text = await response.text().catch(() => '');
       throw new Error(`HTTP ${response.status}: ${text}`);
     }
-    const data = await response.json();
-    return { ...parseAIChatCompletionResponse(data), maxTokens };
+    const result = parseAIChatCompletionResponse(await response.json());
+    recordPromptUsage(effectiveSettings.endpoint, effectiveSettings.model, estimatedPromptTokens, result.usage);
+    return { ...result, maxTokens };
   }, [buildRequestMessages]);
 
   const submitPrompt = useCallback(async (
@@ -2096,6 +2100,7 @@ function DesktopCopilotPanel({
       songChars: systemPrompt.songChars,
       historyTexts: split.historyTexts,
       userText: split.userText,
+      calibration: learnedPromptCalibration(settings.endpoint, settings.model),
     };
     const { budget } = resolveRequestControls(settings, mode, estimatePromptTokens(promptInput).prompt);
     return {
