@@ -3,7 +3,7 @@ title: "CoPilot Test Scenarios"
 status: active
 authors: ["kadraman"]
 created: 2026-06-21
-updated: 2026-10-04
+updated: 2026-10-07
 related:
   - docs/features/complete/ai-chatbot-assistant.md
   - docs/features/complete/copilot-local-ollama.md
@@ -62,9 +62,15 @@ Track manual passes and automation separately. Update this table when a scenario
 | 27  | Explain `[arrangement]` info diagnostic       | Not tested  | —           | —          | Open phased/monolithic song; Ask about section-focus info squiggle; expect explanation + restructure command, not forced rewrite |
 | 28  | Edit card matches the editor after retries    | Not tested  | —           | —          | Local 7B model; repair retries, merged definitions, *Not merged* note, follow-up Edit in the same chat (spec 017 Phase 3)        |
 | 29  | Every unapplied Edit shows **Not applied**    | Not tested  | —           | —          | Parse failure, incomplete song, repair without a song, reply without a `bax` block                                               |
+| 31  | Reasoning exhausts the Edit reply budget      | Not tested  | —           | —          | Spec 088 SC-001; reasoning model, Custom 2,048 budget, Reasoning effort High                                                     |
+| 32  | Ask reply cut off                             | Not tested  | —           | —          | Ask reply budget 512; notice + **Open AI settings**                                                                              |
+| 33  | Meter reserves the budget that is sent        | Automated   | —           | —          | Spec 088 SC-002 / SC-007; `copilot-token-budget.test.ts`; manual check against the diagnostics log                               |
+| 34  | Pre-send fit warning                          | Automated   | —           | —          | Spec 088 SC-006; `copilot-budget-diagnostics.test.ts`; manual check of Send anyway / Open Settings / ×                           |
+| 35  | Reasoning effort settings and fallbacks       | Automated   | —           | —          | Spec 088 SC-005; `ai-request-negotiation.test.ts`, `chat-store-settings.test.ts`; manual Ollama `qwen3.5` pass still needed      |
+| 36  | Rejected parameters are not resent            | Automated   | —           | —          | Spec 088 SC-003; `ai-request-negotiation.test.ts` (session cache); manual `gpt-5.x` pass still needed                            |
 
 
-**Automated (partial):** `apps/desktop/tests/copilot-context.test.ts` — prompt assembly (includes `[ARRANGEMENT LAYOUT HINTS]`). `copilot-token-budget.test.ts` / `copilot-history-pack.test.ts` / `ai-chat-completion.test.ts` — meter math, Edit-history stubs, `usage` parsing. `packages/app-core/tests/chat-store-sessions.test.ts` — multi-session store. Light e2e in `desktop-integration.spec.ts` — Copilot panel mount/startup only.
+**Automated (partial):** `apps/desktop/tests/copilot-context.test.ts` — prompt assembly (includes `[ARRANGEMENT LAYOUT HINTS]`). `copilot-token-budget.test.ts` / `copilot-history-pack.test.ts` / `ai-chat-completion.test.ts` — meter math, Edit-history stubs, `usage` parsing. `packages/app-core/tests/chat-store-sessions.test.ts` — multi-session store. Spec 088: `ai-request-negotiation.test.ts` (reasoning-effort fallbacks, parameter negotiation, session cache, timeouts), `copilot-budget-diagnostics.test.ts` (length-stop messages, pre-send fit check), `copilot-request-learning.test.ts` (Settings labels), `chat-store-settings.test.ts` (request-control settings). Light e2e in `desktop-integration.spec.ts` — Copilot panel mount/startup only.
 
 ---
 
@@ -538,8 +544,10 @@ Expected behavior:
 
 - The footer meter shows an estimated fill % for the next request (system + history + draft + reserved completion).
 - Hover (or click) the footer meter for a compact popup: Instructions + song / Chat history / This message / Room for reply. **This message** is the composer draft, or the last sent question if the box is empty.
-- When high or full with chat history, the popup shows a **Start a new chat** button that starts one (disabled while a reply is loading).
-- When high or full with **no** history (for example a fresh Edit chat on `sample.bax` at 16k, about 80%), the popup explains that a new chat will not free space and shows an **Open AI settings** button instead.
+- The stacked bar in the popup matches the footer %: **Room for reply** is drawn hatched so it stands apart from the empty part of the window.
+- The meter colour follows reply risk, not the percentage (spec 088 FR-018). A fresh Edit chat on `sample.bax` at 16k reads about 93% with **no** warning, because the reply still fits.
+- **Amber**: chat history has shrunk the Auto reply budget. The popup shows *Chat history is shrinking the room for the reply.* and a **Start a new chat** button (disabled while a reply is loading).
+- **Red**: in Edit mode the song's reply will not fit the reply budget (the same check as the pre-send warning, for example `call-me-maybe.bax` at 16k), or the prompt plus reply budget exceeds the window. The popup shows the reason with both token figures and a one-line suggestion; **Start a new chat** appears only if the chat has history. There is no **Open AI settings** button in the popup.
 - After a cloud/OpenAI-compatible reply, the assistant message shows `prompt → completion` when `usage` is present.
 - Settings → AI **Model token window** matches the meter denominator. For Ollama, set it equal to `num_ctx`.
 - Settings → AI **Ask song excerpt** only truncates the song in Ask; Edit still sends the full song. The footer % is the token window, not this character slider.
@@ -663,6 +671,110 @@ Expected behavior:
 - The second edit applies vibrato to the bass, so the model understood "the same" from the earlier request.
 - Neither turn shows "No ```bax block found"; earlier Edit replies are not sent back to the model.
 - The context meter's **Chat history** row stays small in Edit mode (earlier Edit songs are not counted).
+
+---
+
+## Request Controls Scenarios
+
+These cover [spec 088](../../specs/complete/088-copilot-request-controls/spec.md): reply budgets, Reasoning effort, the out-of-budget diagnostics and the pre-send fit warning. Use a large song (about 15k characters, for example a long MIDI import) wherever a scenario says "large song".
+
+### 31. Reasoning Exhausts the Edit Reply Budget (SC-001)
+
+Baseline: a reasoning model (OpenAI `gpt-5.x` or Ollama `qwen3.5`), large song, Edit mode. **Settings → AI → Advanced**: Edit reply budget **Custom** 2,048, Reasoning effort **High**.
+
+Prompt (Edit mode):
+
+```text
+Add a short drum fill at the end of every phrase.
+```
+
+Expected behavior:
+
+- The request is sent (the fit warning may appear first; choose **Send anyway**).
+- The thread shows *The model used its whole Edit reply budget (2,048 tokens) on reasoning … Lower Reasoning effort or raise the Edit reply budget in Settings → AI → Advanced. The editor was not changed.* It never says "try again".
+- The reply is marked **Not applied**, no repair retries are sent, and the editor is unchanged.
+- The usage badge shows `· Nk reasoning` (or `· thinking` when the provider reports only a reasoning field).
+- With a model that does not reason, the message instead says the song was cut off at the Edit reply budget.
+
+### 32. Ask Reply Cut Off
+
+Baseline: any model, Ask mode, Ask reply budget **Custom** 512.
+
+Prompt (Ask mode): `Explain every instrument in this song in detail.`
+
+Expected behavior:
+
+- The answer is shown, followed by *This reply was cut off at the Ask reply budget (512 tokens). Raise the Ask reply budget in Settings → AI → Advanced for longer answers.*
+- An **Open AI settings** button opens Settings → AI.
+
+### 33. Meter Reserves the Budget That Is Sent (SC-002, SC-007)
+
+Baseline: Ollama endpoint, Model token window 16,384, all request controls on **Auto**.
+
+Steps:
+
+1. Open a small song in Edit mode and hover the footer meter. **Room for reply** is 8,192 and the total stays at or below 100%.
+2. Open the large song. **Room for reply** shrinks to the space left in the window (never below 2,048), and Settings → AI → Advanced shows *Auto (about N for this chat)* with the same value.
+3. Set Edit reply budget to **Custom** 24,576 with a 128k window. The meter reserves 24,576, and the diagnostics log shows `max_tokens` (or `max_completion_tokens`) 24,576 for the next request.
+
+Expected behavior:
+
+- The meter's reserved reply always equals the completion limit sent to the provider.
+- With Auto budgets the footer total is never above 100% while the prompt leaves room for the floor.
+
+### 34. Pre-Send Fit Warning (SC-006)
+
+Baseline: large song, Edit mode, Ollama with Model token window 16,384, Reasoning effort **Auto**.
+
+Steps:
+
+1. Send any Edit prompt.
+2. Choose **Send anyway** on the warning.
+3. Send the same prompt again in the same chat without changing the song or settings.
+4. Switch to an OpenAI model with the default 128k window and send again.
+
+Expected behavior:
+
+- Step 1 shows *This song needs about Nk tokens to reply, but only about Mk fit in your 16k model window…* above the input before anything is sent. The draft stays in the input.
+- **Open Settings** opens Settings → AI; **×** dismisses the warning without sending.
+- Step 2 sends the request. Step 3 does not warn again.
+- Step 4 sends with no warning.
+
+### 35. Reasoning Effort Settings and Fallbacks
+
+Baseline: **Settings → AI → Advanced** open alongside the Copilot panel.
+
+Steps:
+
+1. Confirm the section is collapsed by default and shows Edit reply budget, Ask reply budget and Reasoning effort, all on **Auto** (for example "Auto (16,384 for this endpoint)" on OpenAI, "Auto (8,192 for this endpoint)" on Ollama, "Auto (Low)").
+2. Ollama `qwen3.5` (or another server that rejects `none`): set Reasoning effort **Off** and send an Ask prompt.
+3. Point at a server that rejects every `reasoning_effort` value and send again.
+4. Set **Custom** and type `Not Valid!`, then `xhigh`.
+5. Set **Provider default** and send.
+6. Press **Reset to Auto**.
+
+Expected behavior:
+
+- Step 2 succeeds, and Settings shows "Sent as `minimal` for this model" (or the value the server accepted).
+- Step 3 succeeds without the field, and Settings shows "This model does not accept reasoning effort".
+- Step 4 shows a validation message for `Not Valid!` and keeps the previous setting; `xhigh` is saved and sent exactly.
+- Step 5 sends no `reasoning_effort` (check the diagnostics log).
+- Step 6 returns all three controls to Auto. Settings survive an app restart and never include the API key in `beatbax:ai.settings`.
+
+### 36. Rejected Parameters Are Not Resent (SC-003)
+
+Baseline: OpenAI `gpt-5.x` with a valid key, diagnostics log enabled.
+
+Steps:
+
+1. Restart the app and send an Ask prompt.
+2. Send a second Ask prompt.
+
+Expected behavior:
+
+- The first request may log one 400 retry (for example `temperature` unsupported).
+- The second and later requests in the session are sent once each with no 400 retries.
+- After restarting the app, the first request may retry again (the cache is session-only).
 
 ---
 

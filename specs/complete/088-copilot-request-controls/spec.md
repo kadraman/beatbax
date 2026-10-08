@@ -2,11 +2,11 @@
 title: "Copilot request controls and budget diagnostics"
 id: 88
 slug: "copilot-request-controls"
-status: "specified"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-09-27"
-updated: "2026-09-27"
+updated: "2026-10-08"
 issue: "https://github.com/kadraman/beatbax/issues/212"
 area: "desktop"
 related:
@@ -20,7 +20,7 @@ related:
 
 Make the Copilot reply budget and reasoning effort visible and adjustable, explain out-of-budget failures in plain language, and stop re-sending parameters a model has already rejected. The implementation is provider-generic: Copilot keeps one internal set of reasoning-effort levels, sends them in the single de-facto field `reasoning_effort`, and learns which values each endpoint and model accept from HTTP 400 replies. Endpoint detection is only a first guess to save round trips; correctness never depends on recognising the provider.
 
-Auto reply budgets keep today's values as ceilings but shrink to the room left in the model token window, and Copilot warns before sending an Edit request whose full-song reply cannot fit. With default windows on OpenAI and Groq (128k), the ceilings apply unchanged. The other default change is that Auto reasoning effort sends `low` to every endpoint, not only OpenAI-style ones (see FR-006).
+Auto reply budgets keep today's values as ceilings but shrink to the room left in the model token window, and Copilot warns before sending an Edit request whose full-song reply cannot fit. With the default OpenAI window (128k), the ceilings apply unchanged. The other default change is that Auto reasoning effort sends `low` to every endpoint, not only OpenAI-style ones (see FR-006).
 
 ## Problem
 
@@ -59,6 +59,9 @@ Related problems:
 3. **Given** any assistant reply whose provider reports reasoning tokens, **When** it appears in the chat, **Then** its token badge shows the reasoning-token count (for example `12.3k → 7.5k · 214 reasoning`). **Given** a reply with a non-empty reasoning field but no reasoning-token count, **Then** the badge shows `· thinking` instead.
 4. **Given** an Edit request where the estimated full-song reply is larger than the reply budget that fits in the model token window (FR-017), **When** the user presses Send, **Then** Copilot does not send yet and shows a warning with both numbers (for example "This song needs about 8k tokens to reply, but only about 6k fit in your 16k model window"), suggesting a larger `num_ctx` and **Model token window**, Reasoning effort Off, or a cloud model, with **Send anyway** and **Open Settings** actions.
 5. **Given** the warning in scenario 4, **When** the user presses **Send anyway**, **Then** the request is sent with the fitted budget, and the warning is not shown again for the same song text and settings in this chat.
+6. **Given** an Edit chat where the estimated full-song reply is larger than the reply budget (the FR-017 condition), **When** the user looks at the footer meter, **Then** it is red before anything is sent, and its popup shows both numbers (for example "This song's reply needs about 8k tokens, but only about 6k fit") with a one-line suggestion (FR-018, FR-019).
+7. **Given** a fresh Edit chat whose Auto reply budget is at its ceiling (for example `sample.bax` on a 16k window, about 94%), **When** the user looks at the footer meter, **Then** it shows no warning: a high percentage alone is not a problem, because Auto fills the room it is given.
+8. **Given** an Auto reply budget that chat history has shrunk below its ceiling, while the song's reply still fits, **When** the user looks at the footer meter, **Then** it is amber and its popup offers **Start a new chat**.
 
 ### User Story 2 — Adjust reply budget and reasoning effort (Priority: P2)
 
@@ -91,7 +94,7 @@ Related problems:
 
 ### Edge cases
 
-- Endpoint's token-parameter dialect is learned mid-request (400 asks for `max_completion_tokens`): Auto budgets follow the learned dialect on later attempts and later requests.
+- Endpoint's token-parameter dialect is learned mid-request (400 asks for `max_completion_tokens`): the retry sends the same reply budget under the new parameter name, so the meter and pre-send warning match what was sent. Auto budgets use the learned dialect's ceiling from the next request on.
 - Non-thinking model given `reasoning_effort`: if the server rejects it, the fallback order ends by omitting the field and the rejection is cached. If the server silently ignores it, nothing changes for the user.
 - Server silently ignores `reasoning_effort` on a thinking model: cannot be detected from the request; the `finish_reason: "length"` diagnostics (US1) still explain any resulting failure.
 - A 400 whose message does not mention reasoning or thinking: not treated as a reasoning-effort rejection; handled by the existing adaptation rules or shown as an error.
@@ -112,7 +115,7 @@ Related problems:
 - **FR-003**: Copilot MUST NOT run automatic parse-repair or incomplete-song retries for a reply that ended with `finish_reason: "length"`, since the same budget would fail the same way.
 - **FR-004**: Per-message token usage MUST include reasoning tokens when the provider reports them, summed across repair turns, and the badge MUST display them. When only a reasoning field is present, the badge MUST show `· thinking`.
 - **FR-005**: Settings → AI MUST offer an **Advanced** section (collapsed by default) with **Edit reply budget**, **Ask reply budget** and **Reasoning effort**, each defaulting to **Auto**, plus **Reset to Auto**.
-- **FR-006**: Auto values MUST be: Edit budget ceiling 16,384 when the endpoint uses `max_completion_tokens` (initial guess corrected by the learned dialect) and 8,192 otherwise; Ask budget ceiling 2,048; both fitted to the window per FR-016; reasoning effort **Low** for both modes on every endpoint.
+- **FR-006**: Auto values MUST be: Edit budget ceiling 16,384 when the endpoint uses `max_completion_tokens` (initial guess, corrected by the learned dialect on later requests) and 8,192 otherwise; Ask budget ceiling 2,048; both fitted to the window per FR-016; reasoning effort **Low** for both modes on every endpoint.
 - **FR-007**: Reply budgets MUST be whole numbers within documented bounds (Edit 2,048–65,536; Ask 512–16,384); out-of-range input is clamped on commit, as the model token window field does today.
 - **FR-008**: Reasoning effort options MUST be **Auto**, **Provider default**, **Off**, **Minimal**, **Low**, **Medium**, **High** and **Custom** (free text, 1–32 characters of `[a-z0-9_-]`). Provider default MUST never send the field. Every other option MUST be sent as the string field `reasoning_effort`, using only that field for all providers.
 - **FR-009**: Each level MUST map to an ordered fallback list of wire values, tried in order on rejection, then omitted:
@@ -133,8 +136,10 @@ Related problems:
 - **FR-013**: The reply budget MUST be resolved in one place, and that value MUST be both sent to the provider and reserved by the footer meter. The main process MUST NOT silently override it.
 - **FR-014**: Remote request timeouts MUST scale with the resolved reply budget, keeping today's minimums (1 min Ask, 2 min Edit, 5 min local).
 - **FR-015**: The new settings MUST be persisted in `beatbax:ai.settings` alongside existing fields, never alongside the API key, and older saved settings without them MUST load as Auto.
-- **FR-016**: An Auto reply budget MUST be `min(ceiling, window − ceil(prompt × 1.1))`, floored at the mode minimum (Edit 2,048; Ask 512), where `window` is the **Model token window** setting and `prompt` is the same prompt figure the footer meter uses: provider-reported prompt tokens when available, otherwise the character estimate with the song text counted at 2 characters per token and other text at 4. This rule applies to every endpoint, with no local-endpoint detection.
+- **FR-016**: An Auto reply budget MUST be `min(ceiling, window − ceil(prompt × 1.1))`, floored at the mode minimum (Edit 2,048; Ask 512), where `window` is the **Model token window** setting and `prompt` is the same prompt figure the footer meter and the pre-send warning (FR-017) use. The base figure is the character estimate, with the song text counted at 2 characters per token and other text at 4. When the provider reported `prompt_tokens` for an earlier request to the same endpoint origin and model in this app session, Copilot MUST calibrate the estimate from the latest report: the reported count when the current estimate equals that request's estimate, otherwise the current estimate times reported ÷ estimated. A raw count from a different prompt MUST NOT be reused as-is. The ratio MUST NOT go below 0.5, since a server that reuses a cached prompt prefix can report fewer tokens than were sent. This rule applies to every endpoint, with no local-endpoint detection.
 - **FR-017**: Before sending an Edit request, Copilot MUST estimate the full-song reply as `ceil(songChars / 2)` tokens, plus 1,024 tokens when reasoning effort is anything other than Off or Provider default. If the estimate exceeds the resolved reply budget, Copilot MUST show the pre-send warning (US1 scenarios 4–5) instead of sending. The warning MUST apply to explicit budgets as well as Auto, and MUST NOT appear in Ask mode.
+- **FR-018**: The footer meter's colour MUST reflect whether the next reply is at risk, not the fill percentage. It MUST be red when the meter total (prompt plus reserved reply) exceeds the model token window, or, in Edit mode, when the FR-017 reply estimate exceeds the resolved reply budget. Otherwise it MUST be amber when the reply budget is Auto, fitted below its ceiling (FR-016), and chat history is part of the prompt. Otherwise it MUST show no warning, whatever the percentage. The percentage itself is still shown.
+- **FR-019**: The meter popup MUST show a one-line warning only when the meter is amber or red. Amber: chat history is shrinking the room for the reply, with a **Start a new chat** button. Red: the reason with both token figures when known, and a short suggestion (a larger `num_ctx` and **Model token window**, Reasoning effort Off, or a cloud model; for an explicit budget, raising the reply budget). Reasoning effort Off is left out of this suggestion, and of the pre-send warning (FR-017), when it is already Off; **Start a new chat** is offered only when chat history is part of the prompt. The popup MUST NOT offer an **Open AI settings** button; the pre-send warning (FR-017) keeps **Open Settings**.
 
 ### Non-goals
 
@@ -155,6 +160,7 @@ Related problems:
 - **SC-005**: Against simulated servers that (a) reject `none`, (b) reject `minimal`, and (c) reject every `reasoning_effort` value, each level resolves within its fallback list on the first request, and the second request in the session succeeds on its first attempt.
 - **SC-006**: An Edit request on `call-me-maybe.bax` with a 16,384-token model window shows the pre-send warning before any request is sent; the same request with the OpenAI default window (128k) sends without a warning.
 - **SC-007**: With any song, window and chat length, the footer meter's total (prompt plus reserved reply) is at most 100% of the window whenever the reply budget is Auto and the prompt leaves room for the floor.
+- **SC-008**: On a 16k window, a fresh Edit chat on `sample.bax` shows no meter warning, and `call-me-maybe.bax` shows a red meter before Send, matching the pre-send warning (SC-006).
 
 ## Assumptions
 
@@ -172,11 +178,12 @@ Resolved:
 - *Should reasoning effort offer None?* Yes, as **Off**, mapped through the fallback list so it works where `none` is rejected. Auto stays Low, because turning reasoning off hurts composition-style edits.
 - *Should Auto differ by mode?* No. Low for both Ask and Edit keeps one rule for all providers.
 - *Should learned rejections persist across restarts?* No, session-only (FR-011). Relearning costs at most a few fast 400s per model per launch. Persisting risks stale entries when capabilities change under the same model name (Ollama upgrades, re-pulled tags, updated aliases), and a single misclassified 400 would silently disable reasoning control for that model. Revisit with a short expiry, app-version keying and a "Clear learned settings" button only if the repeated round trips prove to matter.
+- *Should the meter colour follow fixed fill thresholds (70% / 90%)?* No (FR-018). Auto fills the room left in the window, so a mid-sized song on a 16k window always reads about 94% even when its reply fits easily; threshold colours turned that into a false alarm. The colour now tracks the same check as the pre-send warning, plus an amber step when chat history is shrinking the reply.
 - *Should the Auto budget scale with the model token window?* Yes, by fitting to the room left rather than a fixed fraction (FR-016), for every endpoint. The budget is only a cap, so lowering it cannot make a song fit; fitting keeps the meter honest, and the pre-send warning (FR-017) turns silent local truncation into an actionable message. "Half the window" was rejected because it ignores prompt size: an 8k window would get a 4k budget, and a large song on a 32k window could still overflow.
 
 ## References
 
-- [Spec 052 — AI chatbot assistant](../../complete/052-ai-chatbot-assistant/spec.md) (API call implementation, token limits)
+- [Spec 052 — AI chatbot assistant](../052-ai-chatbot-assistant/spec.md) (API call implementation, token limits)
 - [Spec 017 — Copilot with local Ollama](../017-copilot-local-ollama/spec.md) (context sizing)
 - [Ollama OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility) (`reasoning_effort` values)
 - `apps/desktop/src/main/ipc-handlers.ts` — `createAIChatCompletion`

@@ -1,21 +1,41 @@
 /**
- * Copilot token estimates and context-window budget.
+ * Copilot token estimates, reply budgets and context-window budget (spec 088).
  *
- * Uses chars/4 (same convention as the RAG spec) until a provider `usage`
- * object is available from the last reply.
+ * Prose uses chars/4; BeatBax song text tokenizes at roughly chars/2. The
+ * reply budget resolved here is both sent to the provider and reserved by the
+ * footer meter.
  */
 
+import type { AISettings, ChatMode } from '@beatbax/app-core/stores/chat.store';
+import type { AITokenParam, ReasoningEffortRequest } from '../../../shared/electron-api';
+
+/** Auto reply-budget ceilings for the `max_tokens` dialect. */
 export const COMPLETION_TOKEN_LIMIT = {
   edit: 8192,
   ask: 2048,
 } as const;
+
+/** Auto Edit ceiling when the endpoint uses `max_completion_tokens` (room for reasoning). */
+export const EDIT_COMPLETION_TOKENS_CEILING = 16384;
+
+/** FR-016 floors for Auto budgets that are fitted to a small window. */
+export const REPLY_BUDGET_FLOOR = {
+  edit: 2048,
+  ask: 512,
+} as const;
+
+export const SONG_CHARS_PER_TOKEN = 2;
+export const TEXT_CHARS_PER_TOKEN = 4;
+/** Margin applied to the prompt estimate before fitting the reply budget. */
+export const PROMPT_ESTIMATE_MARGIN = 1.1;
 
 export const MODEL_HISTORY_LIMIT = 10;
 
 /** Soft cap for packed conversation history (tokens), excluding system + user. */
 export const HISTORY_TOKEN_BUDGET = 2500;
 
-export type ContextBudgetLevel = 'ok' | 'high' | 'full';
+/** FR-018: `warning` is amber, `critical` is red; neither depends on the fill percentage. */
+export type ContextBudgetLevel = 'ok' | 'warning' | 'critical';
 
 export interface ContextBudgetBreakdown {
   system: number;
@@ -28,21 +48,171 @@ export interface ContextBudgetBreakdown {
   ratio: number;
   level: ContextBudgetLevel;
   percent: number;
+  /** Reserved reply is an Auto budget (not an explicit setting). */
+  replyAuto: boolean;
+  /** Auto reply budget was shrunk below its ceiling to fit the window. */
+  replyFitted: boolean;
+  /** FR-017 full-song reply estimate (Edit mode only). */
+  replyNeeded?: number;
+  /** Reasoning effort is already Off, so suggestions leave it out. */
+  reasoningOff: boolean;
 }
 
 export function estimateTokens(text: string): number {
   if (!text) return 0;
-  return Math.max(1, Math.ceil(text.length / 4));
+  return Math.max(1, Math.ceil(text.length / TEXT_CHARS_PER_TOKEN));
 }
 
-export function contextBudgetLevel(ratio: number): ContextBudgetLevel {
-  if (ratio >= 0.9) return 'full';
-  if (ratio >= 0.7) return 'high';
+export function estimateSongTokens(songChars: number): number {
+  if (songChars <= 0) return 0;
+  return Math.ceil(songChars / SONG_CHARS_PER_TOKEN);
+}
+
+export interface PromptEstimate {
+  system: number;
+  history: number;
+  message: number;
+  /** Prompt figure for the meter and budget fitting (calibrated when a report exists). */
+  prompt: number;
+  /** Character estimate before calibration. */
+  estimated: number;
+}
+
+/** Provider-reported prompt tokens for one sent request, with that request's character estimate. */
+export interface PromptCalibration {
+  estimated: number;
+  reported: number;
+}
+
+/**
+ * Lowest reported/estimated ratio applied. Servers that reuse a cached prompt
+ * prefix can report fewer tokens than were sent; BeatBax songs measured about
+ * 0.55 of the chars/2 estimate on Qwen.
+ */
+export const MIN_PROMPT_CALIBRATION = 0.5;
+
+/**
+ * FR-016 prompt figure: the reported count when the estimate is unchanged
+ * since that request, otherwise the estimate scaled by the reported/estimated
+ * ratio, so prompt changes since the report are still counted.
+ */
+export function calibratePromptTokens(estimated: number, calibration?: PromptCalibration): number {
+  if (!calibration || estimated <= 0 || calibration.estimated <= 0 || calibration.reported <= 0) return estimated;
+  const floor = Math.ceil(estimated * MIN_PROMPT_CALIBRATION);
+  if (estimated === calibration.estimated) return Math.max(floor, calibration.reported);
+  const ratio = Math.max(MIN_PROMPT_CALIBRATION, calibration.reported / calibration.estimated);
+  return Math.max(1, Math.ceil(estimated * ratio));
+}
+
+/**
+ * Prompt tokens: song text at chars/2, everything else at chars/4.
+ * `songChars` is how much of `systemText` is song (the rest is instructions).
+ * With a calibration, the parts are scaled so they still add up to `prompt`.
+ */
+export function estimatePromptTokens(input: {
+  systemText: string;
+  songChars?: number;
+  historyTexts: string[];
+  userText: string;
+  calibration?: PromptCalibration;
+}): PromptEstimate {
+  const songChars = Math.min(Math.max(0, input.songChars ?? 0), input.systemText.length);
+  const instructionChars = input.systemText.length - songChars;
+  const system = estimateSongTokens(songChars)
+    + (instructionChars > 0 ? Math.ceil(instructionChars / TEXT_CHARS_PER_TOKEN) : 0);
+  const history = input.historyTexts.reduce((sum, text) => sum + estimateTokens(text), 0);
+  const message = input.userText.trim() ? estimateTokens(input.userText) : 0;
+  const estimated = system + history + message;
+  const prompt = calibratePromptTokens(estimated, input.calibration);
+  if (prompt === estimated) return { system, history, message, prompt, estimated };
+  const scale = (tokens: number): number => (tokens > 0 ? Math.max(1, Math.round((tokens * prompt) / estimated)) : 0);
+  const scaledHistory = scale(history);
+  const scaledMessage = scale(message);
+  return {
+    system: Math.max(0, prompt - scaledHistory - scaledMessage),
+    history: scaledHistory,
+    message: scaledMessage,
+    prompt,
+    estimated,
+  };
+}
+
+export function contextBudgetLevel(input: {
+  total: number;
+  window: number;
+  history: number;
+  reservedOutput: number;
+  replyFitted: boolean;
+  replyNeeded?: number;
+}): ContextBudgetLevel {
+  if (input.total > input.window) return 'critical';
+  if (input.replyNeeded != null && input.replyNeeded > input.reservedOutput) return 'critical';
+  if (input.replyFitted && input.history > 0) return 'warning';
   return 'ok';
 }
 
-export function completionTokenLimit(mode: 'edit' | 'ask'): number {
-  return mode === 'edit' ? COMPLETION_TOKEN_LIMIT.edit : COMPLETION_TOKEN_LIMIT.ask;
+/** Auto reply-budget ceiling before window fitting (FR-006). */
+export function autoReplyCeiling(mode: ChatMode, tokenParam: AITokenParam = 'max_tokens'): number {
+  if (mode === 'ask') return COMPLETION_TOKEN_LIMIT.ask;
+  return tokenParam === 'max_completion_tokens' ? EDIT_COMPLETION_TOKENS_CEILING : COMPLETION_TOKEN_LIMIT.edit;
+}
+
+export function completionTokenLimit(mode: ChatMode, tokenParam: AITokenParam = 'max_tokens'): number {
+  return autoReplyCeiling(mode, tokenParam);
+}
+
+export type ReplyBudgetSettings = Pick<AISettings, 'editReplyTokens' | 'askReplyTokens'>;
+
+export interface ResolvedReplyBudget {
+  tokens: number;
+  auto: boolean;
+  /** Auto ceiling before fitting (only meaningful when `auto`). */
+  ceiling: number;
+  /** Auto budget was reduced to fit the model window. */
+  fitted: boolean;
+}
+
+/**
+ * FR-016: explicit numbers are sent as configured; Auto is
+ * `max(floor, min(ceiling, window − ceil(prompt × 1.1)))`.
+ */
+export function resolveReplyBudget(input: {
+  mode: ChatMode;
+  settings: Partial<ReplyBudgetSettings>;
+  tokenParam?: AITokenParam;
+  promptTokens: number;
+  windowTokens: number;
+}): ResolvedReplyBudget {
+  const configured = input.mode === 'edit' ? input.settings.editReplyTokens : input.settings.askReplyTokens;
+  const ceiling = autoReplyCeiling(input.mode, input.tokenParam);
+  if (typeof configured === 'number' && Number.isFinite(configured) && configured > 0) {
+    return { tokens: Math.round(configured), auto: false, ceiling, fitted: false };
+  }
+  const room = Math.round(input.windowTokens) - Math.ceil(Math.max(0, input.promptTokens) * PROMPT_ESTIMATE_MARGIN);
+  const tokens = Math.max(REPLY_BUDGET_FLOOR[input.mode], Math.min(ceiling, room));
+  return { tokens, auto: true, ceiling, fitted: tokens < ceiling };
+}
+
+export type ReasoningEffortSettings = Pick<AISettings, 'reasoningEffort' | 'reasoningEffortCustom'>;
+
+/** Maps settings to the request; `undefined` means provider default (field never sent). */
+export function resolveReasoningEffort(settings: Partial<ReasoningEffortSettings>): ReasoningEffortRequest | undefined {
+  switch (settings.reasoningEffort) {
+    case 'provider-default':
+      return undefined;
+    case 'custom':
+      return settings.reasoningEffortCustom
+        ? { level: 'custom', value: settings.reasoningEffortCustom }
+        : { level: 'low' };
+    case 'off':
+    case 'minimal':
+    case 'low':
+    case 'medium':
+    case 'high':
+      return { level: settings.reasoningEffort };
+    default:
+      return { level: 'low' };
+  }
 }
 
 export function formatTokenCount(value: number): string {
@@ -58,24 +228,27 @@ export function formatTokenCount(value: number): string {
 
 export function estimateContextBudget(input: {
   systemText: string;
+  /** Characters of `systemText` that are song text (counted at chars/2). */
+  songChars?: number;
   historyTexts: string[];
   userText: string;
   reservedOutput: number;
   windowTokens: number;
-  /** When present, replaces the estimated prompt (system+history+message). */
-  actualPromptTokens?: number;
+  /** Provider-reported prompt usage to calibrate the estimate (FR-016). */
+  calibration?: PromptCalibration;
+  /** The resolved reply budget behind `reservedOutput`; omitted means an explicit, unfitted budget. */
+  reply?: Pick<ResolvedReplyBudget, 'auto' | 'fitted'>;
+  /** FR-017 full-song reply estimate; pass only in Edit mode. */
+  replyNeeded?: number;
+  reasoningOff?: boolean;
 }): ContextBudgetBreakdown {
-  const system = estimateTokens(input.systemText);
-  const history = input.historyTexts.reduce((sum, text) => sum + estimateTokens(text), 0);
-  const message = input.userText.trim() ? estimateTokens(input.userText) : 0;
-  const estimatedPrompt = system + history + message;
-  const prompt = input.actualPromptTokens != null && input.actualPromptTokens > 0
-    ? input.actualPromptTokens
-    : estimatedPrompt;
+  const { system, history, message, prompt } = estimatePromptTokens(input);
   const reservedOutput = Math.max(0, Math.round(input.reservedOutput));
   const total = prompt + reservedOutput;
   const window = Math.max(1, Math.round(input.windowTokens));
   const ratio = total / window;
+  const replyAuto = input.reply?.auto ?? false;
+  const replyFitted = input.reply?.fitted ?? false;
   return {
     system,
     history,
@@ -85,8 +258,12 @@ export function estimateContextBudget(input: {
     total,
     window,
     ratio,
-    level: contextBudgetLevel(ratio),
+    level: contextBudgetLevel({ total, window, history, reservedOutput, replyFitted, replyNeeded: input.replyNeeded }),
     percent: Math.min(999, Math.round(ratio * 100)),
+    replyAuto,
+    replyFitted,
+    replyNeeded: input.replyNeeded,
+    reasoningOff: input.reasoningOff ?? false,
   };
 }
 
@@ -99,12 +276,12 @@ export interface ContextBudgetHoverRow {
   percent: number;
 }
 
-export type ContextBudgetHintAction = 'new-chat' | 'open-settings';
-
 export interface ContextBudgetHint {
-  text?: string;
-  action: ContextBudgetHintAction;
-  actionLabel: string;
+  text: string;
+  /** Short suggestion shown under the warning (red only). */
+  detail?: string;
+  /** Offer Start a new chat (only when chat history is part of the prompt). */
+  newChat: boolean;
 }
 
 export interface ContextBudgetHoverModel {
@@ -117,22 +294,34 @@ export interface ContextBudgetHoverModel {
   lastReply?: string;
 }
 
-/**
- * Only suggest a new chat when chat history is actually using the window;
- * otherwise the fixed part (instructions + song + reserved reply) is the cause.
- */
+/** FR-019: one-line warning for amber / red meters; none when the reply is not at risk. */
 export function contextBudgetHint(budget: ContextBudgetBreakdown): ContextBudgetHint | undefined {
-  if (budget.level === 'ok') return undefined;
-  if (budget.history > 0) {
-    return {
-      action: 'new-chat',
-      actionLabel: 'Start a new chat',
-    };
+  const newChat = budget.history > 0;
+  const largerWindowDetail = budget.reasoningOff
+    ? 'Try a larger num_ctx and Model token window, or a cloud model.'
+    : 'Try a larger num_ctx and Model token window, Reasoning effort Off, or a cloud model.';
+  if (budget.level === 'warning') {
+    return { text: 'Chat history is shrinking the room for the reply.', newChat };
+  }
+  if (budget.level !== 'critical') return undefined;
+  if (budget.replyNeeded != null && budget.replyNeeded > budget.reservedOutput) {
+    const need = `This song's reply needs about ${formatTokenCount(budget.replyNeeded)} tokens`;
+    return budget.replyAuto
+      ? { text: `${need}, but only about ${formatTokenCount(budget.reservedOutput)} fit.`, detail: largerWindowDetail, newChat }
+      : {
+          text: `${need}, but the Edit reply budget is ${formatTokenCount(budget.reservedOutput)}.`,
+          detail: budget.reasoningOff
+            ? 'Raise the Edit reply budget, or use a cloud model.'
+            : 'Raise the Edit reply budget, set Reasoning effort to Off, or use a cloud model.',
+          newChat,
+        };
   }
   return {
-    text: 'Instructions, the song, and room for the reply fill most of the window, so a new chat will not free space. Raise the Model token window (and num_ctx for Ollama) for more room.',
-    action: 'open-settings',
-    actionLabel: 'Open AI settings',
+    text: 'The prompt and reply budget are larger than the model window.',
+    detail: budget.replyAuto
+      ? largerWindowDetail
+      : 'Lower the reply budget, or raise num_ctx and the Model token window.',
+    newChat,
   };
 }
 

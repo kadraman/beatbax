@@ -13,10 +13,9 @@ const BUILTIN_INLINE_EFFECTS = [
 
 const EDIT_EXAMPLE_LINES = [
   'effect leadVib = vib:3,5',
-  'pat melody_var = (C5 D5 E5 G5) (A5 G5 E5 D5)',
   'pat bass_var = (C2 E2 G2 C3) * 2 (F2 A2 C3 F3) * 2 (G2 B2 D3 G3) * 2',
-  'pat melody_var_vib = C5<vib:3,5>:4 E5:4 D5<vib:3,5>:4 G5:4 A5<vib:3,5>:4 G5:4 E5:4 D5:4',
-  'seq lead_seq = melody_pat melody_var melody_var_vib melody_pat',
+  'pat melody_var_vib = (C5 C5 G5 G5 A5 A5 G5<leadVib> .) (F5 F5 E5 E5 D5 D5 C5<vib:3,5> .)',
+  'seq lead_seq = melody_pat melody_alt_pat fill_pat melody_var_vib',
   'seq bass_seq = bass_pat bass_var bass_pat bass_var',
   'channel 1 => inst leadA seq lead_seq lead_seq',
   'channel 2 => inst leadB seq bass_seq:oct(-1) bass_seq:oct(-1)',
@@ -174,7 +173,7 @@ function buildSyntaxGuide(mode: ChatMode): string {
     '- Use `play`, `play auto`, or existing `play auto repeat`; do not invent `play a, b, c` arrangements.',
     '- If you introduce a new named effect, you MUST add its `effect name = ...` definition line. Otherwise use inline `NOTE<vib:3,5>`.',
     '- Existing transforms such as `:oct(-1)` apply to sequence/channel items, e.g. `seq bass_seq:oct(-1)`.',
-    '- For the sample song, make melody variations by adding/modifying `pat ... = ...`, then reference them from `seq lead_seq = ...` while leaving bass/wave/drums channels valid.',
+    '- For the sample song, make melody variations by adding/modifying `pat ... = ...`, then reference them from `seq lead_seq = ...` (keeping its other entries) while leaving bass/wave/drums channels valid.',
     '',
     'Valid edit example:',
     '```bax',
@@ -202,6 +201,12 @@ function buildAskModeHint(): string {
     'Do not mention unrelated instrument fields (e.g. `gm=` for MIDI export) unless the user asked about them.',
     'Format prose with Markdown: short paragraphs, `##` headings, **bold** key terms, `-` bullet lists, and tables when comparing channels.',
   ].join(' ');
+}
+
+/** Characters of song text that `buildCopilotContext` puts in the system prompt. */
+export function contextSongChars(settings: AISettings, mode: ChatMode, editorContent: string): number {
+  const maxChars = settings.maxContextChars || MAX_EDITOR_CHARS;
+  return mode !== 'edit' && editorContent.length > maxChars ? maxChars : editorContent.length;
 }
 
 /** Assembles the system prompt injected before each Copilot request. */
@@ -237,6 +242,9 @@ export function buildCopilotContext(
         'If diagnostics warn that an effect is not defined, add `effect name = type:params` before using `<name>`, or replace `<name>` with a built-in parametric form such as `<vib:3,5>`.',
         'Prefer minimal edits to the current song; preserve comments, metadata, instruments, channel structure, and play directives unless the user asks otherwise.',
         'Change only what the request needs. Do not rename, deduplicate, merge, or reorganise existing definitions, and do not edit patterns, sequences, or channels unrelated to the request — even when a name looks misleading (imported songs reuse hash-named patterns such as `lead_0c0dd0e2` across channels). Copy every unrelated line verbatim.',
+        'Keep the existing entries of every `seq` and `channel` line, in order: do not remove, reorder, or repeat entries unless the user asks. When asked to use a new pattern in a sequence without saying where, replace one occurrence of the pattern it was copied or varied from, so the sequence keeps its length; if it is not derived from a pattern in that sequence, add it without removing anything.',
+        'A copy or variation of a pattern keeps the original\'s length in steps unless the user asks for a different rhythm. Adding an effect never changes a note\'s duration: `C5 .` becomes `C5<vib:3,5> .`, not `C5<vib:3,5>:4`.',
+        'When the request says each, every, or all (for example "the last note of each phrase"), apply it to every matching place, such as every parenthesised group, not just the first or last one.',
         'When the message includes a `[Referenced editor Lines N–M]` block, confine edits to those lines, the definitions they reference, and any new definitions they need.',
       ].join(' ')
     : buildAskModeHint();
