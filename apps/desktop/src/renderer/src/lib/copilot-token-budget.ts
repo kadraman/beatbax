@@ -72,20 +72,49 @@ export interface PromptEstimate {
   system: number;
   history: number;
   message: number;
+  /** Prompt figure for the meter and budget fitting (calibrated when a report exists). */
   prompt: number;
+  /** Character estimate before calibration. */
+  estimated: number;
+}
+
+/** Provider-reported prompt tokens for one sent request, with that request's character estimate. */
+export interface PromptCalibration {
+  estimated: number;
+  reported: number;
+}
+
+/**
+ * Lowest reported/estimated ratio applied. Servers that reuse a cached prompt
+ * prefix can report fewer tokens than were sent; BeatBax songs measured about
+ * 0.55 of the chars/2 estimate on Qwen.
+ */
+export const MIN_PROMPT_CALIBRATION = 0.5;
+
+/**
+ * FR-016 prompt figure: the reported count when the estimate is unchanged
+ * since that request, otherwise the estimate scaled by the reported/estimated
+ * ratio, so prompt changes since the report are still counted.
+ */
+export function calibratePromptTokens(estimated: number, calibration?: PromptCalibration): number {
+  if (!calibration || estimated <= 0 || calibration.estimated <= 0 || calibration.reported <= 0) return estimated;
+  const floor = Math.ceil(estimated * MIN_PROMPT_CALIBRATION);
+  if (estimated === calibration.estimated) return Math.max(floor, calibration.reported);
+  const ratio = Math.max(MIN_PROMPT_CALIBRATION, calibration.reported / calibration.estimated);
+  return Math.max(1, Math.ceil(estimated * ratio));
 }
 
 /**
  * Prompt tokens: song text at chars/2, everything else at chars/4.
  * `songChars` is how much of `systemText` is song (the rest is instructions).
- * A provider-reported figure, when given, replaces the estimated total.
+ * With a calibration, the parts are scaled so they still add up to `prompt`.
  */
 export function estimatePromptTokens(input: {
   systemText: string;
   songChars?: number;
   historyTexts: string[];
   userText: string;
-  actualPromptTokens?: number;
+  calibration?: PromptCalibration;
 }): PromptEstimate {
   const songChars = Math.min(Math.max(0, input.songChars ?? 0), input.systemText.length);
   const instructionChars = input.systemText.length - songChars;
@@ -94,10 +123,18 @@ export function estimatePromptTokens(input: {
   const history = input.historyTexts.reduce((sum, text) => sum + estimateTokens(text), 0);
   const message = input.userText.trim() ? estimateTokens(input.userText) : 0;
   const estimated = system + history + message;
-  const prompt = input.actualPromptTokens != null && input.actualPromptTokens > 0
-    ? input.actualPromptTokens
-    : estimated;
-  return { system, history, message, prompt };
+  const prompt = calibratePromptTokens(estimated, input.calibration);
+  if (prompt === estimated) return { system, history, message, prompt, estimated };
+  const scale = (tokens: number): number => (tokens > 0 ? Math.max(1, Math.round((tokens * prompt) / estimated)) : 0);
+  const scaledHistory = scale(history);
+  const scaledMessage = scale(message);
+  return {
+    system: Math.max(0, prompt - scaledHistory - scaledMessage),
+    history: scaledHistory,
+    message: scaledMessage,
+    prompt,
+    estimated,
+  };
 }
 
 export function contextBudgetLevel(input: {
@@ -156,19 +193,6 @@ export function resolveReplyBudget(input: {
   return { tokens, auto: true, ceiling, fitted: tokens < ceiling };
 }
 
-/** Auto budgets for both token-limit dialects, so a dialect learned mid-request uses the right one. */
-export function resolveReplyBudgetsByTokenParam(input: {
-  mode: ChatMode;
-  settings: Partial<ReplyBudgetSettings>;
-  promptTokens: number;
-  windowTokens: number;
-}): Record<AITokenParam, number> {
-  return {
-    max_tokens: resolveReplyBudget({ ...input, tokenParam: 'max_tokens' }).tokens,
-    max_completion_tokens: resolveReplyBudget({ ...input, tokenParam: 'max_completion_tokens' }).tokens,
-  };
-}
-
 export type ReasoningEffortSettings = Pick<AISettings, 'reasoningEffort' | 'reasoningEffortCustom'>;
 
 /** Maps settings to the request; `undefined` means provider default (field never sent). */
@@ -210,8 +234,8 @@ export function estimateContextBudget(input: {
   userText: string;
   reservedOutput: number;
   windowTokens: number;
-  /** When present, replaces the estimated prompt (system+history+message). */
-  actualPromptTokens?: number;
+  /** Provider-reported prompt usage to calibrate the estimate (FR-016). */
+  calibration?: PromptCalibration;
   /** The resolved reply budget behind `reservedOutput`; omitted means an explicit, unfitted budget. */
   reply?: Pick<ResolvedReplyBudget, 'auto' | 'fitted'>;
   /** FR-017 full-song reply estimate; pass only in Edit mode. */

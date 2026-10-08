@@ -190,14 +190,13 @@ export interface NegotiatedChatFailure {
 
 export type NegotiatedChatResult = NegotiatedChatSuccess | NegotiatedChatFailure;
 
-function replyBudgetFor(payload: AIChatCompletionRequest, tokenParam: AITokenParam): number | undefined {
-  return payload.maxTokensByTokenParam?.[tokenParam] ?? payload.maxTokens;
-}
-
 /**
  * Send one chat completion, adapting temperature, token parameter and
  * `reasoning_effort` on parameter-related 400 replies. `state` is mutated with
  * every adaptation so the caller can keep it for later requests (FR-011).
+ * `maxTokens` is sent unchanged on every attempt: the renderer's meter and
+ * pre-send check reserved that value, and a learned token parameter only
+ * changes the Auto ceiling from the next request on.
  */
 export async function negotiateChatCompletion(
   payload: AIChatCompletionRequest,
@@ -212,7 +211,7 @@ export async function negotiateChatCompletion(
       model: payload.model,
       messages: payload.messages,
       stream: false,
-      [tokenParam]: replyBudgetFor(payload, tokenParam),
+      [tokenParam]: payload.maxTokens,
     };
     if (includeTemperature) body.temperature = payload.temperature;
     if (reasoningEffort !== null) body.reasoning_effort = reasoningEffort;

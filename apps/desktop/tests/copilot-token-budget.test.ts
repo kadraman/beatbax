@@ -1,5 +1,7 @@
 import {
+  calibratePromptTokens,
   completionTokenLimit,
+  MIN_PROMPT_CALIBRATION,
   contextBudgetHover,
   contextBudgetLevel,
   estimateContextBudget,
@@ -8,7 +10,6 @@ import {
   formatTokenCount,
   resolveReasoningEffort,
   resolveReplyBudget,
-  resolveReplyBudgetsByTokenParam,
 } from '../src/renderer/src/lib/copilot-token-budget';
 import { estimateEditReplyTokens } from '../src/renderer/src/lib/copilot-budget-diagnostics';
 
@@ -18,15 +19,45 @@ describe('estimatePromptTokens', () => {
   it('counts song text at chars/2 and other text at chars/4', () => {
     const systemText = `${'i'.repeat(400)}${'s'.repeat(1000)}`;
     const estimate = estimatePromptTokens({ systemText, songChars: 1000, historyTexts: ['h'.repeat(40)], userText: 'u'.repeat(8) });
-    expect(estimate).toEqual({ system: 100 + 500, history: 10, message: 2, prompt: 612 });
+    expect(estimate).toEqual({ system: 100 + 500, history: 10, message: 2, prompt: 612, estimated: 612 });
   });
 
   it('treats all system text as prose when songChars is omitted', () => {
     expect(estimatePromptTokens({ systemText: 'x'.repeat(400), historyTexts: [], userText: '' }).prompt).toBe(100);
   });
 
-  it('prefers a provider-reported prompt figure', () => {
-    expect(estimatePromptTokens({ systemText: 'x'.repeat(400), historyTexts: [], userText: '', actualPromptTokens: 77 }).prompt).toBe(77);
+  it('uses the reported count when the prompt estimate is unchanged since the report', () => {
+    const input = { systemText: 'x'.repeat(4000), historyTexts: [], userText: '' };
+    expect(estimatePromptTokens({ ...input, calibration: { estimated: 1000, reported: 640 } }))
+      .toMatchObject({ prompt: 640, estimated: 1000 });
+  });
+
+  it('scales a changed prompt by the reported/estimated ratio instead of reusing the raw count', () => {
+    const grown = estimatePromptTokens({
+      systemText: 'x'.repeat(4000),
+      historyTexts: ['h'.repeat(800)],
+      userText: 'u'.repeat(4),
+      calibration: { estimated: 1000, reported: 600 },
+    });
+    expect(grown.estimated).toBe(1201);
+    expect(grown.prompt).toBe(Math.ceil(1201 * 0.6));
+    expect(grown.system + grown.history + grown.message).toBe(grown.prompt);
+    expect(grown.history).toBe(120);
+    expect(grown.message).toBe(1);
+  });
+
+  it('scales up when the tokenizer is denser than the estimate', () => {
+    expect(calibratePromptTokens(2000, { estimated: 1000, reported: 1300 })).toBe(2600);
+  });
+
+  it('does not trust reports far below the estimate (cached-prefix counts)', () => {
+    expect(calibratePromptTokens(1000, { estimated: 1000, reported: 100 })).toBe(1000 * MIN_PROMPT_CALIBRATION);
+    expect(calibratePromptTokens(2000, { estimated: 1000, reported: 100 })).toBe(2000 * MIN_PROMPT_CALIBRATION);
+  });
+
+  it('ignores empty reports', () => {
+    expect(calibratePromptTokens(500, { estimated: 1000, reported: 0 })).toBe(500);
+    expect(calibratePromptTokens(500, undefined)).toBe(500);
   });
 });
 
@@ -63,11 +94,6 @@ describe('resolveReplyBudget', () => {
       windowTokens: 16384,
     });
     expect(explicit).toMatchObject({ tokens: 24576, auto: false, fitted: false });
-  });
-
-  it('resolves both dialects for mid-request token-parameter learning', () => {
-    expect(resolveReplyBudgetsByTokenParam({ mode: 'edit', settings: AUTO, promptTokens: 1000, windowTokens: 128_000 }))
-      .toEqual({ max_tokens: 8192, max_completion_tokens: 16384 });
   });
 
   it('SC-007: meter total stays within the window on Auto whenever the floor fits', () => {
@@ -133,17 +159,24 @@ describe('copilot-token-budget', () => {
     expect(contextBudgetLevel({ total: 5000, window: 4096, history: 0, reservedOutput: 2048, replyFitted: false })).toBe('critical');
   });
 
-  it('prefers actual prompt tokens when provided', () => {
-    const budget = estimateContextBudget({
-      systemText: 'abcd',
+  it('FR-016: meter and Auto budget use the same calibrated prompt', () => {
+    const promptInput = {
+      systemText: `${'i'.repeat(12_000)}${'s'.repeat(16_000)}`,
+      songChars: 16_000,
       historyTexts: [],
-      userText: 'efgh',
-      reservedOutput: 10,
-      windowTokens: 100,
-      actualPromptTokens: 40,
-    });
-    expect(budget.prompt).toBe(40);
-    expect(budget.total).toBe(50);
+      userText: '',
+      calibration: { estimated: 11_000, reported: 6_600 },
+    };
+    const { prompt, estimated } = estimatePromptTokens(promptInput);
+    expect(estimated).toBe(11_000);
+    expect(prompt).toBe(6_600);
+    const reply = resolveReplyBudget({ mode: 'edit', settings: AUTO, promptTokens: prompt, windowTokens: 16_384 });
+    const uncalibrated = resolveReplyBudget({ mode: 'edit', settings: AUTO, promptTokens: estimated, windowTokens: 16_384 });
+    expect(reply.tokens).toBeGreaterThan(uncalibrated.tokens);
+    const budget = estimateContextBudget({ ...promptInput, reservedOutput: reply.tokens, windowTokens: 16_384, reply });
+    expect(budget.prompt).toBe(6_600);
+    expect(budget.total).toBe(6_600 + reply.tokens);
+    expect(budget.total).toBeLessThanOrEqual(16_384);
   });
 
   it('builds a compact hover model', () => {

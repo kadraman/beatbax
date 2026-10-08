@@ -12,7 +12,6 @@ import type {
   DesktopSaveFileOptions,
   AIChatCompletionRequest,
   AIChatCompletionResult,
-  AITokenParam,
   ReasoningEffortRequest,
 } from '../shared/electron-api'
 import { parseAIChatCompletionResponse } from '../shared/ai-chat-completion'
@@ -622,8 +621,6 @@ function sanitizeAIChatRequest(request: unknown): AIChatCompletionRequest {
     temperature: typeof value.temperature === 'number' ? value.temperature : 0.7,
     maxTokens: positiveTokenCount(value.maxTokens) ?? 1024
   }
-  const byParam = sanitizeTokensByParam(value.maxTokensByTokenParam)
-  if (byParam) sanitized.maxTokensByTokenParam = byParam
   const reasoningEffort = sanitizeReasoningEffortRequest(value.reasoningEffort)
   if (reasoningEffort) sanitized.reasoningEffort = reasoningEffort
   if (value.mode === 'ask' || value.mode === 'edit') sanitized.mode = value.mode
@@ -632,17 +629,6 @@ function sanitizeAIChatRequest(request: unknown): AIChatCompletionRequest {
 
 function positiveTokenCount(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined
-}
-
-function sanitizeTokensByParam(value: unknown): Partial<Record<AITokenParam, number>> | undefined {
-  if (!value || typeof value !== 'object') return undefined
-  const record = value as Record<string, unknown>
-  const result: Partial<Record<AITokenParam, number>> = {}
-  for (const key of ['max_tokens', 'max_completion_tokens'] as const) {
-    const tokens = positiveTokenCount(record[key])
-    if (tokens !== undefined) result[key] = tokens
-  }
-  return Object.keys(result).length > 0 ? result : undefined
 }
 
 function sanitizeReasoningEffortRequest(value: unknown): ReasoningEffortRequest | undefined {
