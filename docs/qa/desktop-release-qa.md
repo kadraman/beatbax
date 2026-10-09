@@ -65,6 +65,7 @@ Confirm these remain covered (or note gaps):
 | Toolbar / transport click and hover reliability | | Unmute, clear solo, performance mode, visualizer |
 | Shared keyboard shortcuts (menus, toolbar, Help, editor) | | Include macOS label check when on macOS |
 | Pattern Grid section focus shortcuts | | F6 focus; Esc exit; Alt+←/→ prev/next section; F5/F8 scoped playback |
+| Pattern Grid seek and loop (spec 014) | | Pos ruler: click sets a green start flag, Play starts there, Stop returns to the beginning; drag sets a blue loop range across all rows, Play loops it, handles adjust it, ✕ or right-click clears it; pause/resume inside the loop does not drift |
 | Copilot smoke (panel, Settings AI, Ask prompt) | | See [copilot-test-scenarios.md](../copilot-test-scenarios.md) |
 | New Song Wizard (chip cards, metadata, audible preview) | | |
 | Export smoke: JSON and WAV | | |

@@ -6,11 +6,39 @@
 
 GATE: complete before implementation. Re-check after design changes.
 
-- [ ] No invented syntax or undocumented language behavior
-- [ ] AST / ISM / scheduler / expansion impact identified (or N/A)
-- [ ] Plugins remain isolated; core does not gain plugin dependencies
-- [ ] Determinism and compatibility preserved (or migration documented)
-- [ ] Tests planned for new behavior
+- [x] No invented syntax or undocumented language behavior — desktop UI and app-core playback only; no `.bax` syntax, no song metadata.
+- [x] AST / ISM / scheduler / expansion impact identified — none for phases 1–3 (see design decision). Phase 4 must re-check the scheduler.
+- [x] Plugins remain isolated; core does not gain plugin dependencies — engine untouched; app-core and desktop only.
+- [x] Determinism and compatibility preserved — whole-song `play()` path unchanged when no range is passed; range state is session-only.
+- [x] Tests planned for new behavior — see Test Plan (app-core range/store/manager, engine resolver invariant, desktop timeline mapping and Play routing).
+
+### Design decision (2026-10-08): slice the resolved song in app-core
+
+Phases 2–3 do **not** add `startStep` / `endStep` to the engine `Player`.
+
+- `PlaybackManager` resolves the full song as usual and emits `parse:success` with the full song, so the Pattern Grid layout is unchanged.
+- It then plays a shallow copy whose channel `events` are sliced to `[startStep, endStep)`.
+- A loop range sets `play.repeat = true` on the copy, so the engine's existing seamless repeat loops the range. A play-from range clears `repeat`.
+
+This is the spec's "skip full pattern ranges before `startStep`" route, and it is sound for these reasons:
+
+- The resolved ISM is one event per step, and the grid uses the same step coordinates.
+- Every resolved note carries its `instrument` and `instProps`, so inline `inst` directives before the start need no replay. An engine test locks this in.
+- The resolver drops per-channel `speed`, so all channels share one step duration.
+
+Positions are mapped back to full-song coordinates in `PlaybackManager`:
+
+- Per-channel note index += notes before the start step.
+- Elapsed time += `startStep × stepSeconds`.
+- A loop wraps on the engine's repeat period.
+
+As a result, the transport, grid and glyphs need no remapping.
+
+Confirmed app-core APIs:
+
+- `PlaybackManager.play(source, { range })`, `playFrom(source, { startStep })`, `playRange(source, { startStep, endStep, loop })` and `getActiveRange()`.
+- Range helpers in `packages/app-core/src/playback/playback-range.ts`.
+- Session store `packages/app-core/src/stores/playback-range.store.ts` (`playbackStartStep`, `playbackLoopRange`, `playbackRangeMode`).
 
 ## Implementation Phases
 
@@ -45,7 +73,7 @@ Add playback from a selected pattern boundary.
 Deliverables:
 
 - `PlaybackManager.playFrom(source, { startStep })`.
-- Engine scheduling from a pattern boundary.
+- Scheduling from a pattern boundary (resolved-song slice; engine unchanged — see design decision).
 - Initial `playback:position` and `playback:position-changed` events emitted at start offset.
 - Transport time and Pattern Grid playhead start at the selected point.
 
@@ -65,7 +93,7 @@ Add loop-region playback using pattern boundaries.
 Deliverables:
 
 - `PlaybackManager.playRange(source, { startStep, endStep, loop: true })`.
-- Engine restarts from `startStep` when reaching `endStep`.
+- Restart from `startStep` when reaching `endStep` (engine seamless repeat of the sliced song).
 - Pattern Grid loop overlay remains visible during playback.
 - Existing whole-song loop remains separate from selected range loop.
 

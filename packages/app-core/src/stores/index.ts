@@ -3,6 +3,7 @@
  */
 
 export * from './playback.store.js';
+export * from './playback-range.store.js';
 export * from './channel.store.js';
 export * from './editor.store.js';
 export * from './theme.store.js';

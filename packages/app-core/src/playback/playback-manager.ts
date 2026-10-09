@@ -7,6 +7,7 @@ import { resolveSong, resolveImports } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
 import type { EventBus, PlaybackErrorKind } from '../utils/event-bus.js';
 import { buildImportResolverOptions } from '../import/import-resolver-options.js';
+import { sliceSongForRange, type PlaybackRange, type NormalizedPlaybackRange } from './playback-range.js';
 import { channelStates, setChannelMuted, setChannelSoloed } from '../stores/channel.store.js';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { storage, StorageKey } from '../utils/local-storage.js';
@@ -51,6 +52,19 @@ export interface PlaybackOptions {
    * the ephemeral AST.
    */
   ephemeral?: boolean;
+  /**
+   * Play only part of the full song (Pattern Grid seek/loop, spec 014).
+   * Positions are still reported in full-song coordinates. An out-of-range
+   * request falls back to whole-song playback.
+   */
+  range?: PlaybackRange;
+}
+
+interface ActivePlaybackRange extends NormalizedPlaybackRange {
+  fullSteps: number;
+  stepSeconds: number;
+  noteOffsets: Map<number, number>;
+  noteTotals: Map<number, number>;
 }
 
 /**
@@ -88,6 +102,8 @@ export class PlaybackManager {
   // as soon as it is constructed so playback honors the transport control.
   private _pendingMasterVolume: number | null = null;
   private _loop = false;
+  /** Range of the current play() when it is not whole-song playback. */
+  private _range: ActivePlaybackRange | null = null;
   private _bpmOverride: number | null = null;
   private _masterAnalyser: AnalyserNode | null = null;
   /** Periodic timer for elapsed-time playback:position updates. */
@@ -337,6 +353,22 @@ export class PlaybackManager {
         ephemeral: options.ephemeral === true,
       });
 
+      const sliced = options.range ? sliceSongForRange(resolved, options.range) : null;
+      if (options.range && !sliced) {
+        log.debug('Playback range outside the song; playing the whole song', options.range);
+      }
+      const playable = sliced ? sliced.song : resolved;
+      const songRepeats = !!(resolved as any).play?.repeat;
+      this._range = sliced
+        ? {
+            ...sliced.range,
+            fullSteps: sliced.fullSteps,
+            stepSeconds: 60 / (((resolved as any).bpm as number) || 120) / 4,
+            noteOffsets: sliced.noteOffsets,
+            noteTotals: sliced.noteTotals,
+          }
+        : null;
+
       // Create player if needed
       if (!this.player) {
         const sampleRate = parseInt(settingAudioSampleRate.get(), 10) || 44100;
@@ -386,8 +418,12 @@ export class PlaybackManager {
       // When loop mode is active, replay the already-resolved AST directly
       // (no re-parse) rather than stopping. The callback captures `resolved`
       // so the same AST object is reused on every iteration.
+      // A play-from range that reaches the end continues as whole-song playback
+      // when the transport loop or the song's `play repeat` would have looped.
+      // Loop ranges repeat inside the engine and never complete.
       this.player.onComplete = () => {
-        if (this._loop) {
+        if (this._loop || (this._range && songRepeats)) {
+          this._range = null;
           // Start the next iteration first so the Player can apply the effective
           // master volume (user override or AST volume) before we emit the UI message.
           this.player!.playAST(resolved as any).then(() => {
@@ -483,10 +519,11 @@ export class PlaybackManager {
           } catch { /* ignore */ }
         } catch (e) { /* ignore */ }
       }
-      await this.player.playAST(resolved as any);
+      await this.player.playAST(playable as any);
       log.debug('player.playAST() completed');
       this._startPositionTimer(this.player);
       this._emitElapsedPosition(this.player);
+      if (this._range) this._emitRangeStartPositions();
 
       // Update state
       this.state.isPlaying = true;
@@ -516,6 +553,36 @@ export class PlaybackManager {
   }
 
   /**
+   * Play the full song starting at a global step (Pattern Grid pending start).
+   * Positions are reported in full-song coordinates.
+   */
+  playFrom(source: string, range: { startStep: number }, options: Omit<PlaybackOptions, 'range'> = {}): Promise<void> {
+    return this.play(source, { ...options, range: { startStep: range.startStep, snap: 'pattern' } });
+  }
+
+  /**
+   * Play `[startStep, endStep)` of the full song; repeats seamlessly when `loop`
+   * is true (the default). Independent of the whole-song transport loop.
+   */
+  playRange(
+    source: string,
+    range: { startStep: number; endStep: number; loop?: boolean },
+    options: Omit<PlaybackOptions, 'range'> = {},
+  ): Promise<void> {
+    return this.play(source, {
+      ...options,
+      range: { startStep: range.startStep, endStep: range.endStep, loop: range.loop !== false, snap: 'pattern' },
+    });
+  }
+
+  /** Active seek/loop range of the current playback, or null for whole-song playback. */
+  getActiveRange(): NormalizedPlaybackRange | null {
+    if (!this._range) return null;
+    const { startStep, endStep, loop } = this._range;
+    return { startStep, endStep, loop };
+  }
+
+  /**
    * Stop playback
    */
   stop(): void {
@@ -530,6 +597,7 @@ export class PlaybackManager {
       this.state.isPlaying = false;
       this.state.isPaused = false;
       this.state.currentTime = 0;
+      this._range = null;
       this._resetElapsedClock();
 
       // Clear position tracking
@@ -758,52 +826,69 @@ export class PlaybackManager {
       log.debug(`channelEvents map populated:`, Array.from(this.channelEvents.keys()));
     }
 
-    // Hook into Player's onPositionChange callback
-    player.onPositionChange = (channelId: number, eventIndex: number, totalEvents: number) => {
-      log.debug(`onPositionChange: ch${channelId}, event ${eventIndex}/${totalEvents}`);
-
-      // Look up metadata using the note-only index (matches Player's scheduleToken counter exactly)
-      const meta = this.channelMetaIndex.get(channelId)?.get(eventIndex);
-      const rawSeq = meta?.seq ?? null;
-      const rawPath = meta?.seqPath ?? null;
-      const rawPat = meta?.pat ?? null;
-
-      // Update last-known fallbacks so glyphs persist between callbacks
-      if (rawSeq) this._lastKnownSeq.set(channelId, rawSeq);
-      if (rawPath && rawPath.length) this._lastKnownSeqPath.set(channelId, rawPath);
-      else if (rawSeq) this._lastKnownSeqPath.set(channelId, [rawSeq]);
-      if (rawPat) this._lastKnownPat.set(channelId, rawPat);
-      const sequenceName = rawSeq || this._lastKnownSeq.get(channelId) || null;
-      const sequencePath = (rawPath && rawPath.length ? rawPath : null)
-        || this._lastKnownSeqPath.get(channelId)
-        || (sequenceName ? [sequenceName] : null);
-      const patternName  = rawPat || this._lastKnownPat.get(channelId) || null;
-
-      // currentInstrument: read from the note/named-only events list so that eventIndex
-      // (the Player's note-only counter) maps to the correct event.
-      const noteEvents = this.channelNoteEvents.get(channelId) || [];
-      const approxEvent = noteEvents[eventIndex];
-
-      // Create or update position object
-      const position: PlaybackPosition = {
-        channelId,
-        eventIndex,
-        totalEvents,
-        currentInstrument: approxEvent?.instrument || null,
-        currentPattern: patternName, // Use the pattern name we extracted
-        sourceSequence: sequenceName, // Innermost named sequence
-        sourceSeqPath: sequencePath,
-        barNumber: null, // Not needed when showing pattern names
-        progress: totalEvents > 0 ? eventIndex / totalEvents : 0,
-      };
-
-      this.playbackPosition.set(channelId, position);
-
-      log.debug(`Emitting playback:position-changed for channel ${channelId}`, position);
-      this.eventBus.emit('playback:position-changed', { channelId, position });
-
-      // Elapsed-time updates are emitted by the periodic position timer.
+    // Hook into Player's onPositionChange callback. During range playback the
+    // Player counts notes inside the slice; shift them back to full-song indices.
+    player.onPositionChange = (channelId: number, sliceIndex: number, sliceTotal: number) => {
+      const range = this._range;
+      const eventIndex = range ? sliceIndex + (range.noteOffsets.get(channelId) ?? 0) : sliceIndex;
+      const totalEvents = range ? (range.noteTotals.get(channelId) ?? sliceTotal) : sliceTotal;
+      this._emitChannelPosition(channelId, eventIndex, totalEvents);
     };
+  }
+
+  /** Initial per-channel positions at the start of a range, before the first note fires. */
+  private _emitRangeStartPositions(): void {
+    const range = this._range;
+    if (!range) return;
+    for (const [channelId, total] of range.noteTotals) {
+      this._emitChannelPosition(channelId, range.noteOffsets.get(channelId) ?? 0, total);
+    }
+  }
+
+  private _emitChannelPosition(channelId: number, eventIndex: number, totalEvents: number): void {
+    log.debug(`onPositionChange: ch${channelId}, event ${eventIndex}/${totalEvents}`);
+
+    // Look up metadata using the note-only index (matches Player's scheduleToken counter exactly)
+    const meta = this.channelMetaIndex.get(channelId)?.get(eventIndex);
+    const rawSeq = meta?.seq ?? null;
+    const rawPath = meta?.seqPath ?? null;
+    const rawPat = meta?.pat ?? null;
+
+    // Update last-known fallbacks so glyphs persist between callbacks
+    if (rawSeq) this._lastKnownSeq.set(channelId, rawSeq);
+    if (rawPath && rawPath.length) this._lastKnownSeqPath.set(channelId, rawPath);
+    else if (rawSeq) this._lastKnownSeqPath.set(channelId, [rawSeq]);
+    if (rawPat) this._lastKnownPat.set(channelId, rawPat);
+    const sequenceName = rawSeq || this._lastKnownSeq.get(channelId) || null;
+    const sequencePath = (rawPath && rawPath.length ? rawPath : null)
+      || this._lastKnownSeqPath.get(channelId)
+      || (sequenceName ? [sequenceName] : null);
+    const patternName  = rawPat || this._lastKnownPat.get(channelId) || null;
+
+    // currentInstrument: read from the note/named-only events list so that eventIndex
+    // (the Player's note-only counter) maps to the correct event.
+    const noteEvents = this.channelNoteEvents.get(channelId) || [];
+    const approxEvent = noteEvents[eventIndex];
+
+    // Create or update position object
+    const position: PlaybackPosition = {
+      channelId,
+      eventIndex,
+      totalEvents,
+      currentInstrument: approxEvent?.instrument || null,
+      currentPattern: patternName, // Use the pattern name we extracted
+      sourceSequence: sequenceName, // Innermost named sequence
+      sourceSeqPath: sequencePath,
+      barNumber: null, // Not needed when showing pattern names
+      progress: totalEvents > 0 ? eventIndex / totalEvents : 0,
+    };
+
+    this.playbackPosition.set(channelId, position);
+
+    log.debug(`Emitting playback:position-changed for channel ${channelId}`, position);
+    this.eventBus.emit('playback:position-changed', { channelId, position });
+
+    // Elapsed-time updates are emitted by the periodic position timer.
   }
 
   private _startPositionTimer(player: Player): void {
@@ -852,6 +937,24 @@ export class PlaybackManager {
         const activePauseMs = this._elapsedPausedAt ? Math.max(0, now - this._elapsedPausedAt) : 0;
         const pausedOffset = this._elapsedPausedTotalMs + activePauseMs;
         currentSec = Math.max(0, (now - startTs - pausedOffset) / 1000);
+      }
+
+      const range = this._range;
+      if (range) {
+        // Report full-song time. A loop range wraps on the engine's repeat period so
+        // the playhead returns to the loop start exactly at each real boundary.
+        const sliceSec = (range.endStep - range.startStep) * range.stepSeconds;
+        const periodSec = isRepeatMode && completionMs ? completionMs / 1000 : sliceSec;
+        const local = range.loop && periodSec > 0
+          ? ((currentSec % periodSec) + periodSec) % periodSec
+          : Math.min(currentSec, sliceSec);
+        currentSec = range.startStep * range.stepSeconds + Math.min(local, sliceSec);
+        totalSec = range.fullSteps * range.stepSeconds;
+        this.eventBus.emit('playback:position', { current: currentSec, total: totalSec });
+        playbackPositionAtom.set(currentSec);
+        playbackDuration.set(totalSec);
+        playbackTimeLabel.set(formatPlaybackTime(currentSec));
+        return;
       }
 
       if (completionMs) totalSec = completionMs / 1000;

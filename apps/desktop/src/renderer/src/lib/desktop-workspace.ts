@@ -8,6 +8,13 @@ import { loadExampleSong } from './load-example-song';
 import { sanitizeFilename } from '@beatbax/app-core/export/download-helper';
 import { TransportControls } from '@beatbax/app-core/playback/transport-controls';
 import { ensureChannels } from '@beatbax/app-core/stores/channel.store';
+import { songStepCount } from '@beatbax/app-core/playback/playback-range';
+import {
+  clampPlaybackRangeToSong,
+  clearPlaybackRange,
+  playbackLoopRange,
+  setPlaybackStartStep,
+} from '@beatbax/app-core/stores/playback-range.store';
 import { settingDefaultBpm, settingSongArtist, settingShowSongVisualizer, settingShowChannelMixer, settingShowPatternGrid, settingShowInstrumentEditor } from '@beatbax/app-core/stores/settings.store';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
@@ -54,6 +61,7 @@ import { createDesktopInstrumentEditor, type DesktopInstrumentEditorHandle } fro
 import { createDesktopSettingsModal, noopDesktopSettingsModal, type DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
 import { createDesktopPatternGrid, type DesktopPatternGridHandle, type ArrangementSlicePlayRequest } from '../components/panels/DesktopPatternGrid';
 import { createSectionFocusController, type SectionFocusController } from './section-focus-controller';
+import { tryPlayRequestedRange } from './pattern-grid-timeline';
 import { setupSectionFocusEditor } from './section-focus-editor';
 import { setupSectionFocusOverlay } from './section-focus-overlay';
 import { setupPatternNavFlash } from './pattern-nav-flash';
@@ -213,6 +221,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         patternNavFlash.flashPat(patName);
       },
       onPlaySlice: enterSectionSlice,
+      onTimelineEdit: () => {
+        if (sectionFocusController?.isActive()) sectionFocusController.exit();
+      },
     });
   }
 
@@ -767,6 +778,31 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     statusBar?.refreshPanelsMenu();
   };
 
+  // Section focus wins over Pattern Grid seek/loop; both bypass whole-song Play.
+  const tryPlayOverride = (): boolean => {
+    if (sectionFocusController?.isActive()) return sectionFocusController.playFocused();
+    return tryPlayRequestedRange(playbackManager, getSource);
+  };
+
+  // Stop returns the pending start to the beginning unless a loop range is set.
+  const onStopRangeReset = (): void => {
+    if (!playbackLoopRange.get()) setPlaybackStartStep(null);
+  };
+  transportBar.stopButton.addEventListener('click', onStopRangeReset);
+  cleanups.push(() => transportBar.stopButton.removeEventListener('click', onStopRangeReset));
+
+  // Editing the loop while it plays restarts on the new range; clearing it
+  // continues from the old loop start as normal whole-song playback.
+  cleanups.push(playbackLoopRange.listen((next) => {
+    const active = playbackManager.getActiveRange();
+    if (!active?.loop || !playbackManager.isPlaying()) return;
+    if (next) {
+      void playbackManager.playRange(getSource(), { ...next, loop: true }).catch(() => {});
+    } else {
+      void playbackManager.playFrom(getSource(), { startStep: active.startStep }).catch(() => {});
+    }
+  }));
+
   const transportControls = new TransportControls(
     {
       playButton: transportBar.playButton,
@@ -774,10 +810,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       stopButton: transportBar.stopButton,
       applyButton: transportBar.applyButton,
       enableKeyboardShortcuts: false,
-      tryPlayOverride: () => {
-        if (!sectionFocusController?.isActive()) return false;
-        return sectionFocusController.playFocused();
-      },
+      tryPlayOverride: () => tryPlayOverride(),
     },
     playbackManager,
     eventBus,
@@ -798,10 +831,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     runParse,
     capabilities,
     transportDisplay,
-    tryPlayFocused: () => {
-      if (!sectionFocusController?.isActive()) return false;
-      return sectionFocusController.playFocused();
-    },
+    tryPlayFocused: () => tryPlayOverride(),
     getInstrumentAuditionTarget: () => {
       if (rightTabs.activeTab !== 'instruments') return null;
       return instrumentEditor?.getSelectedName?.() ?? null;
@@ -817,6 +847,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     }),
     eventBus.on('song:loaded', () => {
       clearSectionFocus();
+      clearPlaybackRange();
       lastSongContext = null;
     }),
     eventBus.on('parse:success', ({ ast, resolvedAst, song, valid, ephemeral }: { ast?: unknown; resolvedAst?: unknown; song?: unknown; valid?: boolean; ephemeral?: boolean }) => {
@@ -845,6 +876,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
           }
           return;
         }
+        if (song) clampPlaybackRangeToSong(songStepCount(song));
         if (song && patternGrid) patternGrid.setSong(song, layoutAst);
         instrumentEditor?.setAst(layoutAst);
         if (song) lastSongContext = { song, ast: layoutAst };
