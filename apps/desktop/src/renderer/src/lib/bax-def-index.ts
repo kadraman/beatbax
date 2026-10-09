@@ -23,29 +23,82 @@ function normBody(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
+function matchDefinitionLine(line: string): { kind: BaxDefKind; name: string; body: string } | null {
+  let m: RegExpMatchArray | null;
+  if ((m = line.match(/^pat\s+([A-Za-z_]\w*)\s*=\s*(.*)$/))) return { kind: 'pattern', name: m[1], body: m[2] };
+  if ((m = line.match(/^seq\s+([A-Za-z_]\w*)\s*=\s*(.*)$/))) return { kind: 'sequence', name: m[1], body: m[2] };
+  if ((m = line.match(/^effect\s+([A-Za-z_]\w*)\s*=\s*(.*)$/))) return { kind: 'effect', name: m[1], body: m[2] };
+  if ((m = line.match(/^inst\s+([A-Za-z_]\w*)\s+(.*)$/))) return { kind: 'instrument', name: m[1], body: m[2] };
+  if ((m = line.match(/^channel\s+(\d+)\s*=>\s*(.*)$/))) return { kind: 'channel', name: m[1], body: m[2] };
+  return null;
+}
+
 /** Collect top-level BeatBax definitions keyed by `kind:name`. */
 export function collectBaxDefs(content: string): Map<string, BaxDef> {
   const defs = new Map<string, BaxDef>();
   const lines = content.split('\n');
   for (let i = 0; i < lines.length; i += 1) {
-    const raw = lines[i];
-    const line = raw.trim();
+    const line = lines[i].trim();
     if (!line) continue;
-    const lineNumber = i + 1;
-    let m: RegExpMatchArray | null;
-    if ((m = line.match(/^pat\s+([A-Za-z_]\w*)\s*=\s*(.*)$/))) {
-      defs.set(`pattern:${m[1]}`, { kind: 'pattern', name: m[1], body: normBody(m[2]), line, lineNumber });
-    } else if ((m = line.match(/^seq\s+([A-Za-z_]\w*)\s*=\s*(.*)$/))) {
-      defs.set(`sequence:${m[1]}`, { kind: 'sequence', name: m[1], body: normBody(m[2]), line, lineNumber });
-    } else if ((m = line.match(/^effect\s+([A-Za-z_]\w*)\s*=\s*(.*)$/))) {
-      defs.set(`effect:${m[1]}`, { kind: 'effect', name: m[1], body: normBody(m[2]), line, lineNumber });
-    } else if ((m = line.match(/^inst\s+([A-Za-z_]\w*)\s+(.*)$/))) {
-      defs.set(`instrument:${m[1]}`, { kind: 'instrument', name: m[1], body: normBody(m[2]), line, lineNumber });
-    } else if ((m = line.match(/^channel\s+(\d+)\s*=>\s*(.*)$/))) {
-      defs.set(`channel:${m[1]}`, { kind: 'channel', name: m[1], body: normBody(m[2]), line, lineNumber });
-    }
+    const match = matchDefinitionLine(line);
+    if (!match) continue;
+    defs.set(`${match.kind}:${match.name}`, {
+      kind: match.kind,
+      name: match.name,
+      body: normBody(match.body),
+      line,
+      lineNumber: i + 1,
+    });
   }
   return defs;
+}
+
+export type DuplicateDefinitionKind = Exclude<BaxDefKind, 'channel'>;
+
+export interface DuplicateDefinition {
+  kind: DuplicateDefinitionKind;
+  keyword: string;
+  name: string;
+  /** 1-based line numbers of every definition of this name in `next`. */
+  lines: number[];
+}
+
+function definitionLinesByKey(content: string): Map<string, { kind: DuplicateDefinitionKind; name: string; lines: number[] }> {
+  const byKey = new Map<string, { kind: DuplicateDefinitionKind; name: string; lines: number[] }>();
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const match = matchDefinitionLine(lines[i].trim());
+    if (!match || match.kind === 'channel') continue;
+    const key = `${match.kind}:${match.name}`;
+    const entry = byKey.get(key) ?? { kind: match.kind, name: match.name, lines: [] };
+    entry.lines.push(i + 1);
+    byKey.set(key, entry);
+  }
+  return byKey;
+}
+
+/**
+ * `pat` / `seq` / `inst` / `effect` names that `next` defines more than once and
+ * more often than `previous` does. Duplicates already present in `previous` do not count.
+ */
+export function findNewDuplicateDefinitions(previous: string, next: string): DuplicateDefinition[] {
+  const before = definitionLinesByKey(previous);
+  const duplicates: DuplicateDefinition[] = [];
+  for (const [key, entry] of definitionLinesByKey(next)) {
+    if (entry.lines.length < 2) continue;
+    if (entry.lines.length <= (before.get(key)?.lines.length ?? 0)) continue;
+    duplicates.push({ kind: entry.kind, keyword: DEF_PREFIX[entry.kind], name: entry.name, lines: entry.lines });
+  }
+  return duplicates.sort((a, b) => a.lines[0] - b.lines[0]);
+}
+
+/** e.g. "`pat melody_vib` is defined more than once (lines 93 and 104)". */
+export function describeDuplicateDefinition(duplicate: DuplicateDefinition): string {
+  const lines = duplicate.lines;
+  const list = lines.length === 2
+    ? `${lines[0]} and ${lines[1]}`
+    : `${lines.slice(0, -1).join(', ')} and ${lines[lines.length - 1]}`;
+  return `\`${duplicate.keyword} ${duplicate.name}\` is defined more than once (lines ${list})`;
 }
 
 function escapeRegex(value: string): string {

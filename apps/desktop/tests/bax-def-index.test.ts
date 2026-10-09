@@ -6,6 +6,8 @@ import {
   collectBaxDefs,
   collectSemanticChangeLines,
   collectUnmergedLines,
+  describeDuplicateDefinition,
+  findNewDuplicateDefinitions,
   insertDefinitionLine,
   tryMergeChangedDefinitions,
 } from '../src/renderer/src/lib/bax-def-index';
@@ -155,5 +157,62 @@ describe('insertDefinitionLine', () => {
     expect(insertDefinitionLine(content, patternDef)).toBe(
       'chip gameboy\nbpm 120\npat drums = kick . . .',
     );
+  });
+});
+
+describe('findNewDuplicateDefinitions (spec 092)', () => {
+  const previous = 'chip gameboy\npat melody_vib = C4 D4\nseq main = melody_vib\nplay auto\n';
+
+  it('reports a duplicate the reply adds, with every line number', () => {
+    const next = 'chip gameboy\npat melody_vib = C4 D4\nseq main = melody_vib\npat melody_vib = C4 D4<vib:3,5>\nplay auto\n';
+    expect(findNewDuplicateDefinitions(previous, next)).toEqual([
+      { kind: 'pattern', keyword: 'pat', name: 'melody_vib', lines: [2, 4] },
+    ]);
+  });
+
+  it('ignores duplicates already present in the editor song', () => {
+    const withDup = 'pat mel_a1 = C4\npat mel_a1 = D4\npat other = E4\n';
+    const reply = 'pat mel_a1 = C4\npat mel_a1 = D4\npat other = G4\n';
+    expect(findNewDuplicateDefinitions(withDup, reply)).toEqual([]);
+  });
+
+  it('allows a reply that removes a pre-existing duplicate', () => {
+    const withDup = 'pat mel_a1 = C4\npat mel_a1 = D4\n';
+    expect(findNewDuplicateDefinitions(withDup, 'pat mel_a1 = D4\n')).toEqual([]);
+  });
+
+  it('reports a pre-existing duplicate that the reply defines yet again', () => {
+    const withDup = 'pat x = C4\npat x = D4\n';
+    expect(findNewDuplicateDefinitions(withDup, 'pat x = C4\npat x = D4\npat x = E4\n')).toEqual([
+      { kind: 'pattern', keyword: 'pat', name: 'x', lines: [1, 2, 3] },
+    ]);
+  });
+
+  it('treats each kind as its own namespace and ignores channels', () => {
+    const next = 'pat x = C4\nseq x = x\ninst x type=pulse1\neffect x = vib:4,6\nchannel 1 => seq x\nchannel 1 => seq x\n';
+    expect(findNewDuplicateDefinitions('', next)).toEqual([]);
+  });
+
+  it('covers seq, inst and effect, sorted by first line', () => {
+    const next = [
+      'inst lead type=pulse1 duty=50',
+      'effect wob = vib:4,6',
+      'seq s = a',
+      'inst lead type=pulse1 duty=25',
+      'effect wob = vib:2,3',
+      'seq s = b',
+    ].join('\r\n');
+    expect(findNewDuplicateDefinitions('', next).map((d) => [d.keyword, d.name, d.lines])).toEqual([
+      ['inst', 'lead', [1, 4]],
+      ['effect', 'wob', [2, 5]],
+      ['seq', 's', [3, 6]],
+    ]);
+  });
+
+  it('describes duplicates for the repair prompt and blocked summary', () => {
+    expect(describeDuplicateDefinition({ kind: 'pattern', keyword: 'pat', name: 'melody_vib', lines: [93, 104] }))
+      .toBe('`pat melody_vib` is defined more than once (lines 93 and 104)');
+    expect(describeDuplicateDefinition({ kind: 'pattern', keyword: 'pat', name: 'x', lines: [1, 2, 3] }))
+      .toBe('`pat x` is defined more than once (lines 1, 2 and 3)');
   });
 });

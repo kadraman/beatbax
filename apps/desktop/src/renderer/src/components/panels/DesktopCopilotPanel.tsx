@@ -92,7 +92,14 @@ import {
 } from '../../lib/copilot-selection-prompt';
 import { adjustCopilotInputHeight } from '../../lib/copilot-input-resize';
 import { assessEditApplyGuard, buildIncompleteSongRepairPrompt, buildMissingBaxRepairPrompt, tryMergeSnippetIntoSong } from '../../lib/copilot-apply-guard';
-import { collectBaxDefs, collectUnmergedLines, tryMergeChangedDefinitions } from '../../lib/bax-def-index';
+import {
+  collectBaxDefs,
+  collectUnmergedLines,
+  describeDuplicateDefinition,
+  findNewDuplicateDefinitions,
+  tryMergeChangedDefinitions,
+  type DuplicateDefinition,
+} from '../../lib/bax-def-index';
 import { buildLegacyChangeSummary, collectCopilotEditChanges, unchangedDefinitionsMentioned } from '../../lib/copilot-edit-changes';
 import { extractEditExplanation, wrapBaxTokensForMarkdown } from '../../lib/copilot-edit-explanation';
 import { readPersistedDocument } from '../../lib/desktop-session';
@@ -247,12 +254,26 @@ const MAX_INCOMPLETE_REPAIR_ATTEMPTS = 2;
 /** Max retries when Edit mode returns prose without a ```bax block. */
 const MAX_NO_BAX_REPAIR_ATTEMPTS = 1;
 
-function buildRepairPrompt(errors: string[], brokenSong: string): string {
-  const errorList = errors.map((e) => `- ${e}`).join('\n');
+function buildRepairPrompt(
+  errors: string[],
+  brokenSong: string,
+  duplicates: DuplicateDefinition[] = [],
+): string {
+  const problemList = [
+    ...errors.map((e) => `- ${e}`),
+    ...duplicates.map((d) => `- Duplicate definition: ${describeDuplicateDefinition(d)}.`),
+  ].join('\n');
   return [
-    'Your previous edit could not be applied because the BeatBax parser reported these errors:',
-    errorList,
+    errors.length > 0
+      ? 'Your previous edit could not be applied because the BeatBax parser reported these errors:'
+      : 'Your previous edit could not be applied because it defines the same name more than once:',
+    problemList,
     '',
+    ...(duplicates.length > 0
+      ? [
+        'Define each name once. To change an existing `pat`, `seq`, `inst` or `effect`, edit its line in place instead of adding another definition with the same name.',
+      ]
+      : []),
     'Return the corrected full song as a single ```bax fenced code block.',
     'After the closing fence you may keep a 2–4 sentence explanation of what you changed and why.',
     'Do not put prose inside the code fence.',
@@ -1687,34 +1708,43 @@ function DesktopCopilotPanel({
           for (;;) {
             if (requestGen !== requestGenRef.current || cancelledRef.current) return;
             const validation = validateBaxSource(baxCode);
-            if (validation.ok) break;
+            const current = getEditorContent();
+            const duplicates = findNewDuplicateDefinitions(current, baxCode);
+            if (validation.ok && duplicates.length === 0) break;
 
             // A reply that left definitions out fails on its own but may merge cleanly;
             // a repair would instead drop references to the missing definitions.
-            const current = getEditorContent();
-            const defMerged = tryMergeChangedDefinitions(current, matchLineEndings(baxCode, current));
-            if (defMerged && validateBaxSource(defMerged).ok) {
-              unmergedLines = collectUnmergedLines(current, baxCode);
-              baxCode = defMerged;
-              mergedDefinitions = true;
-              break;
+            // Merging would hide a new duplicate behind last-wins, so duplicates always go to repair.
+            if (duplicates.length === 0) {
+              const defMerged = tryMergeChangedDefinitions(current, matchLineEndings(baxCode, current));
+              if (defMerged && validateBaxSource(defMerged).ok) {
+                unmergedLines = collectUnmergedLines(current, baxCode);
+                baxCode = defMerged;
+                mergedDefinitions = true;
+                break;
+              }
             }
 
             if (parseRepairAttempts >= MAX_PARSE_REPAIR_ATTEMPTS) {
-              setStatus('⚠ Copilot could not produce valid BeatBax after retries — editor not changed.');
+              setStatus(validation.ok
+                ? '⚠ Copilot kept defining the same name more than once — editor not changed.'
+                : '⚠ Copilot could not produce valid BeatBax after retries — editor not changed.');
               finishAssistant(response, {
                 applyBlocked: true,
                 replyMode: activeMode,
-                changeSummary: validation.errors.slice(0, 8).map((e) => `Parse error: ${e}`),
+                changeSummary: [
+                  ...validation.errors.slice(0, 8).map((e) => `Parse error: ${e}`),
+                  ...duplicates.map((d) => `Duplicate definition: ${describeDuplicateDefinition(d)}.`),
+                ],
               });
               return;
             }
 
             parseRepairAttempts += 1;
-            pushChatNotice(
-              `Parse errors detected — asking Copilot to fix (${parseRepairAttempts}/${MAX_PARSE_REPAIR_ATTEMPTS})…`,
-            );
-            const repairPrompt = buildRepairPrompt(validation.errors, baxCode);
+            pushChatNotice(validation.ok
+              ? `Duplicate definitions — asking Copilot to fix (${parseRepairAttempts}/${MAX_PARSE_REPAIR_ATTEMPTS})…`
+              : `Parse errors detected — asking Copilot to fix (${parseRepairAttempts}/${MAX_PARSE_REPAIR_ATTEMPTS})…`);
+            const repairPrompt = buildRepairPrompt(validation.errors, baxCode, duplicates);
             response = await requestCompletion([
               { role: 'assistant', content: response },
               { role: 'user', content: repairPrompt },

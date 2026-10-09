@@ -868,6 +868,27 @@ export function parseWithPeggy(source: string): ParseResult {
   let playLoc: SourceLocation | undefined = undefined;
   const diagnostics: ParseDiagnostic[] = [];
 
+  // Same-file redefinitions stay last-wins but are reported (spec 092).
+  // Cross-file overrides are handled by the import resolver and never reach this set.
+  const definedNames: Record<'pat' | 'seq' | 'inst' | 'effect', Set<string>> = {
+    pat: new Set(),
+    seq: new Set(),
+    inst: new Set(),
+    effect: new Set(),
+  };
+  const noteDefinition = (keyword: 'pat' | 'seq' | 'inst' | 'effect', name: string, loc?: SourceLocation) => {
+    const seen = definedNames[keyword];
+    if (seen.has(name)) {
+      diagnostics.push({
+        level: 'warning',
+        component: 'parser',
+        message: `${keyword} '${name}' redefined; using the later definition.`,
+        loc,
+      });
+    }
+    seen.add(name);
+  };
+
   try {
   for (const stmt of program.body) {
     switch (stmt.nodeType) {
@@ -945,10 +966,12 @@ export function parseWithPeggy(source: string): ParseResult {
         break;
       }
       case 'InstStmt': {
+        noteDefinition('inst', stmt.name, stmt.loc);
         parseInstRhs(stmt.name, stmt.rhs, insts, stmt.loc);
         break;
       }
       case 'EffectStmt': {
+        noteDefinition('effect', stmt.name, stmt.loc);
         // store raw RHS for named effect presets (e.g. `effect wobble = vib:4,6`)
         const rhs = (stmt as any).rhs ? String((stmt as any).rhs).trim() : '';
         if (rhs) effects[stmt.name] = rhs;
@@ -986,6 +1009,7 @@ export function parseWithPeggy(source: string): ParseResult {
       }
       case 'PatStmt': {
         const { name, tokens } = expandPatternSpec(stmt.name, (stmt as any).rhs, (stmt as any).rhsTokens, stmt.rhsEvents, stmt.loc);
+        noteDefinition('pat', name, stmt.loc);
         if (patternEvents && stmt.rhsEvents && stmt.rhsEvents.length > 0) {
           patternEvents[name] = stmt.rhsEvents;
         }
@@ -993,6 +1017,7 @@ export function parseWithPeggy(source: string): ParseResult {
         break;
       }
       case 'SeqStmt': {
+        noteDefinition('seq', stmt.name, stmt.loc);
         const rhs = stmt.rhs ? stmt.rhs.trim() : '';
         const items = normalizeSeqItems(stmt.rhsItems, rhs, stmt.rhsTokens);
         if (items.length === 0) {
