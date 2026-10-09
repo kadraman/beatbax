@@ -1,6 +1,6 @@
 # Specification status index
 
-Assign the next feature id as **093** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **097** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
@@ -22,6 +22,10 @@ Assign the next feature id as **093** (one past the highest id below). Process: 
 - **022** `motifs-and-loop-templates` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/204 — [specs/features/022-motifs-and-loop-templates/](specs/features/022-motifs-and-loop-templates/)
 - **023** `sega-mega-drive-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/193 — [specs/features/023-sega-mega-drive-chip-plugin/](specs/features/023-sega-mega-drive-chip-plugin/)
 - **092** `duplicate-definition-warnings` (parser warning for same-file `pat`/`seq`/`inst`/`effect` redefinition; Copilot repairs or blocks Edit replies that add duplicates) — specified — language — issue: https://github.com/kadraman/beatbax/issues/222 — [specs/features/092-duplicate-definition-warnings/](specs/features/092-duplicate-definition-warnings/)
+- **093** `desktop-remote-imports-ipc` (Desktop remote `github:` / `https:` instrument imports through the main-process remote fetch instead of the renderer; CSP unchanged) — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/216 — [specs/features/093-desktop-remote-imports-ipc/](specs/features/093-desktop-remote-imports-ipc/)
+- **094** `midi-import-sms-spectrum` (MIDI import chip profiles for SMS and ZX Spectrum 128) — specified — engine — issue: https://github.com/kadraman/beatbax/issues/211 — [specs/features/094-midi-import-sms-spectrum/](specs/features/094-midi-import-sms-spectrum/)
+- **095** `midi-import-chord-arp` (opt-in chord → `arp:` policy for MIDI import) — specified — engine — issue: https://github.com/kadraman/beatbax/issues/209 — [specs/features/095-midi-import-chord-arp/](specs/features/095-midi-import-chord-arp/)
+- **096** `desktop-midi-import` (File → Import MIDI… with companion `.import.json` detection) — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/210 — [specs/features/096-desktop-midi-import/](specs/features/096-desktop-midi-import/)
 ## Complete (`specs/complete/`)
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
