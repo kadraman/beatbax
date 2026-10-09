@@ -3976,6 +3976,125 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-pgrid__menu button:hover {
   background: rgba(255, 255, 255, 0.08);
 }
+.bb-pgrid__menu button:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: transparent;
+}
+
+/* ── Timeline ruler: pending start + loop range (spec 014) ───────────────── */
+.bb-pgrid__row--ruler {
+  height: 12px;
+}
+
+.bb-pgrid__controls--ruler {
+  justify-content: center;
+  width: 32px;
+}
+
+.bb-pgrid__track--ruler {
+  overflow: visible;
+  cursor: text;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.07) 0 1px,
+    transparent 1px 12px
+  ), rgba(255, 255, 255, 0.03);
+}
+
+.bb-pgrid__btn.bb-pgrid__btn--clear-range {
+  width: 14px;
+  height: 11px;
+  font-size: 7px;
+  color: rgba(120, 200, 255, 0.85);
+  border-color: rgba(120, 200, 255, 0.35);
+}
+
+.bb-pgrid__ruler-loop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(90, 180, 255, 0.35);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.bb-pgrid__loop-handle {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 6px;
+  background: rgba(120, 200, 255, 0.95);
+  border-radius: 2px;
+  cursor: ew-resize;
+  pointer-events: auto;
+  z-index: 4;
+}
+.bb-pgrid__loop-handle--start { left: -3px; }
+.bb-pgrid__loop-handle--end { right: -3px; }
+
+.bb-pgrid__start-flag {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform: translateX(-5px);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 9px solid rgba(110, 230, 140, 0.95);
+  cursor: ew-resize;
+  z-index: 4;
+}
+
+/* Loop region spanning every row */
+.bb-pgrid__loop-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: rgba(90, 180, 255, 0.10);
+  box-shadow:
+    inset 2px 0 0 rgba(120, 200, 255, 0.85),
+    inset -2px 0 0 rgba(120, 200, 255, 0.85);
+}
+.bb-pgrid__loop-range--preview {
+  background: rgba(90, 180, 255, 0.06);
+  box-shadow:
+    inset 1px 0 0 rgba(120, 200, 255, 0.6),
+    inset -1px 0 0 rgba(120, 200, 255, 0.6);
+}
+
+/* Pending start (stopped) — dashed so it reads differently from the live playhead */
+.bb-pgrid__start-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed rgba(110, 230, 140, 0.85);
+  transform: translateX(-1px);
+  pointer-events: none;
+  z-index: 2;
+}
+
+[data-theme=light] .bb-pgrid__track--ruler {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.08) 0 1px,
+    transparent 1px 12px
+  ), rgba(0, 0, 0, 0.04);
+}
+[data-theme=light] .bb-pgrid__ruler-loop { background: rgba(20, 110, 200, 0.28); }
+[data-theme=light] .bb-pgrid__loop-handle { background: rgba(20, 110, 200, 0.9); }
+[data-theme=light] .bb-pgrid__loop-range {
+  background: rgba(20, 110, 200, 0.08);
+  box-shadow:
+    inset 2px 0 0 rgba(20, 110, 200, 0.75),
+    inset -2px 0 0 rgba(20, 110, 200, 0.75);
+}
+[data-theme=light] .bb-pgrid__start-flag { border-top-color: rgba(20, 140, 60, 0.95); }
+[data-theme=light] .bb-pgrid__start-marker { border-left-color: rgba(20, 140, 60, 0.8); }
+[data-theme=light] .bb-pgrid__btn.bb-pgrid__btn--clear-range { color: rgba(20, 110, 200, 0.9); border-color: rgba(20, 110, 200, 0.4); }
 
 .bb-pgrid__block-label {
   font-size: 8px;

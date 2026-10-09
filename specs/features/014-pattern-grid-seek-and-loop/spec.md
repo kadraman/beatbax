@@ -2,11 +2,11 @@
 title: "Pattern Grid Seek And Loop Playback"
 id: 14
 slug: "pattern-grid-seek-and-loop"
-status: "specified"
+status: "in-progress"
 authors:
   - "kadraman"
 created: "2026-06-22"
-updated: "2026-09-03"
+updated: "2026-10-08"
 issue: "https://github.com/kadraman/beatbax/issues/190"
 area: "desktop"
 related:
@@ -30,9 +30,11 @@ The Pattern Grid already provides a compact per-channel overview and a global pl
 | Play a **named section column** (seq-level window) on all channels | Play from **any** pending start step on the **full** song |
 | Loop via transport toggle + `play auto repeat` on synthetic source | Loop via **drag-selected range** on the full timeline |
 | Section focus mode (F5/F6/F8, section lane, editor highlight) | Pending start marker + loop handles on the grid |
-| No engine `startStep` / `endStep` | Requires engine range-aware scheduling |
+| No engine `startStep` / `endStep` | Range-aware scheduling of the resolved full song (see [plan.md](plan.md) design decision) |
 
 Desktop section focus may **look** like loop/seek (column highlight, playhead at section start) but it does not implement drag-to-set start, drag loop ranges, or mid-song seek on the unresolved full song. This spec remains the right long-term design for those behaviours.
+
+**Issue [#63](https://github.com/kadraman/beatbax/issues/63) (opt-in play and loop to selection)** is superseded on desktop and is not a separate scope item of this spec. Its two asks are covered by shipped work plus this spec: transport Play/loop of a chosen region (section focus, F5/F8 with the loop toggle) and a loop over selected patterns (the loop range below). Close #63 when this spec ships; a web UI equivalent would need its own spec.
 
 Shared foundation already in app-core: [`arrangement-slice.ts`](../../../packages/app-core/src/editor/arrangement-slice.ts) (`buildChannelTimelines`, step windows, `listArrangementSections`) — seek/loop UI should reuse the same global step coordinate system.
 
@@ -179,6 +181,37 @@ Recommended defaults:
 - Session-only loop ranges initially.
 - Pattern-boundary snapping by default.
 - Clear loop on file load unless the range can be safely mapped to the new song.
+
+---
+
+## Implemented Behaviour (Phases 1–3, pattern boundaries)
+
+Desktop Pattern Grid only. Session-only state; nothing is written to the song.
+
+**Timeline ruler.** A `Pos` row sits above the section lane and channel rows and uses the same global step scale as the blocks. Snap points are the union of every row's block boundaries plus `0` and the song end.
+
+| Gesture | Result |
+| --- | --- |
+| Click the ruler | Pending start = block boundary at or before the pointer (green flag + dashed line across all rows) |
+| Drag the start flag | Moves the pending start to the nearest boundary |
+| Drag across the ruler | Loop range covering every block touched (outward snap; at least one block) |
+| Drag a loop handle | Moves that edge to the nearest boundary; at least one block remains |
+| Right-click the ruler | Set start here · Loop this block · Clear start marker · Clear loop range |
+| `✕` in the ruler label cell | Clears the loop range (or the start marker when no loop is set) |
+
+Pattern blocks keep their click-to-navigate behaviour.
+
+**Transport.**
+
+- Play precedence: section focus, then loop range, then pending start, then whole song. Rewind and live-play restarts follow the same order.
+- A loop range plays `[start, end)` and repeats seamlessly until Stop. It is independent of the transport loop toggle and of `play auto repeat`.
+- Play from a pending start runs to the song end. If the transport loop toggle or the song's `play repeat` is on, playback then continues as normal whole-song looping from step 0.
+- Stop resets the pending start to the beginning unless a loop range is set. While stopped, the global playhead rests at the focus-window start, else the loop start, else the pending start, else `0`.
+- Changing the loop range while it is playing restarts on the new range. Clearing it while playing continues from the old loop start to the song end.
+- Transport time, step counter, Pattern Grid playhead and editor glyphs report full-song positions (no remapping).
+- Ruler edits exit section focus. Loading a different file clears both the start marker and the loop range; an edit that shortens the song drops any range that no longer fits.
+
+**Channels whose block spans the snap point.** Snap points come from any row, so a start or loop edge can fall inside another row's block. Every channel starts at that exact step. Inline instrument changes made earlier still apply, because each resolved note carries its own instrument state. A note held across the start step stays silent until that channel's next event. Phase 4 decides the full step-accurate policy, including retriggering held notes.
 
 ---
 
