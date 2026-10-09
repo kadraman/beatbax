@@ -1,0 +1,342 @@
+{
+  "songs/features/advanced_modifiers_demo.bax": {
+    "defs": "bcde9c82dbe0f56b",
+    "ism": "6f839c035cb1ab4e"
+  },
+  "songs/features/local_import_example.bax": {
+    "defs": "e627e16716910442",
+    "ism": "error: Import file not found: \"local:lib/gameboy-common.ins\" (imported from \"<repo>/songs/features/local_import_example.bax\")"
+  },
+  "songs/features/metadata_example.bax": {
+    "defs": "22991f83dae96cce",
+    "ism": "02197805adb2e944"
+  },
+  "songs/features/remote_import_example.bax": {
+    "defs": "4631d1c74cfed004",
+    "ism": "remote-imports"
+  },
+  "songs/features/scale_awareness_demo.bax": {
+    "defs": "a65f4d0f0eda77ae",
+    "ism": "8a021f19d81c8a4d"
+  },
+  "songs/features/sequence_demo.bax": {
+    "defs": "7561776b0871fd12",
+    "ism": "6076bbd39f5153ec"
+  },
+  "songs/features/simple_modifiers_demo.bax": {
+    "defs": "16075db9c655c7bd",
+    "ism": "b08533243fc9931e"
+  },
+  "songs/features/sustain_demo.bax": {
+    "defs": "6a243fbdfd7703fd",
+    "ism": "c336fdfcf3215d90"
+  },
+  "songs/gameboy/a_trainers_journey.bax": {
+    "defs": "139afd21c7eb0f6d",
+    "ism": "79d70011a7bcfc39"
+  },
+  "songs/gameboy/crypt_of_fallen_kings.bax": {
+    "defs": "df1a9c932d886bce",
+    "ism": "de2e212b8172b40a"
+  },
+  "songs/gameboy/dancefloor_pulse.bax": {
+    "defs": "116eec91f64dae1f",
+    "ism": "2bda94d4b1661393"
+  },
+  "songs/gameboy/digital_citadel.bax": {
+    "defs": "2fca91989c1cf761",
+    "ism": "598e3177af8aabc6"
+  },
+  "songs/gameboy/effects/gb_arpeggio_demo.bax": {
+    "defs": "1338efea3719b2f2",
+    "ism": "1e26759d525dff14"
+  },
+  "songs/gameboy/effects/gb_echo_demo.bax": {
+    "defs": "376db18f727c36a9",
+    "ism": "6fef9acf2346f731"
+  },
+  "songs/gameboy/effects/gb_effects_demo.bax": {
+    "defs": "072be80d988a03a8",
+    "ism": "28aae71b88d8f70b"
+  },
+  "songs/gameboy/effects/gb_notecut_demo.bax": {
+    "defs": "74b2fcaae0528a6e",
+    "ism": "9e3ed8f0537958bb"
+  },
+  "songs/gameboy/effects/gb_panning_demo.bax": {
+    "defs": "626e76c43dfda7ca",
+    "ism": "021d925f68228131"
+  },
+  "songs/gameboy/effects/gb_pitchbend_demo.bax": {
+    "defs": "fea1c5823673687a",
+    "ism": "3165ae74223294f7"
+  },
+  "songs/gameboy/effects/gb_portamento_demo.bax": {
+    "defs": "6ffc24348fceb836",
+    "ism": "d7d324b461b18192"
+  },
+  "songs/gameboy/effects/gb_retrigger_demo.bax": {
+    "defs": "cc840f48c62a8c5b",
+    "ism": "3fd3e16f9e256820"
+  },
+  "songs/gameboy/effects/gb_sweep_demo.bax": {
+    "defs": "0652ca480b28f42d",
+    "ism": "623f01746448e0fe"
+  },
+  "songs/gameboy/effects/gb_tremolo_demo.bax": {
+    "defs": "a57affefcdc3a611",
+    "ism": "ca125de4c9e2644a"
+  },
+  "songs/gameboy/effects/gb_vibrato_demo.bax": {
+    "defs": "77fd4299d9111297",
+    "ism": "be1c82dbf3529ef5"
+  },
+  "songs/gameboy/effects/gb_volume_slide_demo.bax": {
+    "defs": "59becbafc54b6716",
+    "ism": "91131708ca93751a"
+  },
+  "songs/gameboy/grassland_dash.bax": {
+    "defs": "286bdec58c406988",
+    "ism": "d2a4f4df18b46fb8"
+  },
+  "songs/gameboy/graveyard_shift.bax": {
+    "defs": "c154d0b0e07a92cb",
+    "ism": "1f7577db9e8f6318"
+  },
+  "songs/gameboy/heroes_call.bax": {
+    "defs": "778d011be957da53",
+    "ism": "cd2e321d1bb93e6e"
+  },
+  "songs/gameboy/instruments/gb_dcm_demo.bax": {
+    "defs": "3fb24cece2e7efdc",
+    "ism": "99b65bb8a29e9c40"
+  },
+  "songs/gameboy/instruments/gb_instrument_demo.bax": {
+    "defs": "a28d5d1b20bbe4e0",
+    "ism": "faf69a961e3dd638"
+  },
+  "songs/gameboy/instruments/gb_percussion_demo.bax": {
+    "defs": "c7263d4447044900",
+    "ism": "2ed8ceda675525da"
+  },
+  "songs/gameboy/instruments/gb_subpattern_macro_demo.bax": {
+    "defs": "cadc45d4ff59b833",
+    "ism": "0308f0ba700d336d"
+  },
+  "songs/gameboy/instruments/gb_sweep_demo.bax": {
+    "defs": "10bac7f8481a22ee",
+    "ism": "f431c7c1e3e68d61"
+  },
+  "songs/gameboy/instruments/gb_uge_note_demo.bax": {
+    "defs": "b31f4a5eab8a06ea",
+    "ism": "67ce530d2d4e50f9"
+  },
+  "songs/gameboy/instruments/gb_wave_scan_demo.bax": {
+    "defs": "f73184125c48c3a0",
+    "ism": "b8ba60e36f9ee703"
+  },
+  "songs/gameboy/mystic_voyage.bax": {
+    "defs": "0b48030d34123504",
+    "ism": "87a3fc4eb944f2f5"
+  },
+  "songs/gameboy/night_hawk.bax": {
+    "defs": "a60d5e73a96e44c8",
+    "ism": "a840f7457aa048e0"
+  },
+  "songs/gameboy/tutorial_groove.bax": {
+    "defs": "53cb7e21f8c550bf",
+    "ism": "fb63e6a9cf6fd3d0"
+  },
+  "songs/nes/battle_fanfare.bax": {
+    "defs": "eb0e59f3b4b25ea0",
+    "ism": "46c5ef0dcd44c035"
+  },
+  "songs/nes/effects/nes_effects_demo.bax": {
+    "defs": "011c082233c03ad5",
+    "ism": "a9404f1db40c1f7b"
+  },
+  "songs/nes/effects/nes_unsupported_effects_demo.bax": {
+    "defs": "023352fe07ba9df4",
+    "ism": "d8c398a9400e30d5"
+  },
+  "songs/nes/instruments/nes_dmc_demo.bax": {
+    "defs": "4a67eab17a575f8d",
+    "ism": "f158c04facb7e7ca"
+  },
+  "songs/nes/instruments/nes_dpcm_channel.bax": {
+    "defs": "6714e5b8db7c5325",
+    "ism": "19c69e83b4918584"
+  },
+  "songs/nes/instruments/nes_macro_arp_triangle.bax": {
+    "defs": "95397dae35ee6492",
+    "ism": "93f85862466d6ae8"
+  },
+  "songs/nes/instruments/nes_macro_duty_env.bax": {
+    "defs": "c9f394db713bae40",
+    "ism": "6bbe1041c8f007d9"
+  },
+  "songs/nes/instruments/nes_macro_noise_vol_env_oneshot.bax": {
+    "defs": "5a08830ebeeaa889",
+    "ism": "b2b7d0cb33992b9c"
+  },
+  "songs/nes/instruments/nes_macro_pitch_env.bax": {
+    "defs": "55ce0278996e6eb2",
+    "ism": "7b20c7ca29137411"
+  },
+  "songs/nes/instruments/nes_macro_vol_env_loop.bax": {
+    "defs": "b0fbfa9b2f6181ae",
+    "ism": "2e35058b1de67fec"
+  },
+  "songs/nes/instruments/nes_synth_channels.bax": {
+    "defs": "04e92ff9dae2f90c",
+    "ism": "94d751049b5af62a"
+  },
+  "songs/nes/iron_keep.bax": {
+    "defs": "fc1b328ab538f7ca",
+    "ism": "bbc5b32d0faec866"
+  },
+  "songs/nes/kingdom_hall.bax": {
+    "defs": "a9a0fe8fe839be48",
+    "ism": "3776f095380fd8a5"
+  },
+  "songs/nes/puffball_parade.bax": {
+    "defs": "0b68f91c60349b4b",
+    "ism": "0601b980c5f6f9ff"
+  },
+  "songs/nes/shadow_temple.bax": {
+    "defs": "3a43269be0ac930c",
+    "ism": "507b013cb8e33c61"
+  },
+  "songs/nes/silver_orbit.bax": {
+    "defs": "809e4f35029c2078",
+    "ism": "cc1b2ec7dc34448e"
+  },
+  "songs/nes/wily_fortress.bax": {
+    "defs": "0880a0735626c06c",
+    "ism": "6572f16355c43e0c"
+  },
+  "songs/sample.bax": {
+    "defs": "e64e277e10105f93",
+    "ism": "8f958b91f230585c"
+  },
+  "songs/sms/battle_field.bax": {
+    "defs": "dc07fa9d609e4bb8",
+    "ism": "926fb4e57ff25303"
+  },
+  "songs/sms/battle_field_remix.bax": {
+    "defs": "2885efc44cd60dd9",
+    "ism": "df5b02a4e6a05ad6"
+  },
+  "songs/sms/effects/sms_effects_demo.bax": {
+    "defs": "adaf90253c35ee11",
+    "ism": "0673db3bbc1d83c7"
+  },
+  "songs/sms/effects/sms_unsupported_effects_demo.bax": {
+    "defs": "8d9842a24d472905",
+    "ism": "a9ff49d8fc9b64ec"
+  },
+  "songs/sms/green_hill_remix.bax": {
+    "defs": "400fd6e40df52876",
+    "ism": "e23c8e702fbaa019"
+  },
+  "songs/sms/green_zone.bax": {
+    "defs": "34a046e5dca16025",
+    "ism": "e271cffd2019ba10"
+  },
+  "songs/sms/instruments/gamegear_inline_pan.bax": {
+    "defs": "5c4965a1e9f45b1b",
+    "ism": "2372b525bc3345e5"
+  },
+  "songs/sms/instruments/gamegear_stereo_pan.bax": {
+    "defs": "c5e618ba14f197ba",
+    "ism": "3a107602b46c32e4"
+  },
+  "songs/sms/instruments/sms_macro_arp_env.bax": {
+    "defs": "a06babef555e5af4",
+    "ism": "058f153327356905"
+  },
+  "songs/sms/instruments/sms_macro_noise_rate_env.bax": {
+    "defs": "3626768f8d6ad44d",
+    "ism": "57e3434fffe92f8d"
+  },
+  "songs/sms/instruments/sms_macro_pitch_env.bax": {
+    "defs": "f1e5d4f455b8a41f",
+    "ism": "12bfb7e9847fd9f0"
+  },
+  "songs/sms/instruments/sms_noise_channel.bax": {
+    "defs": "7e426331c613aa0f",
+    "ism": "3c121372096afafe"
+  },
+  "songs/sms/instruments/sms_percussion_layered_slow.bax": {
+    "defs": "0926602896f56b5e",
+    "ism": "8c6d280cfb2a8001"
+  },
+  "songs/sms/instruments/sms_percussion_layered_template.bax": {
+    "defs": "e08e2d2ea7da7b39",
+    "ism": "137b65cba0b672ee"
+  },
+  "songs/sms/instruments/sms_synth_channels.bax": {
+    "defs": "43bae5cf7d4fb879",
+    "ism": "a713c2ca19526f76"
+  },
+  "songs/sms/instruments/sms_tone3-sync.bax": {
+    "defs": "db19325244c82d7f",
+    "ism": "816dedcb17b6ccc8"
+  },
+  "songs/sms/night_raid.bax": {
+    "defs": "614181113ba0d1ca",
+    "ism": "492c254197833611"
+  },
+  "songs/spectrum-128/cave_run_theme.bax": {
+    "defs": "1379771e87d42fac",
+    "ism": "4a52fb75b2762f89"
+  },
+  "songs/spectrum-128/effects/ay_effects_showcase.bax": {
+    "defs": "2ea3d83e86aaec61",
+    "ism": "b366a15ccfdda33f"
+  },
+  "songs/spectrum-128/effects/ay_unsupported_effects_demo.bax": {
+    "defs": "4581aea179346c09",
+    "ism": "670abe9ff50baa70"
+  },
+  "songs/spectrum-128/instruments/ay_all_macros.bax": {
+    "defs": "cbaf43fa2bed9237",
+    "ism": "8dc3c9ca8401190c"
+  },
+  "songs/spectrum-128/instruments/ay_buzz_bass.bax": {
+    "defs": "cc2ab2fb6ae27db3",
+    "ism": "8e7978f65d3fbebe"
+  },
+  "songs/spectrum-128/instruments/ay_macro_arp_pitch.bax": {
+    "defs": "5ab0d4a2af5f13cb",
+    "ism": "d6c631b2f6cde6b9"
+  },
+  "songs/spectrum-128/instruments/ay_noise_mixing.bax": {
+    "defs": "55eddd375b591d18",
+    "ism": "8c3a3fd1edd435c4"
+  },
+  "songs/spectrum-128/instruments/ay_noise_rate_conflict.bax": {
+    "defs": "8e607b66cc7f4dd4",
+    "ism": "500acd08c3faf820"
+  },
+  "songs/spectrum-128/instruments/ay_percussion_demo.bax": {
+    "defs": "eacc7b55e4e7524f",
+    "ism": "a34099fb1993b79d"
+  },
+  "songs/spectrum-128/instruments/ay_synth_channels.bax": {
+    "defs": "b2d4a0e5257f2c52",
+    "ism": "619e35aeb13baf97"
+  },
+  "songs/spectrum-128/instruments/ay_vol_env_conflict.bax": {
+    "defs": "a5f8cdeeefe04abf",
+    "ism": "1429a9ada1adb01c"
+  },
+  "songs/spectrum-128/spectral_phantoms.bax": {
+    "defs": "11f056a3f6267771",
+    "ism": "279e8482a758d0f4"
+  },
+  "songs/spectrum-128/steel_justice.bax": {
+    "defs": "c31dae9ef12e122b",
+    "ism": "8915ef5925d83e39"
+  }
+}
