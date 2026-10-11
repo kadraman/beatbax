@@ -25,8 +25,9 @@
 ## Phase 2: User Story 2 — Spectrum 128 (P1)
 
 - [ ] T020 [US2] Spectrum profile: role table, AY melodic lines, default articulations, shared-`noise_rate` drum kit on `type=tone2` (FR-020, FR-022, FR-023, FR-030)
-- [ ] T021 [US2] Drum-channel rule in `roles.ts` / `pack.ts`: channel 2 reserved when drums exist, budget 2, `drums_share_tone_channel` (FR-021)
-- [ ] T022 [US2] Tests and Spectrum goldens (melodic, with drums)
+- [ ] T021 [US2] Drum-channel rule in `packages/engine/src/import/midi/pack.ts`: channel 2 reserved when drums exist, budget 2, `drums_share_tone_channel`; `packPercussion` targets the profile drum slot instead of `role === 'noise'` (FR-021)
+- [ ] T023 [US2] Drum lanes on Spectrum (spec edge case): in `packages/engine/src/import/midi/roles.ts` change `lane = lanes && !isDrum` to `lanes && (!isDrum || profile.drumsShareToneChannel)`; in `pack.ts` `placeLanes`, resolve drum lanes to the drum channel and collapse same-tick hits with `packDrumNotes` before `gapFill`. GB/NES unchanged (FR-040)
+- [ ] T022 [US2] Tests and Spectrum goldens (melodic, with drums), plus the mixed `tone2` lane cases from plan.md "Unit tests": harmony-then-drums and drums-then-harmony config order, same-tick drum collapse inside the lane, auto-classified drums filling the gaps after a `tone2` lane, harmony instrument kept after a drum token, and the GB/NES regression where a drum mapping with lanes is still not a lane
 
 ## Phase 3: User Story 3 — Config reuse (P2)
 

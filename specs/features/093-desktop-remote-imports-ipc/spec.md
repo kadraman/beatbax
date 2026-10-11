@@ -6,7 +6,7 @@ status: "specified"
 authors:
   - "kadraman"
 created: "2026-10-08"
-updated: "2026-10-08"
+updated: "2026-10-11"
 issue: "https://github.com/kadraman/beatbax/issues/216"
 area: "desktop"
 related:
@@ -53,7 +53,7 @@ Remote instrument imports (`import "github:owner/repo/path.ins"`, `import "https
 
 1. **Given** `import "https://example.com/kits/lead.ins"` and `example.com` is not allowlisted, **When** imports are resolved, **Then** the import fails with the message *Remote asset host 'example.com' is not in the Desktop allowlist. Add it under Settings → Advanced → Remote host allowlist.*, reported through the same error path as any other import failure (parse status and Output panel; Play, export and CodeLens preview show the same message).
 2. **Given** the user adds `example.com` under Settings → Advanced → Remote host allowlist, **When** imports are resolved again, **Then** the import succeeds without restarting the app.
-3. **Given** `import "http://…/kit.ins"`, **When** imports are resolved in Desktop, **Then** the import fails with *Only https:// remote assets are allowed in Desktop.*
+3. **Given** `import "http://…/kit.ins"`, **When** imports are resolved in Desktop, **Then** the import fails in the renderer, with no request sent to the main process and no network request, with *Only https:// remote assets are allowed in Desktop.* (the same text the main process uses).
 4. **Given** a remote file larger than 1 MiB, a fetch that takes more than 10 seconds, or more than 5 redirects, **When** imports are resolved, **Then** the import fails with the corresponding size, timeout or redirect message from the main process.
 
 ### User Story 3 — Example loader fallback does not hit the CSP (Priority: P3)
@@ -77,10 +77,10 @@ Remote instrument imports (`import "github:owner/repo/path.ins"`, `import "https
 
 ### Functional requirements
 
-- **FR-001**: In the `desktop-full` client profile, remote instrument imports (`github:`, `https://`, `http://`) MUST be fetched through the main-process remote asset IPC (`window.electronAPI.fetchRemoteAsset`). The renderer MUST NOT issue a direct network request for them.
+- **FR-001**: In the `desktop-full` client profile, `github:` and `https://` remote instrument imports MUST be fetched through the main-process remote asset IPC (`window.electronAPI.fetchRemoteAsset`). `http://` imports MUST be rejected in the renderer before any IPC call and without any network request (FR-003). The renderer MUST NOT issue a direct network request for any remote import. The main process still re-checks the scheme for every request it receives.
 - **FR-002**: The renderer CSP MUST keep `connect-src 'self'`. This spec MUST NOT add hosts to the CSP.
 - **FR-003**: Remote imports in Desktop MUST use the spec 019 policy unchanged: HTTPS only, no credentials or explicit port, hostname in the effective allowlist (built-in `raw.githubusercontent.com` plus the user list under Settings → Advanced → Remote host allowlist, shared with DMC samples), 10 s timeout, 1 MiB maximum size, at most 5 redirects, each redirect target re-checked against the policy.
-- **FR-004**: Policy and network errors MUST reach the user with the main-process message text (no Electron IPC prefix), through the existing import error paths (the `parse:error` status and Output panel, Play, export and CodeLens preview). Adding a per-line marker on the `import` line is out of scope.
+- **FR-004**: Policy and network errors MUST reach the user with the main-process message text (no Electron IPC prefix). The `http://` rejection from FR-001 happens in the renderer but MUST use the same text as the main process (*Only https:// remote assets are allowed in Desktop.*). All of these errors are reported through the existing import error paths (the `parse:error` status and Output panel, Play, export and CodeLens preview). Adding a per-line marker on the `import` line is out of scope.
 - **FR-005**: The engine's remote `.ins` rules (spec 048: allowed declarations only, no nested imports, size limit) MUST still apply to the fetched text.
 - **FR-006**: Web (`web-lite`) and CLI remote import behaviour MUST be unchanged.
 - **FR-007**: The Desktop example loader fallback MUST NOT perform a renderer `fetch` to a cross-origin URL; `github:` and `https:` paths MUST use the main-process remote fetch.

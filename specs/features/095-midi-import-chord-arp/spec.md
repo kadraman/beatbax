@@ -6,7 +6,7 @@ status: "specified"
 authors:
   - "kadraman"
 created: "2026-10-08"
-updated: "2026-10-08"
+updated: "2026-10-11"
 issue: "https://github.com/kadraman/beatbax/issues/209"
 area: "engine"
 related:
@@ -79,7 +79,7 @@ When several melodic notes start on the same tick, the MIDI importer keeps one o
 Configuration
 
 - **FR-001**: `trackMappings[].mono` MAY be `"arp"` in addition to the 089 values. It is a config error on `noise` and `dmc` targets.
-- **FR-002**: A top-level config key `chords: "flatten" | "arp"` (default `"flatten"`) and a CLI flag `--chords <flatten|arp>` set the policy for melodic streams that have no `mono` of their own. The CLI flag overrides the config key. `"flatten"` is the 006 behaviour.
+- **FR-002**: A top-level config key `chords: "flatten" | "arp"` (default `"flatten"`) and a CLI flag `--chords <flatten|arp>` set the policy for melodic streams that have no `mono` of their own. The CLI flag overrides the config key. `"flatten"` is the 006 behaviour. A lane mapping (089 `packing: "lanes"`) without `mono` counts as having no `mono` of its own: under `chords: "arp"` it uses `arp`, and the 089 lane default `earliest` applies only when the chord policy is `"flatten"`.
 - **FR-003**: With no `"arp"` anywhere, output MUST be byte-identical to the current importer (golden fixtures unchanged).
 
 Grouping and offsets

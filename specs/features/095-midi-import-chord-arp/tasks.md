@@ -14,7 +14,8 @@
 
 ## Phase 1: User Story 1 — Chords as arpeggios (P1)
 
-- [ ] T010 [US1] `reduceArp` in `packages/engine/src/import/midi/reduce.ts` and default-policy wiring in `reduceStreams` (FR-010, FR-013, FR-014)
+- [ ] T010 [US1] `reduceArp` in `packages/engine/src/import/midi/reduce.ts`; `reduceStreams` dispatches `'arp'` to it (FR-010, FR-013, FR-014)
+- [ ] T015 [US1] Effective policy in `classifyStreams` (`packages/engine/src/import/midi/roles.ts`): mapping `mono` → `chords: "arp"` → lane `earliest` → none, replacing the lane default at `roles.ts:353` so `chords: "arp"` reaches lanes without their own `mono` (FR-002, FR-003). Tests for the lane / non-lane / auto-classified resolution cases in plan.md "Unit tests"
 - [ ] T011 [US1] Carry `arpOffsets` through `pack.ts` / `reuse.ts`; token format (FR-021)
 - [ ] T012 [US1] Preset emission and collision check in `emit.ts` (FR-020, FR-022)
 - [ ] T013 [US1] `--chords` in `packages/cli/src/import-midi.ts`; CLI test
