@@ -519,7 +519,12 @@ export class PlaybackManager {
           } catch { /* ignore */ }
         } catch (e) { /* ignore */ }
       }
-      await this.player.playAST(playable as any);
+      // The engine's default pass ends at the last note, which would cut a loop
+      // range's trailing rests short.
+      const passOptions = sliced?.range.loop
+        ? { lengthSteps: sliced.range.endStep - sliced.range.startStep }
+        : undefined;
+      await this.player.playAST(playable as any, passOptions);
       log.debug('player.playAST() completed');
       this._startPositionTimer(this.player);
       this._emitElapsedPosition(this.player);

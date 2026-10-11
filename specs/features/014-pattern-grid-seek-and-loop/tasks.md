@@ -29,6 +29,7 @@ Phases 1–3 tests:
 
 - `packages/app-core/tests/playback-range.test.ts`: slicing, snapping, store, and `PlaybackManager` range playback with full-song positions.
 - `packages/engine/tests/resolver-step-state.test.ts`: per-note instrument state invariant.
+- `packages/engine/tests/playback.pass-length.test.ts`: `playAST` `lengthSteps` keeps trailing rests in a loop pass.
 - `apps/desktop/tests/pattern-grid-timeline.test.ts`: ruler mapping, gestures, idle playhead, and Play routing.
 
 Pending: manual scenarios 1–5 in [plan.md](plan.md#test-plan) (desktop QA row "Pattern Grid seek and loop").

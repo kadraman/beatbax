@@ -177,13 +177,18 @@ describe('PlaybackManager range playback', () => {
   let eventBus: EventBus;
   let manager: PlaybackManager;
   let playedAst: any;
+  let playedOptions: any;
 
   beforeEach(() => {
     const MockAudioContext = jest.fn().mockImplementation(() => ({}));
     (globalThis as any).AudioContext = MockAudioContext;
     (window as any).AudioContext = MockAudioContext;
     playedAst = null;
-    jest.spyOn(Player.prototype, 'playAST').mockImplementation(async (ast: any) => { playedAst = ast; });
+    playedOptions = undefined;
+    jest.spyOn(Player.prototype, 'playAST').mockImplementation(async (ast: any, options?: any) => {
+      playedAst = ast;
+      playedOptions = options;
+    });
     jest.spyOn(Player.prototype, 'stop').mockImplementation(() => {});
     eventBus = new EventBus();
     manager = new PlaybackManager(eventBus);
@@ -208,6 +213,7 @@ describe('PlaybackManager range playback', () => {
     expect(playedAst.channels[0].events).toHaveLength(4);
     expect(playedAst.channels[1].events).toHaveLength(8);
     expect(playedAst.play.repeat).toBe(false);
+    expect(playedOptions).toBeUndefined();
     // Grid still receives the full song.
     expect(parsed[0].song.channels[0].events).toHaveLength(12);
     expect(parsed[0].ephemeral).toBe(false);
@@ -226,6 +232,13 @@ describe('PlaybackManager range playback', () => {
     expect(playedAst.play.repeat).toBe(true);
     expect(playedAst.channels.every((ch: any) => ch.events.length === 4)).toBe(true);
     expect(manager.getActiveRange()).toEqual({ startStep: 4, endStep: 8, loop: true });
+  });
+
+  it('playRange fixes the pass length so trailing rests in the window are kept', async () => {
+    // Steps 12–16: channel 1 has no events, channel 2 ends on three rests.
+    await manager.playRange(SONG, { startStep: 12, endStep: 16 });
+    expect(playedAst.channels[1].events.map((ev: any) => ev.type)).toEqual(['note', 'rest', 'rest', 'rest']);
+    expect(playedOptions).toEqual({ lengthSteps: 4 });
   });
 
   it('whole-song play is unchanged and stop clears the range', async () => {
