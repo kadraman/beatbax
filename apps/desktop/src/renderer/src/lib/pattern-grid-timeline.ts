@@ -38,6 +38,19 @@ export function stepFromClientX(
   return frac * totalSteps;
 }
 
+/**
+ * Snap a pending start to a block boundary. The song-end boundary is excluded
+ * because playback cannot start there, so the latest start is the final block.
+ */
+export function snapPendingStart(
+  step: number,
+  boundaries: readonly number[],
+  mode: 'down' | 'nearest',
+): number {
+  const starts = boundaries.length > 1 ? boundaries.slice(0, -1) : boundaries;
+  return mode === 'down' ? snapStepDown(step, starts) : snapStepNearest(step, starts);
+}
+
 export type TimelineDragKind = 'new' | 'start' | 'loop-start' | 'loop-end';
 
 export type TimelineGestureResult =
@@ -61,12 +74,12 @@ export function resolveTimelineGesture(
   loop: LoopRange | null,
 ): TimelineGestureResult {
   if (kind === 'new') {
-    if (!moved) return { kind: 'start', startStep: snapStepDown(anchorStep, boundaries) };
+    if (!moved) return { kind: 'start', startStep: snapPendingStart(anchorStep, boundaries, 'down') };
     const next = snapLoopRange(anchorStep, currentStep, boundaries);
     return next ? { kind: 'loop', loop: next } : { kind: 'none' };
   }
   if (kind === 'start') {
-    return { kind: 'start', startStep: snapStepNearest(currentStep, boundaries) };
+    return { kind: 'start', startStep: snapPendingStart(currentStep, boundaries, 'nearest') };
   }
   if (!loop) return { kind: 'none' };
   const edge = snapStepNearest(currentStep, boundaries);

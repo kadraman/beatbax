@@ -12,6 +12,7 @@ import {
   idlePlayheadStep,
   resolveTimelineGesture,
   rowStepSpans,
+  snapPendingStart,
   stepFromClientX,
   tryPlayRequestedRange,
 } from '../src/renderer/src/lib/pattern-grid-timeline';
@@ -56,6 +57,19 @@ describe('ruler gestures snap to pattern boundaries', () => {
   it('dragging the start flag moves it to the nearest boundary', () => {
     expect(resolveTimelineGesture('start', 8, 13.5, true, boundaries, null))
       .toEqual({ kind: 'start', startStep: 12 });
+  });
+
+  it('a pending start never lands on the song end', () => {
+    // Latter half of the final block (20–24) would snap nearest to 24.
+    expect(resolveTimelineGesture('start', 8, 23, true, boundaries, null))
+      .toEqual({ kind: 'start', startStep: 20 });
+    // Exact right edge of the ruler.
+    expect(resolveTimelineGesture('new', 24, 24, false, boundaries, null))
+      .toEqual({ kind: 'start', startStep: 20 });
+    expect(snapPendingStart(24, boundaries, 'down')).toBe(20);
+    expect(snapPendingStart(24, boundaries, 'nearest')).toBe(20);
+    expect(snapPendingStart(21, boundaries, 'nearest')).toBe(20);
+    expect(snapPendingStart(0, [0], 'down')).toBe(0);
   });
 
   it('loop handles keep at least one block', () => {

@@ -20,7 +20,7 @@ import {
 } from '@beatbax/app-core/stores/channel.store';
 import type { ArrangementSectionBlock, SectionFocusInfo } from '@beatbax/app-core/editor/arrangement-slice';
 import { buildChannelTimelines, listArrangementSections, segmentMatchesSectionFocus } from '@beatbax/app-core/editor/arrangement-slice';
-import { collectStepBoundaries, snapLoopRange, snapStepDown, type LoopRange } from '@beatbax/app-core/playback/playback-range';
+import { collectStepBoundaries, snapLoopRange, type LoopRange } from '@beatbax/app-core/playback/playback-range';
 import { playbackStatus } from '@beatbax/app-core/stores/playback.store';
 import {
   clearPlaybackLoopRange,
@@ -35,6 +35,7 @@ import {
   idlePlayheadStep,
   resolveTimelineGesture,
   rowStepSpans,
+  snapPendingStart,
   stepFromClientX,
   type TimelineDragKind,
 } from '../../lib/pattern-grid-timeline';
@@ -296,14 +297,17 @@ function DesktopPatternGrid({
     [rows, globalEventTotal],
   );
 
-  const showIdlePlayhead = useCallback((): void => {
+  const showIdlePlayhead = useCallback((
+    gridRows: PatternGridRow[] = rowsRef.current,
+    total: number = globalEventTotalRef.current,
+  ): void => {
     const step = idlePlayheadStep({
       focusWindow: sectionFocusRef.current?.window,
       loop: playbackLoopRange.get(),
       startStep: playbackStartStep.get(),
     });
-    const pct = Math.min(99.5, stepPct(step, globalEventTotalRef.current));
-    setPositions(channelPositionsAtPct(rowsRef.current, pct));
+    const pct = Math.min(99.5, stepPct(step, total));
+    setPositions(channelPositionsAtPct(gridRows, pct));
     setGlobalPct(pct);
     setPaused(false);
   }, []);
@@ -469,12 +473,16 @@ function DesktopPatternGrid({
       setSectionBlocks(next.sectionBlocks);
       globalEventTotalRef.current = next.globalEventTotal;
       setGlobalEventTotal(next.globalEventTotal);
-      setPositions({});
-      setGlobalPct(null);
-      setPaused(false);
       setSliceWindow(null);
       setSectionFocusState(null);
       sectionFocusRef.current = null;
+      if (next.rows.length > 0 && playbackStatus.get() === 'stopped') {
+        showIdlePlayhead(next.rows, next.globalEventTotal);
+      } else {
+        setPositions({});
+        setGlobalPct(null);
+        setPaused(false);
+      }
     },
     setPosition: (channelId, progress) => {
       const window = slicePlaybackRemapRef.current ? sectionFocusRef.current?.window : null;
@@ -906,7 +914,7 @@ function DesktopPatternGrid({
             type="button"
             onClick={() => {
               onTimelineEditRef.current?.();
-              setPlaybackStartStep(snapStepDown(contextMenu.step, stepBoundaries));
+              setPlaybackStartStep(snapPendingStart(contextMenu.step, stepBoundaries, 'down'));
               setContextMenu(null);
             }}
           >

@@ -8,7 +8,7 @@ GATE: complete before implementation. Re-check after design changes.
 
 - [x] No invented syntax or undocumented language behavior — desktop UI and app-core playback only; no `.bax` syntax, no song metadata.
 - [x] AST / ISM / scheduler / expansion impact identified — none for phases 1–3 (see design decision). Phase 4 must re-check the scheduler.
-- [x] Plugins remain isolated; core does not gain plugin dependencies — engine untouched; app-core and desktop only.
+- [x] Plugins remain isolated; core does not gain plugin dependencies — app-core and desktop, plus one optional `Player.playAST` option (see design decision); no plugin, AST or ISM change.
 - [x] Determinism and compatibility preserved — whole-song `play()` path unchanged when no range is passed; range state is session-only.
 - [x] Tests planned for new behavior — see Test Plan (app-core range/store/manager, engine resolver invariant, desktop timeline mapping and Play routing).
 
@@ -19,6 +19,7 @@ Phases 2–3 do **not** add `startStep` / `endStep` to the engine `Player`.
 - `PlaybackManager` resolves the full song as usual and emits `parse:success` with the full song, so the Pattern Grid layout is unchanged.
 - It then plays a shallow copy whose channel `events` are sliced to `[startStep, endStep)`.
 - A loop range sets `play.repeat = true` on the copy, so the engine's existing seamless repeat loops the range. A play-from range clears `repeat`.
+- A loop range also passes `playAST(copy, { lengthSteps: endStep - startStep })`. By default the engine ends a pass at the last scheduled note, so a window whose channels all end on rests would repeat early. `lengthSteps` fixes the pass to the exact window length. It is optional, defaults to the last-note length, and is reset by `stop()`. Whole-song and play-from playback do not pass it.
 
 This is the spec's "skip full pattern ranges before `startStep`" route, and it is sound for these reasons:
 
@@ -93,7 +94,7 @@ Add loop-region playback using pattern boundaries.
 Deliverables:
 
 - `PlaybackManager.playRange(source, { startStep, endStep, loop: true })`.
-- Restart from `startStep` when reaching `endStep` (engine seamless repeat of the sliced song).
+- Restart from `startStep` when reaching `endStep` (engine seamless repeat of the sliced song, pass length fixed to the window so trailing rests are kept).
 - Pattern Grid loop overlay remains visible during playback.
 - Existing whole-song loop remains separate from selected range loop.
 
