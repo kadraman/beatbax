@@ -1703,25 +1703,27 @@ function DesktopCopilotPanel({
           applyExplanation = applyExplanation || explain(response);
           baxCode = extractBaxCode(response);
         }
-        if (baxCode !== null) {
-          // Validate and auto-repair: feed parse errors back to the model and retry.
+        // Validate and auto-repair: feed parse errors and new duplicate definitions back to the model
+        // and retry. Every song extracted from a reply must pass through here before merge or apply.
+        // Resolves to the song to continue with, or null once the turn has been finished.
+        const validateWithRepair = async (song: string): Promise<string | null> => {
+          let candidate = song;
           for (;;) {
-            if (requestGen !== requestGenRef.current || cancelledRef.current) return;
-            const validation = validateBaxSource(baxCode);
+            if (requestGen !== requestGenRef.current || cancelledRef.current) return null;
+            const validation = validateBaxSource(candidate);
             const current = getEditorContent();
-            const duplicates = findNewDuplicateDefinitions(current, baxCode);
-            if (validation.ok && duplicates.length === 0) break;
+            const duplicates = findNewDuplicateDefinitions(current, candidate);
+            if (validation.ok && duplicates.length === 0) return candidate;
 
             // A reply that left definitions out fails on its own but may merge cleanly;
             // a repair would instead drop references to the missing definitions.
             // Merging would hide a new duplicate behind last-wins, so duplicates always go to repair.
             if (duplicates.length === 0) {
-              const defMerged = tryMergeChangedDefinitions(current, matchLineEndings(baxCode, current));
+              const defMerged = tryMergeChangedDefinitions(current, matchLineEndings(candidate, current));
               if (defMerged && validateBaxSource(defMerged).ok) {
-                unmergedLines = collectUnmergedLines(current, baxCode);
-                baxCode = defMerged;
+                unmergedLines = collectUnmergedLines(current, candidate);
                 mergedDefinitions = true;
-                break;
+                return defMerged;
               }
             }
 
@@ -1737,20 +1739,20 @@ function DesktopCopilotPanel({
                   ...duplicates.map((d) => `Duplicate definition: ${describeDuplicateDefinition(d)}.`),
                 ],
               });
-              return;
+              return null;
             }
 
             parseRepairAttempts += 1;
             pushChatNotice(validation.ok
               ? `Duplicate definitions — asking Copilot to fix (${parseRepairAttempts}/${MAX_PARSE_REPAIR_ATTEMPTS})…`
               : `Parse errors detected — asking Copilot to fix (${parseRepairAttempts}/${MAX_PARSE_REPAIR_ATTEMPTS})…`);
-            const repairPrompt = buildRepairPrompt(validation.errors, baxCode, duplicates);
+            const repairPrompt = buildRepairPrompt(validation.errors, candidate, duplicates);
             response = await requestCompletion([
               { role: 'assistant', content: response },
               { role: 'user', content: repairPrompt },
             ]);
-            if (requestGen !== requestGenRef.current || cancelledRef.current) return;
-            if (finishIfLengthStopped(response)) return;
+            if (requestGen !== requestGenRef.current || cancelledRef.current) return null;
+            if (finishIfLengthStopped(response)) return null;
             // Repair replies describe fixes to the model's own draft, not the user's request.
             applyExplanation = applyExplanation || explain(response);
             const repaired = extractBaxCode(response);
@@ -1761,13 +1763,18 @@ function DesktopCopilotPanel({
                 replyMode: activeMode,
                 changeSummary: ['Parse-repair attempt did not return a song.'],
               });
-              return;
+              return null;
             }
-            baxCode = repaired;
+            candidate = repaired;
           }
+        };
+
+        if (baxCode !== null) {
+          const validated = await validateWithRepair(baxCode);
+          if (validated === null) return;
 
           const previous = getEditorContent();
-          baxCode = matchLineEndings(baxCode, previous);
+          baxCode = matchLineEndings(validated, previous);
           const trySnippetMerge = (): boolean => {
             if (baxCode === null) return false;
             const merged = tryMergeSnippetIntoSong(previous, baxCode);
@@ -1824,7 +1831,12 @@ function DesktopCopilotPanel({
               });
               return;
             }
-            baxCode = expanded;
+            // The expanded song replaces the earlier one, so an earlier definition merge no longer applies.
+            mergedDefinitions = false;
+            unmergedLines = [];
+            const revalidated = await validateWithRepair(expanded);
+            if (revalidated === null) return;
+            baxCode = matchLineEndings(revalidated, previous);
           }
 
           const diagnosticsBefore = getDiagnostics();
@@ -1858,6 +1870,16 @@ function DesktopCopilotPanel({
             }
           }
           applyCode = matchLineEndings(applyCode, previous);
+          const applyDuplicates = findNewDuplicateDefinitions(previous, applyCode);
+          if (applyDuplicates.length > 0) {
+            setStatus('⚠ Copilot kept defining the same name more than once — editor not changed.');
+            finishAssistant(response, {
+              applyBlocked: true,
+              replyMode: activeMode,
+              changeSummary: applyDuplicates.map((d) => `Duplicate definition: ${describeDuplicateDefinition(d)}.`),
+            });
+            return;
+          }
           lineDiff = computeLineChangeDiff(previous, applyCode);
           const diffCounts = countAIChangeDiff(lineDiff);
           reviewPending = diffCounts.total > 0 && Boolean(previous.trim());
