@@ -230,7 +230,7 @@ Instructs the AI to answer and explain, wrap samples in ` ```bax ``` `, and not 
 
 In Edit mode, after the AI generates a response, the panel validates the extracted `.bax` code using `parseWithPeggy()` and extended `validateBax()` checks. Two repair paths run before apply:
 
-1. **Parse repair** — if the code has parse errors, error messages are fed back to the model (up to **2** attempts, `MAX_PARSE_REPAIR_ATTEMPTS`).
+1. **Parse repair** — if the code has parse errors, error messages are fed back to the model (up to **2** attempts, `MAX_PARSE_REPAIR_ATTEMPTS`). New duplicate `pat` / `seq` / `inst` / `effect` definitions are listed in the same repair request and share the same attempt limit; the Edit instructions also tell the model to define each name once and edit existing definitions in place ([spec 092](../092-duplicate-definition-warnings/spec.md)).
 2. **Incomplete-song repair** — if the apply guard detects a snippet-only reply (missing `play`, `channel`, or most of the file), the model is asked for the full song (up to **2** attempts, `MAX_INCOMPLETE_REPAIR_ATTEMPTS`). A snippet-merge fallback may expand partial replies when possible.
 
 ```typescript

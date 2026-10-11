@@ -131,6 +131,15 @@ describe('buildCopilotContext', () => {
     expect(ask).not.toContain('replace one occurrence of the pattern');
   });
 
+  it('edit mode tells the model to define each name once and edit in place (spec 092)', () => {
+    const edit = buildCopilotContext(defaultSettings, 'edit', () => sampleSong, () => []);
+    expect(edit).toContain('Define each name once.');
+    expect(edit).toContain('edit its line in place — never add a second definition with the same name');
+
+    const ask = buildCopilotContext(defaultSettings, 'ask', () => sampleSong, () => []);
+    expect(ask).not.toContain('Define each name once.');
+  });
+
   it('buildSongStructureSummary lists patterns, sequences, and channels', () => {
     const summary = buildSongStructureSummary(sampleSong);
     expect(summary).toContain('Patterns (2): melody_pat, mystery');

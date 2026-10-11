@@ -7,6 +7,7 @@
 - Apply transforms at **compile time** only.
 - Preserve AST node meanings and ISM semantics/ordering unless a spec explicitly changes them and includes migration.
 - Surface semantic issues via `ast.diagnostics` (`error` / `warning`); consumers MUST check diagnostics rather than relying only on thrown exceptions.
+- A `pat`, `seq`, `inst`, `effect` or `subpat` name defined again later in the same source file is last-wins and MUST produce a parser `warning` on the later definition (`<keyword> '<name>' redefined; using the later definition.`). Overrides across files follow the import rules ([spec 045](../complete/045-instrument-imports/spec.md)) and get no redefinition warning. Duplicate `channel N` declarations are errors. See [spec 092](../complete/092-duplicate-definition-warnings/spec.md).
 
 ## MUST NOT
 

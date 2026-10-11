@@ -24,7 +24,7 @@ Track names already seen per kind while the Peggy front end walks top-level stat
 
 | Path | Change |
 | ---- | ------ |
-| `packages/engine/src/parser/peggy/index.ts` | Per-kind `Set` of seen names; warn on `PatStmt`, `SeqStmt`, `InstStmt`, `EffectStmt` redefinition |
+| `packages/engine/src/parser/peggy/index.ts` | Per-kind `Set` of seen names; warn on `PatStmt`, `SeqStmt`, `InstStmt`, `EffectStmt` redefinition; `listTopLevelDefinitions(source)` (re-exported from `@beatbax/engine/parser`) lists those definitions with the stored name and line |
 | `packages/engine/tests/` | New `parser-redefinition.test.ts`; song-wide ISM/AST equality check (SC-003) |
 | `apps/desktop/src/renderer/src/lib/bax-def-index.ts` | `findNewDuplicateDefinitions(previous, next)` returning `{ kind, keyword, name, lines }[]` |
 | `apps/desktop/src/renderer/src/components/panels/DesktopCopilotPanel.tsx` | Run the duplicate check inside the validation loop before the definition merge; repair prompt and blocked summary |
@@ -49,7 +49,8 @@ None. `verify` already prints parser warnings and fails on them only with `--str
 
 ### Desktop / web UI changes
 
-- `findNewDuplicateDefinitions(previous, next)`: count definition lines per `kind:name` in each text with the same line regexes as `collectBaxDefs`; return names whose count in `next` is above 1 and above the count in `previous`, with all line numbers from `next`.
+- `findNewDuplicateDefinitions(previous, next)`: count definitions per `kind:name` in each text from the parser's `listTopLevelDefinitions`, so it covers every form the grammar accepts (shorthand `name = …` patterns, hyphenated names, and `pat X:rev = …`, which defines `X`) under the same names as the FR-001 warning; return names whose count in `next` is above 1 and above the count in `previous`, with all line numbers from `next`.
+- Every song extracted from a reply, including one returned by the incomplete-song repair, goes back through the validation loop, and a final duplicate check runs just before apply.
 - Validation loop: compute duplicates alongside `validateBaxSource`. If any, skip the definition merge, add `Duplicate definition: …` lines to the repair error list, and use the existing repair path and counter. Status notice: *Duplicate definitions — asking Copilot to fix (n/2)…* when duplicates are the only problem; the existing parse-error notice otherwise. When attempts run out, block with the FR-007 summary lines (plus any parse errors).
 - Prompt rule appended to the Edit mode hint (FR-008).
 
@@ -68,7 +69,8 @@ None.
 ### Unit tests
 
 - Parser: one warning per later definition for each kind; three definitions → two warnings; `pat x` + `seq x` → none; resolved maps equal last definition; `subpat` and `channel` behaviour unchanged.
-- `findNewDuplicateDefinitions`: new duplicate; pre-existing duplicate kept (none); pre-existing duplicate removed (none); cross-kind names (none); line numbers.
+- `findNewDuplicateDefinitions`: new duplicate; pre-existing duplicate kept (none); pre-existing duplicate removed (none); cross-kind names (none); line numbers; shorthand patterns, hyphenated names and declaration modifiers.
+- Parser: redefinition warnings and `listTopLevelDefinitions` for shorthand, hyphenated and modifier forms.
 - `copilot-context.test.ts`: Edit prompt contains the rule; Ask does not.
 
 ### Integration tests

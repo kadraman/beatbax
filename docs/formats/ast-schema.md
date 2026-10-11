@@ -62,6 +62,7 @@ interface ParseDiagnostic {
 |---|---|
 | Instrument has unknown property key | `inst x type=pulse1 dutyx=50` |
 | Pattern contains unrecognized token | `pat m = C5 ZZ G5` |
+| `pat`, `seq`, `inst`, `effect` or `subpat` name defined again in the same file (the later definition wins; warning on the later line) | `pat m = C4` … `pat m = D4` → `pat 'm' redefined; using the later definition.` |
 
 ### Consuming diagnostics
 

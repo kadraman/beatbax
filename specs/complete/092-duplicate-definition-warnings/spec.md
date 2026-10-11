@@ -2,11 +2,11 @@
 title: "Duplicate definition warnings"
 id: 92
 slug: "duplicate-definition-warnings"
-status: "specified"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-10-07"
-updated: "2026-10-07"
+updated: "2026-10-08"
 issue: "https://github.com/kadraman/beatbax/issues/222"
 area: "language"
 related:
