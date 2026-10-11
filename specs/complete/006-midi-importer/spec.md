@@ -281,8 +281,9 @@ Named drum tokens are one-shot hits and must not sticky-change the channel’s c
 ## Future Enhancements
 
 - Optional import of velocity into instrument/effect heuristics
-- Web UI / Desktop import wizard with visual mapping preview
-- Additional chip mapping profiles beyond GB/NES (SMS, Spectrum/CPC)
+- Web UI / Desktop import wizard with visual mapping preview (Desktop import specified in [spec 096](../../features/096-desktop-midi-import/spec.md), #210)
+- Additional chip mapping profiles beyond GB/NES (SMS, Spectrum/CPC) (SMS and Spectrum 128 specified in [spec 094](../../features/094-midi-import-sms-spectrum/spec.md), #211)
+- Chords as arpeggios instead of flattening (specified in [spec 095](../../features/095-midi-import-chord-arp/spec.md), #209)
 - Richer drum maps (toms, open hat, crash) and DMC sample kits
 - Configurable polyphony-reduction strategies beyond the v1 defaults
 

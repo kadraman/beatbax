@@ -1,6 +1,6 @@
 # Specification status index
 
-Assign the next feature id as **093** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **097** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
@@ -21,6 +21,7 @@ Assign the next feature id as **093** (one past the highest id below). Process: 
 - **020** `spectrum-cpc-arkos-exporter-phase-2` — specified — export — issue: https://github.com/kadraman/beatbax/issues/162 — [specs/features/020-spectrum-cpc-arkos-exporter-phase-2/](specs/features/020-spectrum-cpc-arkos-exporter-phase-2/)
 - **022** `motifs-and-loop-templates` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/204 — [specs/features/022-motifs-and-loop-templates/](specs/features/022-motifs-and-loop-templates/)
 - **023** `sega-mega-drive-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/193 — [specs/features/023-sega-mega-drive-chip-plugin/](specs/features/023-sega-mega-drive-chip-plugin/)
+
 ## Complete (`specs/complete/`)
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
