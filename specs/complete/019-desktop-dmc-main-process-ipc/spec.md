@@ -157,4 +157,4 @@ Current status against criteria:
 2. Should blocked-host diagnostics include direct remediation guidance in output/status UI (for example, Settings -> Advanced -> Remote host allowlist)?
    - **Resolved (2026-10-02):** yes. The error reads "Remote asset host '<host>' is not in the Desktop allowlist. Add it under Settings → Advanced → Remote host allowlist." It is shown in the Output panel as a `[playback]` warning, prefixed with `NES DMC: failed to load sample '<ref>':`, once per play.
 3. Should this IPC remote fetch contract be generalized for other remote asset consumers beyond DMC in a follow-up feature?
-   - **Deferred:** remote instrument imports are the first other consumer and are currently blocked by the renderer CSP. Tracked in [#216](https://github.com/kadraman/beatbax/issues/216); it needs its own spec.
+   - **Deferred:** remote instrument imports are the first other consumer and are currently blocked by the renderer CSP. Tracked in [#216](https://github.com/kadraman/beatbax/issues/216) and specified in [spec 093](../../features/093-desktop-remote-imports-ipc/spec.md).
