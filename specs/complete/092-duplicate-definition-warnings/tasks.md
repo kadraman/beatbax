@@ -26,6 +26,8 @@ Complete. Live-model check of the Copilot repair/block path (scenario 37 in `doc
 
 - [x] T020 [US2] `findNewDuplicateDefinitions(previous, next)` in `apps/desktop/src/renderer/src/lib/bax-def-index.ts`; tests in `apps/desktop/tests/bax-def-index.test.ts`
 - [x] T021 [US2] Validation loop in `apps/desktop/src/renderer/src/components/panels/DesktopCopilotPanel.tsx`: duplicates skip the definition merge, join the repair prompt and counter, and block with the FR-007 summary (FR-005–FR-007)
+- [x] T022 [US2] Route each song from the incomplete-song repair back through the validation loop, and check for new duplicates again just before apply, in `DesktopCopilotPanel.tsx` (FR-005)
+- [x] T023 [US2] Derive duplicate detection from the parser: `listTopLevelDefinitions` in `packages/engine/src/parser/peggy/index.ts` (exported from `packages/engine/src/parser/index.ts`), used by `findNewDuplicateDefinitions`; shorthand, hyphenated and modifier cases in `apps/desktop/tests/bax-def-index.test.ts` and `packages/engine/tests/parser-redefinition.test.ts` (FR-005)
 
 **Checkpoint**: SC-004 and SC-005 pass.
 

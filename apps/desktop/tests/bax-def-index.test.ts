@@ -209,6 +209,40 @@ describe('findNewDuplicateDefinitions (spec 092)', () => {
     ]);
   });
 
+  it('counts shorthand pattern definitions (`name = …`) as `pat`', () => {
+    const next = 'chip gameboy\npat riff = C4 D4\nriff = E4 F4\nseq main = riff\n';
+    expect(findNewDuplicateDefinitions('chip gameboy\npat riff = C4 D4\nseq main = riff\n', next)).toEqual([
+      { kind: 'pattern', keyword: 'pat', name: 'riff', lines: [2, 3] },
+    ]);
+  });
+
+  it('matches hyphenated names', () => {
+    const next = 'pat lead-a = C4\nseq intro-1 = lead-a\npat lead-a = D4\nseq intro-1 = lead-a lead-a\n';
+    expect(findNewDuplicateDefinitions('', next).map((d) => [d.keyword, d.name, d.lines])).toEqual([
+      ['pat', 'lead-a', [1, 3]],
+      ['seq', 'intro-1', [2, 4]],
+    ]);
+  });
+
+  it('keys pattern declaration modifiers to the base name', () => {
+    const previous = 'pat melody = C4 D4 E4\nseq main = melody\n';
+    const next = 'pat melody = C4 D4 E4\nseq main = melody\npat melody:rev = C4 D4 E4\n';
+    expect(findNewDuplicateDefinitions(previous, next)).toEqual([
+      { kind: 'pattern', keyword: 'pat', name: 'melody', lines: [1, 3] },
+    ]);
+    expect(findNewDuplicateDefinitions('', 'pat a:oct(-1) = C4\npat a:rev:oct(+1) = D4\n')).toEqual([
+      { kind: 'pattern', keyword: 'pat', name: 'a', lines: [1, 2] },
+    ]);
+  });
+
+  it('ignores indentation and does not count a shorthand form the editor song already had', () => {
+    const previous = 'riff = C4\n  pat riff = D4\n';
+    expect(findNewDuplicateDefinitions(previous, 'riff = C4\n  pat riff = E4\n')).toEqual([]);
+    expect(findNewDuplicateDefinitions('', '  pat riff = C4\n    riff = D4\n')).toEqual([
+      { kind: 'pattern', keyword: 'pat', name: 'riff', lines: [1, 2] },
+    ]);
+  });
+
   it('describes duplicates for the repair prompt and blocked summary', () => {
     expect(describeDuplicateDefinition({ kind: 'pattern', keyword: 'pat', name: 'melody_vib', lines: [93, 104] }))
       .toBe('`pat melody_vib` is defined more than once (lines 93 and 104)');

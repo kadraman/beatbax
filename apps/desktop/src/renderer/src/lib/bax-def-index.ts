@@ -1,3 +1,5 @@
+import { listTopLevelDefinitions, type DefinitionKeyword } from '@beatbax/engine/parser';
+
 export type BaxDefKind = 'pattern' | 'sequence' | 'instrument' | 'effect' | 'channel';
 
 export interface BaxDef {
@@ -63,15 +65,22 @@ export interface DuplicateDefinition {
   lines: number[];
 }
 
+const KIND_BY_KEYWORD: Record<DefinitionKeyword, DuplicateDefinitionKind> = {
+  pat: 'pattern',
+  seq: 'sequence',
+  inst: 'instrument',
+  effect: 'effect',
+};
+
+// Read definitions through the parser so every form the grammar accepts counts, including shorthand
+// patterns (`name = …`), hyphenated names and `pat X:rev = …` (which defines `X`).
 function definitionLinesByKey(content: string): Map<string, { kind: DuplicateDefinitionKind; name: string; lines: number[] }> {
   const byKey = new Map<string, { kind: DuplicateDefinitionKind; name: string; lines: number[] }>();
-  const lines = content.split('\n');
-  for (let i = 0; i < lines.length; i += 1) {
-    const match = matchDefinitionLine(lines[i].trim());
-    if (!match || match.kind === 'channel') continue;
-    const key = `${match.kind}:${match.name}`;
-    const entry = byKey.get(key) ?? { kind: match.kind, name: match.name, lines: [] };
-    entry.lines.push(i + 1);
+  for (const def of listTopLevelDefinitions(content)) {
+    const kind = KIND_BY_KEYWORD[def.keyword];
+    const key = `${kind}:${def.name}`;
+    const entry = byKey.get(key) ?? { kind, name: def.name, lines: [] };
+    entry.lines.push(def.line);
     byKey.set(key, entry);
   }
   return byKey;

@@ -1,7 +1,7 @@
 /**
  * Spec 092: same-file redefinition of pat / seq / inst / effect warns and stays last-wins.
  */
-import { parse } from '../src/parser/index';
+import { listTopLevelDefinitions, parse } from '../src/parser/index';
 import { resolveImports } from '../src/song/importResolver.js';
 
 const redefinitionWarnings = (src: string) =>
@@ -61,6 +61,14 @@ describe('parser redefinition warnings (spec 092)', () => {
     expect(warnings.map((d) => d.loc?.start.line)).toEqual([3, 4]);
   });
 
+  test.each([
+    ['shorthand pattern', 'pat riff = C4\nriff = D4', "pat 'riff' redefined; using the later definition."],
+    ['declaration modifier', 'pat melody = C4 D4\npat melody:rev = C4 D4', "pat 'melody' redefined; using the later definition."],
+    ['hyphenated name', 'pat lead-a = C4\npat lead-a = D4', "pat 'lead-a' redefined; using the later definition."],
+  ])('%s redefinition warns under the stored name', (_form, body, message) => {
+    expect(redefinitionWarnings(`chip gameboy\n${body}`).map((d) => d.message)).toEqual([message]);
+  });
+
   test('identical duplicate lines still warn', () => {
     expect(redefinitionWarnings('chip gameboy\npat x = C4\npat x = C4')).toHaveLength(1);
   });
@@ -77,6 +85,27 @@ describe('parser redefinition warnings (spec 092)', () => {
     const diags = channel.diagnostics ?? [];
     expect(diags.some((d) => d.level === 'error' && /Duplicate channel 1/.test(d.message))).toBe(true);
     expect(diags.some((d) => /redefined/.test(d.message))).toBe(false);
+  });
+
+  test('listTopLevelDefinitions reads every definition form with its stored name and line', () => {
+    const src = [
+      'chip gameboy',
+      '# comment',
+      'inst lead type=pulse1 duty=50',
+      'effect wob = vib:4,6',
+      'pat melody:oct(-1) = C4 D4',
+      '  riff-2 = E4',
+      'seq main = melody riff-2',
+      'channel 1 => inst lead seq main',
+      'play',
+    ].join('\r\n');
+    expect(listTopLevelDefinitions(src)).toEqual([
+      { keyword: 'inst', name: 'lead', line: 3 },
+      { keyword: 'effect', name: 'wob', line: 4 },
+      { keyword: 'pat', name: 'melody', line: 5 },
+      { keyword: 'pat', name: 'riff-2', line: 6 },
+      { keyword: 'seq', name: 'main', line: 7 },
+    ]);
   });
 
   test('a local inst overriding an imported inst gets no redefinition warning', async () => {

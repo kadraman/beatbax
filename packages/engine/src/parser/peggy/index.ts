@@ -190,6 +190,50 @@ interface ProgramNode {
   body: Statement[];
 }
 
+/** `pat X:rev = …` declares pattern `X`; the declaration modifiers only transform its body. */
+const patternBaseName = (nameSpec: string): string => nameSpec.split(':')[0];
+
+export type DefinitionKeyword = 'pat' | 'seq' | 'inst' | 'effect';
+
+export interface TopLevelDefinition {
+  keyword: DefinitionKeyword;
+  /** Name the definition is stored under (`X` for `pat X:rev = …`). */
+  name: string;
+  /** 1-based source line of the definition. */
+  line: number;
+}
+
+function definitionOf(stmt: Statement): { keyword: DefinitionKeyword; name: string } | null {
+  switch (stmt.nodeType) {
+    case 'PatStmt': return { keyword: 'pat', name: patternBaseName(stmt.name) };
+    case 'SeqStmt': return { keyword: 'seq', name: stmt.name };
+    case 'InstStmt': return { keyword: 'inst', name: stmt.name };
+    case 'EffectStmt': return { keyword: 'effect', name: stmt.name };
+    default: return null;
+  }
+}
+
+/**
+ * Top-level `pat` / `seq` / `inst` / `effect` definitions in source order, as the grammar reads them:
+ * including shorthand patterns (`name = …`), hyphenated names and pattern declaration modifiers.
+ * Returns an empty list when the source does not parse at all.
+ */
+export function listTopLevelDefinitions(source: string): TopLevelDefinition[] {
+  let program: ProgramNode;
+  try {
+    program = peggyParse(source.replace(/\r\n/g, '\n').replace(/\r/g, '\n'), {}) as ProgramNode;
+  } catch {
+    return [];
+  }
+  const out: TopLevelDefinition[] = [];
+  for (const stmt of program.body) {
+    const def = definitionOf(stmt);
+    const line = stmt.loc?.start.line;
+    if (def && line !== undefined) out.push({ ...def, line });
+  }
+  return out;
+}
+
 const warnProblematicPatternName = (name: string, loc?: SourceLocation | null): void => {
   const isSingleLetterNote = /^[A-Ga-g]$/.test(name);
   const isNoteWithOctave = /^[A-Ga-g][#b]?-?\d+$/.test(name);
@@ -324,7 +368,7 @@ const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string
   }
 
   const parts = nameSpec.split(':');
-  const baseName = parts[0];
+  const baseName = patternBaseName(nameSpec);
   const mods = parts.slice(1);
 
   warnProblematicPatternName(baseName, loc);

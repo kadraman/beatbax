@@ -1,7 +1,8 @@
 import { AST } from './ast.js';
 import { parseWithPeggy } from './peggy/index.js';
 
-export { parseWithPeggy } from './peggy/index.js';
+export { parseWithPeggy, listTopLevelDefinitions } from './peggy/index.js';
+export type { DefinitionKeyword, TopLevelDefinition } from './peggy/index.js';
 export {
   buildScalePitchClasses,
   buildLockPitchClasses,
