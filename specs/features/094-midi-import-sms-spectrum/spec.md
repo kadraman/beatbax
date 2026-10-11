@@ -6,7 +6,7 @@ status: "specified"
 authors:
   - "kadraman"
 created: "2026-10-08"
-updated: "2026-10-08"
+updated: "2026-10-11"
 issue: "https://github.com/kadraman/beatbax/issues/211"
 area: "engine"
 related:
@@ -69,6 +69,7 @@ related:
 
 - `--chip sms` with a MIDI that has no drums: channel 4 is omitted, as on Game Boy today.
 - Spectrum: a `trackMappings` entry with `target: "tone2"` and `packing: "lanes"` shares channel 2 between harmony and drums in config order (089 lane rules); drums are a lane like any other mapping.
+- Spectrum: drums that no mapping matches (auto-classified, e.g. GM channel 10) have no config position. They are packed after all lanes and only fill the gaps the lanes leave on channel 2, as 089 does for streams that are not lanes.
 - Spectrum drum hits that start on the same tick collapse to one hit using the existing noise-stack rule (006 drum priority, `drumFlamTicks`).
 - `families.<family>.gb` / `.nes` articulation overrides are ignored on the new chips; the new `sms` / `ay` blocks (FR-031) are ignored on GB/NES. No warning, so one config can carry all four.
 - Song length, sectioning (`sectionBars`), naming (spec 090) and `--annotate` output are chip-independent.
@@ -94,7 +95,7 @@ SMS profile
 Spectrum 128 profile
 
 - **FR-020**: Role table: channel 1 `tone1` (lead, 100, melodic), channel 2 `tone2` (harmony, 80, melodic), channel 3 `tone3` (bass, 90, bass group). No channel 4.
-- **FR-021**: When the import contains drum hits, the drum channel is channel 2. Melodic streams are not auto-packed onto channel 2 in that case (melodic budget 2), and one `drums_share_tone_channel` info diagnostic is emitted. Without drums, channel 2 is melodic (budget 3). `trackMappings` lanes (089 `packing: "lanes"`) may still place melodic notes on `tone2` alongside drums.
+- **FR-021**: When the import contains drum hits, the drum channel is channel 2. Melodic streams are not auto-packed onto channel 2 in that case (melodic budget 2), and one `drums_share_tone_channel` info diagnostic is emitted. Without drums, channel 2 is melodic (budget 3). `trackMappings` lanes (089 `packing: "lanes"`) may still place melodic notes on `tone2` alongside drums. With `packing: "lanes"`, a drum mapping is itself a lane on channel 2 and takes its place in config order; drums that no mapping matches are packed after all lanes, into the gaps.
 - **FR-022**: Melodic instruments MUST be emitted as `inst <name> type=toneN vol=<0-15> [vol_env=[…]] gm=<program>` using AY volume (15 = loudest, 0 = silent). The default kit MUST NOT use the shared hardware envelope (`env_bass`, `env_shape`).
 - **FR-023**: The drum kit MUST define every `DEFAULT_DRUM_MAP` token as an AY noise-mix instrument on `type=tone2` (`tone=true tone_mix=true noise_rate=<n> …`, following `docs/chips/zx-spectrum-128/composition_guide.md`), and every drum instrument MUST use the **same** `noise_rate` so no two hits need different R6 values.
 

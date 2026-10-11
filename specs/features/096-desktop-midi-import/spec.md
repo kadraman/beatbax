@@ -6,7 +6,7 @@ status: "specified"
 authors:
   - "kadraman"
 created: "2026-10-08"
-updated: "2026-10-08"
+updated: "2026-10-11"
 issue: "https://github.com/kadraman/beatbax/issues/210"
 area: "desktop"
 related:
@@ -40,7 +40,7 @@ Add **File → Import MIDI…** to BeatBax Desktop. The user picks a `.mid` / `.
 **Acceptance scenarios**:
 
 1. **Given** the user chooses File → Import MIDI…, **When** the file dialog opens, **Then** it filters for `.mid` and `.midi` files (with an "All files" option) and starts in the last-used dialog folder.
-2. **Given** a chosen MIDI with no sibling config, **When** the import dialog opens, **Then** it shows the file name, a chip selector (required, no default chosen until the user picks one, or remembered from the last import), the config field set to "None (automatic mapping)", and the basic options from FR-020.
+2. **Given** a chosen MIDI with no sibling config, **When** the import dialog opens, **Then** it shows the file name, a chip selector (required; preselected from the last import's chip when there is one, otherwise empty until the user picks one), the config field set to "None (automatic mapping)", and the basic options from FR-020 with the values FR-022 gives them.
 3. **Given** the user clicks Import, **When** the conversion succeeds, **Then** the song opens as a new unsaved document named `<midi basename>.bax` (the same way the New Song Wizard opens a song) and a summary (notes imported, dropped, patterns, channels, bpm, chip) is shown in the Output panel with every warning.
 4. **Given** the conversion throws (invalid MIDI, strict quantize failure), **When** Import is clicked, **Then** the dialog stays open and shows the error message; the current document is not changed.
 
@@ -54,8 +54,10 @@ Add **File → Import MIDI…** to BeatBax Desktop. The user picks a `.mid` / `.
 2. **Given** a detected config, **When** the user clicks Clear, **Then** the field shows "None (automatic mapping)" and Import runs without a config.
 3. **Given** any state, **When** the user clicks Browse…, **Then** a JSON file dialog opens in the MIDI file's folder and the chosen file replaces the config.
 4. **Given** a config that fails `parseImportConfig` (bad JSON or schema error), **When** it is selected, **Then** the dialog shows the parser's message (same text as the CLI's `Failed to parse config: …`) and Import is disabled until the config is fixed, cleared or replaced.
-5. **Given** a config with `"chip": "nes"`, **When** it is selected and the user has not picked a chip, **Then** the chip selector takes the config's chip. A chip the user picks explicitly overrides the config (CLI `--chip` precedence).
+5. **Given** a config with `"chip": "nes"`, **When** it is selected and the user has not picked a chip in this dialog, **Then** the chip selector shows `nes` labelled "from config", even if Game Boy was remembered from the last import, and Import uses `nes`. A chip the user picks in this dialog overrides the config (CLI `--chip` precedence).
 6. **Given** `Song.json` (no `.import`) next to `Song.mid`, **When** the MIDI is chosen, **Then** it is **not** auto-detected; the user can still choose it with Browse….
+7. **Given** the previous import used quantize `floor` and the auto-detected config sets `"quantize": { "mode": "nearest" }`, **When** the dialog opens, **Then** quantize shows `nearest` labelled "from config", and Import uses `nearest`. **Given** instead a config that sets no quantize mode, **Then** quantize shows `floor` labelled "last used", and Import uses `floor`.
+8. **Given** a detected config that sets the chip or an option, **When** the user clicks Clear, **Then** every field the user has not set in this dialog changes to its remembered value or, failing that, the default (FR-022).
 
 ### User Story 3 — Inspect before importing (Priority: P3)
 
@@ -68,7 +70,7 @@ Add **File → Import MIDI…** to BeatBax Desktop. The user picks a `.mid` / `.
 ### Edge cases
 
 - The chip list comes from the engine's supported import chips, not a hard-coded Desktop list, so SMS and Spectrum 128 appear once spec 094 ships.
-- Options the config also sets (quantize, title, section bars, annotate, chords from spec 095) follow CLI precedence: a value the user changes in the dialog overrides the config; untouched dialog fields leave the config value in force.
+- Options the config also sets (quantize, title, section bars, annotate, chords from spec 095) follow CLI precedence: a value the user sets in the dialog overrides the config, and the config overrides a value remembered from an earlier import (FR-022).
 - The imported document is unsaved; Save As suggests `<midi basename>.bax` in the MIDI file's folder.
 - Importing while a song plays stops playback first, as Open does.
 - The current document is replaced the same way File → New / Open replace it today (no new unsaved-changes behaviour is introduced here).
@@ -94,8 +96,15 @@ Conversion
 
 Dialog options
 
-- **FR-020**: The dialog MUST offer: chip (required), config (auto-detected / Browse… / Clear), quantize mode (`nearest` | `floor` | `ceil` | `strict`), grid (`1/4` | `1/8` | `1/16` | `1/32`), section bars, title, strict, annotate, and (once spec 095 ships) chords (`flatten` | `arp`). Fields the user does not change are not passed, so config values apply.
-- **FR-021**: The dialog MUST remember the last chip and option values for the session (not per file). The config choice is never remembered across files.
+- **FR-020**: The dialog MUST offer: chip (required), config (auto-detected / Browse… / Clear), quantize mode (`nearest` | `floor` | `ceil` | `strict`), grid (`1/4` | `1/8` | `1/16` | `1/32`), section bars, title, strict, annotate, and (once spec 095 ships) chords (`flatten` | `arp`). Which value each field shows, and which values are passed to `resolveConvertOptions`, is defined in FR-022.
+- **FR-021**: When an import succeeds, the dialog MUST remember, for the rest of the app session (not per file), the chip and option values the user set in that dialog. Values that came from a config are not remembered. The config choice and the title are never remembered across files. Remembered values are fallbacks, not overrides: they apply only where neither the user nor the selected config sets the field (FR-022).
+- **FR-022**: Each field's value comes from the first of these sources that has one. The dialog shows the value and its source, and recomputes it whenever the config is detected, browsed or cleared:
+  1. **Set in this dialog**: the user chose a value since the dialog opened. Passed, and overrides the config.
+  2. **From config**: the selected config sets this field (`chip`, `quantize.mode`, `quantize.grid`, `sectionBars`, `title`, `annotate`, `chords`). Not passed, so the config applies as in the CLI.
+  3. **Last used**: a value remembered under FR-021. Passed. The config does not set this field, so passing it does not override the config.
+  4. **Default**: the engine default. Not passed. For the chip there is no default: the selector stays empty and Import is disabled.
+
+  `strict` cannot be set by a config, so only sources 1, 3 and 4 apply to it. Under this rule, the value the dialog shows for a field is always the value the import uses.
 
 Results and diagnostics
 
