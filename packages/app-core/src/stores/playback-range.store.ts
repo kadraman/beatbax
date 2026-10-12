@@ -16,10 +16,16 @@ export const playbackStartStep = atom<number | null>(null);
 /** Selected loop range `[startStep, endStep)`; null when no loop is set. */
 export const playbackLoopRange = atom<LoopRange | null>(null);
 
+/**
+ * Mirrors the transport Loop toggle. The loop range only drives playback while
+ * this is on; with it off the range stays selected but is ignored.
+ */
+export const playbackLoopEnabled = atom<boolean>(false);
+
 export const playbackRangeMode = computed(
-  [playbackStartStep, playbackLoopRange],
-  (start, loop): PlaybackRangeMode => {
-    if (loop) return 'loop';
+  [playbackStartStep, playbackLoopRange, playbackLoopEnabled],
+  (start, loop, loopEnabled): PlaybackRangeMode => {
+    if (loop && loopEnabled) return 'loop';
     if (start !== null && start > 0) return 'pending-start';
     return 'off';
   },
@@ -57,9 +63,14 @@ export function clampPlaybackRangeToSong(totalSteps: number): void {
   if (loop && (loop.endStep > totalSteps || loop.startStep >= totalSteps)) playbackLoopRange.set(null);
 }
 
+/** The loop range when transport Loop is on, otherwise null. */
+export function getActivePlaybackLoopRange(): LoopRange | null {
+  return playbackLoopEnabled.get() ? playbackLoopRange.get() : null;
+}
+
 /** Range to hand to `PlaybackManager` for the next Play, or null for whole-song playback. */
 export function getRequestedPlaybackRange(): PlaybackRange | null {
-  const loop = playbackLoopRange.get();
+  const loop = getActivePlaybackLoopRange();
   if (loop) return { startStep: loop.startStep, endStep: loop.endStep, loop: true, snap: 'pattern' };
   const start = playbackStartStep.get();
   if (start !== null && start > 0) return { startStep: start, snap: 'pattern' };

@@ -12,6 +12,8 @@ import { songStepCount } from '@beatbax/app-core/playback/playback-range';
 import {
   clampPlaybackRangeToSong,
   clearPlaybackRange,
+  getActivePlaybackLoopRange,
+  playbackLoopEnabled,
   playbackLoopRange,
   setPlaybackStartStep,
 } from '@beatbax/app-core/stores/playback-range.store';
@@ -61,7 +63,13 @@ import { createDesktopInstrumentEditor, type DesktopInstrumentEditorHandle } fro
 import { createDesktopSettingsModal, noopDesktopSettingsModal, type DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
 import { createDesktopPatternGrid, type DesktopPatternGridHandle, type ArrangementSlicePlayRequest } from '../components/panels/DesktopPatternGrid';
 import { createSectionFocusController, type SectionFocusController } from './section-focus-controller';
-import { tryPlayRequestedRange } from './pattern-grid-timeline';
+import {
+  followActiveLoop,
+  pickTimelineLoop,
+  pickTimelineStart,
+  tryPlayRequestedRange,
+  type TimelinePickDeps,
+} from './pattern-grid-timeline';
 import { setupSectionFocusEditor } from './section-focus-editor';
 import { setupSectionFocusOverlay } from './section-focus-overlay';
 import { setupPatternNavFlash } from './pattern-nav-flash';
@@ -212,6 +220,14 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     });
   };
 
+  const timelinePickDeps: TimelinePickDeps = {
+    playbackManager,
+    getSource: () => getEditor()?.getValue() ?? '',
+    exitSectionFocus: () => {
+      if (sectionFocusController?.isActive()) sectionFocusController.exit();
+    },
+  };
+
   if (capabilities.patternGrid) {
     const showGrid = shouldShowPatternGrid(capabilities);
     patternGridContainer.style.display = showGrid ? '' : 'none';
@@ -221,9 +237,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         patternNavFlash.flashPat(patName);
       },
       onPlaySlice: enterSectionSlice,
-      onTimelineEdit: () => {
-        if (sectionFocusController?.isActive()) sectionFocusController.exit();
-      },
+      onPickStart: (startStep) => pickTimelineStart(startStep, timelinePickDeps),
+      onPickLoop: (loop, enableLoop) => pickTimelineLoop(loop, { enableLoop }, timelinePickDeps),
     });
   }
 
@@ -784,24 +799,22 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     return tryPlayRequestedRange(playbackManager, getSource);
   };
 
-  // Stop returns the pending start to the beginning unless a loop range is set.
+  // Stop returns the pending start to the beginning unless a loop range is active.
   const onStopRangeReset = (): void => {
-    if (!playbackLoopRange.get()) setPlaybackStartStep(null);
+    if (!getActivePlaybackLoopRange()) setPlaybackStartStep(null);
   };
   transportBar.stopButton.addEventListener('click', onStopRangeReset);
   cleanups.push(() => transportBar.stopButton.removeEventListener('click', onStopRangeReset));
 
-  // Editing the loop while it plays restarts on the new range; clearing it
-  // continues from the old loop start as normal whole-song playback.
-  cleanups.push(playbackLoopRange.listen((next) => {
-    const active = playbackManager.getActiveRange();
-    if (!active?.loop || !playbackManager.isPlaying()) return;
-    if (next) {
-      void playbackManager.playRange(getSource(), { ...next, loop: true }).catch(() => {});
-    } else {
-      void playbackManager.playFrom(getSource(), { startStep: active.startStep }).catch(() => {});
-    }
-  }));
+  const onActiveLoopChanged = (): void => {
+    followActiveLoop({
+      playbackManager,
+      getSource,
+      isSectionFocusActive: () => sectionFocusController?.isActive() ?? false,
+    });
+  };
+  cleanups.push(playbackLoopRange.listen(onActiveLoopChanged));
+  cleanups.push(playbackLoopEnabled.listen(onActiveLoopChanged));
 
   const transportControls = new TransportControls(
     {

@@ -6,7 +6,7 @@ status: "in-progress"
 authors:
   - "kadraman"
 created: "2026-06-22"
-updated: "2026-10-08"
+updated: "2026-10-12"
 issue: "https://github.com/kadraman/beatbax/issues/190"
 area: "desktop"
 related:
@@ -28,7 +28,7 @@ The Pattern Grid already provides a compact per-channel overview and a global pl
 | Shipped today (synthetic AST) | This spec (engine seek/loop) |
 | --- | --- |
 | Play a **named section column** (seq-level window) on all channels | Play from **any** pending start step on the **full** song |
-| Loop via transport toggle + `play auto repeat` on synthetic source | Loop via **drag-selected range** on the full timeline |
+| Loop via transport toggle + `play auto repeat` on synthetic source | Loop via **drag-selected range** on the full timeline, gated by the same transport toggle |
 | Section focus mode (F5/F6/F8, section lane, editor highlight) | Pending start marker + loop handles on the grid |
 | No engine `startStep` / `endStep` | Range-aware scheduling of the resolved full song (see [plan.md](plan.md) design decision) |
 
@@ -93,7 +93,7 @@ Expected behavior:
 2. Play starts at the loop start when a loop range is active.
 3. Playback returns to the loop start when it reaches the loop end.
 4. The user can drag loop start/end handles to adjust the region.
-5. The user can clear the loop range from the Pattern Grid context menu, transport control, or keyboard shortcut.
+5. The user can clear the loop range from the Pattern Grid ruler (`✕`). Turning the transport Loop toggle off keeps the range but stops it driving playback.
 
 Recommended initial snapping:
 
@@ -173,7 +173,7 @@ State that must be preserved at a start offset:
 - **Sustain behavior:** Starting inside a held note may need a policy: retrigger the note, start silent until the next event, or trim the note.
 - **Effects:** Some effects depend on note start time. Starting mid-note may sound different unless the engine supports effect phase offsets.
 - **Loop clicks:** Hard loop boundaries may need short fades or scheduling overlap to avoid audible clicks.
-- **Repeat semantics:** Selected loop ranges must not conflict with `play auto repeat` or the existing transport loop toggle.
+- **Repeat semantics:** Selected loop ranges must not conflict with `play auto repeat` or the existing transport loop toggle. Resolved: the range is gated by the transport Loop toggle (see Implemented Behaviour).
 - **Persistence:** Decide whether loop ranges are session-only, stored per document path, or encoded in song metadata.
 
 Recommended defaults:
@@ -192,24 +192,41 @@ Desktop Pattern Grid only. Session-only state; nothing is written to the song.
 
 | Gesture | Result |
 | --- | --- |
-| Click the ruler | Pending start = block boundary at or before the pointer (green flag + dashed line across all rows) |
-| Drag the start flag | Moves the pending start to the nearest boundary |
-| Drag across the ruler | Loop range covering every block touched (outward snap; at least one block) |
-| Drag a loop handle | Moves that edge to the nearest boundary; at least one block remains |
-| Right-click the ruler | Set start here · Loop this block · Clear start marker · Clear loop range |
+| Click the ruler | Pending start = block boundary at or before the pointer (green flag + dashed line across all rows); turns transport Loop off if a loop range is active, so the start is never set while hidden. Seeks playback (see below) |
+| Drag the start flag | Moves the pending start to the nearest boundary. Seeks playback (see below) |
+| Drag across the ruler | Loop range covering every block touched (outward snap; at least one block); turns transport Loop on |
+| Drag a loop handle | Moves that edge to the nearest boundary; at least one block remains; does not change transport Loop |
 | `✕` in the ruler label cell | Clears the loop range (or the start marker when no loop is set) |
 
-Pattern blocks keep their click-to-navigate behaviour.
+There is no ruler or section-lane context menu; the gestures above, the section lane's label click (focus) and `▶` (play) cover every action. Pattern blocks keep their click-to-navigate behaviour.
+
+**Seeking (DAW-style).** Picking a start (ruler click or start-flag drop) moves playback there, before or after the current position:
+
+- Playing whole-song or play-from: playback jumps to the picked start and runs to the song end.
+- Playing an active loop range: Loop turns off and playback continues from the picked start (see below).
+- Playing section focus: focus exits and the full song plays from the picked start.
+- Paused: playback stops; the playhead rests at the picked start and Play starts there.
+- Stopped: only the pending start changes.
+
+Dragging a loop range follows the same rules when the range is active (a new range always is, since it turns Loop on): during whole-song or section-focus playback it jumps to the loop start and loops; while paused it stops so Play starts at the loop start; while the old range is already looping it restarts on the new range. A handle drag on a dimmed range (Loop off) leaves playback alone.
+
+The picked start snaps to a block boundary, so playback jumps to the start of the block under the pointer, not the exact step (step-accurate seek is Phase 4).
+
+**Transport Loop toggle.** The loop range marks *where* to loop; the transport Loop toggle decides *whether* it loops (DAW cycle-region model).
+
+- The range is **active** only while Loop is on. With Loop off the range stays selected but is drawn dimmed, its handles still work, and playback ignores it as if no range were set.
+- Running playback follows the active range. Turning Loop on (transport button, Settings, the song's `play repeat`, or a ruler drag) while playing whole-song or from a pending start jumps to the loop start and loops. Turning Loop off while the range is playing (including via a ruler click) continues to the song end from the pending start if one is set, else from the old loop start; clearing the range behaves the same.
+- Paused and section focus playback are not moved by Loop changes; Play uses the active range next time (section focus still takes precedence).
 
 **Transport.**
 
-- Play precedence: section focus, then loop range, then pending start, then whole song. Rewind and live-play restarts follow the same order.
-- A loop range plays `[start, end)` and repeats seamlessly until Stop. It is independent of the transport loop toggle and of `play auto repeat`.
+- Play precedence: section focus, then active loop range, then pending start, then whole song. Rewind and live-play restarts follow the same order.
+- An active loop range plays `[start, end)` and repeats seamlessly until Stop.
 - Play from a pending start runs to the song end. If the transport loop toggle or the song's `play repeat` is on, playback then continues as normal whole-song looping from step 0.
-- Stop resets the pending start to the beginning unless a loop range is set. While stopped, the global playhead rests at the focus-window start, else the loop start, else the pending start, else `0`.
-- Changing the loop range while it is playing restarts on the new range. Clearing it while playing continues from the old loop start to the song end.
+- Stop resets the pending start to the beginning unless a loop range is active. While stopped, the global playhead rests at the focus-window start, else the active loop start, else the pending start, else `0`. A start flag placed before the loop was dragged is hidden while the loop is active and reappears when Loop is turned off.
+- Changing an active loop range while it is playing restarts on the new range.
 - Transport time, step counter, Pattern Grid playhead and editor glyphs report full-song positions (no remapping).
-- Ruler edits exit section focus. Loading a different file clears both the start marker and the loop range; an edit that shortens the song drops any range that no longer fits.
+- Ruler edits exit section focus (a start pick or loop drag then seeks the full song if it was playing). Loading a different file clears both the start marker and the loop range; an edit that shortens the song drops any range that no longer fits.
 
 **Channels whose block spans the snap point.** Snap points come from any row, so a start or loop edge can fall inside another row's block. Every channel starts at that exact step. Inline instrument changes made earlier still apply, because each resolved note carries its own instrument state. A note held across the start step stays silent until that channel's next event. Phase 4 decides the full step-accurate policy, including retriggering held notes.
 

@@ -24,6 +24,8 @@
 - [x] T030 [US3] `PlaybackManager.playRange(..., { loop: true })`
 - [x] T031 [US3] Restart at `startStep` when reaching `endStep`; keep overlay visible
 - [x] T032 [US3] Keep whole-song loop separate from range loop; clear restores normal Play
+- [x] T033 [US3] Gate the loop range on the transport Loop toggle (new drag turns Loop on; Loop off dims and ignores the range); remove the ruler and section-lane context menus
+- [x] T034 [US2] DAW-style seek: a start pick while playing jumps playback there; while paused it stops at the pick (`pickTimelineStart`); a loop drag or turning Loop on during playback jumps into the active range (`pickTimelineLoop`, `followActiveLoop`)
 
 Phases 1–3 tests:
 
@@ -32,7 +34,7 @@ Phases 1–3 tests:
 - `packages/engine/tests/playback.pass-length.test.ts`: `playAST` `lengthSteps` keeps trailing rests in a loop pass.
 - `apps/desktop/tests/pattern-grid-timeline.test.ts`: ruler mapping, gestures, idle playhead, and Play routing.
 
-Pending: manual scenarios 1–5 in [plan.md](plan.md#test-plan) (desktop QA row "Pattern Grid seek and loop").
+Pending: manual scenarios 1–7 in [plan.md](plan.md#test-plan) (desktop QA row "Pattern Grid seek and loop").
 
 ## Phase 4: Step-accurate seek and loop (separate later step)
 

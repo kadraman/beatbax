@@ -1,6 +1,6 @@
 # Specification status index
 
-Assign the next feature id as **093** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **094** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
@@ -22,6 +22,7 @@ Assign the next feature id as **093** (one past the highest id below). Process: 
 - **022** `motifs-and-loop-templates` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/204 — [specs/features/022-motifs-and-loop-templates/](specs/features/022-motifs-and-loop-templates/)
 - **023** `sega-mega-drive-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/193 — [specs/features/023-sega-mega-drive-chip-plugin/](specs/features/023-sega-mega-drive-chip-plugin/)
 - **092** `duplicate-definition-warnings` (parser warning for same-file `pat`/`seq`/`inst`/`effect` redefinition; Copilot repairs or blocks Edit replies that add duplicates) — specified — language — issue: https://github.com/kadraman/beatbax/issues/222 — [specs/features/092-duplicate-definition-warnings/](specs/features/092-duplicate-definition-warnings/)
+- **093** `web-lite-pattern-grid` (Pattern Grid back in web-lite, shown by default, with spec 014 ruler seek and Loop-gated loop range; shared timeline logic moves to app-core) — planned — web — issue: https://github.com/kadraman/beatbax/issues/227 — [specs/features/093-web-lite-pattern-grid/](specs/features/093-web-lite-pattern-grid/)
 ## Complete (`specs/complete/`)
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.

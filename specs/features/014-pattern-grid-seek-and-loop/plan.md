@@ -39,7 +39,7 @@ Confirmed app-core APIs:
 
 - `PlaybackManager.play(source, { range })`, `playFrom(source, { startStep })`, `playRange(source, { startStep, endStep, loop })` and `getActiveRange()`.
 - Range helpers in `packages/app-core/src/playback/playback-range.ts`.
-- Session store `packages/app-core/src/stores/playback-range.store.ts` (`playbackStartStep`, `playbackLoopRange`, `playbackRangeMode`).
+- Session store `packages/app-core/src/stores/playback-range.store.ts` (`playbackStartStep`, `playbackLoopRange`, `playbackLoopEnabled`, `playbackRangeMode`, `getActivePlaybackLoopRange()`). `playbackLoopEnabled` mirrors the transport Loop toggle (`full-ide-setup.ts` keeps both in sync); the range only drives playback while it is on.
 
 ## Implementation Phases
 
@@ -96,7 +96,7 @@ Deliverables:
 - `PlaybackManager.playRange(source, { startStep, endStep, loop: true })`.
 - Restart from `startStep` when reaching `endStep` (engine seamless repeat of the sliced song, pass length fixed to the window so trailing rests are kept).
 - Pattern Grid loop overlay remains visible during playback.
-- Existing whole-song loop remains separate from selected range loop.
+- The transport Loop toggle gates the selected range: dragging a new range turns Loop on; Loop off keeps the range (dimmed) but playback ignores it.
 
 Acceptance criteria:
 
@@ -136,6 +136,8 @@ Manual scenarios:
 3. Pause inside a selected range, wait, resume, verify the playhead resumes without drift.
 4. Stop while loop is active, press Play again, verify playback restarts at loop start.
 5. Clear loop, press Play, verify playback starts at the beginning.
+6. Drag a loop range with transport Loop off, verify Loop turns on. Toggle Loop off, verify the range dims and Play runs the whole song (or from the pending start); toggle it on again, verify Play loops the range. With the loop active, click the ruler outside it: verify Loop turns off, the range dims, and the green start flag appears at the click.
+7. While the whole song plays, click the ruler ahead of and then behind the playhead: verify playback jumps to each clicked block start. Pause, click elsewhere, verify playback stops with the playhead at the click and Play starts there. While the whole song plays, drag a new loop range: verify Loop turns on and playback jumps to the loop start and loops. Turn Loop off (playback continues to the end), play the whole song, turn Loop on with the transport button: verify playback jumps back into the range.
 
 Automated coverage:
 
