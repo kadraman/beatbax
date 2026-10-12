@@ -15,6 +15,7 @@ import {
   settingMidiInputDevice,
   settingMidiInputEnabled,
 } from '@beatbax/app-core/stores/settings.store';
+import { playbackLoopEnabled } from '@beatbax/app-core/stores/playback-range.store';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { MidiStepEntryController } from './midi-step-entry-controller';
@@ -156,6 +157,7 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
     transportBar.loopButton.title = loopMode ? 'Loop ON — click to disable' : 'Toggle loop playback';
     transportBar.setLoopActive(loopMode);
     playbackManager.setLoop(loopMode);
+    playbackLoopEnabled.set(loopMode);
   }
 
   function applyMasterVolume(
@@ -204,7 +206,15 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
     opLog(outputPanel, loopMode ? '⟳ Loop enabled' : '⟳ Loop disabled');
   });
 
-  if (loopMode) applyLoopMode(true);
+  // Pattern Grid turns Loop on when a new loop range is dragged.
+  cleanups.push(playbackLoopEnabled.listen((enabled) => {
+    if (enabled === loopMode) return;
+    loopUserOverride = true;
+    applyLoopMode(enabled);
+    opLog(outputPanel, enabled ? '⟳ Loop enabled (loop range)' : '⟳ Loop disabled');
+  }));
+
+  applyLoopMode(loopMode);
   if (liveMode) applyLiveMode(true);
 
   transportBar.setVol(masterVolPct);

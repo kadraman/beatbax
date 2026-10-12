@@ -18,7 +18,9 @@ import {
 import {
   clampPlaybackRangeToSong,
   clearPlaybackRange,
+  getActivePlaybackLoopRange,
   getRequestedPlaybackRange,
+  playbackLoopEnabled,
   playbackRangeMode,
   setPlaybackLoopRange,
   setPlaybackStartStep,
@@ -144,9 +146,13 @@ describe('step boundary snapping', () => {
 });
 
 describe('playback range store', () => {
-  afterEach(() => clearPlaybackRange());
+  afterEach(() => {
+    clearPlaybackRange();
+    playbackLoopEnabled.set(false);
+  });
 
   it('prefers an active loop range over a pending start', () => {
+    playbackLoopEnabled.set(true);
     expect(getRequestedPlaybackRange()).toBeNull();
     expect(playbackRangeMode.get()).toBe('off');
 
@@ -157,6 +163,18 @@ describe('playback range store', () => {
     setPlaybackLoopRange({ startStep: 4, endStep: 12 });
     expect(playbackRangeMode.get()).toBe('loop');
     expect(getRequestedPlaybackRange()).toEqual({ startStep: 4, endStep: 12, loop: true, snap: 'pattern' });
+  });
+
+  it('ignores the loop range while transport Loop is off', () => {
+    setPlaybackStartStep(8);
+    setPlaybackLoopRange({ startStep: 4, endStep: 12 });
+    expect(getActivePlaybackLoopRange()).toBeNull();
+    expect(playbackRangeMode.get()).toBe('pending-start');
+    expect(getRequestedPlaybackRange()).toEqual({ startStep: 8, snap: 'pattern' });
+
+    playbackLoopEnabled.set(true);
+    expect(getActivePlaybackLoopRange()).toEqual({ startStep: 4, endStep: 12 });
+    expect(playbackRangeMode.get()).toBe('loop');
   });
 
   it('treats a start of 0 as no pending start and rejects empty loops', () => {

@@ -9,7 +9,15 @@ import {
   snapStepNearest,
   type LoopRange,
 } from '@beatbax/app-core/playback/playback-range';
-import { getRequestedPlaybackRange } from '@beatbax/app-core/stores/playback-range.store';
+import { playbackStatus } from '@beatbax/app-core/stores/playback.store';
+import {
+  getActivePlaybackLoopRange,
+  getRequestedPlaybackRange,
+  playbackLoopEnabled,
+  playbackStartStep,
+  setPlaybackLoopRange,
+  setPlaybackStartStep,
+} from '@beatbax/app-core/stores/playback-range.store';
 import type { PlaybackManager } from '@beatbax/app-core/playback/playback-manager';
 
 export interface StepSpan {
@@ -100,6 +108,98 @@ export function idlePlayheadStep(state: {
   if (state.focusWindow) return state.focusWindow.startStep;
   if (state.loop) return state.loop.startStep;
   return state.startStep ?? 0;
+}
+
+/**
+ * Ruler click or start-flag drop. Sets the pending start and, like a DAW, moves
+ * playback there: while playing it jumps to `startStep`; while paused it stops
+ * so the next Play starts there. An active loop range is turned off;
+ * `followActiveLoop` then moves loop playback to the new start.
+ */
+export function pickTimelineStart(startStep: number, deps: TimelinePickDeps): void {
+  const transport = captureTransport(deps.playbackManager);
+
+  deps.exitSectionFocus();
+  setPlaybackStartStep(startStep);
+  if (getActivePlaybackLoopRange()) playbackLoopEnabled.set(false);
+
+  if (transport.paused) {
+    deps.playbackManager.stop();
+  } else if (transport.playing && !transport.loopPlaying) {
+    void deps.playbackManager.playFrom(deps.getSource(), { startStep }).catch(() => {});
+  }
+}
+
+/**
+ * Ruler loop drag (new range or handle). Sets the range and turns Loop on for a
+ * new range; `followActiveLoop` then moves running playback into it. While
+ * paused it stops so the next Play starts at the loop start. Section focus
+ * playback is stopped by exiting focus, so the jump is made here instead.
+ */
+export function pickTimelineLoop(
+  loop: LoopRange,
+  options: { enableLoop: boolean },
+  deps: TimelinePickDeps,
+): void {
+  const transport = captureTransport(deps.playbackManager);
+
+  deps.exitSectionFocus();
+  setPlaybackLoopRange(loop);
+  if (options.enableLoop) playbackLoopEnabled.set(true);
+
+  const active = getActivePlaybackLoopRange();
+  if (!active) return;
+  if (transport.paused) {
+    deps.playbackManager.stop();
+  } else if (transport.playing && !deps.playbackManager.isPlaying()) {
+    void deps.playbackManager.playRange(deps.getSource(), { ...active, loop: true }).catch(() => {});
+  }
+}
+
+/**
+ * Keep running playback on the active loop range. Run whenever the range or the
+ * transport Loop toggle changes. A new or edited active range (including Loop
+ * turned on) jumps into it; losing it (range cleared or Loop turned off)
+ * continues whole-song from the pending start, else from the old loop start.
+ * Paused playback and section focus playback are left alone.
+ */
+export function followActiveLoop(deps: {
+  playbackManager: Pick<PlaybackManager, 'isPlaying' | 'getActiveRange' | 'playFrom' | 'playRange'>;
+  getSource: () => string;
+  isSectionFocusActive: () => boolean;
+}): void {
+  const { playbackManager } = deps;
+  if (!playbackManager.isPlaying() || deps.isSectionFocusActive()) return;
+  const current = playbackManager.getActiveRange();
+  const next = getActivePlaybackLoopRange();
+  if (next) {
+    if (current?.loop && current.startStep === next.startStep && current.endStep === next.endStep) return;
+    void playbackManager.playRange(deps.getSource(), { ...next, loop: true }).catch(() => {});
+  } else if (current?.loop) {
+    const startStep = playbackStartStep.get() ?? current.startStep;
+    void playbackManager.playFrom(deps.getSource(), { startStep }).catch(() => {});
+  }
+}
+
+export interface TimelinePickDeps {
+  playbackManager: Pick<PlaybackManager, 'isPlaying' | 'getActiveRange' | 'playFrom' | 'playRange' | 'stop'>;
+  getSource: () => string;
+  /** Leaves section focus; stops any slice playback. */
+  exitSectionFocus: () => void;
+}
+
+/** Read before exiting section focus, which stops playback. */
+function captureTransport(playbackManager: TimelinePickDeps['playbackManager']): {
+  playing: boolean;
+  paused: boolean;
+  loopPlaying: boolean;
+} {
+  const playing = playbackManager.isPlaying();
+  return {
+    playing,
+    paused: !playing && playbackStatus.get() === 'paused',
+    loopPlaying: playing && playbackManager.getActiveRange()?.loop === true,
+  };
 }
 
 /**
