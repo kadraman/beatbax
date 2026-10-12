@@ -190,6 +190,50 @@ interface ProgramNode {
   body: Statement[];
 }
 
+/** `pat X:rev = …` declares pattern `X`; the declaration modifiers only transform its body. */
+const patternBaseName = (nameSpec: string): string => nameSpec.split(':')[0];
+
+export type DefinitionKeyword = 'pat' | 'seq' | 'inst' | 'effect';
+
+export interface TopLevelDefinition {
+  keyword: DefinitionKeyword;
+  /** Name the definition is stored under (`X` for `pat X:rev = …`). */
+  name: string;
+  /** 1-based source line of the definition. */
+  line: number;
+}
+
+function definitionOf(stmt: Statement): { keyword: DefinitionKeyword; name: string } | null {
+  switch (stmt.nodeType) {
+    case 'PatStmt': return { keyword: 'pat', name: patternBaseName(stmt.name) };
+    case 'SeqStmt': return { keyword: 'seq', name: stmt.name };
+    case 'InstStmt': return { keyword: 'inst', name: stmt.name };
+    case 'EffectStmt': return { keyword: 'effect', name: stmt.name };
+    default: return null;
+  }
+}
+
+/**
+ * Top-level `pat` / `seq` / `inst` / `effect` definitions in source order, as the grammar reads them:
+ * including shorthand patterns (`name = …`), hyphenated names and pattern declaration modifiers.
+ * Returns an empty list when the source does not parse at all.
+ */
+export function listTopLevelDefinitions(source: string): TopLevelDefinition[] {
+  let program: ProgramNode;
+  try {
+    program = peggyParse(source.replace(/\r\n/g, '\n').replace(/\r/g, '\n'), {}) as ProgramNode;
+  } catch {
+    return [];
+  }
+  const out: TopLevelDefinition[] = [];
+  for (const stmt of program.body) {
+    const def = definitionOf(stmt);
+    const line = stmt.loc?.start.line;
+    if (def && line !== undefined) out.push({ ...def, line });
+  }
+  return out;
+}
+
 const warnProblematicPatternName = (name: string, loc?: SourceLocation | null): void => {
   const isSingleLetterNote = /^[A-Ga-g]$/.test(name);
   const isNoteWithOctave = /^[A-Ga-g][#b]?-?\d+$/.test(name);
@@ -324,7 +368,7 @@ const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string
   }
 
   const parts = nameSpec.split(':');
-  const baseName = parts[0];
+  const baseName = patternBaseName(nameSpec);
   const mods = parts.slice(1);
 
   warnProblematicPatternName(baseName, loc);
@@ -868,6 +912,27 @@ export function parseWithPeggy(source: string): ParseResult {
   let playLoc: SourceLocation | undefined = undefined;
   const diagnostics: ParseDiagnostic[] = [];
 
+  // Same-file redefinitions stay last-wins but are reported (spec 092).
+  // Cross-file overrides are handled by the import resolver and never reach this set.
+  const definedNames: Record<'pat' | 'seq' | 'inst' | 'effect', Set<string>> = {
+    pat: new Set(),
+    seq: new Set(),
+    inst: new Set(),
+    effect: new Set(),
+  };
+  const noteDefinition = (keyword: 'pat' | 'seq' | 'inst' | 'effect', name: string, loc?: SourceLocation) => {
+    const seen = definedNames[keyword];
+    if (seen.has(name)) {
+      diagnostics.push({
+        level: 'warning',
+        component: 'parser',
+        message: `${keyword} '${name}' redefined; using the later definition.`,
+        loc,
+      });
+    }
+    seen.add(name);
+  };
+
   try {
   for (const stmt of program.body) {
     switch (stmt.nodeType) {
@@ -945,10 +1010,12 @@ export function parseWithPeggy(source: string): ParseResult {
         break;
       }
       case 'InstStmt': {
+        noteDefinition('inst', stmt.name, stmt.loc);
         parseInstRhs(stmt.name, stmt.rhs, insts, stmt.loc);
         break;
       }
       case 'EffectStmt': {
+        noteDefinition('effect', stmt.name, stmt.loc);
         // store raw RHS for named effect presets (e.g. `effect wobble = vib:4,6`)
         const rhs = (stmt as any).rhs ? String((stmt as any).rhs).trim() : '';
         if (rhs) effects[stmt.name] = rhs;
@@ -986,6 +1053,7 @@ export function parseWithPeggy(source: string): ParseResult {
       }
       case 'PatStmt': {
         const { name, tokens } = expandPatternSpec(stmt.name, (stmt as any).rhs, (stmt as any).rhsTokens, stmt.rhsEvents, stmt.loc);
+        noteDefinition('pat', name, stmt.loc);
         if (patternEvents && stmt.rhsEvents && stmt.rhsEvents.length > 0) {
           patternEvents[name] = stmt.rhsEvents;
         }
@@ -993,6 +1061,7 @@ export function parseWithPeggy(source: string): ParseResult {
         break;
       }
       case 'SeqStmt': {
+        noteDefinition('seq', stmt.name, stmt.loc);
         const rhs = stmt.rhs ? stmt.rhs.trim() : '';
         const items = normalizeSeqItems(stmt.rhsItems, rhs, stmt.rhsTokens);
         if (items.length === 0) {

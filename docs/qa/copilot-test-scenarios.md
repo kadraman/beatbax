@@ -776,6 +776,24 @@ Expected behavior:
 - The second and later requests in the session are sent once each with no 400 retries.
 - After restarting the app, the first request may retry again (the cache is session-only).
 
+### 37. Duplicate Definitions Are Repaired or Blocked (spec 092, SC-004, SC-005)
+
+Baseline: `songs/sample.bax` with an Edit already applied that added `pat melody_vib` (for example "Add vibrato to the last note of each phrase in melody_pat"). Any provider; small local models reproduce this most often.
+
+Steps:
+
+1. In the editor, copy the `pat melody_vib` line and paste it a few lines lower. Confirm a warning squiggle on the pasted (later) line: `pat 'melody_vib' redefined; using the later definition.` Undo the paste.
+2. In Edit mode, ask again: "Add vibrato to the last note of each phrase in melody_pat."
+3. If the reply adds a second `pat melody_vib`, watch the thread notices.
+4. Open `songs/sms/green_zone.bax`, add the same `pat mel_a1` line twice in a row, then ask in Edit mode for an unrelated change (for example "Raise bpm to 140").
+
+Expected behavior:
+
+- Step 1 shows exactly one parser warning, on the later line. Playback uses the later definition.
+- Step 3: a reply with a new duplicate is never applied silently. Either the thread shows *Duplicate definitions — asking Copilot to fix (1/2)…* and the repaired reply applies with one `pat melody_vib`, or the card shows **⚠ Not applied — editor unchanged** with *Duplicate definition: `pat melody_vib` is defined more than once (lines A and B).*
+- The card never describes a new definition line as *comments, metadata, or spacing*.
+- Step 4: duplicates already in the song do not block the reply; the unrelated change applies as before.
+
 ---
 
 
