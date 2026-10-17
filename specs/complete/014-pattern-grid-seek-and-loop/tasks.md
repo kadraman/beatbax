@@ -1,0 +1,45 @@
+# Tasks: Pattern Grid Seek And Loop Playback
+
+**Input**: [spec.md](spec.md), [plan.md](plan.md)
+
+## Phase 0: Foundation
+
+- [x] T001 Complete plan Constitution Check; confirm app-core playback APIs to extend
+
+## Phase 1: UI range selection only
+
+- [x] T010 [US1] Click/drag global playhead for pending start marker
+- [x] T011 [US1] Drag loop region with start/end handles; snap to pattern boundaries
+- [x] T012 [US1] Store pending start + loop range in app-core; clear-loop action
+- [x] T013 [US1] Visual overlay + tooltips (no audio change yet)
+
+## Phase 2: Pattern-boundary start playback
+
+- [x] T020 [US2] `PlaybackManager.playFrom(source, { startStep })`
+- [x] T021 [US2] Schedule from pattern boundary (resolved-song slice); emit initial position events
+- [x] T022 [US2] Transport + Pattern Grid playhead start at selected point; Stop resets when no loop
+
+## Phase 3: Pattern-boundary loop playback
+
+- [x] T030 [US3] `PlaybackManager.playRange(..., { loop: true })`
+- [x] T031 [US3] Restart at `startStep` when reaching `endStep`; keep overlay visible
+- [x] T032 [US3] Keep whole-song loop separate from range loop; clear restores normal Play
+- [x] T033 [US3] Gate the loop range on the transport Loop toggle (new drag turns Loop on; Loop off dims and ignores the range); remove the ruler and section-lane context menus
+- [x] T034 [US2] DAW-style seek: a start pick while playing jumps playback there; while paused it stops at the pick (`pickTimelineStart`); a loop drag or turning Loop on during playback jumps into the active range (`pickTimelineLoop`, `followActiveLoop`)
+
+Phases 1–3 tests:
+
+- `packages/app-core/tests/playback-range.test.ts`: slicing, snapping, store, and `PlaybackManager` range playback with full-song positions.
+- `packages/engine/tests/resolver-step-state.test.ts`: per-note instrument state invariant.
+- `packages/engine/tests/playback.pass-length.test.ts`: `playAST` `lengthSteps` keeps trailing rests in a loop pass.
+- `apps/desktop/tests/pattern-grid-timeline.test.ts`: ruler mapping, gestures, idle playhead, and Play routing.
+
+- [x] Manual scenarios 1–7 in [plan.md](plan.md#test-plan) and desktop QA row "Pattern Grid seek and loop" (2026-10-17)
+
+## Phase 4: Step-accurate seek and loop
+
+- [x] T040 [US4] Fine-grained snap (Alt → step) + event trimming inside patterns
+- [x] T041 [US4] Sustain retrigger at mid-hold offsets; rests stay silent; inline inst via resolved note state
+- [x] T042 Tests for step gestures (`pattern-grid-timeline.test.ts`) and sustain retrigger / step snap helpers (`playback-range.test.ts`)
+- [x] Manual scenario 8 in [plan.md](plan.md#test-plan) (Alt step snap, Alt short loop, sustain retrigger) — 2026-10-17
+- [x] T043 Move to `specs/complete/014-pattern-grid-seek-and-loop/` when shipped
