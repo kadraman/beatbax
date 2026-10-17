@@ -1,6 +1,6 @@
 # Specification status index
 
-Assign the next feature id as **097** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **094** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
@@ -14,18 +14,20 @@ Assign the next feature id as **097** (one past the highest id below). Process: 
 - **011** `c64-sid-psid-rsid-exporter` — specified — export — issue: https://github.com/kadraman/beatbax/issues/201 — [specs/features/011-c64-sid-psid-rsid-exporter/](specs/features/011-c64-sid-psid-rsid-exporter/)
 - **012** `snes-sdsp-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/132 — [specs/features/012-snes-sdsp-chip-plugin/](specs/features/012-snes-sdsp-chip-plugin/)
 - **013** `virtual-piano-keyboard` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/133 — [specs/features/013-virtual-piano-keyboard/](specs/features/013-virtual-piano-keyboard/)
-- **014** `pattern-grid-seek-and-loop` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/190 — [specs/features/014-pattern-grid-seek-and-loop/](specs/features/014-pattern-grid-seek-and-loop/)
 - **015** `song-timing-pattern-grid-inspector` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/191 — [specs/features/015-song-timing-pattern-grid-inspector/](specs/features/015-song-timing-pattern-grid-inspector/)
 - **016** `hugetracker-uge-converter` — specified — cli — issue: https://github.com/kadraman/beatbax/issues/151 — [specs/features/016-hugetracker-uge-converter/](specs/features/016-hugetracker-uge-converter/)
 - **018** `performance-mode-video-recording` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/192 — [specs/features/018-performance-mode-video-recording/](specs/features/018-performance-mode-video-recording/)
 - **020** `spectrum-cpc-arkos-exporter-phase-2` — specified — export — issue: https://github.com/kadraman/beatbax/issues/162 — [specs/features/020-spectrum-cpc-arkos-exporter-phase-2/](specs/features/020-spectrum-cpc-arkos-exporter-phase-2/)
 - **022** `motifs-and-loop-templates` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/204 — [specs/features/022-motifs-and-loop-templates/](specs/features/022-motifs-and-loop-templates/)
 - **023** `sega-mega-drive-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/193 — [specs/features/023-sega-mega-drive-chip-plugin/](specs/features/023-sega-mega-drive-chip-plugin/)
+- **092** `duplicate-definition-warnings` (parser warning for same-file `pat`/`seq`/`inst`/`effect` redefinition; Copilot repairs or blocks Edit replies that add duplicates) — specified — language — issue: https://github.com/kadraman/beatbax/issues/222 — [specs/features/092-duplicate-definition-warnings/](specs/features/092-duplicate-definition-warnings/)
+- **093** `web-lite-pattern-grid` (Pattern Grid back in web-lite, shown by default, with spec 014 ruler seek and Loop-gated loop range; shared timeline logic moves to app-core) — planned — web — issue: https://github.com/kadraman/beatbax/issues/227 — [specs/features/093-web-lite-pattern-grid/](specs/features/093-web-lite-pattern-grid/)
 
 ## Complete (`specs/complete/`)
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
 
+- **014** `pattern-grid-seek-and-loop` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/190 — [specs/complete/014-pattern-grid-seek-and-loop/](specs/complete/014-pattern-grid-seek-and-loop/)
 - **004** `daw-channel-mixer` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/75 — [specs/complete/004-daw-channel-mixer/](specs/complete/004-daw-channel-mixer/)
 - **006** `midi-importer` (CLI MIDI → `.bax` conversion) — complete — engine — issue: https://github.com/kadraman/beatbax/issues/101 — [specs/complete/006-midi-importer/](specs/complete/006-midi-importer/)
 - **088** `copilot-request-controls` (reply budgets, reasoning effort, out-of-budget diagnostics) — complete (live-model QA scenarios 31–36 in `docs/qa/copilot-test-scenarios.md` pending) — desktop — issue: https://github.com/kadraman/beatbax/issues/212 — [specs/complete/088-copilot-request-controls/](specs/complete/088-copilot-request-controls/)
