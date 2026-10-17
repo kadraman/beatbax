@@ -1,5 +1,5 @@
 /**
- * Pattern Grid seek/loop timeline helpers (spec 014, phases 1–3).
+ * Pattern Grid seek/loop timeline helpers (spec 014, phases 1–4).
  */
 
 import { collectStepBoundaries } from '@beatbax/app-core/playback/playback-range';
@@ -77,6 +77,23 @@ describe('ruler gestures snap to pattern boundaries', () => {
     expect(snapPendingStart(24, boundaries, 'nearest')).toBe(20);
     expect(snapPendingStart(21, boundaries, 'nearest')).toBe(20);
     expect(snapPendingStart(0, [0], 'down')).toBe(0);
+  });
+
+  it('Alt/step snap places starts and loops on integer steps (phase 4)', () => {
+    expect(resolveTimelineGesture('new', 10.6, 10.6, false, boundaries, null, { snap: 'step' }))
+      .toEqual({ kind: 'start', startStep: 10 });
+    expect(resolveTimelineGesture('start', 8, 13.4, true, boundaries, null, { snap: 'step' }))
+      .toEqual({ kind: 'start', startStep: 13 });
+    expect(resolveTimelineGesture('new', 5.2, 7.1, true, boundaries, null, { snap: 'step' }))
+      .toEqual({ kind: 'loop', loop: { startStep: 5, endStep: 8 } });
+    expect(resolveTimelineGesture('new', 23.9, 23.9, false, boundaries, null, { snap: 'step' }))
+      .toEqual({ kind: 'start', startStep: 23 });
+    const loop = { startStep: 8, endStep: 16 };
+    expect(resolveTimelineGesture('loop-start', 8, 10.6, true, boundaries, loop, { snap: 'step' }))
+      .toEqual({ kind: 'loop', loop: { startStep: 11, endStep: 16 } });
+    expect(resolveTimelineGesture('loop-end', 16, 12.4, true, boundaries, loop, { snap: 'step' }))
+      .toEqual({ kind: 'loop', loop: { startStep: 8, endStep: 12 } });
+    expect(snapPendingStart(23.2, boundaries, 'down', 'step')).toBe(23);
   });
 
   it('loop handles keep at least one block', () => {

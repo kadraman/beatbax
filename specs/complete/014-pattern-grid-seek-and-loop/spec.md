@@ -2,11 +2,11 @@
 title: "Pattern Grid Seek And Loop Playback"
 id: 14
 slug: "pattern-grid-seek-and-loop"
-status: "in-progress"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-06-22"
-updated: "2026-10-12"
+updated: "2026-10-17"
 issue: "https://github.com/kadraman/beatbax/issues/190"
 area: "desktop"
 related:
@@ -184,7 +184,7 @@ Recommended defaults:
 
 ---
 
-## Implemented Behaviour (Phases 1–3, pattern boundaries)
+## Implemented Behaviour (Phases 1–4)
 
 Desktop Pattern Grid only. Session-only state; nothing is written to the song.
 
@@ -196,6 +196,7 @@ Desktop Pattern Grid only. Session-only state; nothing is written to the song.
 | Drag the start flag | Moves the pending start to the nearest boundary. Seeks playback (see below) |
 | Drag across the ruler | Loop range covering every block touched (outward snap; at least one block); turns transport Loop on |
 | Drag a loop handle | Moves that edge to the nearest boundary; at least one block remains; does not change transport Loop |
+| Alt + click / drag / handle | Same gestures with **step** snap (integer global steps; loop minimum one step) |
 | `✕` in the ruler label cell | Clears the loop range (or the start marker when no loop is set) |
 
 There is no ruler or section-lane context menu; the gestures above, the section lane's label click (focus) and `▶` (play) cover every action. Pattern blocks keep their click-to-navigate behaviour.
@@ -210,7 +211,7 @@ There is no ruler or section-lane context menu; the gestures above, the section 
 
 Dragging a loop range follows the same rules when the range is active (a new range always is, since it turns Loop on): during whole-song or section-focus playback it jumps to the loop start and loops; while paused it stops so Play starts at the loop start; while the old range is already looping it restarts on the new range. A handle drag on a dimmed range (Loop off) leaves playback alone.
 
-The picked start snaps to a block boundary, so playback jumps to the start of the block under the pointer, not the exact step (step-accurate seek is Phase 4).
+The picked start snaps to a block boundary by default, so playback jumps to the start of the block under the pointer. Holding **Alt** (Option on macOS) snaps to the exact global step under the pointer (phase 4).
 
 **Transport Loop toggle.** The loop range marks *where* to loop; the transport Loop toggle decides *whether* it loops (DAW cycle-region model).
 
@@ -228,7 +229,7 @@ The picked start snaps to a block boundary, so playback jumps to the start of th
 - Transport time, step counter, Pattern Grid playhead and editor glyphs report full-song positions (no remapping).
 - Ruler edits exit section focus (a start pick or loop drag then seeks the full song if it was playing). Loading a different file clears both the start marker and the loop range; an edit that shortens the song drops any range that no longer fits.
 
-**Channels whose block spans the snap point.** Snap points come from any row, so a start or loop edge can fall inside another row's block. Every channel starts at that exact step. Inline instrument changes made earlier still apply, because each resolved note carries its own instrument state. A note held across the start step stays silent until that channel's next event. Phase 4 decides the full step-accurate policy, including retriggering held notes.
+**Channels whose block spans the snap point.** Snap points come from any row (or exact steps with Alt), so a start or loop edge can fall inside another row's block. Every channel starts at that exact step. Inline instrument changes made earlier still apply, because each resolved note carries its own instrument state. A note held across the start step is **retriggered** for the remaining hold duration (the first leading sustain in the slice is replaced with a copy of the held note/named event). Orphan sustains with no held note stay silent. Rests at the start stay silent.
 
 ---
 

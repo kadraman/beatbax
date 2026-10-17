@@ -45,6 +45,6 @@
 
 ## Polish
 
-- [ ] T900 Note the reversal in `specs/complete/076-desktop-first-client-split/spec.md` and `docs/features/complete/desktop-first-client-split.md`; note the app-core move in `specs/features/014-pattern-grid-seek-and-loop/plan.md`
+- [ ] T900 Note the reversal in `specs/complete/076-desktop-first-client-split/spec.md` and `docs/features/complete/desktop-first-client-split.md`; note the app-core move in `specs/complete/014-pattern-grid-seek-and-loop/plan.md`
 - [ ] T901 Manual QA scenarios 1–8 in [plan.md](plan.md#manual--qa) on Chromium, Firefox, Safari
 - [ ] T902 Move this folder to `specs/complete/093-web-lite-pattern-grid/` and update `specs/STATUS.md` when shipped

@@ -1,15 +1,17 @@
 /**
- * Pattern Grid seek and loop (spec 014, phases 1–3): range slicing, snapping,
- * session store, and PlaybackManager range playback in full-song coordinates.
+ * Pattern Grid seek and loop (spec 014): range slicing, snapping, sustain
+ * retrigger, session store, and PlaybackManager range playback.
  */
 
 import { Player } from '@beatbax/engine/audio/playback';
 import { PlaybackManager } from '../src/playback/playback-manager';
 import {
+  clampStartStep,
   collectStepBoundaries,
   normalizePlaybackRange,
   sliceSongForRange,
   snapLoopRange,
+  snapLoopRangeBySteps,
   snapStepDown,
   snapStepNearest,
   snapStepUp,
@@ -117,6 +119,56 @@ describe('playback range slicing', () => {
     expect(first.instProps).toMatchObject({ duty: 25 });
     expect(sliced.song.play.repeat).toBe(false);
   });
+
+  it('retriggers a held note when the slice opens on sustains (phase 4)', () => {
+    const note = mockNote('C4', 'lead', 'hold');
+    const sustain = { type: 'sustain', sourcePattern: 'hold' };
+    const rest = mockRest('hold');
+    const events = [note, sustain, sustain, rest, mockNote('E4', 'lead', 'hold')];
+    const song: any = {
+      chip: 'gameboy',
+      bpm: 120,
+      insts: mockInsts,
+      play: { repeat: false },
+      channels: [
+        {
+          id: 1,
+          events,
+          pat: events,
+          defaultInstrument: 'lead',
+        },
+      ],
+    };
+
+    // Open on the first sustain: retrigger C4 and keep the remaining hold.
+    const midHold = sliceSongForRange(song, { startStep: 1, endStep: 5 })!;
+    expect(midHold.song.channels[0].events.map((ev: any) => ev.type))
+      .toEqual(['note', 'sustain', 'rest', 'note']);
+    expect(midHold.song.channels[0].events[0]).toMatchObject({
+      type: 'note',
+      token: 'C4',
+      instrument: 'lead',
+    });
+    // Held note is note index 0; offset must point at it, not the next note.
+    expect(midHold.noteOffsets.get(1)).toBe(0);
+
+    // Last sustain of the hold: retrigger with no remaining sustains after it.
+    const lastSustain = sliceSongForRange(song, { startStep: 2, endStep: 5 })!;
+    expect(lastSustain.song.channels[0].events.map((ev: any) => ev.type))
+      .toEqual(['note', 'rest', 'note']);
+
+    const onRest = sliceSongForRange(song, { startStep: 3, endStep: 5 })!;
+    expect(onRest.song.channels[0].events[0].type).toBe('rest');
+
+    const orphan = sliceSongForRange(
+      {
+        ...song,
+        channels: [{ id: 1, events: [sustain, sustain], pat: [sustain, sustain] }],
+      },
+      { startStep: 0, endStep: 2 },
+    )!;
+    expect(orphan.song.channels[0].events.every((ev: any) => ev.type === 'sustain')).toBe(true);
+  });
 });
 
 describe('step boundary snapping', () => {
@@ -142,6 +194,17 @@ describe('step boundary snapping', () => {
     expect(snapLoopRange(9, 5, boundaries)).toEqual({ startStep: 4, endStep: 12 });
     expect(snapLoopRange(4, 4, boundaries)).toEqual({ startStep: 4, endStep: 8 });
     expect(snapLoopRange(16, 16, boundaries)).toBeNull();
+  });
+
+  it('clamps integer starts and snaps step loops to at least one step (phase 4)', () => {
+    expect(clampStartStep(10.9, 16, 'down')).toBe(10);
+    expect(clampStartStep(10.6, 16, 'nearest')).toBe(11);
+    expect(clampStartStep(16, 16, 'down')).toBe(15);
+    expect(clampStartStep(-2, 16, 'down')).toBe(0);
+    expect(snapLoopRangeBySteps(5.2, 7.1, 16)).toEqual({ startStep: 5, endStep: 8 });
+    expect(snapLoopRangeBySteps(3.1, 3.1, 16)).toEqual({ startStep: 3, endStep: 4 });
+    expect(snapLoopRangeBySteps(15.5, 15.9, 16)).toEqual({ startStep: 15, endStep: 16 });
+    expect(snapLoopRangeBySteps(0, 0, 0)).toBeNull();
   });
 });
 

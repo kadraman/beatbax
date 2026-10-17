@@ -1,8 +1,9 @@
 /**
- * Playback range helpers for Pattern Grid seek and loop (spec 014, phases 1–3).
+ * Playback range helpers for Pattern Grid seek and loop (spec 014).
  *
  * Steps are global ISM event indices: one resolved channel event per step, the
  * same coordinate system as `buildChannelTimelines` / Pattern Grid blocks.
+ * Phase 4: step snap helpers and sustain retrigger when slicing mid-hold.
  */
 
 export type PlaybackSnapMode = 'pattern' | 'bar' | 'step';
@@ -49,6 +50,40 @@ function isNoteEvent(ev: any): boolean {
   return !!ev && typeof ev === 'object' && (ev.type === 'note' || ev.type === 'named');
 }
 
+function isSustainEvent(ev: any): boolean {
+  if (ev === '_' || ev === '-') return true;
+  return !!ev && typeof ev === 'object' && ev.type === 'sustain';
+}
+
+/**
+ * Slice channel events to `[startStep, endStep)`. When the window opens on a
+ * sustain that continues a note/named event before `startStep`, replace the
+ * first leading sustain with a copy of that held event so playback retriggers
+ * the remaining hold (spec 014 phase 4).
+ */
+export function sliceChannelEventsForRange(
+  events: readonly any[],
+  startStep: number,
+  endStep: number,
+): any[] {
+  const sliced = events.slice(startStep, endStep);
+  if (sliced.length === 0 || !isSustainEvent(sliced[0])) return sliced;
+
+  let held: any = null;
+  for (let i = startStep - 1; i >= 0; i--) {
+    const ev = events[i];
+    if (isSustainEvent(ev)) continue;
+    if (isNoteEvent(ev)) {
+      held = ev;
+      break;
+    }
+    break;
+  }
+  if (!held) return sliced;
+
+  return [{ ...held }, ...sliced.slice(1)];
+}
+
 /** Longest channel event count (global step total) of a resolved song. */
 export function songStepCount(song: any): number {
   let max = 0;
@@ -79,8 +114,9 @@ export function normalizePlaybackRange(
 /**
  * Build a playable copy of a resolved song limited to `[startStep, endStep)`.
  *
- * Valid at pattern boundaries: resolved note events carry their instrument and
- * instrument properties, so no directive state is lost by dropping earlier steps.
+ * Resolved note events carry their instrument and instrument properties, so no
+ * directive state is lost by dropping earlier steps. Mid-hold starts retrigger
+ * the held note for the remaining sustains (see `sliceChannelEventsForRange`).
  * A loop range sets `play.repeat` on the copy; a play-from range clears it.
  */
 export function sliceSongForRange(song: any, range: PlaybackRange): SlicedSong | null {
@@ -99,9 +135,19 @@ export function sliceSongForRange(song: any, range: PlaybackRange): SlicedSong |
       total++;
       if (i < normalized.startStep) before++;
     }
+    const sliced = sliceChannelEventsForRange(events, normalized.startStep, normalized.endStep);
+    // Retriggered hold is the held note again; subtract it from the offset so
+    // glyphs/playhead report that note's index, not the next one.
+    if (
+      before > 0
+      && sliced.length > 0
+      && isNoteEvent(sliced[0])
+      && isSustainEvent(events[normalized.startStep])
+    ) {
+      before -= 1;
+    }
     noteOffsets.set(ch.id, before);
     noteTotals.set(ch.id, total);
-    const sliced = events.slice(normalized.startStep, normalized.endStep);
     return { ...ch, events: sliced, pat: sliced };
   });
 
@@ -170,5 +216,30 @@ export function snapLoopRange(a: number, b: number, boundaries: readonly number[
     if (next === undefined) return null;
     endStep = next;
   }
+  return { startStep, endStep };
+}
+
+/**
+ * Pending start at an integer global step. Never lands on `totalSteps`
+ * (playback cannot start at the song end).
+ */
+export function clampStartStep(step: number, totalSteps: number, mode: 'down' | 'nearest' = 'down'): number {
+  if (totalSteps <= 0) return 0;
+  const raw = mode === 'nearest' ? Math.round(step) : Math.floor(step);
+  return Math.max(0, Math.min(totalSteps - 1, raw));
+}
+
+/**
+ * Loop range snapped outward to integer steps. Minimum length is one step.
+ * Returns null when `totalSteps` is empty or the range cannot fit.
+ */
+export function snapLoopRangeBySteps(a: number, b: number, totalSteps: number): LoopRange | null {
+  if (totalSteps <= 0) return null;
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  const startStep = Math.max(0, Math.min(totalSteps - 1, Math.floor(lo)));
+  let endStep = Math.max(startStep + 1, Math.min(totalSteps, Math.ceil(hi)));
+  if (endStep <= startStep) endStep = Math.min(totalSteps, startStep + 1);
+  if (endStep <= startStep) return null;
   return { startStep, endStep };
 }

@@ -1,7 +1,7 @@
 # Pattern Grid Seek And Loop Playback
 
 - **ID**: 014
-- **Status**: specified
+- **Status**: complete
 - **Area**: desktop
 - **Issue**: https://github.com/kadraman/beatbax/issues/190
 - [spec.md](spec.md) — WHAT / WHY

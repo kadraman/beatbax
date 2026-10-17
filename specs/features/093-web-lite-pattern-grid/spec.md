@@ -10,7 +10,7 @@ updated: "2026-10-12"
 issue: "https://github.com/kadraman/beatbax/issues/227"
 area: "web"
 related:
-  - "specs/features/014-pattern-grid-seek-and-loop/spec.md"
+  - "specs/complete/014-pattern-grid-seek-and-loop/spec.md"
   - "specs/complete/076-desktop-first-client-split/spec.md"
   - "specs/complete/079-desktop-web-ui-retirement/spec.md"
   - "specs/complete/087-pattern-combination-preview/spec.md"
@@ -20,7 +20,7 @@ related:
 
 ## Summary
 
-Bring the Pattern Grid back to the browser client (`web-lite`), shown by default, with the same timeline seek and loop behaviour that ships on desktop under [spec 014](../014-pattern-grid-seek-and-loop/spec.md): a `Pos` ruler to set the playback start, DAW-style seeking during playback, and a drag-selected loop range gated by the transport Loop button. Mute/solo and click-to-navigate work as they do in the existing web grid. The desktop-only section lane and section focus stay out of scope.
+Bring the Pattern Grid back to the browser client (`web-lite`), shown by default, with the same timeline seek and loop behaviour that ships on desktop under [spec 014](../../complete/014-pattern-grid-seek-and-loop/spec.md): a `Pos` ruler to set the playback start, DAW-style seeking during playback, and a drag-selected loop range gated by the transport Loop button. Mute/solo and click-to-navigate work as they do in the existing web grid. The desktop-only section lane and section focus stay out of scope.
 
 This reverses one decision in [spec 076](../../complete/076-desktop-first-client-split/spec.md), which removed the pattern grid from web-lite to keep the "try it" client minimal. The grid is the quickest way to see a song's arrangement and to audition part of it, and those are exactly what a first-time user tries.
 
@@ -130,7 +130,7 @@ This reverses one decision in [spec 076](../../complete/076-desktop-first-client
 
 ## References
 
-- [Spec 014 — Pattern Grid seek and loop](../014-pattern-grid-seek-and-loop/spec.md) (behaviour this spec mirrors)
+- [Spec 014 — Pattern Grid seek and loop](../../complete/014-pattern-grid-seek-and-loop/spec.md) (behaviour this spec mirrors)
 - [Spec 076 — Desktop-first client split](../../complete/076-desktop-first-client-split/spec.md) (removed the grid from web-lite; partly reversed here)
 - [Spec 079 — Desktop web-ui retirement](../../complete/079-desktop-web-ui-retirement/spec.md) (separate UI implementations)
 - [Spec 087 — Pattern combination preview](../../complete/087-pattern-combination-preview/spec.md) (Shift+click section play, desktop section focus)

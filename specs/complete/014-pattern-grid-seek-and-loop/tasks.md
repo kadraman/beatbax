@@ -34,11 +34,12 @@ Phases 1–3 tests:
 - `packages/engine/tests/playback.pass-length.test.ts`: `playAST` `lengthSteps` keeps trailing rests in a loop pass.
 - `apps/desktop/tests/pattern-grid-timeline.test.ts`: ruler mapping, gestures, idle playhead, and Play routing.
 
-Pending: manual scenarios 1–7 in [plan.md](plan.md#test-plan) (desktop QA row "Pattern Grid seek and loop").
+- [x] Manual scenarios 1–7 in [plan.md](plan.md#test-plan) and desktop QA row "Pattern Grid seek and loop" (2026-10-17)
 
-## Phase 4: Step-accurate seek and loop (separate later step)
+## Phase 4: Step-accurate seek and loop
 
-- [ ] T040 [US4] Fine-grained snap + event trimming inside patterns
-- [ ] T041 [US4] Correct reconstruction for rests, sustains, inline inst, transforms, effects
-- [ ] T042 Tests for Grid mapping, pending marker, overlay units, non-zero start events, range loop bounds (phases 1–3 portion done above; extend for step-level offsets)
-- [ ] T043 Move to `specs/complete/014-pattern-grid-seek-and-loop/` when shipped
+- [x] T040 [US4] Fine-grained snap (Alt → step) + event trimming inside patterns
+- [x] T041 [US4] Sustain retrigger at mid-hold offsets; rests stay silent; inline inst via resolved note state
+- [x] T042 Tests for step gestures (`pattern-grid-timeline.test.ts`) and sustain retrigger / step snap helpers (`playback-range.test.ts`)
+- [x] Manual scenario 8 in [plan.md](plan.md#test-plan) (Alt step snap, Alt short loop, sustain retrigger) — 2026-10-17
+- [x] T043 Move to `specs/complete/014-pattern-grid-seek-and-loop/` when shipped

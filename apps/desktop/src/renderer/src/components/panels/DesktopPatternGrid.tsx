@@ -352,8 +352,10 @@ function DesktopPatternGrid({
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (!drag.moved && Math.abs(event.clientX - drag.originX) < 4) return;
     drag.moved = true;
+    const snap = event.altKey ? 'step' as const : 'pattern' as const;
     const result = resolveTimelineGesture(
       drag.kind, drag.anchorStep, rulerStepAt(event.clientX), true, stepBoundaries, playbackLoopRange.get(),
+      { snap },
     );
     if (result.kind === 'start') setDragPreview({ start: result.startStep });
     else if (result.kind === 'loop') setDragPreview({ loop: result.loop });
@@ -365,8 +367,10 @@ function DesktopPatternGrid({
     dragRef.current = null;
     setDragPreview(null);
     try { rulerTrackRef.current?.releasePointerCapture(event.pointerId); } catch { /* ignore */ }
+    const snap = event.altKey ? 'step' as const : 'pattern' as const;
     const result = resolveTimelineGesture(
       drag.kind, drag.anchorStep, rulerStepAt(event.clientX), drag.moved, stepBoundaries, playbackLoopRange.get(),
+      { snap },
     );
     if (result.kind === 'none') return;
     if (result.kind === 'start') {
@@ -663,7 +667,7 @@ function DesktopPatternGrid({
               onPointerMove={onRulerPointerMove}
               onPointerUp={onRulerPointerUp}
               ref={rulerTrackRef}
-              title={'Click: set playback start · Drag: set loop range (turns Loop on)'}
+              title={'Click: set playback start · Drag: set loop range (turns Loop on)\nAlt: snap to steps'}
             >
               {shownLoop ? (
                 <div

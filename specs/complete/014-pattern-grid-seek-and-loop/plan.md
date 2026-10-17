@@ -7,7 +7,7 @@
 GATE: complete before implementation. Re-check after design changes.
 
 - [x] No invented syntax or undocumented language behavior — desktop UI and app-core playback only; no `.bax` syntax, no song metadata.
-- [x] AST / ISM / scheduler / expansion impact identified — none for phases 1–3 (see design decision). Phase 4 must re-check the scheduler.
+- [x] AST / ISM / scheduler / expansion impact identified — phases 1–3: none (slice in app-core). Phase 4: still no AST/ISM/scheduler change; sustain retrigger is a shallow event rewrite in `sliceSongForRange` before `playAST`.
 - [x] Plugins remain isolated; core does not gain plugin dependencies — app-core and desktop, plus one optional `Player.playAST` option (see design decision); no plugin, AST or ISM change.
 - [x] Determinism and compatibility preserved — whole-song `play()` path unchanged when no range is passed; range state is session-only.
 - [x] Tests planned for new behavior — see Test Plan (app-core range/store/manager, engine resolver invariant, desktop timeline mapping and Play routing).
@@ -111,17 +111,24 @@ Acceptance criteria:
 
 Expand from pattern-boundary behavior to arbitrary step positions.
 
+#### Design decision (2026-10-17): Alt step snap + sustain retrigger
+
+- **Default snap stays pattern boundaries** (phases 1–3). Holding **Alt** (Option on macOS) while clicking or dragging the Pos ruler uses **step** snap: integer global steps, start clamped to `[0, totalSteps)`.
+- **Loop with Alt:** outward integer snap (`floor` start, `ceil` end); minimum length is **one step**, not one pattern block.
+- **Sustain policy:** when a channel's slice begins on one or more `sustain` events that continue a note/named event before `startStep`, `sliceSongForRange` replaces the first leading sustain with a shallow copy of that held event (instrument, `instProps`, effects, source metadata intact). Remaining leading sustains stay so the engine plays the trimmed duration. Orphan sustains (no held note found) stay silent. Rests at the start are unchanged. Inline `inst` before the offset remains correct because resolved notes already carry instrument state.
+- No engine `startStep`/`endStep` API; still the app-core slice + optional `lengthSteps` for loop passes.
+
 Deliverables:
 
-- Fine-grained snap mode.
-- Event trimming inside patterns.
-- Correct state reconstruction at non-boundary offsets.
-- Tests for rests, sustains, inline instruments, transformed sequences, and effects.
+- Fine-grained snap mode (Alt → step).
+- Event trimming inside patterns (sustain retrigger at slice start).
+- Correct state reconstruction at non-boundary offsets (via resolved per-note state + retrigger).
+- Tests for rests, sustains, inline instruments, and step gestures.
 
 Acceptance criteria:
 
-- Seeking into the middle of a pattern starts at the correct musical step.
-- Sustained notes and rests behave predictably.
+- Seeking into the middle of a pattern starts at the correct musical step (with Alt).
+- Sustained notes and rests behave predictably (retrigger remaining hold; rests stay silent).
 - Inline instrument state is correct after seeking past instrument changes.
 - Pattern Grid, transport time, and editor glyphs remain aligned.
 
@@ -138,6 +145,7 @@ Manual scenarios:
 5. Clear loop, press Play, verify playback starts at the beginning.
 6. Drag a loop range with transport Loop off, verify Loop turns on. Toggle Loop off, verify the range dims and Play runs the whole song (or from the pending start); toggle it on again, verify Play loops the range. With the loop active, click the ruler outside it: verify Loop turns off, the range dims, and the green start flag appears at the click.
 7. While the whole song plays, click the ruler ahead of and then behind the playhead: verify playback jumps to each clicked block start. Pause, click elsewhere, verify playback stops with the playhead at the click and Play starts there. While the whole song plays, drag a new loop range: verify Loop turns on and playback jumps to the loop start and loops. Turn Loop off (playback continues to the end), play the whole song, turn Loop on with the transport button: verify playback jumps back into the range.
+8. Alt-click inside a pattern (not on a block boundary): verify the start flag lands on that step and Play starts there. Alt-drag a short loop of a few steps: verify it loops that window. Seek into a sustained note: verify the hold retriggers from the seek point.
 
 Automated coverage:
 

@@ -14,6 +14,9 @@ export {
   snapStepUp,
   snapStepNearest,
   snapLoopRange,
+  clampStartStep,
+  snapLoopRangeBySteps,
+  sliceChannelEventsForRange,
 } from './playback-range.js';
 export type {
   PlaybackRange,

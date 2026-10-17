@@ -4,10 +4,13 @@
  */
 
 import {
+  clampStartStep,
   snapLoopRange,
+  snapLoopRangeBySteps,
   snapStepDown,
   snapStepNearest,
   type LoopRange,
+  type PlaybackSnapMode,
 } from '@beatbax/app-core/playback/playback-range';
 import { playbackStatus } from '@beatbax/app-core/stores/playback.store';
 import {
@@ -49,12 +52,16 @@ export function stepFromClientX(
 /**
  * Snap a pending start to a block boundary. The song-end boundary is excluded
  * because playback cannot start there, so the latest start is the final block.
+ * With `snap: 'step'`, snaps to an integer global step instead.
  */
 export function snapPendingStart(
   step: number,
   boundaries: readonly number[],
   mode: 'down' | 'nearest',
+  snap: PlaybackSnapMode = 'pattern',
 ): number {
+  const totalSteps = boundaries.length > 0 ? boundaries[boundaries.length - 1]! : 0;
+  if (snap === 'step') return clampStartStep(step, totalSteps, mode);
   const starts = boundaries.length > 1 ? boundaries.slice(0, -1) : boundaries;
   return mode === 'down' ? snapStepDown(step, starts) : snapStepNearest(step, starts);
 }
@@ -66,12 +73,17 @@ export type TimelineGestureResult =
   | { kind: 'loop'; loop: LoopRange }
   | { kind: 'none' };
 
+export interface TimelineGestureOptions {
+  /** Default `pattern`. Pass `step` when Alt is held (phase 4). */
+  snap?: PlaybackSnapMode;
+}
+
 /**
- * Snap a ruler gesture to pattern boundaries.
- * - `new` click (not moved): pending start at the block start under the pointer.
- * - `new` drag: loop covering every block between anchor and pointer.
- * - `start` drag: move the pending start to the nearest boundary.
- * - `loop-start` / `loop-end` drag: move one loop edge, keeping at least one block.
+ * Snap a ruler gesture.
+ * - `new` click (not moved): pending start under the pointer.
+ * - `new` drag: loop covering the span (pattern blocks, or integer steps with Alt).
+ * - `start` drag: move the pending start.
+ * - `loop-start` / `loop-end` drag: move one loop edge.
  */
 export function resolveTimelineGesture(
   kind: TimelineDragKind,
@@ -80,16 +92,40 @@ export function resolveTimelineGesture(
   moved: boolean,
   boundaries: readonly number[],
   loop: LoopRange | null,
+  options: TimelineGestureOptions = {},
 ): TimelineGestureResult {
+  const snap = options.snap === 'step' ? 'step' : 'pattern';
+  const totalSteps = boundaries.length > 0 ? boundaries[boundaries.length - 1]! : 0;
+
   if (kind === 'new') {
-    if (!moved) return { kind: 'start', startStep: snapPendingStart(anchorStep, boundaries, 'down') };
-    const next = snapLoopRange(anchorStep, currentStep, boundaries);
+    if (!moved) {
+      return { kind: 'start', startStep: snapPendingStart(anchorStep, boundaries, 'down', snap) };
+    }
+    const next = snap === 'step'
+      ? snapLoopRangeBySteps(anchorStep, currentStep, totalSteps)
+      : snapLoopRange(anchorStep, currentStep, boundaries);
     return next ? { kind: 'loop', loop: next } : { kind: 'none' };
   }
   if (kind === 'start') {
-    return { kind: 'start', startStep: snapPendingStart(currentStep, boundaries, 'nearest') };
+    return { kind: 'start', startStep: snapPendingStart(currentStep, boundaries, 'nearest', snap) };
   }
   if (!loop) return { kind: 'none' };
+
+  if (snap === 'step') {
+    if (kind === 'loop-start') {
+      const startStep = Math.min(clampStartStep(currentStep, totalSteps, 'nearest'), loop.endStep - 1);
+      return startStep < loop.endStep
+        ? { kind: 'loop', loop: { startStep, endStep: loop.endStep } }
+        : { kind: 'none' };
+    }
+    // Exclusive end: round the pointer, keep at least one step after start.
+    const rounded = Math.round(currentStep);
+    const endStep = Math.min(totalSteps, Math.max(loop.startStep + 1, rounded));
+    return endStep > loop.startStep
+      ? { kind: 'loop', loop: { startStep: loop.startStep, endStep } }
+      : { kind: 'none' };
+  }
+
   const edge = snapStepNearest(currentStep, boundaries);
   if (kind === 'loop-start') {
     const startStep = Math.min(edge, boundaries.filter((b) => b < loop.endStep).pop() ?? loop.startStep);

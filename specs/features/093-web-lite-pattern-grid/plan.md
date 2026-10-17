@@ -103,7 +103,7 @@ None.
 
 - `specs/complete/076-desktop-first-client-split/spec.md`: note that spec 093 restores the pattern grid to web-lite.
 - `docs/features/complete/desktop-first-client-split.md`: same note in the web-lite feature table.
-- `specs/features/014-pattern-grid-seek-and-loop/plan.md`: shared logic now lives in app-core.
+- `specs/complete/014-pattern-grid-seek-and-loop/plan.md`: shared logic now lives in app-core.
 
 ## Testing strategy
 
