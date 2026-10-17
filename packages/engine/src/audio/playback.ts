@@ -95,6 +95,15 @@ export interface AudioContextOptions {
   backend?: 'auto' | 'browser' | 'node-webaudio';
 }
 
+export interface PlayASTOptions {
+  /**
+   * Exact length of one pass in steps (sixteenth-note ticks at the song bpm).
+   * Overrides the default pass length, which ends at the last scheduled note,
+   * so trailing rests are kept. Applies to repeat and completion timing.
+   */
+  lengthSteps?: number;
+}
+
 export async function createAudioContext(opts: AudioContextOptions = {}): Promise<any> {
   const backend = opts.backend ?? 'auto';
 
@@ -166,6 +175,7 @@ export class Player {
   private _repeatTimer: any = null;
   private _preScheduleTimer: any = null; // Timer for seamless loop pre-scheduling
   private _loopEndTime: number = 0; // Absolute AudioContext time when current loop iteration ends
+  private _passLengthSteps: number = 0; // Fixed pass length from PlayASTOptions.lengthSteps (0 = last note)
   // ─── Per-channel analyser state ─────────────────────────────────────────────
   private _enableAnalyser: boolean = false;
   private _analyserFftSize: number = 512;
@@ -282,7 +292,7 @@ export class Player {
     return this.masterGain;
   }
 
-  async playAST(ast: AST) {
+  async playAST(ast: AST, options: PlayASTOptions = {}) {
     log.debug('=== Player.playAST() called ===');
     log.debug('AST:', ast);
     log.debug('Channels:', ast?.channels?.length);
@@ -302,6 +312,10 @@ export class Player {
     // Note: stop() clears _currentAST, so we restore it immediately after
     try { this.stop(); } catch (e) {}
     this._currentAST = ast;
+    const lengthSteps = options.lengthSteps;
+    this._passLengthSteps = typeof lengthSteps === 'number' && Number.isFinite(lengthSteps) && lengthSteps > 0
+      ? lengthSteps
+      : 0;
 
     log.debug('Player cleaned, starting setup...');
 
@@ -581,6 +595,10 @@ export class Player {
       globalDurationSec = Math.max(globalDurationSec, channelDuration);
     }
 
+    if (this._passLengthSteps > 0) {
+      const bpm = (ast && typeof ast.bpm === 'number') ? ast.bpm : this.bpmDefault;
+      return this._passLengthSteps * (60 / bpm / 4);
+    }
     return globalDurationSec;
   }
 
@@ -1613,6 +1631,7 @@ export class Player {
     this._pauseTimestamp = 0;
     this._isRepeatMode = false;
     this._currentAST = null;
+    this._passLengthSteps = 0;
 
     if (this.scheduler) {
       this.scheduler.clear();

@@ -3751,7 +3751,6 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 36px;
 }
 
 .bb-pgrid__section-heading {
@@ -3952,30 +3951,147 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   background: rgba(0, 0, 0, 0.8);
 }
 
-.bb-pgrid__menu {
-  position: fixed;
-  z-index: 10050;
-  min-width: 160px;
-  padding: 4px 0;
-  background: var(--panel-bg, #1e1e22);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+/* ── Timeline ruler: pending start + loop range (spec 014) ───────────────── */
+.bb-pgrid__row--ruler {
+  height: 12px;
 }
-.bb-pgrid__menu button {
-  display: block;
-  width: 100%;
-  padding: 6px 12px;
-  border: none;
-  background: transparent;
-  color: var(--text-color, #ddd);
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
+
+.bb-pgrid__controls--ruler {
+  justify-content: center;
 }
-.bb-pgrid__menu button:hover {
-  background: rgba(255, 255, 255, 0.08);
+
+.bb-pgrid__track--ruler {
+  overflow: visible;
+  cursor: text;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.07) 0 1px,
+    transparent 1px 12px
+  ), rgba(255, 255, 255, 0.03);
 }
+
+.bb-pgrid__btn.bb-pgrid__btn--clear-range {
+  width: 14px;
+  height: 11px;
+  font-size: 7px;
+  color: rgba(120, 200, 255, 0.85);
+  border-color: rgba(120, 200, 255, 0.35);
+}
+
+.bb-pgrid__ruler-loop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(90, 180, 255, 0.35);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* Bracket handles: a 2px edge line (aligned with the row overlay edges) plus a
+   tab pointing into the loop — ⌜ at the start, ⌝ at the end. The element is a
+   wider transparent hit area centred on the edge. */
+.bb-pgrid__loop-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  color: rgba(120, 200, 255, 0.95);
+  cursor: ew-resize;
+  pointer-events: auto;
+  z-index: 4;
+}
+.bb-pgrid__loop-handle:hover { color: rgba(170, 225, 255, 1); }
+.bb-pgrid__loop-handle::before,
+.bb-pgrid__loop-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+}
+.bb-pgrid__loop-handle::before {
+  bottom: 0;
+  width: 2px;
+  background: currentColor;
+}
+.bb-pgrid__loop-handle::after {
+  width: 0;
+  height: 0;
+  border-top: 6px solid currentColor;
+}
+.bb-pgrid__loop-handle--start { left: -3px; }
+.bb-pgrid__loop-handle--start::before { left: 3px; }
+.bb-pgrid__loop-handle--start::after { left: 5px; border-right: 6px solid transparent; }
+.bb-pgrid__loop-handle--end { right: -3px; }
+.bb-pgrid__loop-handle--end::before { right: 3px; }
+.bb-pgrid__loop-handle--end::after { right: 5px; border-left: 6px solid transparent; }
+
+.bb-pgrid__start-flag {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform: translateX(-5px);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 9px solid rgba(110, 230, 140, 0.95);
+  cursor: ew-resize;
+  z-index: 4;
+}
+
+/* Loop region spanning every row */
+.bb-pgrid__loop-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: rgba(90, 180, 255, 0.10);
+  box-shadow:
+    inset 2px 0 0 rgba(120, 200, 255, 0.85),
+    inset -2px 0 0 rgba(120, 200, 255, 0.85);
+}
+.bb-pgrid__loop-range--preview {
+  background: rgba(90, 180, 255, 0.06);
+  box-shadow:
+    inset 1px 0 0 rgba(120, 200, 255, 0.6),
+    inset -1px 0 0 rgba(120, 200, 255, 0.6);
+}
+/* Range kept but transport Loop is off — playback ignores it */
+.bb-pgrid__loop-range--inactive,
+.bb-pgrid__ruler-loop--inactive {
+  opacity: 0.35;
+}
+
+/* Pending start (stopped) — dashed so it reads differently from the live playhead */
+.bb-pgrid__start-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed rgba(110, 230, 140, 0.85);
+  transform: translateX(-1px);
+  pointer-events: none;
+  z-index: 2;
+}
+
+[data-theme=light] .bb-pgrid__track--ruler {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.08) 0 1px,
+    transparent 1px 12px
+  ), rgba(0, 0, 0, 0.04);
+}
+[data-theme=light] .bb-pgrid__ruler-loop { background: rgba(20, 110, 200, 0.28); }
+[data-theme=light] .bb-pgrid__loop-handle { color: rgba(20, 110, 200, 0.9); }
+[data-theme=light] .bb-pgrid__loop-handle:hover { color: rgba(10, 80, 160, 1); }
+[data-theme=light] .bb-pgrid__loop-range {
+  background: rgba(20, 110, 200, 0.08);
+  box-shadow:
+    inset 2px 0 0 rgba(20, 110, 200, 0.75),
+    inset -2px 0 0 rgba(20, 110, 200, 0.75);
+}
+[data-theme=light] .bb-pgrid__start-flag { border-top-color: rgba(20, 140, 60, 0.95); }
+[data-theme=light] .bb-pgrid__start-marker { border-left-color: rgba(20, 140, 60, 0.8); }
+[data-theme=light] .bb-pgrid__btn.bb-pgrid__btn--clear-range { color: rgba(20, 110, 200, 0.9); border-color: rgba(20, 110, 200, 0.4); }
 
 .bb-pgrid__block-label {
   font-size: 8px;
@@ -4033,11 +4149,14 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 }
 
 /* Mute / Solo controls ── compact M/S buttons on each row */
+/* Every row's label cell shares one width so all tracks (ruler, section lane,
+   channels) line up; overlays are measured from one track and drawn over all. */
 .bb-pgrid__controls {
   display: flex;
   gap: 2px;
   flex-shrink: 0;
   align-items: center;
+  width: 36px;
 }
 .bb-pgrid__btn {
   display: inline-flex;

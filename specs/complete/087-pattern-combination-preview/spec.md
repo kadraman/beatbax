@@ -89,7 +89,7 @@ That is the same shape as commenting out the other seq tokens, without touching 
 
 1. Open a multi-section song with the Pattern Grid visible.
 2. In the **section lane** (top seq row): click a section **name** to **focus** (highlight grid + editor, no play), or click **▶** to **focus and play**.
-3. Right-click a section for **Focus section** / **Play section**.
+3. ~~Right-click a section for **Focus section** / **Play section**.~~ Removed by spec 014 (duplicated the name click and ▶).
 4. While focused: **F5** plays the section; **F8** stops but keeps focus; transport loop toggle loops the slice when playing.
 5. In the editor: **F6** focuses the section at the cursor (uses enclosing `seq` line, not first global pat match); **Esc** exits focus; **Alt+←/→** moves to prev/next section.
 6. **Pat blocks** in channel rows: click navigates to the `pat` definition (unchanged). Click does not enter section focus — use the section lane or F6.
@@ -131,7 +131,7 @@ Implementation: `section-focus-controller.ts`, `section-focus-editor.ts`, `secti
 | Slice definition | Time window of the **containing sequence item** when `seqName` is present (`theme_mel` = all of its pats). Otherwise the single pattern block. |
 | Other channels | Include blocks whose step range **overlaps** that window. Prefer the original `seq` name when the window matches that seq's span. |
 | Playback path | `PlaybackManager.play` on synthetic source. **Not** the CodeLens isolated `Player`. |
-| Desktop Pattern Grid | Section lane (focus / ▶ play); column highlight; context menu; pat blocks = navigate only; channel mute/solo. |
+| Desktop Pattern Grid | Section lane (focus / ▶ play); column highlight; pat blocks = navigate only; channel mute/solo. (Context menu removed by spec 014.) |
 | Section focus mode | Persistent focus state, editor decorations, transport-scoped F5/F8, F6 at cursor, Esc, Alt+←/→. |
 | Command | `beatbax.playArrangementSlice` — cursor-aware slice at editor position. |
 | Loop | When transport **loop** is on, focused playback uses `play auto repeat` on the synthetic source. No separate context-menu loop item. |
@@ -182,7 +182,7 @@ No changes. Slice playback is session-only.
 
 ### Desktop
 
-- [`DesktopPatternGrid.tsx`](../../../apps/desktop/src/renderer/src/components/panels/DesktopPatternGrid.tsx): section lane, slice highlight, mute/solo, context menu.
+- [`DesktopPatternGrid.tsx`](../../../apps/desktop/src/renderer/src/components/panels/DesktopPatternGrid.tsx): section lane, slice highlight, mute/solo.
 - [`section-focus-controller.ts`](../../../apps/desktop/src/renderer/src/lib/section-focus-controller.ts): enter/exit/play/refresh/navigate.
 - [`section-focus-editor.ts`](../../../apps/desktop/src/renderer/src/lib/section-focus-editor.ts): Monaco decorations.
 - [`section-focus-overlay.ts`](../../../apps/desktop/src/renderer/src/lib/section-focus-overlay.ts): Exit focus control.

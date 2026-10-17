@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type RefCallback,
 } from 'react';
 import type { Root } from 'react-dom/client';
@@ -19,8 +20,26 @@ import {
 } from '@beatbax/app-core/stores/channel.store';
 import type { ArrangementSectionBlock, SectionFocusInfo } from '@beatbax/app-core/editor/arrangement-slice';
 import { buildChannelTimelines, listArrangementSections, segmentMatchesSectionFocus } from '@beatbax/app-core/editor/arrangement-slice';
+import { collectStepBoundaries, type LoopRange } from '@beatbax/app-core/playback/playback-range';
+import { playbackStatus } from '@beatbax/app-core/stores/playback.store';
+import {
+  clearPlaybackLoopRange,
+  getActivePlaybackLoopRange,
+  playbackLoopEnabled,
+  playbackLoopRange,
+  playbackStartStep,
+  setPlaybackLoopRange,
+  setPlaybackStartStep,
+} from '@beatbax/app-core/stores/playback-range.store';
 import { getChannelColor } from '@beatbax/ui-tokens/channel-meta';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
+import {
+  idlePlayheadStep,
+  resolveTimelineGesture,
+  rowStepSpans,
+  stepFromClientX,
+  type TimelineDragKind,
+} from '../../lib/pattern-grid-timeline';
 
 interface Segment {
   patName: string;
@@ -53,6 +72,10 @@ interface DesktopPatternGridProps {
   gridRef: RefCallback<DesktopPatternGridHandle>;
   onNavigate?: (patName: string) => void;
   onPlaySlice?: (request: ArrangementSlicePlayRequest) => void;
+  /** Ruler click or start-flag drop; owns setting the pending start and seeking playback. */
+  onPickStart?: (startStep: number) => void;
+  /** Ruler loop drag; owns setting the range, Loop (`enableLoop` for a new range) and seeking playback. */
+  onPickLoop?: (loop: LoopRange, enableLoop: boolean) => void;
 }
 
 export interface DesktopPatternGridHandle {
@@ -149,6 +172,21 @@ function sectionWindowRect(
   };
 }
 
+/** Horizontal offset of a global step inside the rows wrapper (matches the global playhead). */
+function stepOffsetLeft(
+  step: number,
+  globalEventTotal: number,
+  rowsWrap: HTMLElement | null,
+  firstTrack: HTMLElement | null,
+): string {
+  const pct = globalEventTotal > 0 ? Math.min(1, Math.max(0, step / globalEventTotal)) : 0;
+  if (!rowsWrap || !firstTrack) return `${pct * 100}%`;
+  const wrapRect = rowsWrap.getBoundingClientRect();
+  const trackRect = firstTrack.getBoundingClientRect();
+  if (wrapRect.width <= 0 || trackRect.width <= 0) return `${pct * 100}%`;
+  return `${trackRect.left - wrapRect.left + trackRect.width * pct}px`;
+}
+
 function channelPositionsAtPct(
   rows: PatternGridRow[],
   pct: number,
@@ -193,16 +231,24 @@ function buildRows(song: any, ast?: any): {
   };
 }
 
-interface ContextMenuState {
-  x: number;
-  y: number;
-  request: ArrangementSlicePlayRequest;
+interface TimelineDrag {
+  kind: TimelineDragKind;
+  pointerId: number;
+  anchorStep: number;
+  originX: number;
+  moved: boolean;
+}
+
+function stepPct(step: number, total: number): number {
+  return total > 0 ? Math.min(100, Math.max(0, (step / total) * 100)) : 0;
 }
 
 function DesktopPatternGrid({
   gridRef,
   onNavigate,
   onPlaySlice,
+  onPickStart,
+  onPickLoop,
 }: DesktopPatternGridProps): React.JSX.Element {
   const [rows, setRows] = useState<PatternGridRow[]>([]);
   const [sectionBlocks, setSectionBlocks] = useState<ArrangementSectionBlock[]>([]);
@@ -218,16 +264,137 @@ function DesktopPatternGrid({
   const sectionFocusRef = useRef<SectionFocusInfo | null>(null);
   const slicePlaybackRemapRef = useRef(false);
   const globalEventTotalRef = useRef(1);
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const rowsWrapRef = useRef<HTMLDivElement | null>(null);
   const firstTrackRef = useRef<HTMLDivElement | null>(null);
   const rowsRef = useRef<PatternGridRow[]>([]);
   const onPlaySliceRef = useRef(onPlaySlice);
   onPlaySliceRef.current = onPlaySlice;
+  const onPickLoopRef = useRef(onPickLoop);
+  useEffect(() => {
+    onPickLoopRef.current = onPickLoop;
+  }, [onPickLoop]);
+  const onPickStartRef = useRef(onPickStart);
+  useEffect(() => {
+    onPickStartRef.current = onPickStart;
+  }, [onPickStart]);
+  const [pendingStart, setPendingStart] = useState<number | null>(playbackStartStep.get());
+  const [loopRange, setLoopRangeState] = useState<LoopRange | null>(playbackLoopRange.get());
+  const [loopEnabled, setLoopEnabled] = useState(playbackLoopEnabled.get());
+  const [dragPreview, setDragPreview] = useState<{ start?: number; loop?: LoopRange | null } | null>(null);
+  const [rangeOverlay, setRangeOverlay] = useState<{
+    loopRect: { left: string; width: string } | null;
+    startLeft: string | null;
+  }>({ loopRect: null, startLeft: null });
+  const rangeShownRef = useRef<{ loop: LoopRange | null; start: number | null }>({ loop: null, start: null });
+  const rulerTrackRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<TimelineDrag | null>(null);
 
   useEffect(() => channelStates.subscribe((states) => {
     setChannelInfo({ ...states });
   }), []);
+
+  useEffect(() => playbackStartStep.subscribe((step) => setPendingStart(step)), []);
+  useEffect(() => playbackLoopRange.subscribe((range) => setLoopRangeState(range)), []);
+  useEffect(() => playbackLoopEnabled.subscribe((enabled) => setLoopEnabled(enabled)), []);
+
+  const stepBoundaries = useMemo(
+    () => collectStepBoundaries(rows.map((row) => rowStepSpans(row.segs.map((seg) => seg.count))), globalEventTotal),
+    [rows, globalEventTotal],
+  );
+
+  const showIdlePlayhead = useCallback((
+    gridRows: PatternGridRow[] = rowsRef.current,
+    total: number = globalEventTotalRef.current,
+  ): void => {
+    const step = idlePlayheadStep({
+      focusWindow: sectionFocusRef.current?.window,
+      loop: getActivePlaybackLoopRange(),
+      startStep: playbackStartStep.get(),
+    });
+    const pct = Math.min(99.5, stepPct(step, total));
+    setPositions(channelPositionsAtPct(gridRows, pct));
+    setGlobalPct(pct);
+    setPaused(false);
+  }, []);
+
+  const rangeMountedRef = useRef(false);
+  useEffect(() => {
+    if (!rangeMountedRef.current) {
+      rangeMountedRef.current = true;
+      return;
+    }
+    if (rowsRef.current.length === 0 || playbackStatus.get() !== 'stopped') return;
+    showIdlePlayhead();
+  }, [pendingStart, loopRange, loopEnabled, showIdlePlayhead]);
+
+  const rulerStepAt = (clientX: number): number => {
+    const track = rulerTrackRef.current;
+    if (!track) return 0;
+    return stepFromClientX(clientX, track.getBoundingClientRect(), globalEventTotalRef.current);
+  };
+
+  const beginTimelineDrag = (event: ReactPointerEvent<HTMLElement>, kind: TimelineDragKind): void => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragRef.current = {
+      kind,
+      pointerId: event.pointerId,
+      anchorStep: rulerStepAt(event.clientX),
+      originX: event.clientX,
+      moved: false,
+    };
+    try { rulerTrackRef.current?.setPointerCapture(event.pointerId); } catch { /* jsdom / detached */ }
+  };
+
+  const onRulerPointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag.moved && Math.abs(event.clientX - drag.originX) < 4) return;
+    drag.moved = true;
+    const snap = event.altKey ? 'step' as const : 'pattern' as const;
+    const result = resolveTimelineGesture(
+      drag.kind, drag.anchorStep, rulerStepAt(event.clientX), true, stepBoundaries, playbackLoopRange.get(),
+      { snap },
+    );
+    if (result.kind === 'start') setDragPreview({ start: result.startStep });
+    else if (result.kind === 'loop') setDragPreview({ loop: result.loop });
+  };
+
+  const onRulerPointerUp = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    setDragPreview(null);
+    try { rulerTrackRef.current?.releasePointerCapture(event.pointerId); } catch { /* ignore */ }
+    const snap = event.altKey ? 'step' as const : 'pattern' as const;
+    const result = resolveTimelineGesture(
+      drag.kind, drag.anchorStep, rulerStepAt(event.clientX), drag.moved, stepBoundaries, playbackLoopRange.get(),
+      { snap },
+    );
+    if (result.kind === 'none') return;
+    if (result.kind === 'start') {
+      if (onPickStartRef.current) {
+        onPickStartRef.current(result.startStep);
+      } else {
+        setPlaybackStartStep(result.startStep);
+        if (getActivePlaybackLoopRange()) playbackLoopEnabled.set(false);
+      }
+      return;
+    }
+    const enableLoop = drag.kind === 'new';
+    if (onPickLoopRef.current) {
+      onPickLoopRef.current(result.loop, enableLoop);
+    } else {
+      setPlaybackLoopRange(result.loop);
+      if (enableLoop) playbackLoopEnabled.set(true);
+    }
+  };
+
+  const onRulerPointerCancel = (): void => {
+    dragRef.current = null;
+    setDragPreview(null);
+  };
 
   useEffect(() => {
     sectionFocusRef.current = sectionFocus;
@@ -240,20 +407,6 @@ function DesktopPatternGrid({
   useEffect(() => {
     rowsRef.current = rows;
   }, [rows]);
-
-  useEffect(() => {
-    if (!contextMenu) return undefined;
-    const close = () => setContextMenu(null);
-    const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') close();
-    };
-    window.addEventListener('click', close);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('click', close);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [contextMenu]);
 
   const updateGlobalLeft = useCallback((pct: number | null): void => {
     if (pct === null) return;
@@ -288,14 +441,24 @@ function DesktopPatternGrid({
     updateFocusColumnRect();
   }, [globalPct, rows, sectionFocus, updateGlobalLeft, updateFocusColumnRect]);
 
+  const updateRangeOverlay = useCallback((): void => {
+    const { loop, start } = rangeShownRef.current;
+    const total = globalEventTotalRef.current;
+    setRangeOverlay({
+      loopRect: loop ? sectionWindowRect(loop, total, rowsWrapRef.current, firstTrackRef.current) : null,
+      startLeft: start !== null ? stepOffsetLeft(start, total, rowsWrapRef.current, firstTrackRef.current) : null,
+    });
+  }, []);
+
   useEffect(() => {
     const onResize = () => {
       updateGlobalLeft(globalPct);
       updateFocusColumnRect();
+      updateRangeOverlay();
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [globalPct, updateGlobalLeft, updateFocusColumnRect]);
+  }, [globalPct, updateGlobalLeft, updateFocusColumnRect, updateRangeOverlay]);
 
   useEffect(() => {
     const rowsWrap = rowsWrapRef.current;
@@ -304,11 +467,12 @@ function DesktopPatternGrid({
     const observer = new ResizeObserver(() => {
       updateGlobalLeft(globalPct);
       updateFocusColumnRect();
+      updateRangeOverlay();
     });
     observer.observe(rowsWrap);
     observer.observe(firstTrack);
     return () => observer.disconnect();
-  }, [globalPct, rows, sectionFocus, updateGlobalLeft, updateFocusColumnRect]);
+  }, [globalPct, rows, sectionFocus, updateGlobalLeft, updateFocusColumnRect, updateRangeOverlay]);
 
   useImperativeHandle(gridRef, () => ({
     setSong: (song, ast) => {
@@ -317,12 +481,16 @@ function DesktopPatternGrid({
       setSectionBlocks(next.sectionBlocks);
       globalEventTotalRef.current = next.globalEventTotal;
       setGlobalEventTotal(next.globalEventTotal);
-      setPositions({});
-      setGlobalPct(null);
-      setPaused(false);
       setSliceWindow(null);
       setSectionFocusState(null);
       sectionFocusRef.current = null;
+      if (next.rows.length > 0 && playbackStatus.get() === 'stopped') {
+        showIdlePlayhead(next.rows, next.globalEventTotal);
+      } else {
+        setPositions({});
+        setGlobalPct(null);
+        setPaused(false);
+      }
     },
     setPosition: (channelId, progress) => {
       const window = slicePlaybackRemapRef.current ? sectionFocusRef.current?.window : null;
@@ -348,15 +516,7 @@ function DesktopPatternGrid({
     },
     pausePositions: () => setPaused(true),
     resumePositions: () => setPaused(false),
-    clearPositions: () => {
-      const startPct = sectionWindowStartPct(
-        sectionFocusRef.current?.window,
-        globalEventTotalRef.current,
-      ) ?? 0;
-      setPositions(channelPositionsAtPct(rowsRef.current, startPct));
-      setGlobalPct(startPct);
-      setPaused(false);
-    },
+    clearPositions: () => showIdlePlayhead(),
     setSliceHighlight: (window) => setSliceWindow(window),
     setSlicePlaybackRemap: (remap) => {
       slicePlaybackRemapRef.current = remap;
@@ -391,9 +551,10 @@ function DesktopPatternGrid({
       setGlobalPct(null);
       setSliceWindow(null);
       setSectionFocusState(null);
-      setContextMenu(null);
+      dragRef.current = null;
+      setDragPreview(null);
     },
-  }), []);
+  }), [showIdlePlayhead]);
 
   const empty = rows.length === 0;
 
@@ -408,6 +569,21 @@ function DesktopPatternGrid({
   }, [rows, globalEventTotal, sectionBlocks]);
 
   const showSectionLane = sectionLane.blocks.length > 0 && !!onPlaySlice;
+
+  const draggingLoop = !!dragPreview && 'loop' in dragPreview;
+  const shownLoop = draggingLoop ? dragPreview.loop ?? null : loopRange;
+  const shownLoopInactive = !!shownLoop && !loopEnabled && !draggingLoop;
+  const shownStart = dragPreview && 'start' in dragPreview ? dragPreview.start ?? null : pendingStart;
+  const showStartMarker = (!shownLoop || shownLoopInactive) && shownStart !== null && shownStart > 0;
+
+  useLayoutEffect(() => {
+    rangeShownRef.current = { loop: shownLoop, start: showStartMarker ? shownStart : null };
+    updateRangeOverlay();
+  }, [shownLoop, shownStart, showStartMarker, rows, globalEventTotal, updateRangeOverlay]);
+
+  const loopRect = shownLoop ? rangeOverlay.loopRect : null;
+  const startMarkerLeft = showStartMarker ? rangeOverlay.startLeft : null;
+  const stepLabel = (step: number): string => `step ${step + 1}`;
 
   return (
     <div
@@ -426,11 +602,112 @@ function DesktopPatternGrid({
               style={focusColumnRect}
             />
           ) : null}
+          {loopRect ? (
+            <div
+              aria-hidden="true"
+              className={[
+                'bb-pgrid__loop-range',
+                dragPreview ? 'bb-pgrid__loop-range--preview' : '',
+                shownLoopInactive ? 'bb-pgrid__loop-range--inactive' : '',
+              ].filter(Boolean).join(' ')}
+              style={loopRect}
+            />
+          ) : null}
+          {startMarkerLeft ? (
+            <div
+              aria-hidden="true"
+              className="bb-pgrid__start-marker"
+              style={{ left: startMarkerLeft }}
+            />
+          ) : null}
           <div
             aria-hidden="true"
             className={`bb-pgrid__cursor bb-pgrid__cursor--global${paused ? ' bb-pgrid__cursor--paused' : ''}`}
             style={{ display: globalPct === null ? 'none' : 'block', left: globalLeft }}
           />
+          <div className="bb-pgrid__row bb-pgrid__row--ruler" role="group" aria-label="Playback timeline">
+            <div className="bb-pgrid__controls bb-pgrid__controls--ruler">
+              {loopRange ? (
+                <button
+                  aria-label="Clear loop range"
+                  className="bb-pgrid__btn bb-pgrid__btn--clear-range"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    clearPlaybackLoopRange();
+                  }}
+                  title="Clear loop range"
+                  type="button"
+                >
+                  ✕
+                </button>
+              ) : pendingStart !== null && pendingStart > 0 ? (
+                <button
+                  aria-label="Clear start marker"
+                  className="bb-pgrid__btn bb-pgrid__btn--clear-range"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setPlaybackStartStep(null);
+                  }}
+                  title="Clear start marker (play from the beginning)"
+                  type="button"
+                >
+                  ✕
+                </button>
+              ) : (
+                <span className="bb-pgrid__section-heading">Pos</span>
+              )}
+            </div>
+            <span aria-hidden="true" className="bb-pgrid__dot bb-pgrid__dot--spacer" />
+            <div
+              className="bb-pgrid__track bb-pgrid__track--ruler"
+              data-range-mode={loopRange && loopEnabled ? 'loop' : pendingStart ? 'pending-start' : 'off'}
+              onLostPointerCapture={onRulerPointerCancel}
+              onPointerCancel={onRulerPointerCancel}
+              onPointerDown={(event) => beginTimelineDrag(event, 'new')}
+              onPointerMove={onRulerPointerMove}
+              onPointerUp={onRulerPointerUp}
+              ref={rulerTrackRef}
+              title={'Click: set playback start · Drag: set loop range (turns Loop on)\nAlt: snap to steps'}
+            >
+              {shownLoop ? (
+                <div
+                  className={`bb-pgrid__ruler-loop${shownLoopInactive ? ' bb-pgrid__ruler-loop--inactive' : ''}`}
+                  style={{
+                    left: `${stepPct(shownLoop.startStep, globalEventTotal)}%`,
+                    width: `${stepPct(shownLoop.endStep - shownLoop.startStep, globalEventTotal)}%`,
+                  }}
+                  title={shownLoopInactive
+                    ? `Loop ${stepLabel(shownLoop.startStep)} – ${stepLabel(shownLoop.endStep - 1)} (off — turn Loop on to repeat it)`
+                    : `Loop ${stepLabel(shownLoop.startStep)} – ${stepLabel(shownLoop.endStep - 1)}`}
+                >
+                  <span
+                    aria-label="Loop start handle"
+                    className="bb-pgrid__loop-handle bb-pgrid__loop-handle--start"
+                    onPointerDown={(event) => beginTimelineDrag(event, 'loop-start')}
+                    role="separator"
+                    title="Drag to move loop start"
+                  />
+                  <span
+                    aria-label="Loop end handle"
+                    className="bb-pgrid__loop-handle bb-pgrid__loop-handle--end"
+                    onPointerDown={(event) => beginTimelineDrag(event, 'loop-end')}
+                    role="separator"
+                    title="Drag to move loop end"
+                  />
+                </div>
+              ) : null}
+              {showStartMarker ? (
+                <span
+                  aria-label={`Pending start at ${stepLabel(shownStart as number)}`}
+                  className="bb-pgrid__start-flag"
+                  onPointerDown={(event) => beginTimelineDrag(event, 'start')}
+                  role="separator"
+                  style={{ left: `${stepPct(shownStart as number, globalEventTotal)}%` }}
+                  title={`Pending start (${stepLabel(shownStart as number)}) — drag to move`}
+                />
+              ) : null}
+            </div>
+          </div>
           {showSectionLane ? (
             <div className="bb-pgrid__row bb-pgrid__row--sections" role="group" aria-label="Sequence sections">
               <div aria-hidden="true" className="bb-pgrid__controls bb-pgrid__controls--section">
@@ -485,15 +762,6 @@ function DesktopPatternGrid({
                         className="bb-pgrid__section-label"
                         onClick={() => {
                           onPlaySliceRef.current?.({ ...sliceRequest, autoPlay: false });
-                        }}
-                        onContextMenu={(event) => {
-                          if (!onPlaySliceRef.current) return;
-                          event.preventDefault();
-                          setContextMenu({
-                            x: event.clientX,
-                            y: event.clientY,
-                            request: sliceRequest,
-                          });
                         }}
                         title={`Focus ${block.label}`}
                         type="button"
@@ -635,35 +903,6 @@ function DesktopPatternGrid({
           })}
         </div>
       )}
-      {contextMenu ? (
-        <div
-          className="bb-pgrid__menu"
-          role="menu"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <button
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              onPlaySliceRef.current?.({ ...contextMenu.request, autoPlay: false });
-              setContextMenu(null);
-            }}
-          >
-            Focus section
-          </button>
-          <button
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              onPlaySliceRef.current?.({ ...contextMenu.request, autoPlay: true });
-              setContextMenu(null);
-            }}
-          >
-            Play section
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -673,6 +912,8 @@ export function createDesktopPatternGrid(
   options: {
     onNavigate?: (patName: string) => void;
     onPlaySlice?: (request: ArrangementSlicePlayRequest) => void;
+    onPickStart?: (startStep: number) => void;
+    onPickLoop?: (loop: LoopRange, enableLoop: boolean) => void;
   } = {},
 ): DesktopPatternGridHandle {
   const handleRef = { current: null as DesktopPatternGridHandle | null };
@@ -695,6 +936,8 @@ export function createDesktopPatternGrid(
       gridRef={assignGridRef}
       onNavigate={options.onNavigate}
       onPlaySlice={options.onPlaySlice}
+      onPickStart={options.onPickStart}
+      onPickLoop={options.onPickLoop}
     />,
   );
 
