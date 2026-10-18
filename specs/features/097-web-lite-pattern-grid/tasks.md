@@ -9,7 +9,7 @@
 
 ## Phase 0: Foundation (blocks stories)
 
-- [ ] T001 Resolve spec Open questions 1–3 (shortcut, touch, Shift+click) and update `specs/features/093-web-lite-pattern-grid/spec.md`
+- [ ] T001 Resolve spec Open questions 1–3 (shortcut, touch, Shift+click) and update `specs/features/097-web-lite-pattern-grid/spec.md`
 - [ ] T002 Move `apps/desktop/src/renderer/src/lib/pattern-grid-timeline.ts` to `packages/app-core/src/playback/pattern-grid-timeline.ts`; update imports in `apps/desktop/src/renderer/src/components/panels/DesktopPatternGrid.tsx` and `apps/desktop/src/renderer/src/lib/desktop-workspace.ts`
 - [ ] T003 Move `apps/desktop/tests/pattern-grid-timeline.test.ts` to `packages/app-core/tests/pattern-grid-timeline.test.ts`; desktop and app-core suites green
 - [ ] T004 Add the per-profile flag-gating capability in `packages/app-core/src/client-profile.ts`; set `WEB_LITE.patternGrid = true`; update `packages/app-core/src/utils/pattern-grid-panel.ts`; add capability tests
@@ -47,4 +47,4 @@
 
 - [ ] T900 Note the reversal in `specs/complete/076-desktop-first-client-split/spec.md` and `docs/features/complete/desktop-first-client-split.md`; note the app-core move in `specs/complete/014-pattern-grid-seek-and-loop/plan.md`
 - [ ] T901 Manual QA scenarios 1–8 in [plan.md](plan.md#manual--qa) on Chromium, Firefox, Safari
-- [ ] T902 Move this folder to `specs/complete/093-web-lite-pattern-grid/` and update `specs/STATUS.md` when shipped
+- [ ] T902 Move this folder to `specs/complete/097-web-lite-pattern-grid/` and update `specs/STATUS.md` when shipped

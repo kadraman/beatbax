@@ -1,6 +1,6 @@
 # Implementation Plan: Web-lite Pattern Grid with seek and loop
 
-**Spec**: [spec.md](spec.md) | **Date**: 2026-10-12 | **Branch**: `feat/093-web-lite-pattern-grid`
+**Spec**: [spec.md](spec.md) | **Date**: 2026-10-12 | **Branch**: `feat/097-web-lite-pattern-grid`
 
 ## Summary
 
@@ -101,7 +101,7 @@ None.
 
 ### Documentation updates
 
-- `specs/complete/076-desktop-first-client-split/spec.md`: note that spec 093 restores the pattern grid to web-lite.
+- `specs/complete/076-desktop-first-client-split/spec.md`: note that spec 097 restores the pattern grid to web-lite.
 - `docs/features/complete/desktop-first-client-split.md`: same note in the web-lite feature table.
 - `specs/complete/014-pattern-grid-seek-and-loop/plan.md`: shared logic now lives in app-core.
 
