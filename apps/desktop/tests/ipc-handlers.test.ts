@@ -408,4 +408,28 @@ describe('remote asset fetch policy', () => {
 
     expect(arrayBufferSpy).not.toHaveBeenCalled();
   });
+
+  it('serves BEATBAX_E2E_REMOTE_ASSET_DIR fixtures after allowlist checks without calling fetch', async () => {
+    const fixtureDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-e2e-remote-'));
+    const previous = process.env.BEATBAX_E2E_REMOTE_ASSET_DIR;
+    writeFileSync(path.join(fixtureDir, 'kit.ins'), 'inst lead type=pulse1\n', 'utf8');
+    process.env.BEATBAX_E2E_REMOTE_ASSET_DIR = fixtureDir;
+    global.fetch = jest.fn() as typeof global.fetch;
+
+    try {
+      const bytes = await fetchRemoteAssetBytes({
+        url: 'https://raw.githubusercontent.com/kadraman/beatbax-instruments/main/kit.ins',
+      });
+      expect(new TextDecoder().decode(bytes)).toBe('inst lead type=pulse1\n');
+      expect(global.fetch).not.toHaveBeenCalled();
+
+      await expect(
+        fetchRemoteAssetBytes({ url: 'https://example.com/kit.ins' }),
+      ).rejects.toThrow("Remote asset host 'example.com' is not in the Desktop allowlist.");
+    } finally {
+      if (previous === undefined) delete process.env.BEATBAX_E2E_REMOTE_ASSET_DIR;
+      else process.env.BEATBAX_E2E_REMOTE_ASSET_DIR = previous;
+      rmSync(fixtureDir, { recursive: true, force: true });
+    }
+  });
 });

@@ -48,6 +48,7 @@ Confirm these remain covered (or note gaps):
 - Open `.bax` reloads in the editor when another process writes the file (clean buffer)
 - Developer tools are off by default (packaged policy), can be enabled from Settings → Advanced, and `--devtools` allows them for the session only
 - Diagnostics log records the startup line, Output warnings, and renderer errors with stacks, without song text; Open Logs Folder opens the logs folder
+- Remote instrument imports resolve through main-process IPC (no CSP violation); non-allowlisted hosts show the allowlist message
 
 ## Manual validation (primary platform)
 
@@ -70,6 +71,8 @@ Confirm these remain covered (or note gaps):
 | New Song Wizard (chip cards, metadata, audible preview) | | |
 | Export smoke: JSON and WAV | | |
 | Export smoke: UGE and/or Arkos (`.aks`/`.aki`) when relevant | | Skip if out of scope for this cut |
+| Remote imports: open `songs/features/remote_import_example.bax`, Play and export (e.g. UGE) with no CSP violation (SC-001) | | Needs network; default allowlist covers `raw.githubusercontent.com` |
+| Remote imports: non-allowlisted host fails with allowlist message; adding the host in Settings → Advanced succeeds without restart (SC-002) | | |
 | Example songs path | | macOS: `~/Documents/BeatBax/Examples`; Win/Linux: File → Examples / `resources/songs` |
 | `.bax` startup from argv / file association | | |
 | Theme sync / Settings toolbar shortcut | | |

@@ -5,38 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
+import { launchDesktopApp, sampleSongPath } from './launch-desktop';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const appRoot = path.resolve(__dirname, '..', '..');
-const sampleSongPath = path.resolve(appRoot, '..', '..', 'songs', 'sample.bax');
-const trainersJourneyPath = path.resolve(appRoot, '..', '..', 'songs', 'gameboy', 'a_trainers_journey.bax');
-
-async function launchDesktopApp(extraArgs: string[] = [], extraEnv: Record<string, string> = {}) {
-  const consoleErrors: string[] = [];
-  const electronApp = await electron.launch({
-    args: [
-      appRoot,
-      ...extraArgs,
-    ],
-    cwd: appRoot,
-    env: {
-      ...process.env,
-      BEATBAX_E2E_AI_KEY_STORE: 'memory',
-      ...extraEnv,
-    },
-  });
-
-  const page = await electronApp.firstWindow();
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') {
-      consoleErrors.push(msg.text());
-    }
-  });
-
-  await expect(page.locator('.status-document-name')).toBeVisible({ timeout: 15_000 });
-  return { electronApp, page, consoleErrors };
-}
+const trainersJourneyPath = path.resolve(__dirname, '..', '..', '..', '..', 'songs', 'gameboy', 'a_trainers_journey.bax');
 
 async function startMockAIProvider(): Promise<{ server: Server; endpoint: string }> {
   const server = createServer((_request, response) => {
@@ -405,6 +378,71 @@ test('renderer CSP blocks direct remote fetches', async () => {
   }
 });
 
+test('remote instrument imports resolve through main-process IPC without CSP violations', async () => {
+  test.setTimeout(60_000);
+  const fixtureDir = path.resolve(__dirname, 'fixtures', 'remote-ins');
+  const songPath = path.resolve(__dirname, 'fixtures', 'remote-import-song.bax');
+  const { electronApp, page, consoleErrors } = await launchDesktopApp([songPath], {
+    BEATBAX_E2E_REMOTE_ASSET_DIR: fixtureDir,
+  });
+
+  try {
+    await expect(page.locator('.status-document-name')).toHaveText('remote-import-song.bax', {
+      timeout: 15_000,
+    });
+
+    const cspProbe = await page.evaluate(async () => {
+      const violations: string[] = [];
+      document.addEventListener('securitypolicyviolation', (event) => {
+        violations.push(event.effectiveDirective);
+      });
+      (window as unknown as { __beatbaxCspViolations?: string[] }).__beatbaxCspViolations = violations;
+      return document
+        .querySelector('meta[http-equiv="Content-Security-Policy"]')
+        ?.getAttribute('content') ?? '';
+    });
+    expect(cspProbe).toContain("connect-src 'self'");
+
+    await page.getByRole('button', { name: /Play current song/i }).click();
+    await expect(page.getByRole('button', { name: /Stop playback/i })).toBeEnabled({
+      timeout: 15_000,
+    });
+    await page.getByRole('button', { name: /Stop playback/i }).click();
+
+    const violations = await page.evaluate(() => {
+      return ((window as unknown as { __beatbaxCspViolations?: string[] }).__beatbaxCspViolations ?? [])
+        .slice();
+    });
+    expect(violations).toEqual([]);
+    expect(filterBenignConsoleErrors(consoleErrors)).toEqual([]);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test('remote instrument import from a non-allowlisted host shows the allowlist message', async () => {
+  test.setTimeout(60_000);
+  const songPath = path.resolve(__dirname, 'fixtures', 'remote-import-blocked.bax');
+  const { electronApp, page } = await launchDesktopApp([songPath]);
+
+  try {
+    await expect(page.locator('.status-document-name')).toHaveText('remote-import-blocked.bax', {
+      timeout: 15_000,
+    });
+
+    // Import fails during parse (example.com is not on the default allowlist), so Play stays disabled.
+    const allowlistMessage = page.locator('.output-message', {
+      hasText: "Remote asset host 'example.com' is not in the Desktop allowlist",
+    });
+    await expect(allowlistMessage).toBeAttached({ timeout: 15_000 });
+    await page.locator('.bb-bottom-tab', { hasText: 'Problems' }).click();
+    await expect(allowlistMessage).toBeVisible();
+    await expect(page.getByRole('button', { name: /Play current song/i })).toBeDisabled();
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test('pattern grid renders desktop React UI and navigates to patterns', async () => {
   test.setTimeout(60_000);
   const { electronApp, page, consoleErrors } = await launchDesktopApp([sampleSongPath]);
@@ -641,14 +679,14 @@ test('copilot renders when restored enabled on startup', async () => {
 
 test('view menu reflects open visualizer tab on startup', async () => {
   test.setTimeout(60_000);
-  const { electronApp, page } = await launchDesktopApp();
+  const { electronApp, page } = await launchDesktopApp([sampleSongPath]);
 
   await page.evaluate(() => {
     localStorage.setItem('beatbax:feature.songVisualizer', 'true');
     localStorage.setItem('beatbax:ui.activeRightTab', 'help');
   });
   await page.reload();
-  await expect(page.locator('.status-document-name')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.status-document-name')).toHaveText('sample.bax', { timeout: 15_000 });
 
   const visualizerState = await page.evaluate(() => {
     const visualizerTab = Array.from(document.querySelectorAll('button.bb-right-tab'))
@@ -695,7 +733,7 @@ test('view menu reflects open visualizer tab on startup', async () => {
 
 test('channel mixer renders desktop React UI and toggles channel state', async () => {
   test.setTimeout(60_000);
-  const { electronApp, page } = await launchDesktopApp();
+  const { electronApp, page } = await launchDesktopApp([sampleSongPath]);
 
   await page.evaluate(() => {
     localStorage.setItem('beatbax:feature.channelMixer', 'true');
@@ -704,7 +742,7 @@ test('channel mixer renders desktop React UI and toggles channel state', async (
     localStorage.setItem('beatbax:transport.masterVolume', '100');
   });
   await page.reload();
-  await expect(page.locator('.status-document-name')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.status-document-name')).toHaveText('sample.bax', { timeout: 15_000 });
 
   await expect(page.locator('#bb-channel-mixer')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.bb-channel-mixer__strip')).toHaveCount(5);
