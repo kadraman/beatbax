@@ -520,6 +520,11 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     }, 180);
   };
 
+  // Settings that affect import resolve (e.g. remote host allowlist) emit this.
+  cleanups.push(eventBus.on('parse:request', () => {
+    runParse(getSource());
+  }));
+
   let copilot: DesktopCopilotHandle | null = null;
   if (capabilities.copilot) {
     copilot = setupDesktopCopilot({
@@ -891,7 +896,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         }
         if (song) clampPlaybackRangeToSong(songStepCount(song));
         if (song && patternGrid) patternGrid.setSong(song, layoutAst);
-        instrumentEditor?.setAst(layoutAst);
+        // Instrument editor needs merged imports (spec 021 read-only imported list).
+        instrumentEditor?.setAst(resolvedAst ?? ast ?? layoutAst);
         if (song) lastSongContext = { song, ast: layoutAst };
         else lastSongContext = null;
         if (sectionFocusController?.isActive()) {

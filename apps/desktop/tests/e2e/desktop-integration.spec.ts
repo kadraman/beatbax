@@ -405,6 +405,71 @@ test('renderer CSP blocks direct remote fetches', async () => {
   }
 });
 
+test('remote instrument imports resolve through main-process IPC without CSP violations', async () => {
+  test.setTimeout(60_000);
+  const fixtureDir = path.resolve(__dirname, 'fixtures', 'remote-ins');
+  const songPath = path.resolve(__dirname, 'fixtures', 'remote-import-song.bax');
+  const { electronApp, page, consoleErrors } = await launchDesktopApp([songPath], {
+    BEATBAX_E2E_REMOTE_ASSET_DIR: fixtureDir,
+  });
+
+  try {
+    await expect(page.locator('.status-document-name')).toHaveText('remote-import-song.bax', {
+      timeout: 15_000,
+    });
+
+    const cspProbe = await page.evaluate(async () => {
+      const violations: string[] = [];
+      document.addEventListener('securitypolicyviolation', (event) => {
+        violations.push(event.effectiveDirective);
+      });
+      (window as unknown as { __beatbaxCspViolations?: string[] }).__beatbaxCspViolations = violations;
+      return document
+        .querySelector('meta[http-equiv="Content-Security-Policy"]')
+        ?.getAttribute('content') ?? '';
+    });
+    expect(cspProbe).toContain("connect-src 'self'");
+
+    await page.getByRole('button', { name: /Play current song/i }).click();
+    await expect(page.getByRole('button', { name: /Stop playback/i })).toBeEnabled({
+      timeout: 15_000,
+    });
+    await page.getByRole('button', { name: /Stop playback/i }).click();
+
+    const violations = await page.evaluate(() => {
+      return ((window as unknown as { __beatbaxCspViolations?: string[] }).__beatbaxCspViolations ?? [])
+        .slice();
+    });
+    expect(violations).toEqual([]);
+    expect(filterBenignConsoleErrors(consoleErrors)).toEqual([]);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test('remote instrument import from a non-allowlisted host shows the allowlist message', async () => {
+  test.setTimeout(60_000);
+  const songPath = path.resolve(__dirname, 'fixtures', 'remote-import-blocked.bax');
+  const { electronApp, page } = await launchDesktopApp([songPath]);
+
+  try {
+    await expect(page.locator('.status-document-name')).toHaveText('remote-import-blocked.bax', {
+      timeout: 15_000,
+    });
+
+    // Import fails during parse (example.com is not on the default allowlist), so Play stays disabled.
+    const allowlistMessage = page.locator('.output-message', {
+      hasText: "Remote asset host 'example.com' is not in the Desktop allowlist",
+    });
+    await expect(allowlistMessage).toBeAttached({ timeout: 15_000 });
+    await page.locator('.bb-bottom-tab', { hasText: 'Problems' }).click();
+    await expect(allowlistMessage).toBeVisible();
+    await expect(page.getByRole('button', { name: /Play current song/i })).toBeDisabled();
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test('pattern grid renders desktop React UI and navigates to patterns', async () => {
   test.setTimeout(60_000);
   const { electronApp, page, consoleErrors } = await launchDesktopApp([sampleSongPath]);

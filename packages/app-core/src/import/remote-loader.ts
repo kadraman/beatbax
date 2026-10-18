@@ -129,6 +129,14 @@ async function fetchText(
 }
 
 /**
+ * Resolve GitHub shorthand / blob URLs the same way {@link loadRemote} does.
+ * Used by Desktop when fetching example songs through main-process IPC (spec 093).
+ */
+export function resolveExampleRemoteUrl(url: string): string {
+  return resolveGitHubUrl(url) ?? url;
+}
+
+/**
  * Load a .bax file from a URL (supports GitHub shorthand)
  */
 export async function loadRemote(

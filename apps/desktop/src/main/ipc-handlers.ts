@@ -179,10 +179,32 @@ async function resolveRemoteRedirectLocation(
   return assertRemoteAssetUrl(new URL(location, currentUrl).toString())
 }
 
+/**
+ * E2E-only: when `BEATBAX_E2E_REMOTE_ASSET_DIR` is set, serve fixture files from that
+ * directory by URL basename after the normal allowlist / HTTPS policy checks (spec 093).
+ */
+function readE2ERemoteAssetFixture(targetUrl: URL): Uint8Array | null {
+  const dir = process.env.BEATBAX_E2E_REMOTE_ASSET_DIR?.trim()
+  if (!dir) return null
+  const name = path.basename(targetUrl.pathname)
+  if (!name || name === '/' || name === '.') {
+    throw new Error('E2E remote asset fixture: URL has no basename.')
+  }
+  const filePath = path.join(dir, name)
+  if (!fsExistsSync(filePath)) {
+    throw new Error(`E2E remote asset fixture missing: ${name}`)
+  }
+  return new Uint8Array(fsReadFileSync(filePath))
+}
+
 export async function fetchRemoteAssetBytes(
   request: DesktopRemoteAssetRequest
 ): Promise<Uint8Array> {
   let targetUrl = await assertRemoteAssetUrl(request?.url)
+  const e2eFixture = readE2ERemoteAssetFixture(targetUrl)
+  if (e2eFixture) {
+    return e2eFixture
+  }
   const timeoutMs = clampNumber(request?.timeoutMs, 1000, 30000, REMOTE_ASSET_DEFAULT_TIMEOUT_MS)
   const maxBytes = clampNumber(
     request?.maxBytes,

@@ -24,6 +24,9 @@ import "github:kadraman/beatbax-instruments/main/percussion.ins"
 # Local imports still work as before
 #import "local:lib/gameboy-common.ins"
 #import "local:lib/gameboy-drums.ins"
+#
+#  Remote example that fails without whitelisting
+#import "https://example.com/kits/lead.ins"
 
 # Local instrument overrides remote/imported instruments
 # (this overrides any imported 'gb_lead' if it exists)
@@ -33,10 +36,12 @@ pat melody = C5 E5 G5 C6
 pat bass_line = C3 . G2 .
 pat drums = C7 . C7 . C7 C7 C7 .
 
-seq main = melody bass_line drums
+seq melody_seq = melody * 4
+seq bass_seq = (bass_line bass_line:oct(-1) )*2
+seq drums_seq = drums*2
 
-channel 1 => inst gb_lead   seq main
-channel 2 => inst gb_bass   seq main:oct(-1)
-channel 4 => inst snare     pat drums*2
+channel 1 => inst gb_lead   seq melody_seq
+channel 2 => inst gb_bass   seq bass_seq
+channel 4 => inst snare     pat drums_seq
 
 play

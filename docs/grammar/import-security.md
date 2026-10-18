@@ -54,6 +54,18 @@ import "https://example.com/instruments/drums.ins"
 import "github:kadraman/beatbax-instruments/main/melodic.ins"
 ```
 
+#### Desktop remote imports (main-process IPC)
+
+On **BeatBax Desktop**, `github:` and `https://` instrument imports are fetched by the Electron main process (`fetchRemoteAsset` IPC), not by the renderer. The renderer CSP stays `connect-src 'self'`, so a direct `fetch` from the editor to a remote host is blocked.
+
+Desktop policy (shared with NES DMC samples):
+
+- **HTTPS only** — `http://` imports fail in the renderer with *Only https:// remote assets are allowed in Desktop.* before any IPC call.
+- **Host allowlist** — default host is `raw.githubusercontent.com` (covers documented `github:` kits). Add other hosts under **Settings → Advanced → Remote host allowlist** and save. Saving (or resetting) the allowlist re-checks imports in the open song immediately; no app restart and no manual re-edit.
+- **Limits** — 10 s timeout, 1 MiB max size, at most 5 redirects (each redirect re-checked against the policy).
+
+CLI and web-lite remote imports are unchanged (they still use the environment's normal `fetch`).
+
 **CLI Warnings:**
 When using `--browser` flag with songs containing local imports, the CLI displays a warning:
 ```
