@@ -1,12 +1,12 @@
 ---
 title: "Web-lite Pattern Grid with seek and loop"
-id: 93
+id: 97
 slug: "web-lite-pattern-grid"
 status: "planned"
 authors:
   - "kadraman"
 created: "2026-10-12"
-updated: "2026-10-12"
+updated: "2026-10-18"
 issue: "https://github.com/kadraman/beatbax/issues/227"
 area: "web"
 related:
