@@ -1,19 +1,10 @@
-import { test, expect, _electron as electron } from '@playwright/test';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const appRoot = path.resolve(__dirname, '..', '..');
+import { test, expect } from '@playwright/test';
+import { launchDesktopApp } from './launch-desktop';
 
 test('desktop shell renders editor chrome', async () => {
   test.setTimeout(60_000);
-  const electronApp = await electron.launch({
-    args: [appRoot],
-    cwd: appRoot,
-  });
+  const { electronApp, page } = await launchDesktopApp();
 
-  const page = await electronApp.firstWindow();
   await expect(page.locator('.status-document-name')).toBeVisible();
   await expect(page.locator('#tb-open')).toBeVisible();
   await expect.poll(() => page.locator('.bb-toolbar svg').count()).toBeGreaterThan(0);
