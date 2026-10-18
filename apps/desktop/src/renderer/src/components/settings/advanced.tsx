@@ -1,4 +1,5 @@
 import { storage } from '@beatbax/app-core/utils/local-storage';
+import { eventBus } from '@beatbax/app-core/utils/event-bus';
 import type { DevToolsState } from '../../../../shared/electron-api';
 import {
   settingDebugOverlay,
@@ -128,7 +129,9 @@ export function AdvancedSettingsSection(): React.JSX.Element {
     try {
       const normalized = await allowlistApi.setRemoteAssetAllowlist(parseAllowlistInput(allowlistValue));
       setAllowlistValue((normalized || []).join('\n'));
-      setAllowlistStatus('Allowlist saved.');
+      setAllowlistStatus('Allowlist saved. Re-checking imports…');
+      // Spec 093: apply without restart — re-resolve the open song immediately.
+      eventBus.emit('parse:request', undefined);
     } catch (error) {
       setAllowlistStatus(`Could not save allowlist: ${(error as Error).message || 'unknown error'}.`);
     } finally {
@@ -143,7 +146,8 @@ export function AdvancedSettingsSection(): React.JSX.Element {
     try {
       await allowlistApi.setRemoteAssetAllowlist([]);
       setAllowlistValue('');
-      setAllowlistStatus('Allowlist reset to built-in defaults.');
+      setAllowlistStatus('Allowlist reset to built-in defaults. Re-checking imports…');
+      eventBus.emit('parse:request', undefined);
     } catch (error) {
       setAllowlistStatus(`Could not reset allowlist: ${(error as Error).message || 'unknown error'}.`);
     } finally {

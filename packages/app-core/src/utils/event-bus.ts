@@ -28,6 +28,8 @@ export interface BeatBaxEvents {
   'parse:started': void;
   'parse:success': { ast: any; resolvedAst?: any; song?: any; sourceBpm?: number; valid?: boolean; ephemeral?: boolean };
   'parse:error': { error: Error; message: string };
+  /** Ask the active client to re-parse the current editor content (e.g. after Settings that affect import resolve). */
+  'parse:request': void;
 
   // Playback events
   'playback:started': { volumePct?: number };

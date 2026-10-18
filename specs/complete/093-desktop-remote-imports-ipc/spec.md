@@ -2,11 +2,11 @@
 title: "Desktop remote instrument imports through main-process IPC"
 id: 93
 slug: "desktop-remote-imports-ipc"
-status: "specified"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-10-08"
-updated: "2026-10-11"
+updated: "2026-10-18"
 issue: "https://github.com/kadraman/beatbax/issues/216"
 area: "desktop"
 related:
@@ -52,7 +52,7 @@ Remote instrument imports (`import "github:owner/repo/path.ins"`, `import "https
 **Acceptance scenarios**:
 
 1. **Given** `import "https://example.com/kits/lead.ins"` and `example.com` is not allowlisted, **When** imports are resolved, **Then** the import fails with the message *Remote asset host 'example.com' is not in the Desktop allowlist. Add it under Settings → Advanced → Remote host allowlist.*, reported through the same error path as any other import failure (parse status and Output panel; Play, export and CodeLens preview show the same message).
-2. **Given** the user adds `example.com` under Settings → Advanced → Remote host allowlist, **When** imports are resolved again, **Then** the import succeeds without restarting the app.
+2. **Given** the user adds `example.com` under Settings → Advanced → Remote host allowlist and saves, **When** the allowlist save completes, **Then** the open song re-resolves immediately (no restart and no manual edit) and the import succeeds.
 3. **Given** `import "http://…/kit.ins"`, **When** imports are resolved in Desktop, **Then** the import fails in the renderer, with no request sent to the main process and no network request, with *Only https:// remote assets are allowed in Desktop.* (the same text the main process uses).
 4. **Given** a remote file larger than 1 MiB, a fetch that takes more than 10 seconds, or more than 5 redirects, **When** imports are resolved, **Then** the import fails with the corresponding size, timeout or redirect message from the main process.
 
@@ -97,7 +97,7 @@ Remote instrument imports (`import "github:owner/repo/path.ins"`, `import "https
 ## Success criteria
 
 - **SC-001**: `songs/features/remote_import_example.bax` plays and exports in a Desktop dev build and a packaged build with no CSP violation.
-- **SC-002**: An import from a non-allowlisted host fails with the allowlist message in the Output panel; after adding the host in Settings it succeeds without a restart.
+- **SC-002**: An import from a non-allowlisted host fails with the allowlist message in the Problems panel; after adding the host in Settings and saving, the open song re-resolves and the import succeeds without a restart.
 - **SC-003**: Unit tests cover the Desktop fetch adapter (success, policy error passthrough, payload conversion) and that web/CLI resolver options are unchanged.
 - **SC-004**: The e2e suite still shows a direct renderer fetch blocked by `connect-src`, and shows a remote import resolved through the IPC with the main-process fetch stubbed.
 

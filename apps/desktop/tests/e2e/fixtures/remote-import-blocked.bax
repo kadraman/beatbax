@@ -1,0 +1,10 @@
+chip gameboy
+bpm 120
+
+import "https://example.com/kits/lead.ins"
+
+inst lead type=pulse1 duty=50 env=8,down
+pat a = C4
+seq main = a
+channel 1 => inst lead seq main
+play

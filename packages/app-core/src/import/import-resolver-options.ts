@@ -1,15 +1,25 @@
 import type { ImportResolverOptions } from '@beatbax/engine/song';
 import { getClientProfile } from '../client-profile.js';
 import { storage, StorageKey } from '../utils/local-storage.js';
+import { createDesktopRemoteFetch } from './desktop-remote-fetch.js';
 
 type DesktopElectronFs = {
   readFileSync: (targetPath: string, encoding?: string) => string;
   existsSync: (targetPath: string) => boolean;
 };
 
-function desktopLocalFs(): Pick<ImportResolverOptions, 'readFile' | 'fileExists'> | undefined {
+type DesktopElectronRemote = {
+  fetchRemoteAsset?: (request: { url: string }) => Promise<unknown>;
+};
+
+function desktopApi(): (DesktopElectronFs & DesktopElectronRemote) | undefined {
   if (typeof window === 'undefined') return undefined;
-  const api = (window as unknown as { electronAPI?: DesktopElectronFs }).electronAPI;
+  return (window as unknown as { electronAPI?: DesktopElectronFs & DesktopElectronRemote })
+    .electronAPI;
+}
+
+function desktopLocalFs(): Pick<ImportResolverOptions, 'readFile' | 'fileExists'> | undefined {
+  const api = desktopApi();
   if (!api?.readFileSync || !api?.existsSync) return undefined;
   return {
     readFile: (filePath: string) => api.readFileSync(filePath, 'utf-8'),
@@ -31,6 +41,15 @@ export function buildImportResolverOptions(
     if (fs) {
       options.readFile = options.readFile ?? fs.readFile;
       options.fileExists = options.fileExists ?? fs.fileExists;
+    }
+    // Spec 093: route github:/https: imports through main-process IPC (CSP stays connect-src 'self').
+    // Do not force httpsOnly — the adapter rejects http:// with the Desktop message (FR-004).
+    const api = desktopApi();
+    if (api?.fetchRemoteAsset && !overrides.remoteOptions?.fetchFn) {
+      options.remoteOptions = {
+        ...overrides.remoteOptions,
+        fetchFn: createDesktopRemoteFetch({ fetchRemoteAsset: api.fetchRemoteAsset }),
+      };
     }
   }
   return options;

@@ -103,4 +103,4 @@ Desktop songs with remote imports start working. `http://` imports and non-allow
 
 ## Open implementation questions
 
-- The e2e stub needs a test-only hook in the main process (similar to `BEATBAX_E2E_LOGS_DIR` in spec 091). Name and shape to be settled in T030.
+- **Resolved (T040):** `BEATBAX_E2E_REMOTE_ASSET_DIR` — after allowlist / HTTPS checks, serve fixture files from that directory by URL basename (no network). Used by Playwright remote-import e2e scenarios.
