@@ -1,0 +1,19 @@
+chip gameboy
+bpm 140
+
+import "github:kadraman/beatbax-instruments/main/melodic.ins"
+import "github:kadraman/beatbax-instruments/main/percussion.ins"
+
+inst gb_lead type=pulse1 duty=12 env=8,down
+
+pat melody = C5 E5 G5 C6
+pat bass_line = C3 . G2 .
+pat drums = C7 . C7 .
+
+seq main = melody bass_line drums
+
+channel 1 => inst gb_lead seq main
+channel 2 => inst gb_bass seq main:oct(-1)
+channel 4 => inst snare pat drums*2
+
+play

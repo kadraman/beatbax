@@ -431,19 +431,21 @@ function DesktopInstrumentEditor({
   }), [ast, loadInst, revealInst]);
 
   useEffect(() => {
-    return eventBus.on('parse:success', ({ ast: next, ephemeral }) => {
+    return eventBus.on('parse:success', ({ ast: next, resolvedAst, ephemeral }) => {
       if (ephemeral) return;
-      setAst(next);
+      // Prefer resolved AST so imported insts (local:/github:/https:) appear read-only (spec 021).
+      const instrumentAst = resolvedAst ?? next;
+      setAst(instrumentAst);
       setSelected((cur) => {
-        const names = Object.keys(next?.insts ?? {});
+        const names = Object.keys(instrumentAst?.insts ?? {});
         if (cur && names.includes(cur)) {
-          setDraft(cloneInst(next.insts[cur]));
+          setDraft(cloneInst(instrumentAst.insts[cur]));
           revealInst(cur, { focus: false, reveal: false });
           return cur;
         }
         const first = names[0] ?? null;
         if (first) {
-          setDraft(cloneInst(next.insts[first]));
+          setDraft(cloneInst(instrumentAst.insts[first]));
           revealInst(first, { focus: false, reveal: false });
         } else {
           setDraft({});
