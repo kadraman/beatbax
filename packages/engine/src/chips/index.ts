@@ -21,6 +21,8 @@ export type {
   ChipNewSongWizard,
   ChipInstrumentEditor,
   ChipInstrumentTypeDef,
+  ChipInstrumentPreviewMode,
+  ChipBundledSampleMeta,
   ChipInstrumentFieldDef,
   ChipInstrumentMacroDef,
   ChipInstrumentWaveformDef,

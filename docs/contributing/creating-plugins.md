@@ -117,7 +117,10 @@ const myPlugin: ChipPlugin = {
 
 Chip plugins may declare `instrumentEditor` so Desktop can edit `inst` lines graphically. The host renders generic widgets from this schema; **do not ship React** from a plugin.
 
-- `types` — instrument type ids, labels, and `previewChannel` for CodeLens / mini-keyboard preview
+- `types` — instrument type ids, labels, and preview metadata:
+  - `previewChannel` — 1-based APU channel for CodeLens / panel audition
+  - `previewMode` — optional `melodic` (default) | `oneshot` | `uge_note`. Melodic shows the chromatic mini-keyboard; oneshot / uge_note use Trigger (named-hit preview). `uge_note` also shows a tracker-note audition strip for Game Boy noise. Host override: when the instrument has `tone_mix=true` (Spectrum/AY shared-noise percussion on a tone channel), preview is oneshot even if the type is melodic
+  - `previewOctave` — optional default piano octave for melodic types (host default 4; bass-like types often use 2). Prefer a higher octave when the chip’s period/timer resolution collapses low pitches (e.g. SMS SN76489 tone3 → 3). Overridden by the instrument’s `note=` when that octave is in range
 - `fields` — scalar properties (`enum`, `text`, `int`, `bool`, `sample`, `note`, `uge_note`) plus composite hardware widgets (`envelope`, `sweep`) with optional `whenType`
   - `note` — BeatBax scientific pitch picker (`C4`, `C#5`, …)
   - `uge_note` — hUGETracker display notes (`C-6` … `C-9`); host quotes sharps on writeback
@@ -129,6 +132,8 @@ Chip plugins may declare `instrumentEditor` so Desktop can edit `inst` lines gra
 - `constraints` — short copy shown in the panel (not a second validator)
 
 If `instrumentEditor` is omitted, Desktop falls back to `CHIP_INSTRUMENT_META` in app-core. Writeback still goes through `validateInstrument` on the plugin.
+
+Optional `bundledSampleMeta` (parallel to `bundledSamples`) may declare UI-only guidance such as `designedRate` and `baseNote` for `@chip/name` samples. Decode paths ignore this map.
 
 Game Boy, NES, SMS, and Spectrum 128 ship schemas as examples (`instrument-editor.ts` next to each plugin).
 

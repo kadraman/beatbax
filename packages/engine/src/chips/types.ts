@@ -290,11 +290,29 @@ export interface ChipInstrumentEditor {
   constraints?: ChipInstrumentConstraintNote[];
 }
 
+/** How the Instrument Editor / CodeLens preview treats pitch for this type. */
+export type ChipInstrumentPreviewMode = 'melodic' | 'oneshot' | 'uge_note';
+
 export interface ChipInstrumentTypeDef {
   id: string;
   label: string;
   /** 1-based hardware channel used for preview. */
   previewChannel: number;
+  /**
+   * Preview control layout. Default `melodic` (chromatic piano / note lenses).
+   * `oneshot` — Trigger / ▶ Hit (noise, DMC); `uge_note` — Trigger + tracker strip (GB noise).
+   */
+  previewMode?: ChipInstrumentPreviewMode;
+  /** Default piano octave when `previewMode` is melodic (default 4). Ignored otherwise. */
+  previewOctave?: number;
+}
+
+/** Optional UI guidance for a bundled `@chip/name` sample (does not affect decode). */
+export interface ChipBundledSampleMeta {
+  /** Playback rate index the sample was designed for (e.g. NES DMC 0–15). */
+  designedRate?: number;
+  /** Nominal musical note when the sample is a pitched tone (e.g. `C2`). */
+  baseNote?: string;
 }
 
 export type ChipInstrumentWidget =
@@ -529,6 +547,12 @@ export interface ChipPlugin {
    * Keys are sample names; values are base64-encoded binary content.
    */
   bundledSamples?: Record<string, string>;
+
+  /**
+   * Optional UI metadata for bundled samples (designed rate, base note).
+   * Keys match `bundledSamples`; decode paths ignore this map.
+   */
+  bundledSampleMeta?: Record<string, ChipBundledSampleMeta>;
 
   /**
    * Optional hook called before headless PCM rendering begins.

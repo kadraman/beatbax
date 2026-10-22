@@ -4,9 +4,11 @@
 
 import { chipRegistry } from '@beatbax/engine/chips';
 import type {
+  ChipBundledSampleMeta,
   ChipInstrumentEditor,
   ChipInstrumentFieldDef,
   ChipInstrumentMacroDef,
+  ChipInstrumentPreviewMode,
   ChipInstrumentTypeDef,
   ChipInstrumentWidget,
 } from '@beatbax/engine/chips';
@@ -25,6 +27,10 @@ const PREVIEW_CHANNEL: Record<string, number> = {
   tone2: 2,
   tone3: 3,
 };
+
+export const DEFAULT_PREVIEW_OCTAVE = 4;
+export const PREVIEW_OCTAVE_MIN = 2;
+export const PREVIEW_OCTAVE_MAX = 7;
 
 export function fieldApplies(whenType: string | string[] | undefined, type: string | undefined): boolean {
   if (!whenType) return true;
@@ -98,6 +104,155 @@ export function resolvePreviewChannel(
   const plugin = chipRegistry.get(chipRegistry.resolve((chip ?? 'gameboy').toLowerCase()));
   const maxChannel = plugin?.channels ?? channelId;
   return Math.min(channelId, maxChannel);
+}
+
+export function findInstrumentTypeDef(
+  instType: string | undefined,
+  chip: string | undefined,
+  schema?: ChipInstrumentEditor,
+): ChipInstrumentTypeDef | undefined {
+  const type = (instType ?? '').toLowerCase();
+  if (!type) return undefined;
+  const editor = schema ?? resolveInstrumentEditorSchema(chip ?? 'gameboy');
+  return editor.types.find((t) => t.id.toLowerCase() === type);
+}
+
+/** True when `tone_mix` is enabled (AY noise routed into a tone channel). */
+export function isToneMixEnabled(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  if (typeof value === 'string' && value.trim().toLowerCase() === 'true') return true;
+  return false;
+}
+
+/**
+ * Resolve preview mode for an instrument (default melodic).
+ * Spectrum/AY percussion often uses a tone channel with `tone_mix=true` — those
+ * force oneshot Trigger even though the type schema is melodic.
+ */
+export function resolvePreviewMode(
+  instType: string | undefined,
+  chip: string | undefined,
+  schema?: ChipInstrumentEditor,
+  props?: Record<string, unknown> | null,
+): ChipInstrumentPreviewMode {
+  if (isToneMixEnabled(props?.tone_mix)) return 'oneshot';
+  return findInstrumentTypeDef(instType, chip, schema)?.previewMode ?? 'melodic';
+}
+
+/** Octave digit from a scientific pitch name such as `C4` or `D#3`. */
+export function octaveFromScientificNote(note: unknown): number | null {
+  if (typeof note !== 'string') return null;
+  const m = note.trim().match(/^[A-Ga-g][#b]?\s*(-?\d+)$/);
+  if (!m) return null;
+  const oct = parseInt(m[1], 10);
+  return Number.isFinite(oct) ? oct : null;
+}
+
+/**
+ * Preview piano octave: `note=` when in range, else type `previewOctave`, else 4.
+ * Only meaningful for melodic preview mode.
+ */
+export function resolvePreviewOctave(
+  draftNote: unknown,
+  instType: string | undefined,
+  chip: string | undefined,
+  schema?: ChipInstrumentEditor,
+  minOctave = PREVIEW_OCTAVE_MIN,
+  maxOctave = PREVIEW_OCTAVE_MAX,
+): number {
+  const fromNote = octaveFromScientificNote(draftNote);
+  if (fromNote != null && fromNote >= minOctave && fromNote <= maxOctave) {
+    return fromNote;
+  }
+  const typeOct = findInstrumentTypeDef(instType, chip, schema)?.previewOctave;
+  if (typeof typeOct === 'number' && Number.isFinite(typeOct)) {
+    return Math.max(minOctave, Math.min(maxOctave, Math.trunc(typeOct)));
+  }
+  return DEFAULT_PREVIEW_OCTAVE;
+}
+
+/** Melodic CodeLens note labels centred on the type’s preview octave (±2, clamped 2–7). */
+export function melodicPreviewNotesForOctave(octave: number): string[] {
+  const o = Math.max(PREVIEW_OCTAVE_MIN, Math.min(PREVIEW_OCTAVE_MAX, Math.trunc(octave)));
+  const notes: string[] = [];
+  for (let n = o - 2; n <= o + 2; n++) {
+    if (n >= PREVIEW_OCTAVE_MIN && n <= PREVIEW_OCTAVE_MAX) notes.push(`C${n}`);
+  }
+  return notes;
+}
+
+/** Tracker C notes C-3…C-9 for GB noise audition strip. */
+export function ugeNotePreviewStrip(): string[] {
+  return ['C-3', 'C-4', 'C-5', 'C-6', 'C-7', 'C-8', 'C-9'];
+}
+
+/** Count vol_env frames; `loops` when a `|n` loop point is present. */
+function volEnvFrameInfo(raw: unknown): { frames: number; loops: boolean } | null {
+  if (Array.isArray(raw)) {
+    const vals = raw.map(Number).filter(Number.isFinite);
+    return vals.length ? { frames: vals.length, loops: false } : null;
+  }
+  if (typeof raw !== 'string') return null;
+  let str = raw.trim();
+  if (!str.startsWith('[')) return null;
+  str = str.endsWith(']') ? str.slice(1, -1) : str.slice(1);
+  let loops = false;
+  const pipeIdx = str.lastIndexOf('|');
+  if (pipeIdx >= 0) {
+    loops = true;
+    str = str.slice(0, pipeIdx);
+  }
+  const frames = str.split(',').map((s) => s.trim()).filter(Boolean).length;
+  return frames > 0 ? { frames, loops } : null;
+}
+
+/**
+ * Estimated oneshot audition length in seconds for noise / DMC hits.
+ * NES/GB `vol_env` advances ~60 Hz and holds the last value — preview must
+ * end near the last frame or soft noise hangs for the whole song length.
+ */
+export function estimateInstrumentHitDurationSec(
+  inst: Record<string, unknown> | null | undefined,
+): number {
+  const type = String(inst?.type ?? '').toLowerCase();
+  if (type === 'dmc') return 16;
+
+  const volEnv = volEnvFrameInfo(inst?.vol_env);
+  if (volEnv) {
+    if (volEnv.loops) return 2;
+    return Math.max(0.12, volEnv.frames / 60 + 0.04);
+  }
+  return 1.5;
+}
+
+/** bpm / step count / stop timer for percussion oneshot preview. */
+export function hitOneshotPreviewTiming(
+  inst: Record<string, unknown> | null | undefined,
+): { bpm: number; steps: number; stopAfterMs: number } {
+  const durSec = estimateInstrumentHitDurationSec(inst);
+  if (durSec <= 1.05) {
+    const bpm = Math.round(60 / Math.max(durSec, 0.05));
+    return {
+      bpm: Math.max(60, Math.min(480, bpm)),
+      steps: 1,
+      stopAfterMs: Math.round(durSec * 1000) + 250,
+    };
+  }
+  const steps = Math.max(1, Math.ceil(durSec));
+  return { bpm: 60, steps, stopAfterMs: steps * 1000 + 500 };
+}
+
+/** Look up bundled sample meta for `@chip/name` refs. */
+export function resolveBundledSampleMeta(
+  chip: string | undefined,
+  sampleRef: unknown,
+): ChipBundledSampleMeta | null {
+  if (typeof sampleRef !== 'string') return null;
+  const m = sampleRef.trim().match(/^@([^/]+)\/(.+)$/);
+  if (!m) return null;
+  const plugin = resolvedChipPlugin(chip ?? m[1]);
+  const meta = plugin?.bundledSampleMeta?.[m[2]];
+  return meta ?? null;
 }
 
 /** Encode a local sample path the same way `formatDmcInstrumentLine` does (`encodeURI`). */

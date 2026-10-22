@@ -22,6 +22,8 @@
  *   - snare       — snare hit (real sample, 513 bytes, rate 15)
  *   - bass_c2     — sub-bass note (synthetic, rate 15)
  */
+import type { ChipBundledSampleMeta } from '../types.js';
+
 
 // Helper: generate a minimal synthetic DMC sample encoded as base64.
 function makeSyntheticDMC(pattern: number[], bytes: number): string {
@@ -189,4 +191,24 @@ export const BUNDLED_SAMPLES: Record<string, string> = {
   muted_bongo: MUTED_BONGO_SAMPLE,
   snare:       SNARE_SAMPLE,
   bass_c2:     makeSyntheticDMC(BASS_PATTERN, BASS_PATTERN.length),
+};
+
+const RATE_15: ChipBundledSampleMeta = { designedRate: 15 };
+
+/**
+ * UI guidance for bundled samples (FamiTracker / song-wizard rate-15 convention).
+ * Decode paths ignore this map.
+ */
+export const BUNDLED_SAMPLE_META: Record<string, ChipBundledSampleMeta> = {
+  bongo: RATE_15,
+  clap: RATE_15,
+  crash: RATE_15,
+  high_tom: RATE_15,
+  hihat: RATE_15,
+  kick: RATE_15,
+  low_tom: RATE_15,
+  middle_tom: RATE_15,
+  muted_bongo: RATE_15,
+  snare: RATE_15,
+  bass_c2: { designedRate: 15, baseNote: 'C2' },
 };

@@ -2,10 +2,11 @@ import type { ChipInstrumentEditor } from '@beatbax/engine';
 
 export const smsInstrumentEditor: ChipInstrumentEditor = {
   types: [
-    { id: 'tone1', label: 'Tone 1', previewChannel: 1 },
-    { id: 'tone2', label: 'Tone 2', previewChannel: 2 },
-    { id: 'tone3', label: 'Tone 3', previewChannel: 3 },
-    { id: 'noise', label: 'Noise', previewChannel: 4 },
+    { id: 'tone1', label: 'Tone 1', previewChannel: 1, previewMode: 'melodic', previewOctave: 4 },
+    { id: 'tone2', label: 'Tone 2', previewChannel: 2, previewMode: 'melodic', previewOctave: 4 },
+    // SN76489 10-bit period clamps below ~A2 to the same pitch; octave 3 keeps C–B distinct.
+    { id: 'tone3', label: 'Tone 3', previewChannel: 3, previewMode: 'melodic', previewOctave: 3 },
+    { id: 'noise', label: 'Noise', previewChannel: 4, previewMode: 'oneshot' },
   ],
   fields: [
     // Type-defining controls first (appear immediately after Type in the panel).

@@ -38,10 +38,15 @@ import {
   INSTRUMENT_SAMPLE_SCHEMES,
   listBundledSampleNames,
   parseInstrumentSampleRef,
+  resolveBundledSampleMeta,
   resolveInstrumentEditorSchema,
+  resolvePreviewMode,
+  resolvePreviewOctave,
+  ugeNotePreviewStrip,
   sampleRemainderForSchemeChange,
   type InstrumentSampleScheme,
 } from '@beatbax/app-core/editor/instrument-editor-schema';
+import type { InstNotePreviewOptions } from '@beatbax/app-core/editor/codelens-preview';
 import {
   collectLocalInstNames,
   deleteInstLine,
@@ -54,6 +59,11 @@ import {
   replaceInstLine,
   uniqueInstName,
 } from '@beatbax/app-core/editor/instrument-editor-writeback';
+import {
+  instrumentDraftPreviewPatch,
+  isInstrumentDraftDirty,
+} from '@beatbax/app-core/editor/instrument-editor-draft';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import {
   discreteSweepPatchFromCsv,
   discreteSweepValueFromDraft,
@@ -263,11 +273,20 @@ function macroToFieldText(values: number[], loopPoint: number): string | undefin
   return formatMacro({ values, loopPoint }) ?? undefined;
 }
 
+export interface InstrumentMidiAudition {
+  name: string;
+  /** Preview note token (melodic pitch, or `hit` for percussion oneshot). */
+  note: string;
+  options: InstNotePreviewOptions;
+}
+
 export interface DesktopInstrumentEditorHandle {
   show: () => void;
   hide: () => void;
   selectInstrument: (name: string) => void;
   getSelectedName: () => string | null;
+  /** MIDI idle audition for the selected instrument (oneshot vs melodic). */
+  getMidiAudition: () => InstrumentMidiAudition | null;
   setAst: (ast: any) => void;
   dispose: () => void;
 }
@@ -279,7 +298,7 @@ export interface DesktopInstrumentEditorOptions {
   revealInst: (name: string | null, opts?: { focus?: boolean; reveal?: boolean }) => void;
   /** Reveal/focus a `subpat` definition without changing the selected-inst highlight. */
   revealSubpat?: (name: string) => void;
-  previewNote: (instName: string, note: string) => void;
+  previewNote: (instName: string, note: string, options?: InstNotePreviewOptions) => void;
   stopPreview: () => void;
   isMidiRecordArmed?: () => boolean;
 }
@@ -346,21 +365,40 @@ function DesktopInstrumentEditor({
   const [ast, setAst] = useState<any>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<InstrumentNode>({});
+  const [baseline, setBaseline] = useState<InstrumentNode>({});
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [activeNote, setActiveNote] = useState<string | null>(null);
   const [pianoOctave, setPianoOctave] = useState(4);
+  const [liveEdit, setLiveEditState] = useState(
+    () => storage.getJSON<boolean>(StorageKey.INSTRUMENT_EDITOR_LIVE_EDIT, true) ?? true,
+  );
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [renameUpdateRefs, setRenameUpdateRefs] = useState(true);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [renameBounds, setRenameBounds] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const [dirtyNavOpen, setDirtyNavOpen] = useState(false);
+  const [dialogBounds, setDialogBounds] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const [toolbarHint, setToolbarHint] = useState<string | null>(null);
   const lastPreviewNote = useRef('C4');
   const selectedRef = useRef<string | null>(null);
+  const draftRef = useRef<InstrumentNode>({});
+  const baselineRef = useRef<InstrumentNode>({});
+  const liveEditRef = useRef(liveEdit);
+  const dirtyRef = useRef(false);
+  const pendingNavRef = useRef<(() => void) | null>(null);
+  const chipRef = useRef('gameboy');
   const bodyRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   selectedRef.current = selected;
+  draftRef.current = draft;
+  baselineRef.current = baseline;
+  liveEditRef.current = liveEdit;
+  const dirty = isInstrumentDraftDirty(baseline, draft);
+  dirtyRef.current = dirty;
 
   const chip = String(ast?.chip ?? 'gameboy').toLowerCase();
+  chipRef.current = chip;
   const schema: ChipInstrumentEditor = useMemo(() => resolveInstrumentEditorSchema(chip), [chip]);
   // Read live source each render so New/Delete update locality before parse:success.
   const localNames = collectLocalInstNames(getSource());
@@ -382,17 +420,56 @@ function DesktopInstrumentEditor({
     return order;
   }, [schema.fields]);
 
-  const loadInst = useCallback((name: string, nextAst = ast, opts?: { focus?: boolean; reveal?: boolean }) => {
+  const syncPreviewOctave = useCallback((nextDraft: InstrumentNode, nextChip: string, nextSchema: ChipInstrumentEditor) => {
+    const type = String(nextDraft.type ?? nextSchema.types[0]?.id ?? '');
+    if (resolvePreviewMode(type, nextChip, nextSchema, nextDraft) !== 'melodic') return;
+    setPianoOctave(resolvePreviewOctave(nextDraft.note, type, nextChip, nextSchema, PIANO_OCTAVE_MIN, PIANO_OCTAVE_MAX));
+  }, []);
+
+  const loadInst = useCallback((name: string, nextAst?: any, opts?: { focus?: boolean; reveal?: boolean }) => {
+    const sourceAst = nextAst ?? ast;
     setSelected(name);
-    setDraft(cloneInst(nextAst?.insts?.[name]));
+    const nextDraft = cloneInst(sourceAst?.insts?.[name]);
+    setDraft(nextDraft);
+    setBaseline(cloneInst(nextDraft));
     setErrors([]);
+    const nextChip = String(sourceAst?.chip ?? 'gameboy').toLowerCase();
+    syncPreviewOctave(nextDraft, nextChip, resolveInstrumentEditorSchema(nextChip));
     const focus = opts?.focus === true;
     // Reveal/highlight on explicit requests (dropdown, New, CodeLens).
     // Never jump the editor on passive selection sync.
     // Only "Show in editor" focuses Monaco — otherwise A–J would type into source.
     const reveal = opts?.reveal === true || focus;
     revealInst(name, { focus, reveal });
-  }, [ast, revealInst]);
+  }, [ast, revealInst, syncPreviewOctave]);
+
+  const adoptDraftFromAst = useCallback((name: string | null, instrumentAst: any, nextSchema: ChipInstrumentEditor) => {
+    const nextChip = String(instrumentAst?.chip ?? 'gameboy').toLowerCase();
+    if (name && instrumentAst?.insts?.[name]) {
+      const d = cloneInst(instrumentAst.insts[name]);
+      setDraft(d);
+      setBaseline(cloneInst(d));
+      setErrors([]);
+      syncPreviewOctave(d, nextChip, nextSchema);
+      revealInst(name, { focus: false, reveal: false });
+      return name;
+    }
+    const first = Object.keys(instrumentAst?.insts ?? {})[0] ?? null;
+    if (first) {
+      const d = cloneInst(instrumentAst.insts[first]);
+      setDraft(d);
+      setBaseline(cloneInst(d));
+      setErrors([]);
+      syncPreviewOctave(d, nextChip, nextSchema);
+      revealInst(first, { focus: false, reveal: false });
+    } else {
+      setDraft({});
+      setBaseline({});
+      setErrors([]);
+      revealInst(null);
+    }
+    return first;
+  }, [revealInst, syncPreviewOctave]);
 
   const restorePanelFocus = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -403,32 +480,64 @@ function DesktopInstrumentEditor({
   useImperativeHandle(panelRef, () => ({
     show: () => {},
     hide: () => {},
-    selectInstrument: (name) => loadInst(name, ast, { reveal: false, focus: false }),
+    selectInstrument: (name) => {
+      if (dirtyRef.current) {
+        pendingNavRef.current = () => loadInst(name, undefined, { reveal: false, focus: false });
+        setDirtyNavOpen(true);
+        return;
+      }
+      loadInst(name, ast, { reveal: false, focus: false });
+    },
     getSelectedName: () => selectedRef.current,
+    getMidiAudition: () => {
+      const name = selectedRef.current;
+      if (!name) return null;
+      const chipName = chipRef.current;
+      const schemaNow = resolveInstrumentEditorSchema(chipName);
+      const d = draftRef.current;
+      const type = String(d.type ?? schemaNow.types[0]?.id ?? '');
+      const mode = resolvePreviewMode(type, chipName, schemaNow, d);
+      const draftPatch = isInstrumentDraftDirty(baselineRef.current, d)
+        ? instrumentDraftPreviewPatch(d)
+        : undefined;
+      if (mode === 'melodic') {
+        return {
+          name,
+          note: lastPreviewNote.current || 'C4',
+          options: { sustain: true, ...(draftPatch ? { instPatch: draftPatch } : {}) },
+        };
+      }
+      const options: InstNotePreviewOptions = { mode: 'hit', sustain: false };
+      if (mode === 'uge_note') {
+        const uge = d.uge_note;
+        if (!(typeof uge === 'string' && uge.trim())) {
+          options.instPatch = { ...(draftPatch ?? {}), uge_note: 'C-6' };
+        } else if (draftPatch) {
+          options.instPatch = draftPatch;
+        }
+      } else if (draftPatch) {
+        options.instPatch = draftPatch;
+      }
+      return { name, note: 'hit', options };
+    },
     setAst: (next) => {
       setAst(next);
+      const nextChip = String(next?.chip ?? 'gameboy').toLowerCase();
+      const nextSchema = resolveInstrumentEditorSchema(nextChip);
       setSelected((cur) => {
         const names = Object.keys(next?.insts ?? {});
-        if (cur && names.includes(cur)) {
-          setDraft(cloneInst(next.insts[cur]));
+        // Keep an unsaved draft when Live is off (spec 099).
+        if (dirtyRef.current && cur && names.includes(cur)) {
           revealInst(cur, { focus: false, reveal: false });
           return cur;
         }
-        const first = names[0] ?? null;
-        if (first) {
-          setDraft(cloneInst(next.insts[first]));
-          revealInst(first, { focus: false, reveal: false });
-        } else {
-          setDraft({});
-          revealInst(null);
-        }
-        return first;
+        return adoptDraftFromAst(cur && names.includes(cur) ? cur : null, next, nextSchema);
       });
     },
     dispose: () => {
       revealInst(null);
     },
-  }), [ast, loadInst, revealInst]);
+  }), [adoptDraftFromAst, ast, loadInst, revealInst]);
 
   useEffect(() => {
     return eventBus.on('parse:success', ({ ast: next, resolvedAst, ephemeral }) => {
@@ -436,28 +545,28 @@ function DesktopInstrumentEditor({
       // Prefer resolved AST so imported insts (local:/github:/https:) appear read-only (spec 021).
       const instrumentAst = resolvedAst ?? next;
       setAst(instrumentAst);
+      const nextSchema = resolveInstrumentEditorSchema(String(instrumentAst?.chip ?? 'gameboy').toLowerCase());
       setSelected((cur) => {
         const names = Object.keys(instrumentAst?.insts ?? {});
-        if (cur && names.includes(cur)) {
-          setDraft(cloneInst(instrumentAst.insts[cur]));
+        if (dirtyRef.current && cur && names.includes(cur)) {
           revealInst(cur, { focus: false, reveal: false });
           return cur;
         }
-        const first = names[0] ?? null;
-        if (first) {
-          setDraft(cloneInst(instrumentAst.insts[first]));
-          revealInst(first, { focus: false, reveal: false });
-        } else {
-          setDraft({});
-          revealInst(null);
-        }
-        return first;
+        return adoptDraftFromAst(cur && names.includes(cur) ? cur : null, instrumentAst, nextSchema);
       });
     });
-  }, [eventBus, revealInst]);
+  }, [adoptDraftFromAst, eventBus, revealInst]);
 
   useEffect(() => {
     return eventBus.on('instrument-editor:open', ({ name }) => {
+      if (dirtyRef.current) {
+        pendingNavRef.current = () => {
+          loadInst(name, undefined, { reveal: true, focus: false });
+          restorePanelFocus();
+        };
+        setDirtyNavOpen(true);
+        return;
+      }
       loadInst(name, ast, { reveal: true, focus: false });
       restorePanelFocus();
     });
@@ -478,78 +587,160 @@ function DesktopInstrumentEditor({
     });
   }, [eventBus]);
 
+  const commitToSource = useCallback((next: InstrumentNode = draftRef.current): boolean => {
+    if (!selected || !selectedLocal) return false;
+    const issues = validateDraft(chip, next);
+    setErrors(issues);
+    if (issues.length) return false;
+    const { next: source, ok } = replaceInstLine(getSource(), selected, next, fieldOrder);
+    if (!ok) return false;
+    applySource(source);
+    setBaseline(cloneInst(next));
+    revealInst(selected, { focus: false, reveal: false });
+    return true;
+  }, [applySource, chip, fieldOrder, getSource, revealInst, selected, selectedLocal]);
+
   const writeDraft = useCallback((next: InstrumentNode) => {
     setDraft(next);
     if (!selected || !selectedLocal) return;
     const issues = validateDraft(chip, next);
     setErrors(issues);
+    if (!liveEditRef.current) return;
     if (issues.length) return;
-    const { next: source, ok } = replaceInstLine(getSource(), selected, next, fieldOrder);
-    if (ok) {
-      applySource(source);
-      revealInst(selected, { focus: false, reveal: false });
+    commitToSource(next);
+  }, [chip, commitToSource, selected, selectedLocal]);
+
+  const revertDraft = useCallback(() => {
+    const restored = cloneInst(baselineRef.current);
+    setDraft(restored);
+    setErrors(validateDraft(chip, restored));
+    syncPreviewOctave(restored, chip, schema);
+  }, [chip, schema, syncPreviewOctave]);
+
+  const applyDraft = useCallback(() => {
+    commitToSource(draftRef.current);
+  }, [commitToSource]);
+
+  const setLiveEdit = useCallback((next: boolean) => {
+    if (next && isInstrumentDraftDirty(baselineRef.current, draftRef.current)) {
+      if (!commitToSource(draftRef.current)) return;
     }
-  }, [applySource, chip, fieldOrder, getSource, revealInst, selected, selectedLocal]);
+    setLiveEditState(next);
+    storage.setJSON(StorageKey.INSTRUMENT_EDITOR_LIVE_EDIT, next);
+  }, [commitToSource]);
+
+  const withDirtyGuard = useCallback((action: () => void) => {
+    if (!isInstrumentDraftDirty(baselineRef.current, draftRef.current)) {
+      action();
+      return;
+    }
+    pendingNavRef.current = action;
+    setDirtyNavOpen(true);
+  }, []);
+
+  const closeDirtyNav = useCallback(() => {
+    pendingNavRef.current = null;
+    setDirtyNavOpen(false);
+  }, []);
+
+  const resolveDirtyNav = useCallback((choice: 'apply' | 'discard' | 'cancel') => {
+    const pending = pendingNavRef.current;
+    if (choice === 'cancel') {
+      closeDirtyNav();
+      return;
+    }
+    if (choice === 'apply') {
+      if (!commitToSource(draftRef.current)) return;
+    } else {
+      setDraft(cloneInst(baselineRef.current));
+      setErrors([]);
+    }
+    pendingNavRef.current = null;
+    setDirtyNavOpen(false);
+    pending?.();
+  }, [closeDirtyNav, commitToSource]);
 
   const patch = (partial: Partial<InstrumentNode>) => {
-    writeDraft({ ...draft, ...partial });
+    const next = { ...draft, ...partial };
+    writeDraft(next);
+    if (partial.type !== undefined || partial.note !== undefined || partial.tone_mix !== undefined) {
+      syncPreviewOctave(next, chip, schema);
+    }
   };
 
   const instType = String(draft.type ?? schema.types[0]?.id ?? '');
+  const isDmcType = instType.toLowerCase() === 'dmc';
+  const previewMode = resolvePreviewMode(instType, chip, schema, draft);
+  const dmcSampleMeta = previewMode === 'oneshot' && isDmcType
+    ? resolveBundledSampleMeta(chip, draft.dmc_sample)
+    : null;
 
   const onNew = () => {
-    // Default plugin preset for the current type (not always presets[0]).
-    const currentType = instType || schema.types[0]?.id;
-    const preset = currentType
-      ? schema.presets.find((p) => p.type === currentType)
-      : schema.presets[0];
-    const body = preset?.content
-      ?? (currentType ? `type=${currentType}` : `type=${schema.types[0]?.id ?? 'pulse1'}`);
-    const type = preset?.type ?? currentType ?? schema.types[0]?.id;
-    const name = uniqueInstName(defaultNewInstBaseName(type), localNames);
-    const serialized = `inst ${name} ${body.replace(/^inst\s+\S+\s+/i, '')}`;
-    const afterName = selectedLocal && selected ? selected : undefined;
-    applySource(insertInstLine(getSource(), serialized, afterName));
-    setSelected(name);
-    setDraft(parseInstrumentBody(body));
-    setErrors([]);
-    revealInst(name, { focus: false, reveal: true });
-    restorePanelFocus();
+    withDirtyGuard(() => {
+      // Default plugin preset for the current type (not always presets[0]).
+      const currentType = instType || schema.types[0]?.id;
+      const preset = currentType
+        ? schema.presets.find((p) => p.type === currentType)
+        : schema.presets[0];
+      const body = preset?.content
+        ?? (currentType ? `type=${currentType}` : `type=${schema.types[0]?.id ?? 'pulse1'}`);
+      const type = preset?.type ?? currentType ?? schema.types[0]?.id;
+      const name = uniqueInstName(defaultNewInstBaseName(type), localNames);
+      const serialized = `inst ${name} ${body.replace(/^inst\s+\S+\s+/i, '')}`;
+      const afterName = selectedLocal && selected ? selected : undefined;
+      applySource(insertInstLine(getSource(), serialized, afterName));
+      const nextDraft = parseInstrumentBody(body);
+      setSelected(name);
+      setDraft(nextDraft);
+      setBaseline(cloneInst(nextDraft));
+      setErrors([]);
+      revealInst(name, { focus: false, reveal: true });
+      restorePanelFocus();
+    });
   };
 
   const onDuplicate = () => {
     if (!selected || !selectedLocal) return;
-    // Copy the persisted source line — not the panel draft — so invalid edits
-    // withheld by write-valid-only never land in the document.
-    const { next, newName, body, ok } = duplicateInstLine(getSource(), selected, localNames);
-    if (!ok) return;
-    applySource(next);
-    setSelected(newName);
-    setDraft(parseInstrumentBody(body));
-    setErrors([]);
-    revealInst(newName, { focus: false, reveal: true });
-    restorePanelFocus();
+    withDirtyGuard(() => {
+      // Copy the persisted source line — not the panel draft — so invalid edits
+      // withheld by write-valid-only never land in the document.
+      const { next, newName, body, ok } = duplicateInstLine(getSource(), selected, localNames);
+      if (!ok) return;
+      applySource(next);
+      const nextDraft = parseInstrumentBody(body);
+      setSelected(newName);
+      setDraft(nextDraft);
+      setBaseline(cloneInst(nextDraft));
+      setErrors([]);
+      revealInst(newName, { focus: false, reveal: true });
+      restorePanelFocus();
+    });
   };
 
   const onDelete = () => {
     if (!selected || !selectedLocal) return;
-    if (instIsReferenced(getSource(), selected)
-      && !window.confirm(`Instrument '${selected}' is still referenced. Delete anyway?`)) {
-      return;
-    }
-    applySource(deleteInstLine(getSource(), selected));
-    setSelected(null);
-    setDraft({});
-    setErrors([]);
-    revealInst(null);
+    withDirtyGuard(() => {
+      if (instIsReferenced(getSource(), selected)
+        && !window.confirm(`Instrument '${selected}' is still referenced. Delete anyway?`)) {
+        return;
+      }
+      applySource(deleteInstLine(getSource(), selected));
+      setSelected(null);
+      setDraft({});
+      setBaseline({});
+      setErrors([]);
+      revealInst(null);
+    });
   };
 
   const onRename = () => {
     if (!selected || !selectedLocal) return;
-    setRenameValue(selected);
-    setRenameUpdateRefs(true);
-    setRenameError(null);
-    setRenameOpen(true);
+    withDirtyGuard(() => {
+      setRenameValue(selected);
+      setRenameUpdateRefs(true);
+      setRenameError(null);
+      setRenameOpen(true);
+    });
   };
 
   const closeRename = () => {
@@ -604,15 +795,18 @@ function DesktopInstrumentEditor({
   }, [renameOpen]);
 
   useLayoutEffect(() => {
-    if (!renameOpen) {
+    if (!renameOpen && !dirtyNavOpen) {
       setRenameBounds(null);
+      setDialogBounds(null);
       return;
     }
     const syncBounds = () => {
       const el = bodyRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      setRenameBounds({ top: r.top, left: r.left, width: r.width, height: r.height });
+      const bounds = { top: r.top, left: r.left, width: r.width, height: r.height };
+      setRenameBounds(bounds);
+      setDialogBounds(bounds);
     };
     syncBounds();
     window.addEventListener('resize', syncBounds);
@@ -623,7 +817,7 @@ function DesktopInstrumentEditor({
       window.removeEventListener('resize', syncBounds);
       ro?.disconnect();
     };
-  }, [renameOpen]);
+  }, [renameOpen, dirtyNavOpen]);
 
   const applyPreset = (content: string) => {
     const parsed = parseInstrumentBody(content);
@@ -646,29 +840,53 @@ function DesktopInstrumentEditor({
 
   const copyImported = () => {
     if (!selected) return;
-    const name = uniqueInstName(selected, localNames);
-    const { next } = replaceInstLine(
-      insertInstLine(getSource(), `inst ${name} type=${instType}`),
-      name,
-      { ...draft, __loc: undefined },
-      fieldOrder,
-    );
-    applySource(next);
-    setSelected(name);
-    revealInst(name, { focus: false, reveal: true });
-    restorePanelFocus();
+    withDirtyGuard(() => {
+      const name = uniqueInstName(selected, localNames);
+      const body = { ...draft, __loc: undefined };
+      const { next } = replaceInstLine(
+        insertInstLine(getSource(), `inst ${name} type=${instType}`),
+        name,
+        body,
+        fieldOrder,
+      );
+      applySource(next);
+      setSelected(name);
+      setBaseline(cloneInst(body));
+      revealInst(name, { focus: false, reveal: true });
+      restorePanelFocus();
+    });
   };
 
-  const playNote = (note: string) => {
+  const playNote = (note: string, options?: InstNotePreviewOptions) => {
     if (!selected) return;
     lastPreviewNote.current = note;
     setActiveNote(note);
-    previewNote(selected, note);
+    const draftPatch = dirty ? instrumentDraftPreviewPatch(draft) : undefined;
+    const merged: InstNotePreviewOptions = { ...options };
+    if (draftPatch || options?.instPatch) {
+      // Explicit audition overrides (e.g. uge strip) win over draft props.
+      merged.instPatch = { ...(draftPatch ?? {}), ...(options?.instPatch ?? {}) };
+    }
+    previewNote(selected, note, merged);
+  };
+
+  const playHit = (label: string, options?: InstNotePreviewOptions) => {
+    playNote(label, { mode: 'hit', ...options });
   };
 
   const releaseNote = () => {
     setActiveNote(null);
     stopPreview();
+  };
+
+  /** Percussion oneshot (noise / DMC / uge_note): clear highlight without stopping audio. */
+  const isPercussionOneshot = previewMode === 'oneshot' || previewMode === 'uge_note';
+  const releaseHoldPreview = () => {
+    if (isPercussionOneshot) {
+      setActiveNote(null);
+      return;
+    }
+    releaseNote();
   };
 
   const shiftPianoOctave = useCallback((delta: number) => {
@@ -678,6 +896,24 @@ function DesktopInstrumentEditor({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!shouldHandleInstrumentPreviewKey(e, bodyRef.current)) return;
+      if (previewMode !== 'melodic') {
+        if (e.type === 'keydown' && !e.repeat && (e.key === ' ' || e.key.toLowerCase() === 'a')) {
+          e.preventDefault();
+          if (previewMode === 'uge_note') {
+            playHit('hit', {
+              sustain: false,
+              instPatch: typeof draft.uge_note === 'string' && draft.uge_note.trim()
+                ? undefined
+                : { uge_note: 'C-6' },
+            });
+          } else {
+            // Oneshot: sample / envelope duration, not key hold.
+            playHit('hit', { sustain: false });
+          }
+        }
+        if (e.type === 'keyup' && (e.key === ' ' || e.key.toLowerCase() === 'a')) releaseHoldPreview();
+        return;
+      }
       const key = e.key.toLowerCase();
       if (key === 'z' || key === 'x') {
         if (e.type === 'keydown' && !e.repeat) {
@@ -689,7 +925,7 @@ function DesktopInstrumentEditor({
       const found = pianoBindings(pianoOctave).find((k) => k.key === key);
       if (!found) return;
       e.preventDefault();
-      if (e.type === 'keydown' && !e.repeat) playNote(found.note);
+      if (e.type === 'keydown' && !e.repeat) playNote(found.note, { sustain: true });
       if (e.type === 'keyup') releaseNote();
     };
     window.addEventListener('keydown', onKey);
@@ -864,9 +1100,25 @@ function DesktopInstrumentEditor({
   const defaultFields = visibleFields.filter(isDefaultPropField);
   const siblingPeriod = Number(formatInstrumentFieldValue('env_period', draft.env_period));
 
+  /** In-panel hint (no native OS title — those clip outside the right pane). */
+  const toolbarHintProps = (hint: string) => ({
+    onMouseEnter: () => setToolbarHint(hint),
+    onMouseLeave: () => setToolbarHint(null),
+    onFocus: () => setToolbarHint(hint),
+    onBlur: () => setToolbarHint(null),
+  });
+
+  const liveEditHint = 'Live edit';
+  const applyHint = dirty
+    ? 'Write panel draft to the .bax instrument line'
+    : 'No panel changes to write';
+  const revertHint = dirty
+    ? 'Discard panel edits and reload from the editor'
+    : 'No panel changes to discard';
+
   return (
     <div
-      className={`bb-inst-editor${renameOpen ? ' is-dialog-open' : ''}`}
+      className={`bb-inst-editor${renameOpen || dirtyNavOpen ? ' is-dialog-open' : ''}${dirty ? ' is-draft-dirty' : ''}`}
       ref={bodyRef}
       tabIndex={-1}
     >
@@ -875,7 +1127,7 @@ function DesktopInstrumentEditor({
           type="button"
           className="bb-inst-editor__toolbar-btn"
           aria-label="New instrument"
-          title="New instrument"
+          {...toolbarHintProps('New instrument')}
           onClick={onNew}
           dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3.5 h-3.5') }}
         />
@@ -883,7 +1135,7 @@ function DesktopInstrumentEditor({
           type="button"
           className="bb-inst-editor__toolbar-btn"
           aria-label="Duplicate instrument"
-          title="Duplicate instrument"
+          {...toolbarHintProps('Duplicate instrument')}
           aria-disabled={!selectedLocal ? 'true' : undefined}
           disabled={!selectedLocal}
           onClick={onDuplicate}
@@ -893,7 +1145,7 @@ function DesktopInstrumentEditor({
           type="button"
           className="bb-inst-editor__toolbar-btn"
           aria-label="Rename instrument"
-          title="Rename instrument"
+          {...toolbarHintProps('Rename instrument')}
           aria-disabled={!selectedLocal ? 'true' : undefined}
           disabled={!selectedLocal}
           onClick={onRename}
@@ -903,7 +1155,7 @@ function DesktopInstrumentEditor({
           type="button"
           className="bb-inst-editor__toolbar-btn"
           aria-label="Show in editor"
-          title="Show this instrument in the editor"
+          {...toolbarHintProps('Show this instrument in the editor')}
           aria-disabled={!selected ? 'true' : undefined}
           disabled={!selected}
           onClick={() => {
@@ -916,12 +1168,48 @@ function DesktopInstrumentEditor({
           type="button"
           className="bb-inst-editor__toolbar-btn"
           aria-label="Delete instrument"
-          title="Delete instrument"
+          {...toolbarHintProps('Delete instrument')}
           aria-disabled={!selectedLocal ? 'true' : undefined}
           disabled={!selectedLocal}
           onClick={onDelete}
           dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }}
         />
+        <span className="bb-inst-editor__toolbar-sep" aria-hidden="true" />
+        <button
+          type="button"
+          className={`bb-inst-editor__toolbar-btn${liveEdit ? ' is-active' : ''}`}
+          aria-label="Live edit"
+          aria-pressed={liveEdit}
+          {...toolbarHintProps(liveEditHint)}
+          onClick={() => setLiveEdit(!liveEdit)}
+          dangerouslySetInnerHTML={{ __html: icon('bolt', 'w-3.5 h-3.5') }}
+        />
+        {/* Always mount Apply/Revert so Live toggle does not shift icon positions. */}
+        <button
+          type="button"
+          className={`bb-inst-editor__toolbar-btn${dirty && !liveEdit ? ' is-dirty' : ''}${liveEdit ? ' is-slot-hidden' : ''}`}
+          aria-label="Write panel draft to the editor"
+          aria-hidden={liveEdit ? true : undefined}
+          tabIndex={liveEdit ? -1 : undefined}
+          {...toolbarHintProps(applyHint)}
+          disabled={liveEdit || !selectedLocal || !dirty || errors.length > 0}
+          onClick={applyDraft}
+          dangerouslySetInnerHTML={{ __html: icon('check-circle', 'w-3.5 h-3.5') }}
+        />
+        <button
+          type="button"
+          className={`bb-inst-editor__toolbar-btn${liveEdit ? ' is-slot-hidden' : ''}`}
+          aria-label="Discard panel edits and reload from the editor"
+          aria-hidden={liveEdit ? true : undefined}
+          tabIndex={liveEdit ? -1 : undefined}
+          {...toolbarHintProps(revertHint)}
+          disabled={liveEdit || !selectedLocal || !dirty}
+          onClick={revertDraft}
+          dangerouslySetInnerHTML={{ __html: icon('arrow-uturn-left', 'w-3.5 h-3.5') }}
+        />
+      </div>
+      <div className="bb-inst-editor__toolbar-status" aria-live="polite">
+        {toolbarHint ?? '\u00a0'}
       </div>
       {renameOpen && selected && renameBounds
         ? createPortal(
@@ -1003,6 +1291,62 @@ function DesktopInstrumentEditor({
           document.body,
         )
         : null}
+      {dirtyNavOpen && dialogBounds
+        ? createPortal(
+          <div
+            className="bb-inst-editor__dialog-backdrop"
+            role="presentation"
+            style={{
+              position: 'fixed',
+              top: dialogBounds.top,
+              left: dialogBounds.left,
+              width: dialogBounds.width,
+              height: dialogBounds.height,
+            }}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) resolveDirtyNav('cancel');
+            }}
+          >
+            <div
+              className="bb-inst-editor__dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="bb-inst-dirty-title"
+            >
+              <div className="bb-inst-editor__dialog-header">
+                <span id="bb-inst-dirty-title" className="bb-inst-editor__dialog-title">
+                  Unsaved instrument draft
+                </span>
+                <button
+                  type="button"
+                  className="bb-inst-editor__dialog-close"
+                  aria-label="Close"
+                  onClick={() => resolveDirtyNav('cancel')}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="bb-inst-editor__dialog-body">
+                <p className="bb-inst-editor__dialog-copy">
+                  Write your panel edits to the editor, discard them, or cancel and keep editing.
+                </p>
+              </div>
+              <div className="bb-inst-editor__dialog-footer">
+                <button type="button" className="bb-settings-btn-secondary" onClick={() => resolveDirtyNav('cancel')}>
+                  Cancel
+                </button>
+                <button type="button" className="bb-settings-btn-secondary" onClick={() => resolveDirtyNav('discard')}>
+                  Discard
+                </button>
+                <button type="button" className="bb-settings-btn-primary" onClick={() => resolveDirtyNav('apply')}>
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+        : null}
       <div className="bb-inst-editor__body">
         <div className="bb-inst-editor__picker bb-settings-row">
           <label className="bb-settings-label" htmlFor="bb-inst-picker">Instrument</label>
@@ -1015,9 +1359,12 @@ function DesktopInstrumentEditor({
             onChange={(e) => {
               const name = e.target.value;
               if (!name) return;
-              loadInst(name, ast, { reveal: true, focus: false });
-              e.currentTarget.blur();
-              restorePanelFocus();
+              const selectEl = e.currentTarget;
+              withDirtyGuard(() => {
+                loadInst(name, ast, { reveal: true, focus: false });
+                selectEl.blur();
+                restorePanelFocus();
+              });
             }}
           >
             {!pickerNames.length ? <option value="">No instruments</option> : null}
@@ -1202,13 +1549,55 @@ function DesktopInstrumentEditor({
 
             <SectionHeading>Preview</SectionHeading>
             <MidiPreviewStrip />
-            <MiniKeyboard
-              activeNote={activeNote}
-              octave={pianoOctave}
-              onOctaveChange={setPianoOctave}
-              onDown={playNote}
-              onUp={releaseNote}
-            />
+            {previewMode === 'melodic' ? (
+              <MiniKeyboard
+                activeNote={activeNote}
+                octave={pianoOctave}
+                onOctaveChange={setPianoOctave}
+                onDown={(note) => playNote(note, { sustain: true })}
+                onUp={releaseNote}
+              />
+            ) : null}
+            {previewMode === 'oneshot' || previewMode === 'uge_note' ? (
+              <div className="bb-inst-editor__oneshot">
+                <button
+                  type="button"
+                  className={`bb-inst-editor__trigger${activeNote === 'hit' || activeNote?.startsWith('C-') ? ' is-active' : ''}`}
+                  title={isDmcType ? 'Trigger sample (A / Space) — plays to end' : 'Trigger hit (A / Space) — plays to end'}
+                  onPointerDown={() => {
+                    if (previewMode === 'uge_note') {
+                      playHit('hit', {
+                        sustain: false,
+                        instPatch: typeof draft.uge_note === 'string' && draft.uge_note.trim()
+                          ? undefined
+                          : { uge_note: 'C-6' },
+                      });
+                    } else {
+                      playHit('hit', { sustain: false });
+                    }
+                  }}
+                  onPointerUp={releaseHoldPreview}
+                  onPointerLeave={releaseHoldPreview}
+                >
+                  {isDmcType ? 'Trigger sample' : 'Trigger'}
+                </button>
+                {dmcSampleMeta ? (
+                  <div className="bb-settings-note bb-inst-editor__sample-meta" aria-live="polite">
+                    Designed
+                    {dmcSampleMeta.designedRate != null ? ` rate ${dmcSampleMeta.designedRate}` : ''}
+                    {dmcSampleMeta.baseNote ? ` · ${dmcSampleMeta.baseNote}` : ''}
+                    {' '}(guidance only)
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {previewMode === 'uge_note' ? (
+              <UgeNoteStrip
+                activeNote={activeNote}
+                onDown={(uge) => playHit(uge, { sustain: false, instPatch: { uge_note: uge } })}
+                onUp={() => setActiveNote(null)}
+              />
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -2353,6 +2742,38 @@ function MidiPreviewStrip(): React.JSX.Element {
   );
 }
 
+function UgeNoteStrip({
+  activeNote,
+  onDown,
+  onUp,
+}: {
+  activeNote: string | null;
+  onDown: (ugeNote: string) => void;
+  onUp: () => void;
+}): React.JSX.Element {
+  const notes = ugeNotePreviewStrip();
+  return (
+    <div className="bb-inst-editor__uge-strip" role="group" aria-label="UGE noise clock">
+      <div className="bb-settings-note bb-inst-editor__keys-label">UGE / noise clock (audition only)</div>
+      <div className="bb-inst-editor__uge-keys">
+        {notes.map((uge) => (
+          <button
+            key={uge}
+            type="button"
+            className={`bb-inst-editor__uge-key${activeNote === uge ? ' is-active' : ''}`}
+            title={`${uge} (audition; does not write uge_note)`}
+            onPointerDown={() => onDown(uge)}
+            onPointerUp={onUp}
+            onPointerLeave={onUp}
+          >
+            {uge}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MiniKeyboard({
   activeNote,
   octave,
@@ -2470,6 +2891,7 @@ export function createDesktopInstrumentEditor(
     hide: () => call((h) => h.hide()),
     selectInstrument: (name) => call((h) => h.selectInstrument(name)),
     getSelectedName: () => handleRef.current?.getSelectedName() ?? null,
+    getMidiAudition: () => handleRef.current?.getMidiAudition() ?? null,
     setAst: (ast) => call((h) => h.setAst(ast)),
     dispose: () => {
       handleRef.current?.dispose();

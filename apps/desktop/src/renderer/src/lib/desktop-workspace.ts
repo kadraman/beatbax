@@ -443,7 +443,10 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
           instrumentEditorNav.syncSubpat(name, { focus: true, reveal: true });
         });
       },
-      previewNote: (instName, note) => triggerInstNotePreview(instName, note, { sustain: true }),
+      previewNote: (instName, note, options) => triggerInstNotePreview(instName, note, {
+        sustain: true,
+        ...options,
+      }),
       stopPreview: () => stopInstPreview(),
       isMidiRecordArmed: () => (window as any).__beatbax_midiStepEntry?.isArmed?.() ?? false,
     });
@@ -850,9 +853,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     capabilities,
     transportDisplay,
     tryPlayFocused: () => tryPlayOverride(),
-    getInstrumentAuditionTarget: () => {
+    getInstrumentMidiAudition: () => {
       if (rightTabs.activeTab !== 'instruments') return null;
-      return instrumentEditor?.getSelectedName?.() ?? null;
+      return instrumentEditor?.getMidiAudition?.() ?? null;
     },
   });
   syncInstrumentMidiAudition();
