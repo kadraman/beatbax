@@ -120,7 +120,12 @@ export function findInstrumentTypeDef(
 /** True when `tone_mix` is enabled (AY noise routed into a tone channel). */
 export function isToneMixEnabled(value: unknown): boolean {
   if (value === true || value === 1) return true;
-  if (typeof value === 'string' && value.trim().toLowerCase() === 'true') return true;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    // Accept `true` and `1` — CodeLens regex captures source text as strings,
+    // and some songs write booleans as `tone_mix=1`.
+    return normalized === 'true' || normalized === '1';
+  }
   return false;
 }
 

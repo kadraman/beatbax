@@ -21,6 +21,7 @@ export function isInstrumentDraftDirty(
   baseline: InstrumentNode | Record<string, unknown> | null | undefined,
   draft: InstrumentNode | Record<string, unknown> | null | undefined,
 ): boolean {
+  if (baseline === draft) return false;
   return instrumentDraftFingerprint(baseline) !== instrumentDraftFingerprint(draft);
 }
 

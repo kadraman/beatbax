@@ -21,6 +21,11 @@ describe('instrument editor draft helpers (099)', () => {
     expect(isInstrumentDraftDirty(a, { ...b, vol: 11 })).toBe(true);
   });
 
+  test('isInstrumentDraftDirty short-circuits on same reference', () => {
+    const a = { type: 'pulse1', vol: 10 };
+    expect(isInstrumentDraftDirty(a, a)).toBe(false);
+  });
+
   test('fingerprint is key-order independent', () => {
     expect(instrumentDraftFingerprint({ vol: 1, type: 'noise' }))
       .toBe(instrumentDraftFingerprint({ type: 'noise', vol: 1 }));

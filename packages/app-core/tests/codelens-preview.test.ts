@@ -38,6 +38,7 @@ import {
 } from '../src/stores/settings.store';
 import { Player } from '@beatbax/engine/audio/playback';
 import { chipRegistry } from '@beatbax/engine/chips';
+import { resolveSong } from '@beatbax/engine/song';
 import * as monaco from 'monaco-editor';
 
 describe('CodeLens Preview provider', () => {
@@ -432,5 +433,32 @@ describe('CodeLens Preview provider', () => {
       playAST.mockRestore();
       stop.mockRestore();
     });
+  });
+
+  it('resolves preview channel from the patched instrument type, not the saved type', async () => {
+    const playAST = jest.spyOn(Player.prototype, 'playAST').mockResolvedValue(undefined as any);
+    (resolveSong as jest.Mock).mockClear();
+    mockParse.mockReturnValue({
+      imports: [],
+      // Saved instrument is wave (channel 3); draft patch changes it to noise (channel 4).
+      insts: { perc: { type: 'wave' } },
+      chip: 'gameboy',
+    });
+    mockResolveImports.mockImplementation(async (ast: any) => ast);
+
+    setupCodeLensPreview({} as any, eventBus as any, () => 'inst perc type=wave');
+    triggerInstNotePreview('perc', 'hit', {
+      mode: 'hit',
+      instPatch: { type: 'noise' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(resolveSong).toHaveBeenCalled();
+    const previewAst = (resolveSong as jest.Mock).mock.calls.at(-1)?.[0];
+    expect(previewAst.insts.perc.type).toBe('noise');
+    // Without the fix this stayed on channel 3 (wave) while the patched type is noise.
+    expect(previewAst.channels[0].id).toBe(4);
+
+    playAST.mockRestore();
   });
 });

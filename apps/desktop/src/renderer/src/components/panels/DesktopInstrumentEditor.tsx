@@ -60,6 +60,7 @@ import {
   uniqueInstName,
 } from '@beatbax/app-core/editor/instrument-editor-writeback';
 import {
+  instrumentDraftFingerprint,
   instrumentDraftPreviewPatch,
   isInstrumentDraftDirty,
 } from '@beatbax/app-core/editor/instrument-editor-draft';
@@ -394,7 +395,11 @@ function DesktopInstrumentEditor({
   draftRef.current = draft;
   baselineRef.current = baseline;
   liveEditRef.current = liveEdit;
-  const dirty = isInstrumentDraftDirty(baseline, draft);
+  // Fingerprint only when draft/baseline identity changes — not on every
+  // piano/rename/dialog re-render. Mutation handlers already replace these refs.
+  const baselineFp = useMemo(() => instrumentDraftFingerprint(baseline), [baseline]);
+  const draftFp = useMemo(() => instrumentDraftFingerprint(draft), [draft]);
+  const dirty = baselineFp !== draftFp;
   dirtyRef.current = dirty;
 
   const chip = String(ast?.chip ?? 'gameboy').toLowerCase();
@@ -443,33 +448,53 @@ function DesktopInstrumentEditor({
     revealInst(name, { focus, reveal });
   }, [ast, revealInst, syncPreviewOctave]);
 
+  /** Apply AST instrument body into panel state. Callers must not invoke this from a state updater. */
   const adoptDraftFromAst = useCallback((name: string | null, instrumentAst: any, nextSchema: ChipInstrumentEditor) => {
     const nextChip = String(instrumentAst?.chip ?? 'gameboy').toLowerCase();
     if (name && instrumentAst?.insts?.[name]) {
       const d = cloneInst(instrumentAst.insts[name]);
+      setSelected(name);
       setDraft(d);
       setBaseline(cloneInst(d));
       setErrors([]);
       syncPreviewOctave(d, nextChip, nextSchema);
       revealInst(name, { focus: false, reveal: false });
-      return name;
+      return;
     }
     const first = Object.keys(instrumentAst?.insts ?? {})[0] ?? null;
     if (first) {
       const d = cloneInst(instrumentAst.insts[first]);
+      setSelected(first);
       setDraft(d);
       setBaseline(cloneInst(d));
       setErrors([]);
       syncPreviewOctave(d, nextChip, nextSchema);
       revealInst(first, { focus: false, reveal: false });
-    } else {
-      setDraft({});
-      setBaseline({});
-      setErrors([]);
-      revealInst(null);
+      return;
     }
-    return first;
+    setSelected(null);
+    setDraft({});
+    setBaseline({});
+    setErrors([]);
+    revealInst(null);
   }, [revealInst, syncPreviewOctave]);
+
+  /**
+   * After AST replace: keep a dirty draft if that name still exists; otherwise
+   * adopt the current (or first) instrument. Uses selectedRef so side effects
+   * stay outside React state updaters.
+   */
+  const syncSelectionFromAst = useCallback((instrumentAst: any) => {
+    const names = Object.keys(instrumentAst?.insts ?? {});
+    const cur = selectedRef.current;
+    // Keep an unsaved draft when Live is off (spec 099).
+    if (dirtyRef.current && cur && names.includes(cur)) {
+      revealInst(cur, { focus: false, reveal: false });
+      return;
+    }
+    const nextSchema = resolveInstrumentEditorSchema(String(instrumentAst?.chip ?? 'gameboy').toLowerCase());
+    adoptDraftFromAst(cur && names.includes(cur) ? cur : null, instrumentAst, nextSchema);
+  }, [adoptDraftFromAst, revealInst]);
 
   const restorePanelFocus = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -522,22 +547,12 @@ function DesktopInstrumentEditor({
     },
     setAst: (next) => {
       setAst(next);
-      const nextChip = String(next?.chip ?? 'gameboy').toLowerCase();
-      const nextSchema = resolveInstrumentEditorSchema(nextChip);
-      setSelected((cur) => {
-        const names = Object.keys(next?.insts ?? {});
-        // Keep an unsaved draft when Live is off (spec 099).
-        if (dirtyRef.current && cur && names.includes(cur)) {
-          revealInst(cur, { focus: false, reveal: false });
-          return cur;
-        }
-        return adoptDraftFromAst(cur && names.includes(cur) ? cur : null, next, nextSchema);
-      });
+      syncSelectionFromAst(next);
     },
     dispose: () => {
       revealInst(null);
     },
-  }), [adoptDraftFromAst, ast, loadInst, revealInst]);
+  }), [ast, loadInst, revealInst, syncSelectionFromAst]);
 
   useEffect(() => {
     return eventBus.on('parse:success', ({ ast: next, resolvedAst, ephemeral }) => {
@@ -545,17 +560,9 @@ function DesktopInstrumentEditor({
       // Prefer resolved AST so imported insts (local:/github:/https:) appear read-only (spec 021).
       const instrumentAst = resolvedAst ?? next;
       setAst(instrumentAst);
-      const nextSchema = resolveInstrumentEditorSchema(String(instrumentAst?.chip ?? 'gameboy').toLowerCase());
-      setSelected((cur) => {
-        const names = Object.keys(instrumentAst?.insts ?? {});
-        if (dirtyRef.current && cur && names.includes(cur)) {
-          revealInst(cur, { focus: false, reveal: false });
-          return cur;
-        }
-        return adoptDraftFromAst(cur && names.includes(cur) ? cur : null, instrumentAst, nextSchema);
-      });
+      syncSelectionFromAst(instrumentAst);
     });
-  }, [adoptDraftFromAst, eventBus, revealInst]);
+  }, [eventBus, syncSelectionFromAst]);
 
   useEffect(() => {
     return eventBus.on('instrument-editor:open', ({ name }) => {
@@ -590,18 +597,35 @@ function DesktopInstrumentEditor({
   const commitToSource = useCallback((next: InstrumentNode = draftRef.current): boolean => {
     if (!selected || !selectedLocal) return false;
     const issues = validateDraft(chip, next);
-    setErrors(issues);
-    if (issues.length) return false;
+    if (issues.length) {
+      setErrors(issues);
+      return false;
+    }
     const { next: source, ok } = replaceInstLine(getSource(), selected, next, fieldOrder);
-    if (!ok) return false;
+    if (!ok) {
+      // e.g. external edit removed the inst line — not a field validation failure.
+      setErrors([{
+        field: 'inst',
+        message: `Could not write '${selected}' — it is no longer in the editor source.`,
+      }]);
+      return false;
+    }
     applySource(source);
-    setBaseline(cloneInst(next));
+    const committed = cloneInst(next);
+    setBaseline(committed);
+    baselineRef.current = committed;
+    draftRef.current = next;
+    dirtyRef.current = false;
+    setErrors([]);
     revealInst(selected, { focus: false, reveal: false });
     return true;
   }, [applySource, chip, fieldOrder, getSource, revealInst, selected, selectedLocal]);
 
   const writeDraft = useCallback((next: InstrumentNode) => {
     setDraft(next);
+    // Keep refs current for audition before the next render (playNote / MIDI).
+    draftRef.current = next;
+    dirtyRef.current = isInstrumentDraftDirty(baselineRef.current, next);
     if (!selected || !selectedLocal) return;
     const issues = validateDraft(chip, next);
     setErrors(issues);
@@ -612,6 +636,10 @@ function DesktopInstrumentEditor({
 
   const revertDraft = useCallback(() => {
     const restored = cloneInst(baselineRef.current);
+    // Keep draftRef/dirtyRef in sync for callers that run before the next render
+    // (e.g. pending dirty-nav actions after Discard).
+    draftRef.current = restored;
+    dirtyRef.current = false;
     setDraft(restored);
     setErrors(validateDraft(chip, restored));
     syncPreviewOctave(restored, chip, schema);
@@ -652,13 +680,13 @@ function DesktopInstrumentEditor({
     if (choice === 'apply') {
       if (!commitToSource(draftRef.current)) return;
     } else {
-      setDraft(cloneInst(baselineRef.current));
-      setErrors([]);
+      // revertDraft syncs draftRef before `pending` runs (state updates are async).
+      revertDraft();
     }
     pendingNavRef.current = null;
     setDirtyNavOpen(false);
     pending?.();
-  }, [closeDirtyNav, commitToSource]);
+  }, [closeDirtyNav, commitToSource, revertDraft]);
 
   const patch = (partial: Partial<InstrumentNode>) => {
     const next = { ...draft, ...partial };
@@ -677,8 +705,10 @@ function DesktopInstrumentEditor({
 
   const onNew = () => {
     withDirtyGuard(() => {
-      // Default plugin preset for the current type (not always presets[0]).
-      const currentType = instType || schema.types[0]?.id;
+      // Read draftRef so Discard → New uses the reverted baseline type, not the
+      // dirty draft captured when the guard opened.
+      const currentType = String(draftRef.current.type ?? schema.types[0]?.id ?? '')
+        || schema.types[0]?.id;
       const preset = currentType
         ? schema.presets.find((p) => p.type === currentType)
         : schema.presets[0];
@@ -694,6 +724,7 @@ function DesktopInstrumentEditor({
       setDraft(nextDraft);
       setBaseline(cloneInst(nextDraft));
       setErrors([]);
+      syncPreviewOctave(nextDraft, chip, schema);
       revealInst(name, { focus: false, reveal: true });
       restorePanelFocus();
     });
@@ -712,6 +743,7 @@ function DesktopInstrumentEditor({
       setDraft(nextDraft);
       setBaseline(cloneInst(nextDraft));
       setErrors([]);
+      syncPreviewOctave(nextDraft, chip, schema);
       revealInst(newName, { focus: false, reveal: true });
       restorePanelFocus();
     });
@@ -841,33 +873,44 @@ function DesktopInstrumentEditor({
   const copyImported = () => {
     if (!selected) return;
     withDirtyGuard(() => {
+      // Read draftRef so Discard → Copy uses the reverted baseline props.
+      const d = draftRef.current;
+      const type = String(d.type ?? schema.types[0]?.id ?? '');
       const name = uniqueInstName(selected, localNames);
-      const body = { ...draft, __loc: undefined };
+      const body = { ...d, __loc: undefined };
       const { next } = replaceInstLine(
-        insertInstLine(getSource(), `inst ${name} type=${instType}`),
+        insertInstLine(getSource(), `inst ${name} type=${type}`),
         name,
         body,
         fieldOrder,
       );
       applySource(next);
+      const nextDraft = cloneInst(body);
       setSelected(name);
-      setBaseline(cloneInst(body));
+      setDraft(nextDraft);
+      setBaseline(cloneInst(nextDraft));
+      setErrors([]);
+      syncPreviewOctave(nextDraft, chip, schema);
       revealInst(name, { focus: false, reveal: true });
       restorePanelFocus();
     });
   };
 
   const playNote = (note: string, options?: InstNotePreviewOptions) => {
-    if (!selected) return;
+    const name = selectedRef.current;
+    if (!name) return;
     lastPreviewNote.current = note;
     setActiveNote(note);
-    const draftPatch = dirty ? instrumentDraftPreviewPatch(draft) : undefined;
+    // Refs stay current across key events between renders (same as getMidiAudition).
+    const draftPatch = dirtyRef.current
+      ? instrumentDraftPreviewPatch(draftRef.current)
+      : undefined;
     const merged: InstNotePreviewOptions = { ...options };
     if (draftPatch || options?.instPatch) {
       // Explicit audition overrides (e.g. uge strip) win over draft props.
       merged.instPatch = { ...(draftPatch ?? {}), ...(options?.instPatch ?? {}) };
     }
-    previewNote(selected, note, merged);
+    previewNote(name, note, merged);
   };
 
   const playHit = (label: string, options?: InstNotePreviewOptions) => {
@@ -1330,6 +1373,11 @@ function DesktopInstrumentEditor({
                 <p className="bb-inst-editor__dialog-copy">
                   Write your panel edits to the editor, discard them, or cancel and keep editing.
                 </p>
+                {errors.length ? (
+                  <ul className="bb-inst-editor__errors" role="alert">
+                    {errors.map((err, i) => <li key={i}>{err.field}: {err.message}</li>)}
+                  </ul>
+                ) : null}
               </div>
               <div className="bb-inst-editor__dialog-footer">
                 <button type="button" className="bb-settings-btn-secondary" onClick={() => resolveDirtyNav('cancel')}>

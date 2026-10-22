@@ -344,7 +344,6 @@ async function startInstNotePreview(
   options?: InstNotePreviewOptions,
   isCancelled?: () => boolean,
 ): Promise<PreviewState | null> {
-  const channelId = instChannelId(instName, rawAst);
   const sustain = options?.sustain === true;
   const mode = options?.mode === 'hit' ? 'hit' : 'note';
   const baseInst = rawAst.insts?.[instName];
@@ -365,6 +364,9 @@ async function startInstNotePreview(
   const insts = effectiveInst && (options?.instPatch || baseInst)
     ? { ...rawAst.insts, [instName]: effectiveInst }
     : rawAst.insts;
+  // Resolve after patching so a draft type change (e.g. tone3 → noise) targets
+  // the correct hardware channel when live-edit is off.
+  const channelId = instChannelId(instName, { ...rawAst, insts });
 
   const previewKey = mode === 'hit'
     ? `inst-hit:${instName}:${String(options?.instPatch?.uge_note ?? note ?? 'hit')}`

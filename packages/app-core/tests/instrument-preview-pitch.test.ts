@@ -53,7 +53,11 @@ describe('instrument preview pitch (098)', () => {
   test('tone_mix=true forces oneshot (Spectrum percussion on tone channels)', () => {
     expect(resolvePreviewMode('tone3', 'spectrum-128', undefined, { tone_mix: true })).toBe('oneshot');
     expect(resolvePreviewMode('tone3', 'spectrum-128', undefined, { tone_mix: 'true' })).toBe('oneshot');
+    expect(resolvePreviewMode('tone3', 'spectrum-128', undefined, { tone_mix: 1 })).toBe('oneshot');
+    expect(resolvePreviewMode('tone3', 'spectrum-128', undefined, { tone_mix: '1' })).toBe('oneshot');
     expect(resolvePreviewMode('tone3', 'spectrum-128', undefined, { tone_mix: false })).toBe('melodic');
+    expect(resolvePreviewMode('tone3', 'spectrum-128', undefined, { tone_mix: 0 })).toBe('melodic');
+    expect(resolvePreviewMode('tone3', 'spectrum-128', undefined, { tone_mix: '0' })).toBe('melodic');
     expect(resolvePreviewMode('tone1', 'spectrum-128')).toBe('melodic');
   });
 
