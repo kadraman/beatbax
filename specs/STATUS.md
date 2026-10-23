@@ -1,9 +1,10 @@
 # Specification status index
 
-Assign the next feature id as **102** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **103** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
+- **102** `instrument-editor-sample-browse-verify` (Desktop Instrument Editor DMC sample Browse + Check; bundled name validation) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/234 — [specs/features/102-instrument-editor-sample-browse-verify/](specs/features/102-instrument-editor-sample-browse-verify/)
 - **101** `instrument-editor-subpat-rows` (Desktop Instrument Editor single-column Game Boy `subpat` Create/Attach/Detach + row edit) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/233 — [specs/features/101-instrument-editor-subpat-rows/](specs/features/101-instrument-editor-subpat-rows/)
 - **100** `pattern-grid-zoom` (desktop Pattern Grid zoom / scroll; Auto readable scale from panel width; Zoom to Fit) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/232 — [specs/features/100-pattern-grid-zoom/](specs/features/100-pattern-grid-zoom/)
 - **099** `instrument-editor-live-edit` (Live edit toggle + Apply/Revert draft audition) — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/230 — [specs/features/099-instrument-editor-live-edit/](specs/features/099-instrument-editor-live-edit/)
