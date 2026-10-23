@@ -1,9 +1,10 @@
 # Specification status index
 
-Assign the next feature id as **100** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **101** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
+- **100** `pattern-grid-zoom` (desktop Pattern Grid zoom / scroll; Auto readable scale from panel width; Zoom to Fit) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/232 — [specs/features/100-pattern-grid-zoom/](specs/features/100-pattern-grid-zoom/)
 - **099** `instrument-editor-live-edit` (Live edit toggle + Apply/Revert draft audition) — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/230 — [specs/features/099-instrument-editor-live-edit/](specs/features/099-instrument-editor-live-edit/)
 - **098** `instrument-editor-preview-pitch` (per-type preview octave / oneshot / uge_note; DMC sample meta) — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/229 — [specs/features/098-instrument-editor-preview-pitch/](specs/features/098-instrument-editor-preview-pitch/)
 

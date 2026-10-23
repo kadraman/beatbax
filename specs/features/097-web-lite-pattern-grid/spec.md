@@ -6,7 +6,7 @@ status: "planned"
 authors:
   - "kadraman"
 created: "2026-10-12"
-updated: "2026-10-18"
+updated: "2026-10-23"
 issue: "https://github.com/kadraman/beatbax/issues/227"
 area: "web"
 related:
@@ -14,6 +14,7 @@ related:
   - "specs/complete/076-desktop-first-client-split/spec.md"
   - "specs/complete/079-desktop-web-ui-retirement/spec.md"
   - "specs/complete/087-pattern-combination-preview/spec.md"
+  - "specs/features/100-pattern-grid-zoom/spec.md"
 ---
 
 # Feature Specification: Web-lite Pattern Grid with seek and loop
@@ -106,6 +107,11 @@ This reverses one decision in [spec 076](../../complete/076-desktop-first-client
 - Persisting start/loop state, or encoding it in the song.
 - Merging the desktop and web-lite grid components or stylesheets. Sharing the desktop React component was considered (one implementation, no duplicated alignment and gesture code) and rejected to keep React and react-dom out of the web-lite bundle.
 - Restoring any other feature spec 076 removed from web-lite (export, Copilot, channel mixer host, advanced editor, MIDI step entry).
+- Pattern Grid zoom / horizontal scroll UI (desktop feature [100](../100-pattern-grid-zoom/spec.md)). FR-010 remains transport-outcome parity only; zoom is not required for this feature.
+
+## Future
+
+- **Pattern Grid zoom and scroll on web-lite.** Desktop zoom/scroll is specified in [feature 100](../100-pattern-grid-zoom/spec.md). When that ships, web-lite may reuse the same `@beatbax/app-core` zoom helpers for Auto / Fit / clamp / zoom-about-anchor without sharing the React grid component. That work is a follow-up to this spec, not part of FR-010.
 
 ## Success criteria
 
