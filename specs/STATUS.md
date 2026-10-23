@@ -1,8 +1,11 @@
 # Specification status index
 
-Assign the next feature id as **098** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **100** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
+
+- **099** `instrument-editor-live-edit` (Live edit toggle + Apply/Revert draft audition) — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/230 — [specs/features/099-instrument-editor-live-edit/](specs/features/099-instrument-editor-live-edit/)
+- **098** `instrument-editor-preview-pitch` (per-type preview octave / oneshot / uge_note; DMC sample meta) — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/229 — [specs/features/098-instrument-editor-preview-pitch/](specs/features/098-instrument-editor-preview-pitch/)
 
 - **001** `hot-reload` — specified — engine — issue: https://github.com/kadraman/beatbax/issues/6 — [specs/features/001-hot-reload/](specs/features/001-hot-reload/)
 - **002** `vscode-plugin` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/21 — [specs/features/002-vscode-plugin/](specs/features/002-vscode-plugin/)

@@ -11,7 +11,7 @@ import { createTriangleChannel } from './triangle.js';
 import { createNoiseChannel } from './noise.js';
 import { createDmcChannel, resolveRawDMCSample, preloadDMCSamples } from './dmc.js';
 import { validateNesInstrument } from './validate.js';
-import { BUNDLED_SAMPLES } from './dmcSamples.js';
+import { BUNDLED_SAMPLES, BUNDLED_SAMPLE_META } from './dmcSamples.js';
 import { nesUIContributions } from './ui-contributions.js';
 import { setNesClockRegion } from './periodTables.js';
 import { nesSongWizard } from './songWizard.js';
@@ -34,6 +34,7 @@ const nesPlugin: ChipPlugin = {
   supportsPerChannelVolume: true,
   instrumentVolumeRange: { min: 0, max: 15 },
   bundledSamples: BUNDLED_SAMPLES,
+  bundledSampleMeta: BUNDLED_SAMPLE_META,
   uiContributions: nesUIContributions,
   newSongWizard: nesSongWizard,
   instrumentEditor: nesInstrumentEditor,

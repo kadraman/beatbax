@@ -198,4 +198,24 @@ describe('chip instrumentEditor schemas', () => {
     expect(refs).toContain('@nes/snare');
     expect(refs).toContain('@nes/bass_c2');
   });
+
+  it('publishes previewMode / previewOctave and bundledSampleMeta (098)', () => {
+    const gbTypes = Object.fromEntries(
+      (gameboyPlugin.instrumentEditor?.types ?? []).map((t) => [t.id, t]),
+    );
+    expect(gbTypes.wave?.previewOctave).toBe(2);
+    expect(gbTypes.noise?.previewMode).toBe('uge_note');
+
+    const nesTypes = Object.fromEntries(
+      (nesPlugin.instrumentEditor?.types ?? []).map((t) => [t.id, t]),
+    );
+    expect(nesTypes.triangle?.previewOctave).toBe(2);
+    expect(nesTypes.dmc?.previewMode).toBe('oneshot');
+
+    expect(nesPlugin.bundledSampleMeta).toBeDefined();
+    for (const name of Object.keys(nesPlugin.bundledSamples ?? {})) {
+      expect(nesPlugin.bundledSampleMeta?.[name]?.designedRate).toBe(15);
+    }
+    expect(nesPlugin.bundledSampleMeta?.bass_c2?.baseNote).toBe('C2');
+  });
 });

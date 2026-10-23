@@ -71,8 +71,15 @@ export interface FullIdeSetupOptions {
   transportDisplay: TransportDisplayState;
   /** When section focus is active, play the focused slice instead of the full song. */
   tryPlayFocused?: () => boolean;
-  /** When the Instrument Editor tab is active, MIDI idle notes preview this `inst`. */
-  getInstrumentAuditionTarget?: () => string | null;
+  /**
+   * When the Instrument Editor tab is active, MIDI idle notes preview this `inst`.
+   * Percussion oneshot types return `mode: 'hit'` / `sustain: false` (same as Trigger).
+   */
+  getInstrumentMidiAudition?: () => {
+    name: string;
+    note: string;
+    options: { sustain?: boolean; mode?: 'note' | 'hit'; instPatch?: Record<string, unknown> };
+  } | null;
 }
 
 export interface FullIdeSetupHandle {
@@ -92,7 +99,7 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
     capabilities,
     transportDisplay,
     tryPlayFocused,
-    getInstrumentAuditionTarget,
+    getInstrumentMidiAudition,
   } = options;
 
   const cleanups: Array<() => void> = [];
@@ -408,10 +415,17 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
     midiController = new MidiStepEntryController({
       getEditor: () => getEditor()?.editor ?? null,
       onAuditionNote: (noteName) => {
-        const instName = getInstrumentAuditionTarget?.();
-        if (instName) {
-          triggerInstNotePreview(instName, noteName, { sustain: true });
-          eventBus.emit('instrument-editor:audition', { note: noteName });
+        const audition = getInstrumentMidiAudition?.();
+        if (audition) {
+          const isHit = audition.options.mode === 'hit';
+          triggerInstNotePreview(
+            audition.name,
+            isHit ? audition.note : noteName,
+            isHit ? audition.options : { sustain: true, ...audition.options },
+          );
+          eventBus.emit('instrument-editor:audition', {
+            note: isHit ? audition.note : noteName,
+          });
           return;
         }
         const monacoEditor = getEditor()?.editor;
@@ -421,10 +435,15 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
         triggerStepEntryAudition(model.getLineContent(pos.lineNumber), noteName);
       },
       onAuditionNoteStop: () => {
-        if (getInstrumentAuditionTarget?.()) {
-          stopInstPreview();
+        const audition = getInstrumentMidiAudition?.();
+        if (!audition) return;
+        // Percussion oneshot (noise / DMC / uge_note): play to end — do not stop on note-off.
+        if (audition.options.mode === 'hit' && audition.options.sustain === false) {
           eventBus.emit('instrument-editor:audition', { note: null });
+          return;
         }
+        stopInstPreview();
+        eventBus.emit('instrument-editor:audition', { note: null });
       },
       onPreviewEffect: (effectName) => {
         triggerEffectPreview(effectName);
