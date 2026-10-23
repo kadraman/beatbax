@@ -233,6 +233,15 @@ When exporting to hUGETracker, BeatBax maps `bpm` to integer ticks per row (`rou
 | Wave | `wave=[32]` (or `[16]` shorthand), `volume=` | 32 nibbles 0..15, volume default `100` |
 | Noise | `width`, `uge_note`, `env`, `length` | width=15, uge_note=C-7, env=gb:15,down,1 |
 
+## Shareable kits
+
+Reusable kits live in [kadraman/beatbax-instruments](https://github.com/kadraman/beatbax-instruments) (`gameboy/` and `nes/` leaf `.ins` files, plus concatenated `kit.ins`). Remote `.ins` files **cannot nest `import`** (security); import leaf files or a single concatenated kit. Local `.ins` may nest imports. See also [import-security.md](import-security.md).
+
+```bax
+import "github:kadraman/beatbax-instruments/main/gameboy/kit.ins"
+import "github:kadraman/beatbax-instruments/main/nes/drums.ins"
+```
+
 ## Tests & examples
 - See `songs/instrument_demo.bax` and the added tutorial example for quick demos.
 - Test suggestions: validate `parseWaveTable()` clamps values, that 16-value input tiles correctly to 32, that 32-value input is used as-is, that 32-nibble hex strings are parsed correctly, envelope parsing edge cases, and noise frequency mapping under unit tests.

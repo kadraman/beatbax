@@ -1,35 +1,25 @@
 chip gameboy
 bpm 140
 
-# Remote import from GitHub (using shorthand)
-import "github:kadraman/beatbax-instruments/main/melodic.ins"
-import "github:kadraman/beatbax-instruments/main/percussion.ins"
+# Preferred: chip-scoped leaf kits or concatenated kit (remote-safe; no nested imports)
+import "github:kadraman/beatbax-instruments/main/gameboy/melodic.ins"
+import "github:kadraman/beatbax-instruments/main/gameboy/drums.ins"
+# One-shot full kit:
+# import "github:kadraman/beatbax-instruments/main/gameboy/kit.ins"
 
-# Remote import from HTTPS URL examples
-# Main branch (default)
-#import "github:kadraman/beatbax-instruments/main/melodic.ins"
-#
-# Development branch
-#import "github:kadraman/beatbax-instruments/develop/melodic.ins"
-#
-# Feature branch
-#import "github:kadraman/beatbax-instruments/feature/sid-chip/melodic.ins"
-#
-# Git tag/release
-#import "github:kadraman/beatbax-instruments/v1.2.3/melodic.ins"
-#
-# Branch with subdirectories
-#import "github:kadraman/beatbax-instruments/main/chips/gameboy/melodic.ins"
-#
-# Local imports still work as before
-#import "local:lib/gameboy-common.ins"
-#import "local:lib/gameboy-drums.ins"
-#
-#  Remote example that fails without whitelisting
-#import "https://example.com/kits/lead.ins"
+# Legacy root paths (still published for compatibility)
+# import "github:kadraman/beatbax-instruments/main/melodic.ins"
+# import "github:kadraman/beatbax-instruments/main/percussion.ins"
+
+# Branch / tag examples
+# import "github:kadraman/beatbax-instruments/develop/gameboy/melodic.ins"
+# import "github:kadraman/beatbax-instruments/v1.2.3/gameboy/melodic.ins"
+
+# Local imports (relative to this song)
+# import "local:lib/gameboy-common.ins"
+# import "local:lib/gameboy-drums.ins"
 
 # Local instrument overrides remote/imported instruments
-# (this overrides any imported 'gb_lead' if it exists)
 inst gb_lead type=pulse1 duty=12 env=8,down
 
 pat melody = C5 E5 G5 C6
