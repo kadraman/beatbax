@@ -426,7 +426,9 @@ SID and SNES must not require Desktop code changes beyond generic widgets once t
 ## Future Enhancements
 
 - Web UI port of the same host widgets.
-- Game Boy `subpat` tracker-row editor (empty rows, jumps, `fx:`).
+- Game Boy `subpat` tracker-row editor (empty rows, jumps, `fx:`). Single-column Create/Attach/Detach + row edit is planned as [feature 101](../../features/101-instrument-editor-subpat-rows/spec.md); multi-column tracker columns remain future after 101.
+- NES DMC sample **Browse…** (Local) and in-panel **Check** (Local / HTTPS / GitHub / Bundled), plus unknown `@nes/` validation — planned as [feature 102](../../features/102-instrument-editor-sample-browse-verify/spec.md). (v1 sample widget remains scheme + typed value with no filesystem Browse until 102 ships.)
+- In-panel `wav2dmc` / WAV→DMC convert after Browse/Check (CLI `wav2dmc` remains until then).
 - Shared wavetable bank (only if language support is added; not implied by hUGE).
 - Optional plugin widget slots for SID combined-wave, SNES BRR encode picker.
 - In-place editing of `.ins` libraries.
