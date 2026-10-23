@@ -10,6 +10,18 @@ This is a BeatBax-owned process (constitution, spec, plan, tasks). It is **not**
 - **Specification** (`.github/ISSUE_TEMPLATE/spec.yml`): the change is already an engineering spec (language, AST, plugin contract). Labeled `spec` and `needs-spec`.
 - **Bug** (`.github/ISSUE_TEMPLATE/bug.yml`): defect. If the fix changes specified behavior, update the linked spec or add a new spec folder.
 
+### Issue labels: `needs-spec` → `spec`
+
+Templates start Feature and Specification issues with `needs-spec` (Specification issues also get `spec` from the template — treat that as aspirational until the folder exists).
+
+When `specs/features/NNN-slug/` exists, the issue URL is in `spec.md` frontmatter, and the path is commented on the issue:
+
+1. Remove `needs-spec`.
+2. Ensure `spec` is present (add it if missing).
+3. Optionally add area labels (`desktop-ui`, `engine`, `cli`, …) and `priority:*` / `effort:*`.
+
+Keep `spec` after the feature ships (`complete/`). Do not invent a third ready-state label.
+
 ## Required artifacts
 
 Every in-flight feature lives in `specs/features/NNN-slug/` and **always** has:
