@@ -2,11 +2,11 @@ import type { ChipInstrumentEditor } from '../types.js';
 
 export const nesInstrumentEditor: ChipInstrumentEditor = {
   types: [
-    { id: 'pulse1', label: 'Pulse 1', previewChannel: 1 },
-    { id: 'pulse2', label: 'Pulse 2', previewChannel: 2 },
-    { id: 'triangle', label: 'Triangle', previewChannel: 3 },
-    { id: 'noise', label: 'Noise', previewChannel: 4 },
-    { id: 'dmc', label: 'DMC', previewChannel: 5 },
+    { id: 'pulse1', label: 'Pulse 1', previewChannel: 1, previewMode: 'melodic', previewOctave: 4 },
+    { id: 'pulse2', label: 'Pulse 2', previewChannel: 2, previewMode: 'melodic', previewOctave: 4 },
+    { id: 'triangle', label: 'Triangle', previewChannel: 3, previewMode: 'melodic', previewOctave: 2 },
+    { id: 'noise', label: 'Noise', previewChannel: 4, previewMode: 'oneshot' },
+    { id: 'dmc', label: 'DMC', previewChannel: 5, previewMode: 'oneshot' },
   ],
   fields: [
     // Type-defining controls first (appear immediately after Type in the panel).

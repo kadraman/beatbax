@@ -78,6 +78,10 @@ pat drums = snare . snare .  # Clean and readable
 
 **The Game Boy noise channel does not use traditional musical pitch**, but the **`uge_note=` label selects the LFSR clock rate** (same mapping hUGEDriver uses via `get_note_poly`).
 
+In the Desktop Instrument Editor, noise instruments use a **Trigger** (named hit) plus an optional UGE / noise-clock strip for audition — not the melodic octave keyboard. Strip keys audition only; they do not rewrite `uge_note=` unless you edit the Defaults field.
+
+**Spectrum 128 / AY:** there is no dedicated noise instrument type. Percussion is usually a tone channel with `tone_mix=true` (shared noise into that voice). `note=` still sets the tone click/stick pitch on named hits. In the Instrument Editor, `tone_mix=true` switches preview to **Trigger** (oneshot named hit) instead of the chromatic keyboard.
+
 When you specify `uge_note=C-7` for a noise instrument:
 
 - **Playback (WebAudio + CLI/WAV):** NR43 shift/divisor are derived from `uge_note`; timbre/decay come from `gb:width`, `env`, and `length`.

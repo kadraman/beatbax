@@ -1,6 +1,6 @@
 # Instruments Reference
 
-Desktop can edit `inst` lines graphically (Settings → Features → Instrument Editor). The language syntax below is unchanged; the panel writes the same fields back into source. Hardware `env` / `sweep` appear as parametric controls with a live shape preview; software macros (`vol_env`, …) are editable bar graphs (click/drag), one tab per defined macro.
+Desktop can edit `inst` lines graphically (Settings → Features → Instrument Editor). The language syntax below is unchanged; with **Live edit** on (default), the panel writes valid field changes back into the `.bax` `inst` line. Turn Live edit off to audition a panel draft without rewriting that line; **Apply** writes the draft to the editor, **Revert** discards panel edits and reloads from the editor. Hardware `env` / `sweep` appear as parametric controls with a live shape preview; software macros (`vol_env`, …) are editable bar graphs (click/drag), one tab per defined macro.
 
 ## Pulse (Duty)
 

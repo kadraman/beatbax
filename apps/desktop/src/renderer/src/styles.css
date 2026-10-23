@@ -2036,7 +2036,8 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-right-tab__icon { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; }
 .bb-right-tab__icon-svg { width: 14px; height: 14px; display: block; }
 .bb-right-tab__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: clip; }
-.bb-right-tab-bar--compact .bb-right-tab { justify-content: center; gap: 2px; padding: 7px 4px; }
+/* Compact: keep icon+close centred as a pair, but with enough gap to avoid mis-clicks. */
+.bb-right-tab-bar--compact .bb-right-tab { justify-content: center; gap: 10px; padding: 7px 6px; }
 .bb-right-tab-bar--compact .bb-right-tab__label { display: none; }
 .bb-right-tab__close { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 3px; font-size: 11px; line-height: 1; color: var(--text-muted, #888); opacity: 0; transition: opacity 0.1s, background 0.1s; pointer-events: none; }
 .bb-right-tab:hover .bb-right-tab__close,
@@ -9026,6 +9027,9 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   display: block;
   width: 14px;
   height: 14px;
+  /* Native title tooltips attach to the hovered node; SVG children would
+     otherwise steal hover and suppress the button's title (same as mixer/viz). */
+  pointer-events: none;
 }
 .bb-inst-editor__toolbar-btn:hover:not(:disabled):not([aria-disabled="true"]) {
   filter: brightness(1.3);
@@ -9036,6 +9040,51 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   opacity: 0.35;
   cursor: default;
   filter: none;
+}
+.bb-inst-editor__toolbar-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: #444;
+  flex-shrink: 0;
+}
+/* Invisible but laid out — keeps Live/Apply/Revert positions stable. */
+.bb-inst-editor__toolbar-btn.is-slot-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+.bb-inst-editor__toolbar-status {
+  flex-shrink: 0;
+  height: 18px;
+  padding: 0 calc(28px + 8px);
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--text-muted, #9a9a9a);
+  background: var(--header-bg, #252526);
+  border-bottom: 1px solid var(--border-color, #3c3c3c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  user-select: none;
+}
+.bb-inst-editor__toolbar-btn.is-active {
+  color: var(--bb-accent, #c8a227);
+  border-color: var(--bb-accent, #c8a227);
+}
+.bb-inst-editor__toolbar-btn.is-dirty:not(:disabled):not([aria-disabled="true"]) {
+  color: var(--bb-accent, #c8a227);
+  border-color: var(--bb-accent, #c8a227);
+}
+.bb-inst-editor__dialog-copy {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-color, #d4d4d4);
 }
 .bb-inst-editor__dialog-backdrop {
   z-index: 9200;
@@ -9293,6 +9342,18 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 [data-theme="light"] .bb-inst-editor__toolbar-btn[aria-disabled="true"] {
   opacity: 0.4;
 }
+[data-theme="light"] .bb-inst-editor__toolbar-sep { background: #bbb; }
+[data-theme="light"] .bb-inst-editor__toolbar-status {
+  color: #666;
+  background: #f3f3f3;
+  border-bottom-color: #ddd;
+}
+[data-theme="light"] .bb-inst-editor__toolbar-btn.is-active,
+[data-theme="light"] .bb-inst-editor__toolbar-btn.is-dirty:not(:disabled):not([aria-disabled="true"]) {
+  color: #8a7018;
+  border-color: #8a7018;
+}
+[data-theme="light"] .bb-inst-editor__dialog-copy { color: #333; }
 [data-theme="light"] .bb-inst-editor__dialog {
   background: #f8f8f8;
   border-color: #ccc;
@@ -9774,6 +9835,75 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-inst-editor__black.is-active {
   background: #34d399;
   color: #064e3b;
+}
+.bb-inst-editor__oneshot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+.bb-inst-editor__trigger {
+  align-self: flex-start;
+  min-width: 7.5rem;
+  padding: 8px 14px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #2a2a2a;
+  color: #eee;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bb-inst-editor__trigger:hover {
+  background: #3a3a3a;
+}
+.bb-inst-editor__trigger.is-active {
+  background: #34d399;
+  border-color: #059669;
+  color: #064e3b;
+}
+.bb-inst-editor__sample-meta {
+  margin: 0;
+}
+.bb-inst-editor__uge-strip {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bb-inst-editor__uge-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.bb-inst-editor__uge-key {
+  min-width: 2.4rem;
+  padding: 6px 8px;
+  border: 1px solid #555;
+  border-radius: 3px;
+  background: #222;
+  color: #ddd;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.bb-inst-editor__uge-key:hover {
+  background: #333;
+}
+.bb-inst-editor__uge-key.is-active {
+  background: #34d399;
+  border-color: #059669;
+  color: #064e3b;
+}
+[data-theme="light"] .bb-inst-editor__trigger {
+  background: #eee;
+  border-color: #bbb;
+  color: #222;
+}
+[data-theme="light"] .bb-inst-editor__uge-key {
+  background: #f3f3f3;
+  border-color: #bbb;
+  color: #333;
 }
 [data-theme="light"] .bb-inst-editor__midi-enable { color: #333; }
 [data-theme="light"] .bb-inst-editor__midi-status { color: #666; }

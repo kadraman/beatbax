@@ -1,8 +1,13 @@
 /** Jest mock for @beatbax/engine/chips — avoids loading ESM dist in tests. */
 
 import { gameboyUIContributions } from '../../../../packages/engine/src/chips/gameboy/ui-contributions';
+import { gameboyInstrumentEditor } from '../../../../packages/engine/src/chips/gameboy/instrument-editor';
 import { nesUIContributions } from '../../../../packages/engine/src/chips/nes/ui-contributions';
+import { nesInstrumentEditor } from '../../../../packages/engine/src/chips/nes/instrument-editor';
 import { smsUIContributions } from '../../../../packages/plugins/chip-sms/src/ui-contributions';
+import { smsInstrumentEditor } from '../../../../packages/plugins/chip-sms/src/instrument-editor';
+import { spectrumInstrumentEditor } from '../../../../packages/plugins/chip-spectrum-128/src/instrument-editor';
+import { BUNDLED_SAMPLE_META } from '../../../../packages/engine/src/chips/nes/dmcSamples';
 
 /** Minimal spectrum hover docs for tests (full plugin imports platform-profiles.js). */
 const spectrumTestHoverDocs = {
@@ -47,6 +52,9 @@ const plugins = new Map<string, {
   getMeterDisplayGain?: (channelIndex: number) => number;
   uiContributions?: { hoverDocs?: Record<string, string> };
   bundledSamples?: Record<string, string>;
+  bundledSampleMeta?: Record<string, { designedRate?: number; baseNote?: string }>;
+  instrumentEditor?: unknown;
+  channels?: number;
 }>();
 
 export class ChipRegistry {
@@ -69,6 +77,9 @@ export class ChipRegistry {
     getMeterDisplayGain?: (channelIndex: number) => number;
     uiContributions?: { hoverDocs?: Record<string, string> };
     bundledSamples?: Record<string, string>;
+    bundledSampleMeta?: Record<string, { designedRate?: number; baseNote?: string }>;
+    instrumentEditor?: unknown;
+    channels?: number;
   }) {
     plugins.set(plugin.name, plugin);
   }
@@ -90,11 +101,14 @@ export const chipRegistry = new ChipRegistry();
 
 chipRegistry.register({
   name: 'gameboy',
+  channels: 4,
   supportsPerChannelVolume: false,
   uiContributions: gameboyUIContributions,
+  instrumentEditor: gameboyInstrumentEditor,
 });
 chipRegistry.register({
   name: 'nes',
+  channels: 5,
   supportsPerChannelVolume: true,
   getMeterDisplayGain: (channelIndex: number) => {
     if (channelIndex === 0 || channelIndex === 1) return 1 / (0.00752 * 15);
@@ -105,11 +119,14 @@ chipRegistry.register({
   },
   uiContributions: nesUIContributions,
   bundledSamples: { kick: 'AA', snare: 'BB', bass_c2: 'CC' },
+  bundledSampleMeta: BUNDLED_SAMPLE_META,
+  instrumentEditor: nesInstrumentEditor,
 });
 const SMS_TONE_MIX_GAIN = 0.35 * (0.85 / (3 * 0.35 + 0.30));
 const SMS_NOISE_MIX_GAIN = 0.30 * (0.85 / (3 * 0.35 + 0.30));
 chipRegistry.register({
   name: 'sms',
+  channels: 4,
   supportsPerChannelVolume: true,
   getMeterDisplayGain: (channelIndex: number) => {
     if (channelIndex === 0 || channelIndex === 1 || channelIndex === 2) {
@@ -119,5 +136,11 @@ chipRegistry.register({
     return 1;
   },
   uiContributions: smsUIContributions,
+  instrumentEditor: smsInstrumentEditor,
 });
-chipRegistry.register({ name: 'spectrum-128', uiContributions: { hoverDocs: spectrumTestHoverDocs } });
+chipRegistry.register({
+  name: 'spectrum-128',
+  channels: 3,
+  uiContributions: { hoverDocs: spectrumTestHoverDocs },
+  instrumentEditor: spectrumInstrumentEditor,
+});
