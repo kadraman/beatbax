@@ -876,14 +876,14 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
 
         // Playback emits SongModel as `ast` (channels carry `events`, no `sections`).
         // Keep a prior parse AST for Pattern Grid section navigation when that happens.
-        const incomingAst = (ast ?? resolvedAst) as
-          | { chip?: string; channels?: Array<{ id: number; events?: unknown }> }
-          | undefined;
+        type LayoutAst = { chip?: string; channels?: Array<{ id: number; events?: unknown }> };
+        const incomingAst = (ast ?? resolvedAst) as LayoutAst | undefined;
         const looksLikeSongModel = !!incomingAst?.channels?.some((ch) => Array.isArray(ch?.events));
-        const priorLayoutAst = lastSongContext?.ast as typeof incomingAst | undefined;
-        const layoutAst = (looksLikeSongModel && priorLayoutAst ? priorLayoutAst : null)
+        const priorLayoutAst = lastSongContext?.ast as LayoutAst | undefined;
+        const layoutAst: LayoutAst | undefined =
+          (looksLikeSongModel && priorLayoutAst ? priorLayoutAst : undefined)
           ?? incomingAst
-          ?? resolvedAst;
+          ?? (resolvedAst as LayoutAst | undefined);
         const channels = layoutAst?.channels
           ?? (song as { channels?: Array<{ id: number }> } | undefined)?.channels;
         if (channels?.length) ensureChannels(channels.map((c) => c.id));
