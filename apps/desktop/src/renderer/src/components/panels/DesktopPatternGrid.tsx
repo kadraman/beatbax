@@ -39,7 +39,7 @@ import {
   rowStepSpans,
   stepFromClientX,
   type TimelineDragKind,
-} from '../../lib/pattern-grid-timeline';
+} from '@beatbax/app-core/playback/pattern-grid-timeline';
 
 interface Segment {
   patName: string;
@@ -79,7 +79,7 @@ interface DesktopPatternGridProps {
 }
 
 export interface DesktopPatternGridHandle {
-  setSong: (song: unknown, ast?: unknown) => void;
+  setSong: (song: unknown, ast?: unknown, source?: string) => void;
   setPosition: (channelId: number, progress: number) => void;
   setGlobalProgress: (progress: number) => void;
   pausePositions: () => void;
@@ -194,7 +194,7 @@ function channelPositionsAtPct(
   return Object.fromEntries(rows.map((row) => [row.channelId, pct]));
 }
 
-function buildRows(song: any, ast?: any): {
+function buildRows(song: any, ast?: any, source = ''): {
   rows: PatternGridRow[];
   globalEventTotal: number;
   sectionBlocks: ArrangementSectionBlock[];
@@ -204,7 +204,7 @@ function buildRows(song: any, ast?: any): {
     return { rows: [], globalEventTotal: 1, sectionBlocks: [] };
   }
 
-  const timelines = buildChannelTimelines('', song, ast);
+  const timelines = buildChannelTimelines(source, song, ast);
   const rowData = timelines.map((timeline) => {
     const segs: Segment[] = timeline.segments.map((s) => ({
       patName: s.patName,
@@ -221,7 +221,7 @@ function buildRows(song: any, ast?: any): {
   const chip: string = song?.chip ?? 'gameboy';
   return {
     globalEventTotal,
-    sectionBlocks: listArrangementSections('', song, ast),
+    sectionBlocks: listArrangementSections(source, song, ast),
     rows: rowData.map((row) => ({
       channelId: row.ch?.id ?? 0,
       color: getChannelColor(chip, row.ch?.id ?? 0),
@@ -475,8 +475,8 @@ function DesktopPatternGrid({
   }, [globalPct, rows, sectionFocus, updateGlobalLeft, updateFocusColumnRect, updateRangeOverlay]);
 
   useImperativeHandle(gridRef, () => ({
-    setSong: (song, ast) => {
-      const next = buildRows(song, ast);
+    setSong: (song, ast, source) => {
+      const next = buildRows(song, ast, source ?? '');
       setRows(next.rows);
       setSectionBlocks(next.sectionBlocks);
       globalEventTotalRef.current = next.globalEventTotal;
@@ -947,7 +947,7 @@ export function createDesktopPatternGrid(
   };
 
   return {
-    setSong: (song, ast) => call((handle) => handle.setSong(song, ast)),
+    setSong: (song, ast, source) => call((handle) => handle.setSong(song, ast, source)),
     setPosition: (channelId, progress) => call((handle) => handle.setPosition(channelId, progress)),
     setGlobalProgress: (progress) => call((handle) => handle.setGlobalProgress(progress)),
     pausePositions: () => call((handle) => handle.pausePositions()),

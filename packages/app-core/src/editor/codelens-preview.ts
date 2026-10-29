@@ -2,8 +2,8 @@
  * CodeLens Pattern & Instrument Preview
  *
  * Registers a Monaco CodeLens provider for the 'beatbax' language that adds
- * "▶ Preview <name>" / "⬛ Stop  <name>" inline actions above every `pat` and
- * `inst` definition line.
+ * "▶ Preview" / "⬛ Stop" inline actions above `pat`, `seq`, `section` (and role
+ * lines), `inst`, and `effect` definition lines.
  *
  * Pattern instrument resolution priority:
  *   1. First inline `inst` token inside the pattern's own event list
@@ -289,6 +289,97 @@ async function startSeqPreview(
   };
 
   return { player, key: `seq:${seqName}`, stopTimer };
+}
+
+/** Generated seq name for a section role after composition expand (`intro_mel`). */
+export function sectionRoleSeqName(sectionName: string, role: string): string {
+  return `${sectionName}_${role}`;
+}
+
+/**
+ * Role seq names for a section: prefer authored `ast.sections`, else scan
+ * expanded `ast.seqs` keys matching `<section>_*`.
+ */
+export function listSectionRoleSeqNames(sectionName: string, ast: any): string[] {
+  const section = ast?.sections?.[sectionName];
+  if (section?.roles && Array.isArray(section.roles) && section.roles.length > 0) {
+    return section.roles
+      .map((r: { role?: string }) => (r?.role ? sectionRoleSeqName(sectionName, String(r.role)) : ''))
+      .filter(Boolean);
+  }
+  const prefix = `${sectionName}_`;
+  return Object.keys(ast?.seqs ?? {})
+    .filter((name) => name.startsWith(prefix) && !name.slice(prefix.length).includes('_'))
+    .sort();
+}
+
+/** Multi-channel preview of one authored section (all roles, bound instruments). */
+async function startSectionPreview(
+  sectionName: string,
+  rawAst: any,
+  onDone: () => void,
+): Promise<PreviewState | null> {
+  const roleSeqs = listSectionRoleSeqNames(sectionName, rawAst);
+  if (roleSeqs.length === 0) return null;
+
+  const channels: Array<{ id: number; inst: string; pat: string }> = [];
+  const usedIds = new Set<number>();
+  for (const seqName of roleSeqs) {
+    if (!rawAst.seqs?.[seqName] && !rawAst.pats?.[seqName]) continue;
+    const found = findChannelForNamedItem(rawAst, seqName);
+    const instName = found?.inst
+      ?? Object.keys(rawAst.insts ?? {})[0]
+      ?? null;
+    if (!instName) continue;
+    let id = found?.id ?? instChannelId(instName, rawAst);
+    while (usedIds.has(id)) id += 1;
+    usedIds.add(id);
+    channels.push({ id, inst: instName, pat: seqName });
+  }
+  if (channels.length === 0) return null;
+
+  const previewAst = {
+    ...rawAst,
+    channels,
+    play: { auto: false },
+  };
+
+  let songModel: any;
+  try {
+    songModel = resolveSong(previewAst as any);
+  } catch {
+    return null;
+  }
+
+  let player: Player;
+  try {
+    player = new Player(_sharedCtx ?? undefined);
+    await player.playAST(songModel as any);
+  } catch {
+    return null;
+  }
+
+  const bpm: number = rawAst.bpm ?? 120;
+  const stepsPerBar: number = rawAst.stepsPerBar ?? rawAst.time ?? 4;
+  const totalSteps = Math.max(
+    1,
+    ...(songModel.channels ?? []).map((ch: any) => ch?.events?.length ?? 0),
+  );
+  const barDurationMs = (60_000 / bpm) * stepsPerBar;
+  const barsNeeded = Math.max(1, Math.ceil(totalSteps / stepsPerBar));
+  const durationMs = barDurationMs * barsNeeded + 500;
+
+  const stopTimer = window.setTimeout(() => {
+    try { player.stop(); } catch (_e) { /* ignore */ }
+    onDone();
+  }, durationMs);
+
+  player.onComplete = () => {
+    clearTimeout(stopTimer);
+    onDone();
+  };
+
+  return { player, key: `section:${sectionName}`, stopTimer };
 }
 
 // Notes shown as individual clickable buttons above each `inst` line.
@@ -632,6 +723,10 @@ let _previewTrigger: ((patternName: string) => void) | null = null;
 let _loopTrigger: ((patternName: string) => void) | null = null;
 let _seqPreviewTrigger: ((seqName: string) => void) | null = null;
 let _seqLoopTrigger: ((seqName: string) => void) | null = null;
+let _sectionPreviewTrigger: ((sectionName: string) => void) | null = null;
+let _sectionLoopTrigger: ((sectionName: string) => void) | null = null;
+let _sectionRolePreviewTrigger: ((sectionName: string, role: string) => void) | null = null;
+let _sectionRoleLoopTrigger: ((sectionName: string, role: string) => void) | null = null;
 let _instNotePreviewTrigger: ((instName: string, note: string, options?: InstNotePreviewOptions) => void) | null = null;
 let _stepEntryAuditionTrigger: ((lineText: string, note: string) => void) | null = null;
 let _effectPreviewTrigger: ((effectName: string) => void) | null = null;
@@ -685,6 +780,18 @@ function ensureCommandsRegistered(): void {
   });
   monaco.editor.registerCommand('beatbax.loopSeq', (_acc: any, seqName: string) => {
     _seqLoopTrigger?.(seqName);
+  });
+  monaco.editor.registerCommand('beatbax.previewSection', (_acc: any, sectionName: string) => {
+    _sectionPreviewTrigger?.(sectionName);
+  });
+  monaco.editor.registerCommand('beatbax.loopSection', (_acc: any, sectionName: string) => {
+    _sectionLoopTrigger?.(sectionName);
+  });
+  monaco.editor.registerCommand('beatbax.previewSectionRole', (_acc: any, sectionName: string, role: string) => {
+    _sectionRolePreviewTrigger?.(sectionName, role);
+  });
+  monaco.editor.registerCommand('beatbax.loopSectionRole', (_acc: any, sectionName: string, role: string) => {
+    _sectionRoleLoopTrigger?.(sectionName, role);
   });
   monaco.editor.registerCommand('beatbax.previewInstNote', (_acc: any, instName: string, note: string) => {
     _instNotePreviewTrigger?.(instName, note);
@@ -972,6 +1079,115 @@ export function setupCodeLensPreview(
     await playNext();
   };
 
+  _sectionRolePreviewTrigger = async (sectionName: string, role: string) => {
+    ensureAudioCtxReady();
+    const seqName = sectionRoleSeqName(sectionName, role);
+    const key = `section-role:${sectionName}:${role}`;
+    if (previewState?.key === key) { stopPreview(); return; }
+    const generation = beginPreview();
+    const rawAst = await astForPreview();
+    if (!previewIsCurrent(generation) || !rawAst) return;
+    const state = await startSeqPreview(seqName, rawAst, () => {
+      previewState = null;
+      notifyChange();
+    });
+    if (state) state.key = key;
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: no instrument found for section role '${sectionName}.${role}'.`,
+    );
+  };
+
+  _sectionRoleLoopTrigger = async (sectionName: string, role: string) => {
+    ensureAudioCtxReady();
+    const seqName = sectionRoleSeqName(sectionName, role);
+    const key = `section-role-loop:${sectionName}:${role}`;
+    if (previewState?.key === key) { stopPreview(); return; }
+    const generation = beginPreview();
+
+    let cancelled = false;
+    const cancel = () => { cancelled = true; };
+
+    async function playNext(): Promise<void> {
+      if (cancelled || !previewIsCurrent(generation)) return;
+      const rawAst = await astForPreview();
+      if (!rawAst || cancelled || !previewIsCurrent(generation)) return;
+      let fired = false;
+      const onIterationDone = () => {
+        if (fired || cancelled || !previewIsCurrent(generation)) return;
+        fired = true;
+        void playNext();
+      };
+      const state = await startSeqPreview(seqName, rawAst, onIterationDone);
+      if (!state || cancelled || !previewIsCurrent(generation)) {
+        abandonUnassignedPreview(state);
+        if (!state && !cancelled && previewIsCurrent(generation)) {
+          failPreview(`Preview unavailable: no instrument found for section role '${sectionName}.${role}'.`);
+        }
+        return;
+      }
+      state.key = key;
+      state.cancelLoop = cancel;
+      previewState = state;
+      notifyChange();
+    }
+
+    await playNext();
+  };
+
+  _sectionPreviewTrigger = async (sectionName: string) => {
+    ensureAudioCtxReady();
+    if (previewState?.key === `section:${sectionName}`) { stopPreview(); return; }
+    const generation = beginPreview();
+    const rawAst = await astForPreview();
+    if (!previewIsCurrent(generation) || !rawAst) return;
+    const state = await startSectionPreview(sectionName, rawAst, () => {
+      previewState = null;
+      notifyChange();
+    });
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: section '${sectionName}' has no playable roles.`,
+    );
+  };
+
+  _sectionLoopTrigger = async (sectionName: string) => {
+    ensureAudioCtxReady();
+    if (previewState?.key === `section-loop:${sectionName}`) { stopPreview(); return; }
+    const generation = beginPreview();
+
+    let cancelled = false;
+    const cancel = () => { cancelled = true; };
+
+    async function playNext(): Promise<void> {
+      if (cancelled || !previewIsCurrent(generation)) return;
+      const rawAst = await astForPreview();
+      if (!rawAst || cancelled || !previewIsCurrent(generation)) return;
+      let fired = false;
+      const onIterationDone = () => {
+        if (fired || cancelled || !previewIsCurrent(generation)) return;
+        fired = true;
+        void playNext();
+      };
+      const state = await startSectionPreview(sectionName, rawAst, onIterationDone);
+      if (!state || cancelled || !previewIsCurrent(generation)) {
+        abandonUnassignedPreview(state);
+        if (!state && !cancelled && previewIsCurrent(generation)) {
+          failPreview(`Preview unavailable: section '${sectionName}' has no playable roles.`);
+        }
+        return;
+      }
+      state.key = `section-loop:${sectionName}`;
+      state.cancelLoop = cancel;
+      previewState = state;
+      notifyChange();
+    }
+
+    await playNext();
+  };
+
   _effectPreviewTrigger = async (effectName: string) => {
     ensureAudioCtxReady();
     if (previewState?.key === `effect:${effectName}`) { stopPreview(); return; }
@@ -1082,9 +1298,109 @@ export function setupCodeLensPreview(
       const lenses: monaco.languages.CodeLens[] = [];
       const lineCount = model.getLineCount();
       const categories = getCodeLensCategoryFlags();
+      // Track `section name { … }` so role lines get lenses gated by sequences.
+      let openSectionName: string | null = null;
+      let sectionBraceDepth = 0;
 
       for (let ln = 1; ln <= lineCount; ln++) {
         const line = model.getLineContent(ln);
+
+        // ── section header (block or Beginner `use`) ─────────────────────
+        const sectionUseMatch = line.match(/^\s*section\s+([A-Za-z_][A-Za-z0-9_]*)\s+use\b/);
+        const sectionBlockMatch = line.match(/^\s*section\s+([A-Za-z_][A-Za-z0-9_]*)\b/);
+        if (sectionUseMatch || (sectionBlockMatch && line.includes('{'))) {
+          const sectionName = (sectionUseMatch ?? sectionBlockMatch)![1];
+          if (categories.sequences) {
+            const activeKey = previewState?.key;
+            const isActive = activeKey === `section:${sectionName}`
+              || activeKey === `section-loop:${sectionName}`;
+            if (isActive) {
+              const isLooping = activeKey === `section-loop:${sectionName}`;
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-section-stop-${sectionName}`,
+                command: { id: 'beatbax.stopPreview', title: isLooping ? '⬛ Stop  ↺' : '⬛ Stop', arguments: [] },
+              });
+            } else {
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-section-preview-${sectionName}`,
+                command: { id: 'beatbax.previewSection', title: '▶ Preview', arguments: [sectionName] },
+              });
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-section-loop-${sectionName}`,
+                command: { id: 'beatbax.loopSection', title: '↺ Loop', arguments: [sectionName] },
+              });
+            }
+          }
+          if (sectionUseMatch) {
+            // One-liner — no role-line body to track.
+            openSectionName = null;
+            sectionBraceDepth = 0;
+            continue;
+          }
+          // Count braces on the header line, then keep scanning for role lines.
+          openSectionName = sectionName;
+          sectionBraceDepth = 0;
+          for (const ch of line) {
+            if (ch === '{') sectionBraceDepth += 1;
+            else if (ch === '}') sectionBraceDepth -= 1;
+          }
+          if (sectionBraceDepth <= 0) {
+            openSectionName = null;
+            sectionBraceDepth = 0;
+          }
+          continue;
+        }
+
+        if (openSectionName) {
+          for (const ch of line) {
+            if (ch === '{') sectionBraceDepth += 1;
+            else if (ch === '}') sectionBraceDepth -= 1;
+          }
+          const roleMatch = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+          if (roleMatch && categories.sequences) {
+            const role = roleMatch[1];
+            const sectionName = openSectionName;
+            const activeKey = previewState?.key;
+            const isActive = activeKey === `section-role:${sectionName}:${role}`
+              || activeKey === `section-role-loop:${sectionName}:${role}`;
+            if (isActive) {
+              const isLooping = activeKey === `section-role-loop:${sectionName}:${role}`;
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-section-role-stop-${sectionName}-${role}`,
+                command: { id: 'beatbax.stopPreview', title: isLooping ? '⬛ Stop  ↺' : '⬛ Stop', arguments: [] },
+              });
+            } else {
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-section-role-preview-${sectionName}-${role}`,
+                command: {
+                  id: 'beatbax.previewSectionRole',
+                  title: '▶ Preview',
+                  arguments: [sectionName, role],
+                },
+              });
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-section-role-loop-${sectionName}-${role}`,
+                command: {
+                  id: 'beatbax.loopSectionRole',
+                  title: '↺ Loop',
+                  arguments: [sectionName, role],
+                },
+              });
+            }
+          }
+          if (sectionBraceDepth <= 0) {
+            openSectionName = null;
+            sectionBraceDepth = 0;
+          }
+          // Role / brace lines are not pat/seq/inst/effect headers.
+          continue;
+        }
 
         // ── pat definitions ──────────────────────────────────────────────
         const patMatch = line.match(/^\s*pat\s+([A-Za-z0-9_-]+)\s*=/);
@@ -1243,6 +1559,10 @@ export function setupCodeLensPreview(
       _loopTrigger = null;
       _seqPreviewTrigger = null;
       _seqLoopTrigger = null;
+      _sectionPreviewTrigger = null;
+      _sectionLoopTrigger = null;
+      _sectionRolePreviewTrigger = null;
+      _sectionRoleLoopTrigger = null;
       _instNotePreviewTrigger = null;
       _stepEntryAuditionTrigger = null;
       _effectPreviewTrigger = null;

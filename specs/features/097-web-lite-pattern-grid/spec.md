@@ -2,11 +2,11 @@
 title: "Web-lite Pattern Grid with seek and loop"
 id: 97
 slug: "web-lite-pattern-grid"
-status: "planned"
+status: "in-progress"
 authors:
   - "kadraman"
 created: "2026-10-12"
-updated: "2026-10-18"
+updated: "2026-10-28"
 issue: "https://github.com/kadraman/beatbax/issues/227"
 area: "web"
 related:
@@ -122,11 +122,11 @@ This reverses one decision in [spec 076](../../complete/076-desktop-first-client
 - The web-lite status bar Window menu already has a Pattern Grid entry that is hidden only by the capability gate.
 - Desktop's "Pattern grid" feature flag stays as it is; this spec does not change desktop defaults.
 
-## Open questions
+## Resolved questions
 
-1. **Keyboard shortcut.** Desktop toggles the grid with `view.togglePatternGrid`. Should web-lite get a shortcut, given browser shortcut conflicts, or only the Window menu toggle?
-2. **Touch input.** Should ruler click/drag be required to work with touch (tablets), which needs the ruler to stop page scrolling during a drag? This spec assumes mouse/trackpad; touch can follow.
-3. **Shift+click section play.** Keep it in web-lite as today, or drop it now that the loop range covers auditioning a section?
+1. **Keyboard shortcut.** Keep none for v1 (`view.togglePatternGrid` remains desktop-only; web-lite has no Settings panel for experimental flags, so the status bar Window menu is sufficient).
+2. **Touch input.** Mouse/pointer only for v1 (same as the desktop pointer model via Pointer Events).
+3. **Shift+click section play.** Keep in web-lite as today alongside the loop range.
 
 ## References
 

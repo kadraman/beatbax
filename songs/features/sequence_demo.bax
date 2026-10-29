@@ -4,10 +4,18 @@
 ##  - repetition: `seq a * 2` or `a*2`
 ##  - space-separated: `seq a b`
 ## Also shows inline modifiers applied to individual items.
+##
+## Arrangement note (spec 008):
+## This file is the classic per-channel `seq` timeline. For multi-section songs,
+## prefer `section` / `form` so section order is declared once:
+##   - Beginner:  song_composition_demo.bax
+##   - Advanced:  song_composition_advanced_demo.bax
+## Game Boy full arrangements under songs/gameboy/ use Beginner `channel auto`
+## when roles are mel|harm|bass|perc; see dancefloor_pulse.bax for advanced binding.
 
 song name "Sequence Demo"
 song artist "kadraman"
-song description """Demonstrates `seq` multi-item syntax (comma-separated, repetition, space-separated) and inline modifiers applied to items."""
+song description """Demonstrates `seq` multi-item syntax (comma-separated, repetition, space-separated) and inline modifiers applied to items. For section/form arrangement, see song_composition_demo.bax and song_composition_advanced_demo.bax."""
 song tags "sequence,arrangement"
 
 chip gameboy
@@ -37,7 +45,7 @@ seq bass_seq    = bass_pat, bass_pat                            # 32 notes
 seq wave_seq    = wave_pat wave_pat                             # 32 notes
 seq drums_seq   = drums_pat drums_alt_pat                       # 32 notes
 
-# Multi-channel layout (two rows concatenated in time per channel)
+# Classic multi-channel layout (timeline listed per channel)
 channel 1 => inst leadA seq lead_seq, lead2_seq
 channel 2 => inst leadB seq bass_seq, bass_seq
 channel 3 => inst wave1 seq wave_seq, wave_seq:oct(-1)

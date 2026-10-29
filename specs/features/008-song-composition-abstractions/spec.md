@@ -2,11 +2,11 @@
 title: "Song Composition Abstractions — Sections, Aliases, Concatenation, and Includes"
 id: 8
 slug: "song-composition-abstractions"
-status: "specified"
+status: "in-progress"
 authors:
   - "kadraman"
 created: "2026-05-27"
-updated: "2026-09-03"
+updated: "2026-10-28"
 issue: "https://github.com/kadraman/beatbax/issues/125"
 area: "language"
 ---
@@ -72,14 +72,18 @@ This is authoring sugar only; runtime and exported song semantics stay identical
 #### Beginner syntax (author-facing)
 
 ```bax
-# Role order is fixed in Beginner Mode: mel, harm, bass, perc
+# Role order is chip-profile-driven (Game Boy / 4-lane default):
 section intro use intro_mel intro_harm intro_bass intro_perc
 section hook  use hook_mel  hook_harm  hook_bass  hook_perc
+
+# NES / Famicom may use 4 lanes (no DMC) or 5 (append dmc):
+# section battle use mel_a harm_a bass_a perc_a dmc_a
+# channel auto form main inst=lead|harm|tri|kick|kick_dmc
 
 # `>` is accepted as a readable alias for comma in forms
 form main = intro > hook > bridge > hook > outro
 
-# Auto-bind four channels to default roles
+# Auto-bind channels to profile roles (arity must match section use …)
 channel auto form main inst=lead|arp|bass|kick
 ```
 
@@ -87,7 +91,7 @@ channel auto form main inst=lead|arp|bass|kick
 
 Beginner forms desugar before normal section/form expansion:
 
-1. `section <name> use a b c d` desugars to:
+1. `section <name> use a b c d` (4-lane profile) desugars to:
 
 ```bax
 section <name> {
@@ -98,23 +102,22 @@ section <name> {
 }
 ```
 
+For NES / Famicom 5-lane Beginner Mode, `use a b c d e` desugars with an extra `dmc = e` role.
+
 2. `form main = a > b > c` desugars to `form main = a, b, c`.
 
-3. `channel auto form <f> inst=i1|i2|i3|i4` desugars to:
-
-```bax
-channel 1 => inst i1 role mel  form <f>
-channel 2 => inst i2 role harm form <f>
-channel 3 => inst i3 role bass form <f>
-channel 4 => inst i4 role perc form <f>
-```
+3. `channel auto form <f> inst=i1|i2|…|iN` desugars to N channels bound to the profile role list for that arity (`mel`, `harm`, `bass`, `perc`, and optionally `dmc` on NES).
 
 #### Beginner Mode constraints (v1)
 
-- Exactly four role lanes (`mel`, `harm`, `bass`, `perc`).
+- Role lanes are chip-profile-driven:
+  - Default / Game Boy (and other 4-channel beginner profiles): exactly `mel`, `harm`, `bass`, `perc`.
+  - NES / Famicom: **4** lanes (omit DMC) or **5** lanes (`mel|harm|bass|perc|dmc`).
+- All Beginner `section … use` lines in a song must share the same lane count; `channel auto` `inst=` arity must match.
 - `channel auto` is valid only once per song in v1.
-- If song chip uses non-4-channel layouts, parser returns a targeted diagnostic recommending advanced mode.
+- If Beginner sugar arity is unsupported for the song chip, emit a targeted diagnostic recommending advanced `role` / `form` bindings.
 - Advanced syntax and Beginner syntax may coexist, but duplicate generated channels are errors.
+- Beginner `use` only accepts bare sequence names (no `:inst(...)` modifiers); use advanced `section { … }` blocks when per-ref modifiers are required.
 
 #### Pedagogy model
 
@@ -421,9 +424,10 @@ This feature set is designed for constrained chips and tracker/export targets. A
 
 ### Chip-profile behavior
 
-- Beginner Mode role lanes are profile-driven in UI and templates.
-- v1 parser sugar remains 4-lane (`mel`, `harm`, `bass`, `perc`) unless extended by a chip-profile revision.
-- If Beginner Mode sugar is used with an incompatible chip/profile, emit a targeted diagnostic with a suggested advanced-mode rewrite.
+- Beginner Mode role lanes are profile-driven in the compiler (and UI/templates).
+- Built-in profiles in v1: 4-lane default (`mel|harm|bass|perc`); NES/Famicom also allow 5-lane (`…|dmc`).
+- Further chips (SID, SNES, …) require an explicit profile revision before Beginner sugar is accepted.
+- If Beginner Mode sugar is used with an incompatible chip/profile or arity, emit a targeted diagnostic with a suggested advanced-mode rewrite.
 
 ### Acceptance criteria for constrained targets
 
@@ -482,7 +486,8 @@ This appendix captures REPL-style interaction patterns inspired by Strudel that 
   - Temporary UI-only edits (timeline reorder, role remap) with explicit Apply/Revert into source.
 
 2. **Per-section audition controls**
-  - Quick preview/solo/mute for section slices without requiring whole-song playback.
+  - **Shipped (editor CodeLens):** ▶ Preview / ↺ Loop on `section …` headers (whole section) and on each role line inside a section block (`mel = …`, etc.), auditioning generated `<section>_<role>` seqs with channel-bound instruments.
+  - **Still open:** Pattern Grid solo/mute for section slices without requiring whole-song playback.
 
 3. **Constraint-aware budget HUD**
   - Chip/export profile indicators (channel usage and structure-size heuristics).

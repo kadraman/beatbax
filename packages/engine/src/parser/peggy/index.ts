@@ -34,6 +34,15 @@ import { parseSweep } from '../../chips/gameboy/pulse.js';
 import { warn } from '../../util/diag.js';
 import { applyModsToTokens } from '../../expand/refExpander.js';
 import { splitTopLevel } from '../../expand/splitTopLevel.js';
+import {
+  expandComposition,
+  sectionFromBeginnerUse,
+  sequenceItemsFromRaw,
+  type AliasDecl,
+  type CatOperand,
+  type FormDecl,
+  type SectionDecl,
+} from '../../expand/compositionExpand.js';
 import { createLogger } from '../../util/logger.js';
 import { parseEffectsInline } from '../../song/effectsInline.js';
 import { normalizeScaleDirective, normalizeLock, validateScaleLocks } from '../scale-awareness.js';
@@ -159,7 +168,30 @@ interface SubPatStmt extends BaseStmt {
   rows: SubPatRowAst[];
 }
 interface PatStmt extends BaseStmt { nodeType: 'PatStmt'; name: string; rhsEvents?: PatternEvent[]; rhsTokens?: string[]; rhs?: string }
-interface SeqStmt extends BaseStmt { nodeType: 'SeqStmt'; name: string; rhsItems?: RawSeqItem[]; rhsTokens?: string[]; rhs?: string }
+interface SeqStmt extends BaseStmt {
+  nodeType: 'SeqStmt';
+  name: string;
+  rhsItems?: RawSeqItem[];
+  rhsTokens?: string[];
+  rhs?: string;
+  catOperands?: import('../../expand/compositionExpand.js').CatOperand[];
+}
+interface AliasStmt extends BaseStmt { nodeType: 'AliasStmt'; name: string; rhsItems?: RawSeqItem[] }
+interface SectionRoleAst { role: string; items?: RawSeqItem[]; loc?: SourceLocation }
+interface SectionStmt extends BaseStmt {
+  nodeType: 'SectionStmt';
+  name: string;
+  beginner?: boolean;
+  beginnerUse?: string[];
+  roles?: SectionRoleAst[];
+}
+interface FormStmt extends BaseStmt {
+  nodeType: 'FormStmt';
+  name: string;
+  sectionNames: string[];
+  defaults?: { instruments: string[] };
+}
+interface ChannelAutoStmt extends BaseStmt { nodeType: 'ChannelAutoStmt'; rhs: string }
 interface ChannelStmt extends BaseStmt { nodeType: 'ChannelStmt'; channel: number; rhs: string }
 interface PlayStmt extends BaseStmt { nodeType: 'PlayStmt'; args: string }
 interface ExportStmt extends BaseStmt { nodeType: 'ExportStmt'; format: string; path: string }
@@ -178,8 +210,12 @@ type Statement =
   | InstStmt
   | EffectStmt
   | SubPatStmt
+  | AliasStmt
+  | SectionStmt
+  | FormStmt
   | PatStmt
   | SeqStmt
+  | ChannelAutoStmt
   | ChannelStmt
   | PlayStmt
   | ExportStmt
@@ -423,7 +459,13 @@ const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string
   }
 };
 
-type ChannelParseExtras = { seqSpecTokens?: string[]; channelRhs?: string; lockRaw?: string };
+type ChannelParseExtras = {
+  seqSpecTokens?: string[];
+  channelRhs?: string;
+  lockRaw?: string;
+  role?: string;
+  formRef?: string;
+};
 
 /** True when a token starts a channel option, not a seq/pat name in a list. */
 const isChannelSeqPatBoundary = (tokens: string[], index: number): boolean => {
@@ -433,7 +475,9 @@ const isChannelSeqPatBoundary = (tokens: string[], index: number): boolean => {
     token === 'pat' ||
     token === 'seq' ||
     token === 'bpm' ||
-    token === 'speed'
+    token === 'speed' ||
+    token === 'role' ||
+    token === 'form'
   ) {
     return true;
   }
@@ -469,12 +513,20 @@ const parseChannelRhs = (
     lockRaw?: string;
     seqSpecTokens?: string[];
     channelRhs?: string;
+    role?: string;
+    formRef?: string;
     loc?: SourceLocation;
   } = { id, loc, channelRhs: rhs };
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     if (t === 'inst' && tokens[i + 1]) {
       ch.inst = tokens[i + 1];
+      i++;
+    } else if (t === 'role' && tokens[i + 1]) {
+      ch.role = tokens[i + 1];
+      i++;
+    } else if (t === 'form' && tokens[i + 1]) {
+      ch.formRef = tokens[i + 1];
       i++;
     } else if (t === 'pat' && tokens[i + 1]) {
       const restTokens: string[] = [];
@@ -563,6 +615,7 @@ const parsePlay = (args: string): PlayNode => {
 const VALID_KEYWORDS = [
   'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep', 'scale',
   'song', 'import', 'inst', 'effect', 'subpat', 'pat', 'seq',
+  'alias', 'section', 'form',
   'channel', 'play', 'export',
 ];
 
@@ -933,6 +986,13 @@ export function parseWithPeggy(source: string): ParseResult {
     seen.add(name);
   };
 
+  const aliasDecls = new Map<string, AliasDecl>();
+  const sectionDecls = new Map<string, SectionDecl>();
+  const formDecls = new Map<string, FormDecl>();
+  const pendingCats = new Map<string, CatOperand[]>();
+  const channelAutos: Array<{ rhs: string; loc?: SourceLocation }> = [];
+  const explicitSeqNames = new Set<string>();
+
   try {
   for (const stmt of program.body) {
     switch (stmt.nodeType) {
@@ -1060,8 +1120,75 @@ export function parseWithPeggy(source: string): ParseResult {
         pats[name] = tokens;
         break;
       }
+      case 'AliasStmt': {
+        const a = stmt as AliasStmt;
+        if (aliasDecls.has(a.name)) {
+          diagnostics.push({
+            level: 'error',
+            component: 'composition',
+            message: `alias '${a.name}' redefined.`,
+            loc: a.loc,
+          });
+        }
+        aliasDecls.set(a.name, {
+          name: a.name,
+          items: sequenceItemsFromRaw(a.rhsItems),
+          loc: a.loc,
+        });
+        break;
+      }
+      case 'SectionStmt': {
+        const s = stmt as SectionStmt;
+        if (sectionDecls.has(s.name)) {
+          diagnostics.push({
+            level: 'error',
+            component: 'composition',
+            message: `section '${s.name}' redefined.`,
+            loc: s.loc,
+          });
+        }
+        if (s.beginner && s.beginnerUse && s.beginnerUse.length > 0) {
+          sectionDecls.set(s.name, sectionFromBeginnerUse(s.name, s.beginnerUse, s.loc));
+        } else {
+          sectionDecls.set(s.name, {
+            name: s.name,
+            loc: s.loc,
+            roles: (s.roles || []).map((r) => ({
+              role: r.role,
+              items: sequenceItemsFromRaw(r.items),
+              loc: r.loc,
+            })),
+          });
+        }
+        break;
+      }
+      case 'FormStmt': {
+        const f = stmt as FormStmt;
+        if (formDecls.has(f.name)) {
+          diagnostics.push({
+            level: 'error',
+            component: 'composition',
+            message: `form '${f.name}' redefined.`,
+            loc: f.loc,
+          });
+        }
+        formDecls.set(f.name, {
+          name: f.name,
+          sectionNames: f.sectionNames || [],
+          defaults: f.defaults,
+          loc: f.loc,
+        });
+        break;
+      }
       case 'SeqStmt': {
         noteDefinition('seq', stmt.name, stmt.loc);
+        explicitSeqNames.add(stmt.name);
+        if (stmt.catOperands) {
+          pendingCats.set(stmt.name, stmt.catOperands);
+          sequenceItems[stmt.name] = [];
+          seqs[stmt.name] = [];
+          break;
+        }
         const rhs = stmt.rhs ? stmt.rhs.trim() : '';
         const items = normalizeSeqItems(stmt.rhsItems, rhs, stmt.rhsTokens);
         if (items.length === 0) {
@@ -1073,6 +1200,10 @@ export function parseWithPeggy(source: string): ParseResult {
           sequenceItems[stmt.name] = items;
         }
         seqs[stmt.name] = materializeSequenceItems(items);
+        break;
+      }
+      case 'ChannelAutoStmt': {
+        channelAutos.push({ rhs: (stmt as ChannelAutoStmt).rhs.trim(), loc: stmt.loc });
         break;
       }
       case 'ChannelStmt': {
@@ -1116,6 +1247,30 @@ export function parseWithPeggy(source: string): ParseResult {
         }
       }
     }
+  }
+
+  // --- Composition expansion (spec 008): alias / cat / section / form / role ---
+  if (
+    aliasDecls.size > 0 ||
+    sectionDecls.size > 0 ||
+    formDecls.size > 0 ||
+    pendingCats.size > 0 ||
+    channelAutos.length > 0 ||
+    channels.some((c: any) => c.role || c.formRef)
+  ) {
+    expandComposition({
+      aliases: aliasDecls,
+      sections: sectionDecls,
+      forms: formDecls,
+      pendingCats,
+      sequenceItems: sequenceItems || {},
+      seqs,
+      channels: channels as any,
+      channelAutos,
+      chip: chipName,
+      diagnostics,
+      explicitSeqNames,
+    });
   }
 
   // --- Semantic validation pass: populate ast.diagnostics ---
@@ -1463,6 +1618,24 @@ export function parseWithPeggy(source: string): ParseResult {
   if (Object.keys(effects).length) (ast as any).effects = effects;
   if (Object.keys(subpatterns).length) ast.subpatterns = subpatterns;
   if (imports.length > 0) ast.imports = imports;
+  if (aliasDecls.size > 0) {
+    ast.aliases = {};
+    for (const [name, a] of aliasDecls) {
+      ast.aliases[name] = { items: a.items, loc: a.loc };
+    }
+  }
+  if (sectionDecls.size > 0) {
+    ast.sections = {};
+    for (const [name, s] of sectionDecls) {
+      ast.sections[name] = { roles: s.roles, loc: s.loc };
+    }
+  }
+  if (formDecls.size > 0) {
+    ast.forms = {};
+    for (const [name, f] of formDecls) {
+      ast.forms[name] = { sectionNames: f.sectionNames, defaults: f.defaults, loc: f.loc };
+    }
+  }
   if (includeStructured) {
     if (patternEvents) ast.patternEvents = patternEvents;
     if (sequenceItems) ast.sequenceItems = sequenceItems;

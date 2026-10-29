@@ -27,6 +27,8 @@ Same convention as `songs/gameboy/`, `songs/sms/`, and `songs/spectrum-128/`.
 
 Full songs are original compositions. They demonstrate pulse duty/envelopes, triangle bass writing, noise kits, macros (`vol_env`, `arp_env`, `pitch_env`, `duty_env`), delayed vibrato, and optional DMC percussion.
 
+**Song structure:** full arrangements use compile-time `section` / `form` (spec 008) with Beginner Mode `channel auto`. Four-channel songs bind `mel|harm|bass|perc`; five-channel songs append `dmc`. Section bodies stay as advanced `section { … }` blocks (multi-slot lines and `:inst(...)` overrides), matching Game Boy full-song style. Pattern Grid shows one strip block per form section.
+
 Triangle has **no hardware volume** — control presence with register (prefer low octaves), note length, and rests between hits.
 
 ## Play

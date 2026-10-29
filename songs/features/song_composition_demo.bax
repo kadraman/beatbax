@@ -1,0 +1,47 @@
+## song_composition_demo.bax
+## Spec 008 Beginner Mode — section / form / channel auto
+##
+## Pair with song_composition_advanced_demo.bax (same music, expanded syntax).
+## Beginner Mode desugars to that advanced model:
+##   - `section … use a b c d`  →  section block with mel/harm/bass/perc
+##   - `form … = a > b > c`     →  form with comma-separated section order
+##   - `channel auto …`         →  four `role … form …` channel lines
+##
+## Use Beginner Mode when the song is a 4-channel chip and roles are the default
+## order mel → harm → bass → perc. Prefer advanced binding to remap roles,
+## mix classic seq channels, or target non-4-channel chips.
+
+song name "Song Composition Demo"
+song artist "The BeatBax Team"
+song description """Beginner Mode demo for section / form / channel auto (spec 008). See song_composition_advanced_demo.bax for the expanded form."""
+song tags "demo,composition,beginner,section,form"
+
+chip gameboy
+bpm 140
+stepsPerBar 4
+
+inst lead type=pulse1 duty=2 env=12,down,3
+inst arp type=pulse2 duty=1 env=10,down,2
+inst bass type=wave volume=100 wave=0123456789ABCDEFFEDCBA9876543210
+inst kick type=noise env=15,down,1
+
+pat mel_a = C4 E4 G4 E4
+pat mel_b = D4 F4 A4 F4
+pat harm_a = E4 G4 C5 G4
+pat harm_b = F4 A4 D5 A4
+pat bass_a = C3 C3 G2 G2
+pat bass_b = D3 D3 A2 A2
+pat drum_a = C4 . C4 .
+pat drum_b = C4 C4 . C4
+
+# Role order is fixed: mel, harm, bass, perc
+section intro use mel_a harm_a bass_a drum_a
+section hook  use mel_b harm_b bass_b drum_b
+
+# `>` is a readable alias for commas in form lists
+form main = intro > hook
+
+# One line → channels 1..4 as mel|harm|bass|perc
+channel auto form main inst=lead|arp|bass|kick
+
+play

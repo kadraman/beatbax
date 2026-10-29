@@ -163,37 +163,48 @@ pat drums_anchor = kick . hat . snare . hat . kick . hat . snare . hat .
 # Bars  7– 9 : Turnaround     — pitch-riser, arpeggiated fill, shimmer dive
 # Bars 10–13 : A reprise (×2) — theme returns to close
 
-# --- Section 1: A section — main theme (Bars 1–4) ---
-seq theme_mel  = phrase_a phrase_b phrase_a phrase_b
-seq theme_harm = harm_a harm_b harm_a harm_b
-seq theme_bass = bass_a bass_b bass_a bass_b
-seq theme_perc = drums_a drums_b drums_a drums_b
-
-# --- Section 2: Build — bridge with vibrato (Bars 5–6) ---
-seq build_mel  = phrase_c phrase_d
-seq build_harm = harm_c harm_fill
-seq build_bass = bass_fill bass_arp
-seq build_perc = drums_anchor drums_anchor
-
-# --- Section 3: Turnaround — riser, fill and dive (Bars 7–8) ---
-seq turn_mel  = phrase_riser phrase_fill phrase_end
-seq turn_harm = harm_riser harm_fill harm_b
-seq turn_bass = bass_arp bass_fill bass_b
-seq turn_perc = drums_anchor drums_b drums_anchor
-
-# --- Section 4: A reprise — theme returns (Bars 9–12) ---
-seq reprise_mel  = phrase_a phrase_b phrase_a phrase_b
-seq reprise_harm = harm_a harm_b harm_a harm_b
-seq reprise_bass = bass_a bass_b bass_a bass_b
-seq reprise_perc = drums_a drums_b drums_a drums_b
-
 # =============================================================================
 # CHANNELS
 # =============================================================================
 
-channel 1 => inst melody  seq theme_mel  build_mel  turn_mel  reprise_mel
-channel 2 => inst harmony seq theme_harm build_harm turn_harm reprise_harm
-channel 3 => inst bass2   seq theme_bass build_bass turn_bass reprise_bass
-channel 4 => inst snare   seq theme_perc build_perc turn_perc reprise_perc
+# --- Section 1: A section — main theme (Bars 1–4) ---
+
+section theme {
+  mel = phrase_a phrase_b phrase_a phrase_b
+  harm = harm_a harm_b harm_a harm_b
+  bass = bass_a bass_b bass_a bass_b
+  perc = drums_a drums_b drums_a drums_b
+}
+
+# --- Section 2: Build — bridge with vibrato (Bars 5–6) ---
+
+section build {
+  mel = phrase_c phrase_d
+  harm = harm_c harm_fill
+  bass = bass_fill bass_arp
+  perc = drums_anchor drums_anchor
+}
+
+# --- Section 3: Turnaround — riser, fill and dive (Bars 7–8) ---
+
+section turn {
+  mel = phrase_riser phrase_fill phrase_end
+  harm = harm_riser harm_fill harm_b
+  bass = bass_arp bass_fill bass_b
+  perc = drums_anchor drums_b drums_anchor
+}
+
+# --- Section 4: A reprise — theme returns (Bars 9–12) ---
+
+section reprise {
+  mel = phrase_a phrase_b phrase_a phrase_b
+  harm = harm_a harm_b harm_a harm_b
+  bass = bass_a bass_b bass_a bass_b
+  perc = drums_a drums_b drums_a drums_b
+}
+
+form main = theme > build > turn > reprise
+
+channel auto form main inst=melody|harmony|bass2|snare
 
 play auto

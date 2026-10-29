@@ -2,15 +2,15 @@
  * Pattern Grid seek/loop timeline helpers (spec 014, phases 1–4).
  */
 
-import { collectStepBoundaries } from '@beatbax/app-core/playback/playback-range';
-import { playbackStatus } from '@beatbax/app-core/stores/playback.store';
+import { collectStepBoundaries } from '../src/playback/playback-range';
+import { playbackStatus } from '../src/stores/playback.store';
 import {
   clearPlaybackRange,
   playbackLoopEnabled,
   playbackStartStep,
   setPlaybackLoopRange,
   setPlaybackStartStep,
-} from '@beatbax/app-core/stores/playback-range.store';
+} from '../src/stores/playback-range.store';
 import {
   followActiveLoop,
   idlePlayheadStep,
@@ -22,7 +22,7 @@ import {
   stepFromClientX,
   tryPlayRequestedRange,
   type TimelinePickDeps,
-} from '../src/renderer/src/lib/pattern-grid-timeline';
+} from '../src/playback/pattern-grid-timeline';
 
 describe('pattern grid timeline mapping', () => {
   it('builds cumulative block spans in global step units', () => {

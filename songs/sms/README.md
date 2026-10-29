@@ -24,6 +24,8 @@ Same convention as `songs/nes/`, `songs/gameboy/`, and `songs/spectrum-128/`.
 
 Arrangements are original compositions. They demonstrate attenuation-accurate `vol_env`, Tone-3–clocked / layered noise percussion, macros (`arp_env`, `pitch_env`, `noise_rate_env`), and — on Game Gear — `gg:pan` stereo routing.
 
+**Song structure:** SMS/GG full arrangements currently keep classic per-channel seqs (single timeline per song). Multi-section `section` / `form` migration is deferred so existing Pattern Grid tooling keeps working.
+
 SMS / GG attenuation reminder: **0 = loudest, 15 = mute**. Decay envelopes count **up** toward 15.
 
 ## Play

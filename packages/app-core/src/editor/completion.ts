@@ -547,6 +547,14 @@ function definitionSnippetsForChip(chip: string) {
 const DEFINITION_SNIPPETS_COMMON = [
   { label: 'pat', detail: 'Define pattern', insertText: 'pat ${1:name} = ${2:C4 E4 G4 C5}' },
   { label: 'seq', detail: 'Define sequence', insertText: 'seq ${1:name} = ${2:pattern1 pattern2}' },
+  { label: 'seq (cat)', detail: 'Concatenate sequences into a named timeline', insertText: 'seq ${1:timeline} = cat(${2:intro}, ${3:hook})' },
+  { label: 'alias', detail: 'Named reusable seq item list', insertText: 'alias ${1:body} = ${2:pat_a pat_b}' },
+  {
+    label: 'section',
+    detail: 'Song section with per-role pattern lists',
+    insertText: 'section ${1:intro} {\n  mel = ${2:mel_pat}\n  harm = ${3:harm_pat}\n  bass = ${4:bass_pat}\n  perc = ${5:perc_pat}\n}',
+  },
+  { label: 'form', detail: 'Section order for the song', insertText: 'form ${1:main} = ${2:intro}, ${3:hook}' },
   { label: 'effect', detail: 'Define named effect preset', insertText: 'effect ${1:name} = ${2:vib:3,6}' },
   {
     label: 'subpat',
@@ -554,6 +562,7 @@ const DEFINITION_SNIPPETS_COMMON = [
     insertText: 'subpat ${1:name} = ${2:.} ${3:-10} jump:${4:2} ${5:-31} halt',
   },
   { label: 'channel', detail: 'Define channel mapping', insertText: 'channel ${1:1} => inst ${2:lead} seq ${3:main} lock=${4:scale}' },
+  { label: 'channel (role+form)', detail: 'Bind channel to a form role', insertText: 'channel ${1:1} => inst ${2:lead} role ${3:mel} form ${4:main}' },
   { label: 'import', detail: 'Import instruments from file', insertText: 'import "${1:local:lib/instruments.ins}"' },
 ];
 

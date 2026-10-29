@@ -32,9 +32,10 @@ describe('panels-menu', () => {
     expect(ids).toContain('channel-mixer');
     expect(ids).toContain('toolbar');
     expect(ids).toContain('transport-bar');
+    expect(ids).toContain('pattern-grid');
     expect(ids).not.toContain('song-visualizer');
     expect(ids).not.toContain('ai-assistant');
-    expect(ids).not.toContain('pattern-grid');
+    expect(entries.find(e => e.id === 'pattern-grid')?.disabled).toBe(false);
   });
 
   it('uses browser-safe toolbar and transport shortcuts on web-lite', () => {

@@ -188,48 +188,57 @@ pat light_beat = inst kick C2 . inst hihat C2 . inst snare C2 . inst hihat C2 . 
 # =============================================================================
 # Sequences — 20 patterns × 16 ticks = 320 ticks per channel (all channels aligned)
 # =============================================================================
-
-# Pulse 1 lead:
-#   Bars  1– 4 : Intro   — clean melody (no vibrato), two 2-bar phrases × 2
-#   Bars  5– 8 : Verse A — C major melody with warm_vib on held notes
-#   Bars  9–12 : Verse B — Am melody with warm_vib on held notes
-#   Bars 13–16 : Bridge  — whole-note G5 pedal in 50% duty (via inst transform)
-#   Bars 17–20 : Reprise — Verse A returns
-seq pulse1_main = intro_a intro_b intro_a intro_b mel_a1 mel_a2 mel_a3 mel_a4 mel_b1 mel_b2 mel_b3 mel_b4 pedal_c:inst(melody50) pedal_c:inst(melody50) pedal_c:inst(melody50) pedal_c:inst(melody50) mel_a1 mel_a2 mel_a3 mel_a4
-
-# Pulse 2 harmony:
-#   Bars  1– 4 : Intro   — silent (Pulse 2 rests so solo melody intro reads clearly)
-#   Bars  5– 8 : Verse A — parallel harmony below C major melody
-#   Bars  9–12 : Verse B — parallel harmony below Am melody
-#   Bars 13–16 : Bridge  — counter-melody in pairs (ascending/descending)
-#   Bars 17–20 : Reprise — Verse A harmony returns
-seq pulse2_main = intro_silence intro_silence intro_silence intro_silence chd_a1 chd_a2 chd_a3 chd_a4 chd_b1 chd_b2 chd_b3 chd_b4 ctr_c1 ctr_c2 ctr_c1 ctr_c2 chd_a1 chd_a2 chd_a3 chd_a4
-
-# Triangle bass:
-#   C major walking bass for intro, verse A, and reprise.
-#   A minor walking bass for verse B.
-#   G major for the first half of the bridge (underlining the G pedal), then
-#   C major for the second half (resolution back toward the tonic before reprise).
-seq bass_main   = walk_c walk_c walk_c walk_c walk_c walk_c walk_c walk_c walk_Am walk_Am walk_Am walk_Am walk_G walk_G walk_c walk_c walk_c walk_c walk_c walk_c
-
-# Noise drums:
-#   Same sparse kick-snare-hihat groove throughout all 20 bars for a steady,
-#   unobtrusive rhythmic foundation — typical of early NES RPG percussion.
-seq drum_main   = light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat
-
+# SECTIONS / FORM (spec 008)
 # =============================================================================
-# Channels
-# =============================================================================
-# Channel 1 → Pulse 1  (lead melody with delayed vibrato)
-# Channel 2 → Pulse 2  (harmony / bridge counter-melody)
-# Channel 3 → Triangle (quarter-note walking bass, linear-counter pluck)
-# Channel 4 → Noise    (sparse RPG percussion groove)
-# (No channel 5 / DMC — early-era RPG style, 4-channel arrangement)
 
-channel 1 => inst melody  seq pulse1_main
-channel 2 => inst chord   seq pulse2_main
-channel 3 => inst bass    seq bass_main
-channel 4 => inst kick    seq drum_main
+# --- Section: Intro ---
+
+section intro {
+  mel = intro_a intro_b intro_a intro_b
+  harm = intro_silence intro_silence intro_silence intro_silence
+  bass = walk_c walk_c walk_c walk_c
+  perc = light_beat light_beat light_beat light_beat
+}
+
+# --- Section: Theme A ---
+
+section theme_a {
+  mel = mel_a1 mel_a2 mel_a3 mel_a4
+  harm = chd_a1 chd_a2 chd_a3 chd_a4
+  bass = walk_c walk_c walk_c walk_c
+  perc = light_beat light_beat light_beat light_beat
+}
+
+# --- Section: Theme B ---
+
+section theme_b {
+  mel = mel_b1 mel_b2 mel_b3 mel_b4
+  harm = chd_b1 chd_b2 chd_b3 chd_b4
+  bass = walk_Am walk_Am walk_Am walk_Am
+  perc = light_beat light_beat light_beat light_beat
+}
+
+# --- Section: Bridge ---
+
+section bridge {
+  mel = pedal_c:inst(melody50) pedal_c:inst(melody50) pedal_c:inst(melody50) pedal_c:inst(melody50)
+  harm = ctr_c1 ctr_c2 ctr_c1 ctr_c2
+  bass = walk_G walk_G walk_c walk_c
+  perc = light_beat light_beat light_beat light_beat
+}
+
+# --- Section: Reprise ---
+
+section reprise {
+  mel = mel_a1 mel_a2 mel_a3 mel_a4
+  harm = chd_a1 chd_a2 chd_a3 chd_a4
+  bass = walk_c walk_c walk_c walk_c
+  perc = light_beat light_beat light_beat light_beat
+}
+
+form main = intro > theme_a > theme_b > bridge > reprise
+
+channel auto form main inst=melody|chord|bass|kick
 
 # =============================================================================
 # Playback

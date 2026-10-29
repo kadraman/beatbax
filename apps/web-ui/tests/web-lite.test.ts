@@ -18,8 +18,9 @@ describe('web-lite profile', () => {
     const caps = getCapabilities('web-lite');
     expect(caps.export).toBe(false);
     expect(caps.copilot).toBe(false);
-    expect(caps.channelMixer).toBe(false);
-    expect(caps.patternGrid).toBe(false);
+    expect(caps.channelMixer).toBe(true);
+    expect(caps.patternGrid).toBe(true);
+    expect(caps.patternGridBehindFlag).toBe(false);
     expect(caps.advancedEditor).toBe(false);
     expect(caps.midiStepEntry).toBe(false);
     expect(caps.helpPanel).toBe(true);
@@ -77,9 +78,8 @@ describe('web-lite profile', () => {
       getRightPaneExpandStrip: () => document.createElement('div'),
     } as any;
     const right = buildRightTabs(rightPane, layout);
-    expect(right.tabButtons.channels).toBeDefined();
     expect(right.tabButtons.help).toBeDefined();
-    expect(Object.keys(right.tabButtons)).toEqual(['channels', 'help']);
+    expect(Object.keys(right.tabButtons)).toEqual(['help']);
   });
 
   it('toolbar renders Save and Verify without export group', () => {

@@ -262,61 +262,84 @@ pat drums_coda     = kick . . . snare . . . . . . . . . . .
 # Each section's four channels are built and referenced below
 # =============================================================================
 
-# --- Section 1: Spooky intro (Bars 1–2) ---
-seq intro_mel   = open_scare open_echo
-seq intro_harm  = harm_intro harm_Bm_A
-seq intro_bass  = bass_walk bass_root
-seq intro_perc  = drums_intro drums_intro
-
-# --- Section 2: Main funk hook A (Bars 3–6, ×2) ---
-seq hook_mel    = riff_a riff_b riff_a riff_b
-seq hook_harm   = harm_Bm_A harm_Bm_Em harm_G_F7 harm_Bm_A
-seq hook_bass   = bass_walk bass_root bass_vi_v bass_walk
-seq hook_perc   = drums_funk drums_sync drums_funk drums_sync
-
-# --- Section 3: Secondary hook B (Bars 7–8) ---
-seq soar_mel    = soar_a soar_b
-seq soar_harm   = harm_Bm_G harm_Bm_Em
-seq soar_bass   = bass_root bass_vi_v
-seq soar_perc   = drums_funk drums_funk
-
-# --- Section 4: Mysterious bridge (Bars 9–10) ---
-seq bridge_mel  = bridge_a bridge_b
-seq bridge_harm = harm_bridge1 harm_bridge2
-seq bridge_bass = bass_bridge bass_bridge
-seq bridge_perc = drums_bridge drums_bridge
-
-# --- Section 5: Tension ascent (Bar 11) ---
-seq tension_mel  = tension
-seq tension_harm = harm_run
-seq tension_bass = bass_run
-seq tension_perc = drums_tension
-
-# --- Section 6: DCM Reprise A (Bars 12–15, ×2) ---
-seq reprise_mel  = riff_a_dcm riff_b_dcm riff_a_dcm riff_b_dcm
-seq reprise_harm = harm_Bm_A_r harm_Bm_Em harm_G_F7 harm_Bm_A
-seq reprise_bass = bass_walk bass_root bass_vi_v bass_walk
-seq reprise_perc = drums_funk drums_sync drums_fill drums_sync
-
-# --- Section 7: Horror B reprise (Bars 16–17) ---
-seq brise_mel   = soar_a_horror soar_b_horror
-seq brise_harm  = harm_Bm_G harm_Bm_Em
-seq brise_bass  = bass_root bass_vi_v
-seq brise_perc  = drums_funk drums_fill
-
-# --- Section 8: Coda (Bars 18–19) ---
-seq coda_mel    = coda_wail coda_end
-seq coda_harm   = harm_coda harm_coda
-seq coda_bass   = bass_coda bass_coda
-seq coda_perc   = drums_coda drums_intro
-
 # =============================================================================
 # CHANNELS
 # =============================================================================
 
-channel 1 => inst funk_stab    seq intro_mel   hook_mel   soar_mel   bridge_mel   tension_mel   reprise_mel   brise_mel   coda_mel
-channel 2 => inst chord_stab   seq intro_harm  hook_harm  soar_harm  bridge_harm  tension_harm  reprise_harm  brise_harm  coda_harm
-channel 3 => inst thriller_bass seq intro_bass  hook_bass  soar_bass  bridge_bass  tension_bass  reprise_bass  brise_bass  coda_bass
-channel 4 => inst kick          seq intro_perc  hook_perc  soar_perc  bridge_perc  tension_perc  reprise_perc  brise_perc  coda_perc
+# --- Section 1: Spooky intro (Bars 1–2) ---
+
+section intro {
+  mel = open_scare open_echo
+  harm = harm_intro harm_Bm_A
+  bass = bass_walk bass_root
+  perc = drums_intro drums_intro
+}
+
+# --- Section 2: Main funk hook A (Bars 3–6, ×2) ---
+
+section hook {
+  mel = riff_a riff_b riff_a riff_b
+  harm = harm_Bm_A harm_Bm_Em harm_G_F7 harm_Bm_A
+  bass = bass_walk bass_root bass_vi_v bass_walk
+  perc = drums_funk drums_sync drums_funk drums_sync
+}
+
+# --- Section 3: Secondary hook B (Bars 7–8) ---
+
+section soar {
+  mel = soar_a soar_b
+  harm = harm_Bm_G harm_Bm_Em
+  bass = bass_root bass_vi_v
+  perc = drums_funk drums_funk
+}
+
+# --- Section 4: Mysterious bridge (Bars 9–10) ---
+
+section bridge {
+  mel = bridge_a bridge_b
+  harm = harm_bridge1 harm_bridge2
+  bass = bass_bridge bass_bridge
+  perc = drums_bridge drums_bridge
+}
+
+# --- Section 5: Tension ascent (Bar 11) ---
+
+section tension {
+  mel = tension
+  harm = harm_run
+  bass = bass_run
+  perc = drums_tension
+}
+
+# --- Section 6: DCM Reprise A (Bars 12–15, ×2) ---
+
+section reprise {
+  mel = riff_a_dcm riff_b_dcm riff_a_dcm riff_b_dcm
+  harm = harm_Bm_A_r harm_Bm_Em harm_G_F7 harm_Bm_A
+  bass = bass_walk bass_root bass_vi_v bass_walk
+  perc = drums_funk drums_sync drums_fill drums_sync
+}
+
+# --- Section 7: Horror B reprise (Bars 16–17) ---
+
+section brise {
+  mel = soar_a_horror soar_b_horror
+  harm = harm_Bm_G harm_Bm_Em
+  bass = bass_root bass_vi_v
+  perc = drums_funk drums_fill
+}
+
+# --- Section 8: Coda (Bars 18–19) ---
+
+section coda {
+  mel = coda_wail coda_end
+  harm = harm_coda harm_coda
+  bass = bass_coda bass_coda
+  perc = drums_coda drums_intro
+}
+
+form main = intro > hook > soar > bridge > tension > reprise > brise > coda
+
+channel auto form main inst=funk_stab|chord_stab|thriller_bass|kick
 
 play auto

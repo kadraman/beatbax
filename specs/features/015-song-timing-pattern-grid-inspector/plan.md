@@ -1,56 +1,40 @@
 # Implementation Plan: Song Timing Pattern Grid Inspector
 
-**Spec**: [spec.md](spec.md) | **Migrated**: 2026-09-03
+**Spec**: [spec.md](spec.md) | **Updated**: 2026-10-28 (refresh after 008 sections)
 
 ## Constitution Check
 
 GATE: complete before implementation. Re-check after design changes.
 
-- [ ] No invented syntax or undocumented language behavior
-- [ ] AST / ISM / scheduler / expansion impact identified (or N/A)
-- [ ] Plugins remain isolated; core does not gain plugin dependencies
-- [ ] Determinism and compatibility preserved (or migration documented)
-- [ ] Tests planned for new behavior
+- [x] No invented syntax or undocumented language behavior — inspector visualizes resolved timing; no new `.bax` syntax
+- [x] AST / ISM / scheduler / expansion impact identified — **read-only** over resolved `SongModel` + AST after composition expansion (spec 008); no scheduler/ISM writes
+- [x] Plugins remain isolated; core does not gain plugin dependencies — diagnostics in `@beatbax/app-core` / desktop UI only
+- [x] Determinism and compatibility preserved — same inputs → same timeline/diagnostics; no song semantics change
+- [x] Tests planned for new behavior — fixtures for length mismatch, section mismatch, split kit, UGE portamento (see tasks.md)
 
 ## Implementation Plan
 
-
-
 ### Engine / App-Core
 
-1. Add a resolver-side timeline extraction helper.
-  - Input: parsed AST and resolved `SongModel`.
-  - Output: channel lengths, pattern/sequence blocks, event rows, and source references where possible.
-2. Add timing diagnostics that run after resolution.
-3. Expose diagnostics through existing editor/app-core validation plumbing.
-4. Add optional exporter-readiness diagnostics for UGE.
-
-
+1. Timeline extraction helper over parsed AST + resolved `SongModel` (channel lengths, pattern/seq blocks, source refs). Prefer authored `ast.sections` / `ast.forms` labels when present (after 008 expansion, channel tokens are still `<section>_<role>`).
+2. Timing diagnostics after resolution.
+3. Expose via existing validation plumbing.
+4. Optional UGE exporter-readiness diagnostics.
 
 ### UI
 
-1. Add a Pattern Grid Inspector tab or diagnostics mode.
-2. Render channel rows with block widths proportional to `lengthSteps`.
-3. Add bar/step ruler using `stepsPerBar` or default 16-step bars.
-4. Overlay diagnostic badges on affected blocks.
-5. Add a block details panel with:
-  - source `pat` / `seq`,
-  - length,
-  - step table,
-  - diagnostics,
-  - quick links to source.
+1. Pattern Grid Inspector tab / diagnostics mode (Desktop).
+2. Channel rows with block widths ∝ `lengthSteps`.
+3. Bar/step ruler from `stepsPerBar`.
+4. Diagnostic badges; block details panel (source pat/seq, length, step table, diagnostics).
 
+### Dependencies
 
+- Spec 014 seek/loop — complete
+- Spec 087 section focus — complete
+- Spec 008 composition sections — in progress / available for labeled sections on migrated songs
 
-### Tests
+## Testing Strategy
 
-Add focused fixtures for:
-
-- 15-step pattern in one channel.
-- Channel length mismatch at song end.
-- Section sequence mismatch.
-- Split percussion kit where wave kick disappears in one section.
-- Slow portamento on 2-step notes for UGE readiness.
-- Flat-note UGE conversion warning.
-
----
+- Unit: timeline lengths, section mismatch, missing kit anchors
+- Integration: Desktop inspector on `songs/gameboy/crypt_of_fallen_kings.bax` (008 structured) and a classic monolithic NES song
