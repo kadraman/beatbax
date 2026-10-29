@@ -6,9 +6,10 @@ import type { ClientCapabilities } from '../client-profile.js';
 import { isFeatureEnabled, FeatureFlag } from './feature-flags.js';
 import { storage, StorageKey } from './local-storage.js';
 
-/** True when the Pattern Grid feature flag is on. */
+/** True when the Pattern Grid is allowed by the client profile (and feature flag when required). */
 export function isPatternGridAllowed(capabilities: ClientCapabilities): boolean {
   if (!capabilities.patternGrid) return false;
+  if (!capabilities.patternGridBehindFlag) return true;
   return isFeatureEnabled(FeatureFlag.PATTERN_GRID);
 }
 

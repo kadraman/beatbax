@@ -104,6 +104,7 @@ export function setupSectionFocusEditor(
     const targetLine = lines[0] ?? blockStart;
     if (!targetLine) return;
     monacoEditor.setPosition({ lineNumber: targetLine, column: 1 });
+    monacoEditor.focus();
   };
 
   return {

@@ -280,52 +280,73 @@ pat drums_coda   = kick . . . snare . . . . . . . . . . .
 #   Bars 12–15 : DCM Reprise (× 2)
 #   Bars 16–17 : Coda
 
+# =============================================================================
+
 # --- Section 1: Intro Fanfare (Bars 1–2) ---
-seq intro_mel  = open_a open_b
-seq intro_harm = harm_fanfare harm_em_bm
-seq intro_bass = bass_em_bm bass_em_bm
-seq intro_perc = drums_intro drums_drive
+
+section intro {
+  mel = open_a open_b
+  harm = harm_fanfare harm_em_bm
+  bass = bass_em_bm bass_em_bm
+  perc = drums_intro drums_drive
+}
 
 # --- Section 2: Main Theme A (Bars 3–6) ---
-seq theme_mel  = riff_a riff_b riff_a riff_b
-seq theme_harm = harm_em_bm harm_am_g harm_bm_em harm_am_g
-seq theme_bass = bass_em_bm bass_am_gm bass_bm_em bass_am_gm
-seq theme_perc = drums_drive drums_drive drums_heavy drums_fill
+
+section theme {
+  mel = riff_a riff_b riff_a riff_b
+  harm = harm_em_bm harm_am_g harm_bm_em harm_am_g
+  bass = bass_em_bm bass_am_gm bass_bm_em bass_am_gm
+  perc = drums_drive drums_drive drums_heavy drums_fill
+}
 
 # --- Section 3: Secondary Theme B (Bars 7–8) ---
-seq soar_mel  = soar_a soar_b
-seq soar_harm = harm_am_g harm_bm_em
-seq soar_bass = bass_am_gm bass_bm_em
-seq soar_perc = drums_drive drums_heavy
+
+section soar {
+  mel = soar_a soar_b
+  harm = harm_am_g harm_bm_em
+  bass = bass_am_gm bass_bm_em
+  perc = drums_drive drums_heavy
+}
 
 # --- Section 4: Dark Bridge (Bars 9–10) ---
-seq bridge_mel  = bridge_a bridge_b
-seq bridge_harm = harm_bridge1 harm_bridge2
-seq bridge_bass = bass_cm_bm bass_cm_bm
-seq bridge_perc = drums_bridge drums_bridge
+
+section bridge {
+  mel = bridge_a bridge_b
+  harm = harm_bridge1 harm_bridge2
+  bass = bass_cm_bm bass_cm_bm
+  perc = drums_bridge drums_bridge
+}
 
 # --- Section 5: Ascending Run — transition (Bar 11) ---
-seq run_mel  = accel
-seq run_harm = harm_run
-seq run_bass = bass_run
-seq run_perc = drums_heavy
+
+section run {
+  mel = accel
+  harm = harm_run
+  bass = bass_run
+  perc = drums_heavy
+}
 
 # --- Section 6: DCM Reprise (Bars 12–15) ---
-seq reprise_mel  = riff_a_dcm riff_b_dcm riff_a_dcm riff_b_dcm
-seq reprise_harm = harm_em_r harm_am_g_r harm_bm_em harm_am_g
-seq reprise_bass = bass_em_bm bass_am_gm bass_bm_em bass_am_gm
-seq reprise_perc = drums_heavy drums_heavy drums_heavy drums_fill
+
+section reprise {
+  mel = riff_a_dcm riff_b_dcm riff_a_dcm riff_b_dcm
+  harm = harm_em_r harm_am_g_r harm_bm_em harm_am_g
+  bass = bass_em_bm bass_am_gm bass_bm_em bass_am_gm
+  perc = drums_heavy drums_heavy drums_heavy drums_fill
+}
 
 # --- Section 7: Coda (Bars 16–17) ---
-seq coda_mel  = coda_high coda_end
-seq coda_harm = harm_coda harm_coda
-seq coda_bass = bass_coda bass_coda
-seq coda_perc = drums_coda drums_intro
 
-# =============================================================================
-channel 1 => inst lead_bright seq intro_mel  theme_mel  soar_mel  bridge_mel  run_mel  reprise_mel  coda_mel
-channel 2 => inst chord       seq intro_harm theme_harm soar_harm bridge_harm run_harm reprise_harm coda_harm
-channel 3 => inst bass_wave   seq intro_bass theme_bass soar_bass bridge_bass run_bass reprise_bass coda_bass
-channel 4 => inst kick        seq intro_perc theme_perc soar_perc bridge_perc run_perc reprise_perc coda_perc
+section coda {
+  mel = coda_high coda_end
+  harm = harm_coda harm_coda
+  bass = bass_coda bass_coda
+  perc = drums_coda drums_intro
+}
+
+form main = intro > theme > soar > bridge > run > reprise > coda
+
+channel auto form main inst=lead_bright|chord|bass_wave|kick
 
 play auto

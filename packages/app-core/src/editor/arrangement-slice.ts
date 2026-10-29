@@ -849,7 +849,7 @@ export function deriveSectionFocusIdentity(info: SectionFocusInfo): SectionFocus
   };
 }
 
-/** Nearest `# --- Section …` (or generic `# --- … ---`) comment directly above a seq line. */
+/** Nearest `# --- Section …` (or generic `# --- … ---`) comment directly above a seq/section line. */
 export function findSectionCommentAbove(
   fullSource: string,
   aboveLine: number,
@@ -859,8 +859,9 @@ export function findSectionCommentAbove(
     const line = lines[i];
     if (!line || line.trim() === '') continue;
 
-    // Stop at a prior seq definition — do not attach a distant section header.
+    // Stop at a prior seq/section definition — do not attach a distant section header.
     if (/^\s*seq\s+/i.test(line)) return null;
+    if (/^\s*section\s+/i.test(line)) return null;
 
     const section = line.match(/^\s*#\s*---\s*Section\s+\d+:\s*(.+)$/i);
     if (section) {
@@ -878,6 +879,76 @@ export function findSectionCommentAbove(
     return null;
   }
   return null;
+}
+
+/** Authored `section <name>` identifiers in source order. */
+export function listAuthoredSectionNames(fullSource: string): string[] {
+  const names: string[] = [];
+  for (const line of fullSource.split('\n')) {
+    const match = line.match(/^\s*section\s+([A-Za-z_][A-Za-z0-9_]*)\b/);
+    if (match) names.push(match[1]);
+  }
+  return names;
+}
+
+/**
+ * Map expanded `intro_mel` / authored section keys to the section name.
+ * Prefers `ast.sections`; falls back to scanning source (SongModel ASTs omit sections).
+ */
+export function sectionNameFromGeneratedSeq(
+  seqName: string | null | undefined,
+  ast: any | undefined,
+  fullSource?: string,
+): string | null {
+  if (!seqName) return null;
+  const fromAst = ast?.sections ? Object.keys(ast.sections as Record<string, unknown>) : [];
+  const fromSource = fullSource && fromAst.length === 0
+    ? listAuthoredSectionNames(fullSource)
+    : [];
+  const sections = fromAst.length > 0 ? fromAst : fromSource;
+  if (sections.length === 0) return null;
+  const sorted = [...sections].sort((a, b) => b.length - a.length);
+  for (const name of sorted) {
+    if (seqName === name || seqName.startsWith(`${name}_`)) return name;
+  }
+  return null;
+}
+
+/** 1-based lines covering `section <name> { … }` or `section <name> use …`. */
+export function findSectionDeclarationLines(
+  fullSource: string,
+  sectionName: string,
+): number[] {
+  const lines = fullSource.split('\n');
+  const startRe = new RegExp(`^\\s*section\\s+${escapeRegex(sectionName)}\\b`);
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (startRe.test(lines[i])) {
+      start = i;
+      break;
+    }
+  }
+  if (start < 0) return [];
+
+  const startLine = lines[start];
+  // Beginner one-liner without a block.
+  if (!startLine.includes('{')) {
+    return [start + 1];
+  }
+
+  let depth = 0;
+  const out: number[] = [];
+  for (let i = start; i < lines.length; i++) {
+    out.push(i + 1);
+    for (const ch of lines[i]) {
+      if (ch === '{') depth += 1;
+      else if (ch === '}') depth -= 1;
+    }
+    if (depth <= 0 && i > start) break;
+    // `section name {` may open and not close on the same line; keep scanning.
+    if (depth <= 0 && lines[i].includes('{') && lines[i].includes('}')) break;
+  }
+  return out;
 }
 
 function collectSliceChannelPicks(
@@ -986,7 +1057,12 @@ export function resolveSectionFocus(
     ? phaseSeqNames
     : namedSeqsFromPicks;
 
-  const seqDefinitionLines = resolveSeqDefinitionLines(
+  const primarySeqName = anchor.seqName
+    ?? picks.find((pick) => pick.channelId === anchor.channelId && pick.kind === 'seq')?.refs[0]
+    ?? namedSeqs[0]
+    ?? null;
+
+  let seqDefinitionLines = resolveSeqDefinitionLines(
     fullSource,
     phaseSeqNames,
     channels,
@@ -994,18 +1070,33 @@ export function resolveSectionFocus(
     channelItemIndex,
   );
 
-  const primarySeqName = anchor.seqName
-    ?? picks.find((pick) => pick.channelId === anchor.channelId && pick.kind === 'seq')?.refs[0]
-    ?? namedSeqs[0]
-    ?? null;
+  // Spec 008: expanded `<section>_<role>` seqs have no `seq … =` lines — focus the
+  // authored `section <name> { … }` block instead.
+  if (seqDefinitionLines.length === 0) {
+    const authoredSection =
+      sectionNameFromGeneratedSeq(primarySeqName, ast, fullSource)
+      ?? (channelItemIndex != null
+        ? sectionNameFromGeneratedSeq(
+          collectPhaseSeqNames(ast, channelItemIndex)[0],
+          ast,
+          fullSource,
+        )
+        : null);
+    if (authoredSection) {
+      seqDefinitionLines = findSectionDeclarationLines(fullSource, authoredSection);
+    }
+  }
 
   const blockStartLine = seqDefinitionLines.length > 0
     ? Math.min(...seqDefinitionLines)
     : (primarySeqName ? findSeqDefinitionLine(fullSource, primarySeqName) : null);
 
   const comment = blockStartLine ? findSectionCommentAbove(fullSource, blockStartLine) : null;
-  const sectionLabel = comment?.label ?? primarySeqName ?? 'Section';
-  const sectionHeadword = comment ? normalizeSectionHeadword(comment.label) : null;
+  const authoredSectionName = sectionNameFromGeneratedSeq(primarySeqName, ast, fullSource);
+  const sectionLabel = comment?.label ?? authoredSectionName ?? primarySeqName ?? 'Section';
+  const sectionHeadword = comment
+    ? normalizeSectionHeadword(comment.label)
+    : (authoredSectionName ? normalizeSectionHeadword(authoredSectionName) : null);
 
   return {
     window,
@@ -1306,7 +1397,27 @@ export function findArrangementSliceAnchorByName(
   const bySeq = findArrangementSliceAnchorBySeqName(fullSource, song, ast, name);
   if (bySeq) return bySeq;
 
+  // Spec 008: authored section name → first expanded `<section>_<role>` on a timeline.
   const timelines = buildChannelTimelines(fullSource, song, ast);
+  for (const row of timelines) {
+    for (const seg of row.segments) {
+      if (seg.seqName && sectionNameFromGeneratedSeq(seg.seqName, ast, fullSource) === name) {
+        const span = seg.channelItemIndex != null
+          ? spanForChannelItem(row.segments, seg.channelItemIndex)
+          : { startStep: seg.startStep, endStep: seg.endStep };
+        if (!span) continue;
+        return {
+          channelId: row.channelId,
+          startStep: span.startStep,
+          endStep: span.endStep,
+          seqName: seg.seqName,
+          patName: seg.patName,
+          channelItemIndex: seg.channelItemIndex,
+        };
+      }
+    }
+  }
+
   for (const row of timelines) {
     for (const seg of row.segments) {
       if (seg.patName === name) {
@@ -1341,9 +1452,15 @@ export function findArrangementSliceAnchorBySectionIdentity(
     const sections = listArrangementSections(fullSource, song, ast);
     for (const section of sections) {
       if (!section.seqName) continue;
-      const seqDefLine = findSeqDefinitionLine(fullSource, section.seqName);
-      if (!seqDefLine) continue;
-      const comment = findSectionCommentAbove(fullSource, seqDefLine);
+      // Classic `seq … =` lines, or spec 008 `section <name> { … }` (no generated seq lines).
+      const authoredSection = sectionNameFromGeneratedSeq(section.seqName, ast, fullSource);
+      const blockStart =
+        findSeqDefinitionLine(fullSource, section.seqName)
+        ?? (authoredSection
+          ? (findSectionDeclarationLines(fullSource, authoredSection)[0] ?? null)
+          : null);
+      if (!blockStart) continue;
+      const comment = findSectionCommentAbove(fullSource, blockStart);
       if (!comment) continue;
       if (normalizeSectionHeadword(comment.label) !== headword) continue;
       return {
@@ -1417,9 +1534,11 @@ export function listArrangementSections(
     }
     if (current) blocks.push(current);
     currentGroupKey = groupKey;
+    // Spec 008: Pattern Grid strip uses the authored `section <name>` id, not the comment.
+    const authoredSection = sectionNameFromGeneratedSeq(seg.seqName, ast, fullSource);
     current = {
       key: sectionBlockKey(groupKey, seg.startStep),
-      label: seg.seqName ?? seg.patName,
+      label: authoredSection ?? seg.seqName ?? seg.patName,
       seqName: seg.seqName,
       patName: seg.patName,
       channelId: refRow.channelId,
@@ -1484,6 +1603,18 @@ function channelSeqTokenCounts(ast: any): number[] {
 /** Classify how channel seq tokens are arranged for section-focus UX hints. */
 export function detectArrangementLayout(fullSource: string, ast?: any): ArrangementLayout {
   if (!ast?.channels?.length) return 'monolithic';
+
+  // Spec 008: authored section/form expands to aligned channel seq lists — treat as structured
+  // when more than one section is declared (single-section form is still a one-column timeline).
+  const authoredSections = ast?.sections ? Object.keys(ast.sections) : [];
+  const authoredForms = ast?.forms ? Object.keys(ast.forms) : [];
+  if (authoredSections.length > 1 || (authoredForms.length > 0 && authoredSections.length > 1)) {
+    return 'structured';
+  }
+  if (authoredSections.length === 1 && /^\s*section\s+\w+/m.test(fullSource)) {
+    // One section covering the whole song — still monolithic for focus UX.
+    return 'monolithic';
+  }
 
   const counts = channelSeqTokenCounts(ast);
   if (counts.length === 0) return 'monolithic';

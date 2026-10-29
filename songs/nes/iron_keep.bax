@@ -227,49 +227,52 @@ pat dmc_std    = kick_dmc . . . snare_dmc . . . kick_dmc . . . snare_dmc . . .
 # =============================================================================
 # Sequences — 16 patterns × 16 ticks = 256 ticks per channel
 # =============================================================================
-
-# Pulse 1 lead:
-#   Sections A & B  — fast melodic runs using lead (25% duty)
-#   Bridge bars 9–11 — tonic pedal using lead_vib (50% duty) via inst() transform
-#   Bridge bar 12    — pickup run back to Section A, plain lead
-#   Reprise A        — return to fast Section A runs
-seq lead_main  = mel_a1 mel_a2 mel_a1 mel_a2  mel_b1 mel_b2 mel_b1 mel_b2  bridge_lead1:inst(lead_vib) bridge_lead2:inst(lead_vib) bridge_lead3:inst(lead_vib) bridge_pickup  mel_a1 mel_a2 mel_a1 mel_a2
-
-# Pulse 2 harmony:
-#   Sections A & B  — half-note chord intervals using chord (9/15 vol)
-#   Bridge bars 9–12 — lyrical counter-melody using chord_hi (11/15 vol) via inst() transform
-#   Reprise A        — back to chord support
-seq harm_main  = harm_a1 harm_a2 harm_a1 harm_a2  harm_b1 harm_b2 harm_b1 harm_b2  bridge_harm1:inst(chord_hi) bridge_harm2:inst(chord_hi) bridge_harm3:inst(chord_hi) bridge_harm4:inst(chord_hi)  harm_a1 harm_a2 harm_a1 harm_a2
-
-# Triangle bass:
-#   Sections A & B  — walking bass patterns matching each tonal area
-#   Bridge          — slow tonic pedal bass_c
-#   Reprise A       — back to bass_a walking line
-seq bass_main  = bass_a bass_a bass_a bass_a  bass_b bass_b bass_b bass_b  bass_c bass_c bass_c bass_c  bass_a bass_a bass_a bass_a
-
-# Noise drums:
-#   Bars 1–2 : intro — simple 4/4 kick/snare, no hi-hat (sparse opening)
-#   Bars 3–8 : sections A & B full groove — 8th-note hi-hat drive
-#   Bars 9–12: bridge — sparse kick-only to thin the texture
-#   Bars 13–16: reprise — full groove returns
-seq noise_main = beat_intro beat_intro beat_full beat_full  beat_full beat_full beat_full beat_full  beat_sparse beat_sparse beat_sparse beat_sparse  beat_full beat_full beat_full beat_full
-
-# DMC percussion:
-#   Bars 1–2 : kick-only build (no snare yet — matches noise intro)
-#   Bars 3–8 : full kick + snare
-#   Bars 9–12: kick-only bridge (snare drops out alongside noise_main)
-#   Bars 13–16: full kick + snare return
-seq dmc_main   = dmc_intro dmc_intro dmc_std dmc_std  dmc_std dmc_std dmc_std dmc_std  dmc_intro dmc_intro dmc_intro dmc_intro  dmc_std dmc_std dmc_std dmc_std
-
-# =============================================================================
-# Channel routing
+# SECTIONS / FORM (spec 008)
 # =============================================================================
 
-channel 1 => inst lead      seq lead_main
-channel 2 => inst chord     seq harm_main
-channel 3 => inst tri       seq bass_main
-channel 4 => inst kick_n    seq noise_main
-channel 5 => inst kick_dmc  seq dmc_main
+# --- Section: Theme A ---
+
+section theme_a {
+  mel = mel_a1 mel_a2 mel_a1 mel_a2
+  harm = harm_a1 harm_a2 harm_a1 harm_a2
+  bass = bass_a bass_a bass_a bass_a
+  perc = beat_intro beat_intro beat_full beat_full
+  dmc = dmc_intro dmc_intro dmc_std dmc_std
+}
+
+# --- Section: Theme B ---
+
+section theme_b {
+  mel = mel_b1 mel_b2 mel_b1 mel_b2
+  harm = harm_b1 harm_b2 harm_b1 harm_b2
+  bass = bass_b bass_b bass_b bass_b
+  perc = beat_full beat_full beat_full beat_full
+  dmc = dmc_std dmc_std dmc_std dmc_std
+}
+
+# --- Section: Bridge ---
+
+section bridge {
+  mel = bridge_lead1:inst(lead_vib) bridge_lead2:inst(lead_vib) bridge_lead3:inst(lead_vib) bridge_pickup
+  harm = bridge_harm1:inst(chord_hi) bridge_harm2:inst(chord_hi) bridge_harm3:inst(chord_hi) bridge_harm4:inst(chord_hi)
+  bass = bass_c bass_c bass_c bass_c
+  perc = beat_sparse beat_sparse beat_sparse beat_sparse
+  dmc = dmc_intro dmc_intro dmc_intro dmc_intro
+}
+
+# --- Section: Reprise ---
+
+section reprise {
+  mel = mel_a1 mel_a2 mel_a1 mel_a2
+  harm = harm_a1 harm_a2 harm_a1 harm_a2
+  bass = bass_a bass_a bass_a bass_a
+  perc = beat_full beat_full beat_full beat_full
+  dmc = dmc_std dmc_std dmc_std dmc_std
+}
+
+form main = theme_a > theme_b > bridge > reprise
+
+channel auto form main inst=lead|chord|tri|kick_n|kick_dmc
 
 # =============================================================================
 # Playback

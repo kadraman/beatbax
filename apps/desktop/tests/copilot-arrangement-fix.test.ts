@@ -1,7 +1,5 @@
 /** @jest-environment node */
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
 import { detectArrangementLayout } from '@beatbax/app-core/editor/arrangement-slice';
 import { parseWithPeggy } from '@beatbax/engine/parser';
 import {
@@ -12,10 +10,55 @@ import {
   tryApplyArrangementLayoutFix,
 } from '../src/renderer/src/lib/copilot-arrangement-fix';
 
-const shadowTemplePath = resolve(__dirname, '../../../songs/nes/shadow_temple.bax');
-const shadowTemple = readFileSync(shadowTemplePath, 'utf8');
-const battleFanfarePath = resolve(__dirname, '../../../songs/nes/battle_fanfare.bax');
-const battleFanfare = readFileSync(battleFanfarePath, 'utf8');
+/** Frozen monolithic fixture (battle_fanfare 19-slot layout). Live song is section/form. */
+const battleFanfareMonolith = `chip nes
+bpm 155
+inst lead type=pulse1
+inst harm type=pulse2
+inst tri type=triangle
+inst kick type=noise
+inst kick_dmc type=dmc
+pat p = C4
+seq pulse1_main = ${Array(19).fill('p').join(' ')}
+seq pulse2_main = ${Array(19).fill('p').join(' ')}
+seq tri_main = ${Array(19).fill('p').join(' ')}
+seq noise_main = ${Array(19).fill('p').join(' ')}
+seq dmc_main = ${Array(19).fill('p').join(' ')}
+channel 1 => inst lead seq pulse1_main
+channel 2 => inst harm seq pulse2_main
+channel 3 => inst tri seq tri_main
+channel 4 => inst kick seq noise_main
+channel 5 => inst kick_dmc seq dmc_main
+play`;
+
+/** Minimal phased (channel-grouped) fixture — not a live sample song. */
+const phasedFixture = `chip nes
+bpm 90
+inst lead type=pulse1
+inst harm type=pulse2
+inst bass type=triangle
+inst kick type=noise
+pat a = C4 E4
+pat b = D4 F4
+pat c = E4 G4
+seq sq1_intro = a
+seq sq1_main = b
+seq sq1_bridge = c
+seq sq2_intro = a
+seq sq2_main = b
+seq sq2_bridge = c
+seq tri_intro = a
+seq tri_main = b
+seq tri_bridge = c
+seq drum_intro = a
+seq drum_main = b
+seq drum_bridge = c
+channel 1 => inst lead seq sq1_intro sq1_main sq1_bridge
+channel 2 => inst harm seq sq2_intro sq2_main sq2_bridge
+channel 3 => inst bass seq tri_intro tri_main tri_bridge
+channel 4 => inst kick seq drum_intro drum_main drum_bridge
+play
+`;
 
 describe('isArrangementLayoutFixIntent', () => {
   it('detects typed apply follow-ups', () => {
@@ -59,11 +102,11 @@ describe('shouldTryLocalArrangementFix', () => {
 
 describe('tryApplyArrangementLayoutFix', () => {
   it('proposes phased restructure before confirmation', () => {
-    const { ast } = parseWithPeggy(shadowTemple);
-    expect(detectArrangementLayout(shadowTemple, ast)).toBe('phased');
+    const { ast } = parseWithPeggy(phasedFixture);
+    expect(detectArrangementLayout(phasedFixture, ast)).toBe('phased');
 
     const result = tryApplyArrangementLayoutFix(
-      shadowTemple,
+      phasedFixture,
       'please apply this change',
       'Phased layout detected. Add `# --- Section N ---` headers above cross-channel seq groups.',
     );
@@ -74,9 +117,9 @@ describe('tryApplyArrangementLayoutFix', () => {
     expect(result.explanation).toMatch(/command palette/i);
   });
 
-  it('restructures shadow_temple after confirmation', () => {
+  it('restructures a phased song after confirmation', () => {
     const result = tryApplyArrangementLayoutFix(
-      shadowTemple,
+      phasedFixture,
       'yes, run it',
       undefined,
       { confirmed: true, action: 'restructure_phased' },
@@ -86,14 +129,12 @@ describe('tryApplyArrangementLayoutFix', () => {
 
     const { ast: nextAst } = parseWithPeggy(result.song);
     expect(detectArrangementLayout(result.song, nextAst)).toBe('structured');
-    expect(result.song).toMatch(/# --- Section 1: Intro ---/);
-    expect(result.song).toMatch(/Square 2 \(Arpeggio counter-melody\)/);
-    expect(result.song).toMatch(/Timing summary:/);
+    expect(result.song).toMatch(/# --- Section 1:/);
   });
 
   it('reports already when section headers exist', () => {
     const applied = tryApplyArrangementLayoutFix(
-      shadowTemple,
+      phasedFixture,
       'yes, run it',
       undefined,
       { confirmed: true, action: 'restructure_phased' },
@@ -107,7 +148,7 @@ describe('tryApplyArrangementLayoutFix', () => {
 
   it('ignores stale assistant context for unrelated follow-ups on structured songs', () => {
     const applied = tryApplyArrangementLayoutFix(
-      shadowTemple,
+      phasedFixture,
       'yes, run it',
       undefined,
       { confirmed: true, action: 'restructure_phased' },
@@ -124,17 +165,17 @@ describe('tryApplyArrangementLayoutFix', () => {
   });
 
   it('is not applicable for unrelated edit prompts', () => {
-    expect(tryApplyArrangementLayoutFix(shadowTemple, 'make the kick louder')).toEqual({
+    expect(tryApplyArrangementLayoutFix(phasedFixture, 'make the kick louder')).toEqual({
       status: 'not_applicable',
     });
   });
 
-  it('proposes monolithic split for battle_fanfare before confirmation', () => {
-    const { ast } = parseWithPeggy(battleFanfare);
-    expect(detectArrangementLayout(battleFanfare, ast)).toBe('monolithic');
+  it('proposes monolithic split for a battle_fanfare-shaped song before confirmation', () => {
+    const { ast } = parseWithPeggy(battleFanfareMonolith);
+    expect(detectArrangementLayout(battleFanfareMonolith, ast)).toBe('monolithic');
 
     const result = tryApplyArrangementLayoutFix(
-      battleFanfare,
+      battleFanfareMonolith,
       'Section focus plays the whole song. Split channel seqs or add section markers.',
     );
     expect(result.status).toBe('proposed');
@@ -146,9 +187,9 @@ describe('tryApplyArrangementLayoutFix', () => {
     expect(result.explanation).toMatch(/5 groups/);
   });
 
-  it('splits monolithic battle_fanfare after confirmation', () => {
+  it('splits a monolithic battle_fanfare-shaped song after confirmation', () => {
     const result = tryApplyArrangementLayoutFix(
-      battleFanfare,
+      battleFanfareMonolith,
       'yes, run it',
       undefined,
       { confirmed: true, action: 'split_monolithic' },

@@ -14,7 +14,8 @@ describe('client-profile', () => {
     expect(caps.copilot).toBe(false);
     expect(caps.channelMixer).toBe(true);
     expect(caps.songVisualizer).toBe(false);
-    expect(caps.patternGrid).toBe(false);
+    expect(caps.patternGrid).toBe(true);
+    expect(caps.patternGridBehindFlag).toBe(false);
     expect(caps.advancedEditor).toBe(false);
     expect(caps.midiStepEntry).toBe(false);
     expect(caps.helpPanel).toBe(true);
@@ -29,5 +30,7 @@ describe('client-profile', () => {
     expect(caps.exampleMenu).toBe(false);
     expect(caps.songVisualizer).toBe(true);
     expect(caps.nativeMenu).toBe(true);
+    expect(caps.patternGrid).toBe(true);
+    expect(caps.patternGridBehindFlag).toBe(true);
   });
 });

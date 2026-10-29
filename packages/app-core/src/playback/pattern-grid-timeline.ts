@@ -11,8 +11,8 @@ import {
   snapStepNearest,
   type LoopRange,
   type PlaybackSnapMode,
-} from '@beatbax/app-core/playback/playback-range';
-import { playbackStatus } from '@beatbax/app-core/stores/playback.store';
+} from './playback-range.js';
+import { playbackStatus } from '../stores/playback.store.js';
 import {
   getActivePlaybackLoopRange,
   getRequestedPlaybackRange,
@@ -20,8 +20,8 @@ import {
   playbackStartStep,
   setPlaybackLoopRange,
   setPlaybackStartStep,
-} from '@beatbax/app-core/stores/playback-range.store';
-import type { PlaybackManager } from '@beatbax/app-core/playback/playback-manager';
+} from '../stores/playback-range.store.js';
+import type { PlaybackManager } from './playback-manager.js';
 
 export interface StepSpan {
   startStep: number;

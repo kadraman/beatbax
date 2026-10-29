@@ -184,40 +184,52 @@ pat beat    = kick . hihat . snare . hihat . kick . hihat . snare . hihat .  # 1
 # =============================================================================
 # Sequences — 16 patterns × 16 ticks = 256 ticks per channel
 # =============================================================================
-
-# Pulse 1 lead:
-#   Sections A & B  — fast minor-arpeggio riffs
-##   Bridge bars 9–10 — Am arpeggio chord pad using the warmer 50% duty lead50 inst
-#   Bridge bars 11–12 — counter-melody (joins Pulse 2 in unison for impact)
-#   Reprise A         — return to original Am material
-seq lead_main = riff_a1 riff_a2 riff_a1 riff_a2 riff_b1 riff_b2 riff_b1 riff_b2 pedal_c:inst(lead50) pedal_c:inst(lead50) ctr_c1 ctr_c2 riff_a1 riff_a2 riff_a1 riff_a2
-
-# Pulse 2 harmony:
-#   Section A  — sustained chord tones (harm inst, slow decay for half-note fill)
-#   Section B  — sweep-stab punches (sweep_bass inst applied via transform)
-#   Bridge     — Pulse 2 leads the counter-melody while Pulse 1 holds pedal,
-#                then both converge for the final two bars
-#   Reprise A  — return to chord support
-seq harm_main = harm_a1 harm_a2 harm_a1 harm_a2 harm_b1:inst(stab) harm_b2:inst(stab) harm_b1:inst(stab) harm_b2:inst(stab) ctr_c1 ctr_c2 ctr_c1 ctr_c2 harm_a1 harm_a2 harm_a1 harm_a2
-
-# Triangle bass: quarter-note walking line through all sections.
-seq bass_main = bass_a bass_a bass_a bass_a bass_b bass_b bass_b bass_b bass_c bass_c bass_c bass_c bass_a bass_a bass_a bass_a
-
-# Noise drums: same 8th-note groove through all 16 bars.
-seq drum_main = beat beat beat beat beat beat beat beat beat beat beat beat beat beat beat beat
-
-# DMC percussion: kick/snare groove through all 16 bars (dmc_b labels the D minor section).
-seq dmc_main  = dmc_a dmc_a dmc_a dmc_a dmc_b dmc_b dmc_b dmc_b dmc_a dmc_a dmc_a dmc_a dmc_a dmc_a dmc_a dmc_a
-
-# =============================================================================
-# Channels
+# SECTIONS / FORM (spec 008)
 # =============================================================================
 
-channel 1 => inst lead     seq lead_main   # Pulse 1  — lead melody
-channel 2 => inst harm     seq harm_main   # Pulse 2  — harmony / stabs
-channel 3 => inst tri      seq bass_main   # Triangle — walking bass
-channel 4 => inst kick     seq drum_main   # Noise    — drums
-channel 5 => inst kick_dmc seq dmc_main    # DMC      — kick/snare reinforcement
+# --- Section: Theme A ---
+
+section theme_a {
+  mel = riff_a1 riff_a2 riff_a1 riff_a2
+  harm = harm_a1 harm_a2 harm_a1 harm_a2
+  bass = bass_a bass_a bass_a bass_a
+  perc = beat beat beat beat
+  dmc = dmc_a dmc_a dmc_a dmc_a
+}
+
+# --- Section: Theme B ---
+
+section theme_b {
+  mel = riff_b1 riff_b2 riff_b1 riff_b2
+  harm = harm_b1:inst(stab) harm_b2:inst(stab) harm_b1:inst(stab) harm_b2:inst(stab)
+  bass = bass_b bass_b bass_b bass_b
+  perc = beat beat beat beat
+  dmc = dmc_b dmc_b dmc_b dmc_b
+}
+
+# --- Section: Bridge ---
+
+section bridge {
+  mel = pedal_c:inst(lead50) pedal_c:inst(lead50) ctr_c1 ctr_c2
+  harm = ctr_c1 ctr_c2 ctr_c1 ctr_c2
+  bass = bass_c bass_c bass_c bass_c
+  perc = beat beat beat beat
+  dmc = dmc_a dmc_a dmc_a dmc_a
+}
+
+# --- Section: Reprise ---
+
+section reprise {
+  mel = riff_a1 riff_a2 riff_a1 riff_a2
+  harm = harm_a1 harm_a2 harm_a1 harm_a2
+  bass = bass_a bass_a bass_a bass_a
+  perc = beat beat beat beat
+  dmc = dmc_a dmc_a dmc_a dmc_a
+}
+
+form main = theme_a > theme_b > bridge > reprise
+
+channel auto form main inst=lead|harm|tri|kick|kick_dmc
 
 # =============================================================================
 # Playback

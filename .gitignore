@@ -202,8 +202,3 @@ docs/keys/beatbax-release-private.asc
 
 # Local clone of beatbax-covers (no longer a submodule)
 songs/covers/
-
-
-pr.diff
-review.md
-scripts/attention-review.sh

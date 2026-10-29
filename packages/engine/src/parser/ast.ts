@@ -137,6 +137,29 @@ export interface ChannelNode {
   pat?: string | string[];
   speed?: number;
   lock?: ScaleLock;
+  /** Composition binding (spec 008); cleared after expansion to seq list. */
+  role?: string;
+  /** Composition form name (spec 008); cleared after expansion. */
+  formRef?: string;
+  loc?: SourceLocation;
+}
+
+/** Authored `alias` declaration (spec 008), retained for tooling after expansion. */
+export interface AliasDeclNode {
+  items: SequenceItem[];
+  loc?: SourceLocation;
+}
+
+/** Authored `section` declaration (spec 008). */
+export interface SectionDeclNode {
+  roles: Array<{ role: string; items: SequenceItem[]; loc?: SourceLocation }>;
+  loc?: SourceLocation;
+}
+
+/** Authored `form` declaration (spec 008). */
+export interface FormDeclNode {
+  sectionNames: string[];
+  defaults?: { instruments: string[] };
   loc?: SourceLocation;
 }
 
@@ -203,6 +226,12 @@ export interface AST {
   sequenceItems?: SequenceItemMap;
   channels: ChannelNode[];
   imports?: ImportNode[];
+  /** Authored aliases after composition parse (spec 008). */
+  aliases?: Record<string, AliasDeclNode>;
+  /** Authored sections after composition parse (spec 008). */
+  sections?: Record<string, SectionDeclNode>;
+  /** Authored forms after composition parse (spec 008). */
+  forms?: Record<string, FormDeclNode>;
   bpm?: number;
   time?: number;
   stepsPerBar?: number;

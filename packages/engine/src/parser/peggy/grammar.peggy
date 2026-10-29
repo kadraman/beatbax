@@ -64,9 +64,13 @@ Statement
   / InstStmt
   / EffectStmt
   / SubPatStmt
+  / AliasStmt
+  / SectionStmt
+  / FormStmt
   / PatStmt
   / SeqStmt
   / PatShorthandStmt
+  / ChannelAutoStmt
   / ChannelStmt
   / PlayStmt
   / ExportStmt
@@ -226,9 +230,110 @@ PatShorthandStmt
       return { nodeType: "PatStmt", name, rhsEvents: rhs, loc: loc(location()) };
     }
 
+AliasStmt
+  = $("alias" !IdentChar) __ name:Identifier _ "=" _ rhs:SeqRhs {
+      return { nodeType: "AliasStmt", name, rhsItems: rhs, loc: loc(location()) };
+    }
+
+SectionStmt
+  = $("section" !IdentChar) __ name:Identifier __ "use" __ head:Identifier tail:(__ Identifier)* {
+      return {
+        nodeType: "SectionStmt",
+        name,
+        beginner: true,
+        beginnerUse: [head, ...tail.map(function(t) { return t[1]; })],
+        loc: loc(location())
+      };
+    }
+  / $("section" !IdentChar) __ name:Identifier _ "{" WS0 (Comment? Newline _)* roles:SectionRoleList? WS0 (Comment? Newline _)* "}" {
+      return {
+        nodeType: "SectionStmt",
+        name,
+        beginner: false,
+        roles: roles || [],
+        loc: loc(location())
+      };
+    }
+
+SectionRoleList
+  = head:SectionRole tail:(SectionRoleSep SectionRole)* {
+      return [head, ...tail.map(t => t[1])];
+    }
+
+SectionRoleSep
+  = WS0 ";"? WS0 (Comment? Newline _)+
+  / WS0 ";" WS0
+
+SectionRole
+  = role:Identifier _ "=" _ items:SeqRhs {
+      return { role, items, loc: loc(location()) };
+    }
+
+FormStmt
+  = $("form" !IdentChar) __ name:Identifier _ "=" _ sections:FormSectionList defaults:FormDefaults? {
+      return {
+        nodeType: "FormStmt",
+        name,
+        sectionNames: sections,
+        defaults: defaults || undefined,
+        loc: loc(location())
+      };
+    }
+
+FormSectionList
+  = head:Identifier tail:(FormSectionSep Identifier)* {
+      return [head, ...tail.map(t => t[1])];
+    }
+
+FormSectionSep
+  = _ "," _
+  / _ ">" _
+
+FormDefaults
+  = (Comment? Newline _)? "defaults" __ "inst" _ "=" _ instruments:FormInstList {
+      return { instruments };
+    }
+
+FormInstList
+  = head:Identifier tail:("|" Identifier)* {
+      return [head, ...tail.map(t => t[1])];
+    }
+
 SeqStmt
-  = $("seq" !IdentChar) __ name:Identifier _ "=" _ rhs:SeqRhs {
+  = $("seq" !IdentChar) __ name:Identifier _ "=" _ cat:CatExpr {
+      return { nodeType: "SeqStmt", name, catOperands: cat, loc: loc(location()) };
+    }
+  / $("seq" !IdentChar) __ name:Identifier _ "=" _ rhs:SeqRhs {
       return { nodeType: "SeqStmt", name, rhsItems: rhs, loc: loc(location()) };
+    }
+
+CatExpr
+  = "cat" _ "(" _ ops:CatOperandList? _ ")" {
+      return ops || [];
+    }
+
+CatOperandList
+  = head:CatOperand tail:(_ "," _ CatOperand)* {
+      return [head, ...tail.map(t => t[3])];
+    }
+
+CatOperand
+  = inner:CatExpr {
+      return { kind: "cat", operands: inner, loc: loc(location()) };
+    }
+  / base:Identifier mods:SeqModifier* {
+      return {
+        kind: "ref",
+        name: base,
+        modifiers: mods,
+        raw: base + (mods.length ? mods.map(m => ":" + m.raw).join("") : ""),
+        loc: loc(location())
+      };
+    }
+
+ChannelAutoStmt
+  = $("channel" !IdentChar) __ "auto" __ rhs:RestOfLine {
+      return { nodeType: "ChannelAutoStmt", rhs, loc: loc(location()) };
     }
 
 ChannelStmt
@@ -475,6 +580,9 @@ ReservedWord
   / $("subpat" !IdentChar)
   / $("pat" !IdentChar)
   / $("seq" !IdentChar)
+  / $("alias" !IdentChar)
+  / $("section" !IdentChar)
+  / $("form" !IdentChar)
   / $("channel" !IdentChar)
   / $("effect" !IdentChar)
   / $("play" !IdentChar)

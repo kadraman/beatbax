@@ -20,7 +20,7 @@ Same convention as `songs/nes/`, `songs/gameboy/`, and `songs/sms/`.
 | `steel_justice.bax` | `spectrum-128` | A minor, 128 | Intro → A → Break → B → A' → Coda | Action title — early kit break, march hook, lyrical middle |
 | `cave_run_theme.bax` | `cpc` | C major, 132 | Intro → A → Quiet → B → Bridge → A-tag → Coda | Platformer bounce — quiet echo middle, no drum-only break |
 
-All three are original compositions. They demonstrate named instruments, macros (`arp_env`, `vol_env`), `env_bass`, named percussion, and inline effects.
+All three are original compositions. They demonstrate named instruments, macros (`arp_env`, `vol_env`), `env_bass`, named percussion, and inline effects. Full arrangements use compile-time `section` / `form` / channel `role` bindings (spec 008).
 
 Shared conventions worth copying when writing your own AY arrangements:
 

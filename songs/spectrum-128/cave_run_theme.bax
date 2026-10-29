@@ -167,44 +167,54 @@ pat kit_cd  = kick . snare . kick . . . crash _ _ _ _ _ _ _
 # Sequences
 # =============================================================================
 
-seq intro_mel = mel_in_a mel_in_b
-seq intro_hrm = hrm_c hrm_g
-seq intro_bs  = bs_in_a bs_in_b
-
-seq themeA_mel = mel_a_c mel_a_am mel_a_f mel_a_g
-seq themeA_hrm = hrm_c hrm_am hrm_f hrm_g
-seq themeA_bs  = bs_c bs_am bs_f bs_g
-
-seq quiet_mel = mel_echo_a mel_echo_b
-seq quiet_hrm = hrm_quiet_a hrm_quiet_b
-seq quiet_bs  = bs_quiet_a bs_quiet_b
-
-seq themeB_mel = mel_b_c mel_b_am mel_b_dm mel_b_g
-seq themeB_hrm = pad_c pad_am pad_dm pad_g
-seq themeB_bs  = bs_c bs_am bs_dm bs_g
-
-seq bridge_mel = mel_br mel_br
-seq bridge_hrm = hrm_br hrm_br
-seq bridge_bs  = bs_c bs_g
-
-seq tag_mel = mel_tag_f mel_tag_g
-seq tag_hrm = hrm_f hrm_g
-seq tag_bs  = bs_f bs_g
-
-seq coda_mel = mel_cd_a mel_cd_b
-seq coda_hrm = hrm_cd hrm_cd
-seq coda_bs  = bs_c kit_cd
-
 # =============================================================================
 # Channels — form: Intro → A → Quiet → B → Bridge → A-tag → Coda
 # =============================================================================
 
-channel 1 => inst lead    seq intro_mel themeA_mel quiet_mel themeB_mel bridge_mel tag_mel coda_mel
-channel 2 => inst arp_maj seq intro_hrm themeA_hrm quiet_hrm themeB_hrm bridge_hrm tag_hrm coda_hrm
-channel 3 => inst buzz    seq intro_bs  themeA_bs  quiet_bs  themeB_bs  bridge_bs  tag_bs  coda_bs
-
 # =============================================================================
 # Playback
 # =============================================================================
+
+section intro {
+  mel = mel_in_a mel_in_b
+  harm = hrm_c hrm_g
+  bass = bs_in_a bs_in_b
+}
+section themeA {
+  mel = mel_a_c mel_a_am mel_a_f mel_a_g
+  harm = hrm_c hrm_am hrm_f hrm_g
+  bass = bs_c bs_am bs_f bs_g
+}
+section quiet {
+  mel = mel_echo_a mel_echo_b
+  harm = hrm_quiet_a hrm_quiet_b
+  bass = bs_quiet_a bs_quiet_b
+}
+section themeB {
+  mel = mel_b_c mel_b_am mel_b_dm mel_b_g
+  harm = pad_c pad_am pad_dm pad_g
+  bass = bs_c bs_am bs_dm bs_g
+}
+section bridge {
+  mel = mel_br mel_br
+  harm = hrm_br hrm_br
+  bass = bs_c bs_g
+}
+section tag {
+  mel = mel_tag_f mel_tag_g
+  harm = hrm_f hrm_g
+  bass = bs_f bs_g
+}
+section coda {
+  mel = mel_cd_a mel_cd_b
+  harm = hrm_cd hrm_cd
+  bass = bs_c kit_cd
+}
+
+form main = intro, themeA, quiet, themeB, bridge, tag, coda
+
+channel 1 => inst lead role mel form main
+channel 2 => inst arp_maj role harm form main
+channel 3 => inst buzz role bass form main
 
 play auto

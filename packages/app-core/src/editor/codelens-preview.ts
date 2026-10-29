@@ -2,18 +2,17 @@
  * CodeLens Pattern & Instrument Preview
  *
  * Registers a Monaco CodeLens provider for the 'beatbax' language that adds
- * "▶ Preview <name>" / "⬛ Stop  <name>" inline actions above every `pat` and
- * `inst` definition line.
+ * "▶ Preview" / "⬛ Stop" inline actions above `pat`, `seq`, `section` (and role
+ * lines), `inst`, and `effect` definition lines.
  *
  * Pattern instrument resolution priority:
  *   1. First inline `inst` token inside the pattern's own event list
  *   2. Channel whose seq tree contains this pattern (nested seqs included)
  *   3. Fallback: the first declared instrument in the file
  *
- * Instrument preview uses type `previewMode` / `previewOctave` from the chip
- * instrument-editor schema (plus `tone_mix=true` → oneshot for AY percussion on
- * tone channels): melodic types get C notes centred on the default octave;
- * oneshot / uge_note types get ▶ Hit / ▶ Sample (named-hit audition).
+ * Instrument preview plays a fixed ascending scale: C3 C4 C5 C6 C7, choosing
+ * the correct Game Boy channel (1=pulse1, 2=pulse2, 3=wave, 4=noise) from the
+ * instrument's `type` field so the right APU channel is used.
  *
  * Clicking "▶ Preview" plays the pattern or instrument in isolation.
  * Clicking "⬛ Stop" (shown only while that item is previewing) stops it.
@@ -29,13 +28,7 @@ import { chipRegistry } from '@beatbax/engine/chips';
 import type { EventBus } from '../utils/event-bus.js';
 import { buildImportResolverOptions } from '../import/import-resolver-options.js';
 import { findChannelForNamedItem } from './preview-channel-resolve.js';
-import {
-  hitOneshotPreviewTiming,
-  melodicPreviewNotesForOctave,
-  resolvePreviewChannel,
-  resolvePreviewMode,
-  resolvePreviewOctave,
-} from './instrument-editor-schema.js';
+import { resolvePreviewChannel } from './instrument-editor-schema.js';
 import { FeatureFlag, isFeatureEnabled } from '../utils/feature-flags.js';
 import {
   settingCodeLensPatterns,
@@ -298,6 +291,100 @@ async function startSeqPreview(
   return { player, key: `seq:${seqName}`, stopTimer };
 }
 
+/** Generated seq name for a section role after composition expand (`intro_mel`). */
+export function sectionRoleSeqName(sectionName: string, role: string): string {
+  return `${sectionName}_${role}`;
+}
+
+/**
+ * Role seq names for a section: prefer authored `ast.sections`, else scan
+ * expanded `ast.seqs` keys matching `<section>_*`.
+ */
+export function listSectionRoleSeqNames(sectionName: string, ast: any): string[] {
+  const section = ast?.sections?.[sectionName];
+  if (section?.roles && Array.isArray(section.roles) && section.roles.length > 0) {
+    return section.roles
+      .map((r: { role?: string }) => (r?.role ? sectionRoleSeqName(sectionName, String(r.role)) : ''))
+      .filter(Boolean);
+  }
+  const prefix = `${sectionName}_`;
+  return Object.keys(ast?.seqs ?? {})
+    .filter((name) => name.startsWith(prefix) && !name.slice(prefix.length).includes('_'))
+    .sort();
+}
+
+/** Multi-channel preview of one authored section (all roles, bound instruments). */
+async function startSectionPreview(
+  sectionName: string,
+  rawAst: any,
+  onDone: () => void,
+): Promise<PreviewState | null> {
+  const roleSeqs = listSectionRoleSeqNames(sectionName, rawAst);
+  if (roleSeqs.length === 0) return null;
+
+  const channels: Array<{ id: number; inst: string; pat: string }> = [];
+  const usedIds = new Set<number>();
+  for (const seqName of roleSeqs) {
+    if (!rawAst.seqs?.[seqName] && !rawAst.pats?.[seqName]) continue;
+    const found = findChannelForNamedItem(rawAst, seqName);
+    const instName = found?.inst
+      ?? Object.keys(rawAst.insts ?? {})[0]
+      ?? null;
+    if (!instName) continue;
+    let id = found?.id ?? instChannelId(instName, rawAst);
+    while (usedIds.has(id)) id += 1;
+    usedIds.add(id);
+    channels.push({ id, inst: instName, pat: seqName });
+  }
+  if (channels.length === 0) return null;
+
+  const previewAst = {
+    ...rawAst,
+    channels,
+    play: { auto: false },
+  };
+
+  let songModel: any;
+  try {
+    songModel = resolveSong(previewAst as any);
+  } catch {
+    return null;
+  }
+
+  let player: Player;
+  try {
+    player = new Player(_sharedCtx ?? undefined);
+    await player.playAST(songModel as any);
+  } catch {
+    return null;
+  }
+
+  const bpm: number = rawAst.bpm ?? 120;
+  const stepsPerBar: number = rawAst.stepsPerBar ?? rawAst.time ?? 4;
+  const totalSteps = Math.max(
+    1,
+    ...(songModel.channels ?? []).map((ch: any) => ch?.events?.length ?? 0),
+  );
+  const barDurationMs = (60_000 / bpm) * stepsPerBar;
+  const barsNeeded = Math.max(1, Math.ceil(totalSteps / stepsPerBar));
+  const durationMs = barDurationMs * barsNeeded + 500;
+
+  const stopTimer = window.setTimeout(() => {
+    try { player.stop(); } catch (_e) { /* ignore */ }
+    onDone();
+  }, durationMs);
+
+  player.onComplete = () => {
+    clearTimeout(stopTimer);
+    onDone();
+  };
+
+  return { player, key: `section:${sectionName}`, stopTimer };
+}
+
+// Notes shown as individual clickable buttons above each `inst` line.
+const INST_PREVIEW_NOTES = ['C3', 'C4', 'C5', 'C6', 'C7'];
+
 /** Options for {@link startInstNotePreview} / {@link triggerInstNotePreview}. */
 export interface InstNotePreviewOptions {
   /**
@@ -306,36 +393,14 @@ export interface InstNotePreviewOptions {
    * / MIDI note-on. CodeLens clicks leave this false (≈2 s oneshot).
    */
   sustain?: boolean;
-  /**
-   * `note` (default) — melodic pattern note.
-   * `hit` — named instrument token so noise/DMC use instrument props (`uge_note`, `noise_period`, …).
-   */
-  mode?: 'note' | 'hit';
-  /** Temporary instrument prop overrides for audition only (e.g. `{ uge_note: 'C-7' }`). */
-  instPatch?: Record<string, unknown>;
 }
 
 /** Steps at bpm 60 (≈1 s/step) while a key is held; release stops earlier. */
 const INST_NOTE_SUSTAIN_STEPS = 180;
 const INST_NOTE_ONESHOT_MS = 2000;
 const INST_NOTE_SUSTAIN_SAFETY_MS = INST_NOTE_SUSTAIN_STEPS * 1000 + 500;
-function buildInstPreviewPatternEvents(
-  instName: string,
-  note: string,
-  steps: number,
-  mode: 'note' | 'hit',
-): any[] {
-  if (mode === 'hit') {
-    const events: any[] = [{ kind: 'token', value: instName, raw: instName }];
-    if (steps > 1) {
-      events.push({ kind: 'rest', value: '_', duration: steps - 1, raw: '_'.repeat(steps - 1) });
-    }
-    return events;
-  }
-  return [{ kind: 'note', value: note, duration: steps, raw: `${note}:${steps}` }];
-}
 
-/** Play a single note or named hit with the instrument; auto-stops after decay. */
+/** Play a single note with the named instrument; auto-stops after the note decays. */
 async function startInstNotePreview(
   instName: string,
   note: string,
@@ -344,40 +409,17 @@ async function startInstNotePreview(
   options?: InstNotePreviewOptions,
   isCancelled?: () => boolean,
 ): Promise<PreviewState | null> {
+  const channelId = instChannelId(instName, rawAst);
   const sustain = options?.sustain === true;
-  const mode = options?.mode === 'hit' ? 'hit' : 'note';
-  const baseInst = rawAst.insts?.[instName];
-  const effectiveInst = options?.instPatch && baseInst
-    ? { ...baseInst, ...options.instPatch }
-    : options?.instPatch && !baseInst
-      ? { ...options.instPatch }
-      : baseInst;
-  // Named hits (DMC / noise / uge_note): play for sample or envelope end, not button hold.
-  const hitOneshot = mode === 'hit' && !sustain;
-  const hitTiming = hitOneshot ? hitOneshotPreviewTiming(effectiveInst) : null;
-  const steps = sustain
-    ? INST_NOTE_SUSTAIN_STEPS
-    : hitTiming
-      ? hitTiming.steps
-      : 1;
-  const bpm = sustain ? 60 : hitTiming ? hitTiming.bpm : 60;
-  const insts = effectiveInst && (options?.instPatch || baseInst)
-    ? { ...rawAst.insts, [instName]: effectiveInst }
-    : rawAst.insts;
-  // Resolve after patching so a draft type change (e.g. tone3 → noise) targets
-  // the correct hardware channel when live-edit is off.
-  const channelId = instChannelId(instName, { ...rawAst, insts });
-
-  const previewKey = mode === 'hit'
-    ? `inst-hit:${instName}:${String(options?.instPatch?.uge_note ?? note ?? 'hit')}`
-    : `inst-note:${instName}:${note}`;
+  const steps = sustain ? INST_NOTE_SUSTAIN_STEPS : 1;
 
   const previewAst = {
     chip:  rawAst.chip ? chipRegistry.resolve(String(rawAst.chip).toLowerCase()) : (rawAst.chip ?? 'gameboy'),
-    bpm,   // hit oneshots raise bpm so one step ≈ envelope length (vol_env is ~60 Hz)
-    insts,
+    bpm:   60,   // 1 beat = 1 s at 60 BPM — gives envelope plenty of time
+    insts: rawAst.insts,
+    // Prefer structured events so `:N` duration expands to note + sustains.
     patternEvents: {
-      __inst_note__: buildInstPreviewPatternEvents(instName, note, steps, mode),
+      __inst_note__: [{ kind: 'note', value: note, duration: steps, raw: `${note}:${steps}` }],
     },
     pats:  { __inst_note__: [] as string[] },
     seqs:  {},
@@ -407,24 +449,18 @@ async function startInstNotePreview(
     return null;
   }
 
-  // Melodic oneshot: short CodeLens cap. Hit oneshot: sized to vol_env / DMC sample.
-  // Sustain: long safety net; release may stop earlier (melodic hold path only).
-  const stopAfterMs = sustain
-    ? INST_NOTE_SUSTAIN_SAFETY_MS
-    : hitTiming
-      ? hitTiming.stopAfterMs
-      : INST_NOTE_ONESHOT_MS;
+  // Oneshot: short cap for CodeLens clicks. Sustain: long safety net; release stops earlier.
   const stopTimer = window.setTimeout(() => {
     try { player.stop(); } catch (_e) { /* ignore */ }
     onDone();
-  }, stopAfterMs);
+  }, sustain ? INST_NOTE_SUSTAIN_SAFETY_MS : INST_NOTE_ONESHOT_MS);
 
   player.onComplete = () => {
     clearTimeout(stopTimer);
     onDone();
   };
 
-  return { player, key: previewKey, stopTimer };
+  return { player, key: `inst-note:${instName}:${note}`, stopTimer };
 }
 
 // ---------------------------------------------------------------------------
@@ -687,6 +723,10 @@ let _previewTrigger: ((patternName: string) => void) | null = null;
 let _loopTrigger: ((patternName: string) => void) | null = null;
 let _seqPreviewTrigger: ((seqName: string) => void) | null = null;
 let _seqLoopTrigger: ((seqName: string) => void) | null = null;
+let _sectionPreviewTrigger: ((sectionName: string) => void) | null = null;
+let _sectionLoopTrigger: ((sectionName: string) => void) | null = null;
+let _sectionRolePreviewTrigger: ((sectionName: string, role: string) => void) | null = null;
+let _sectionRoleLoopTrigger: ((sectionName: string, role: string) => void) | null = null;
 let _instNotePreviewTrigger: ((instName: string, note: string, options?: InstNotePreviewOptions) => void) | null = null;
 let _stepEntryAuditionTrigger: ((lineText: string, note: string) => void) | null = null;
 let _effectPreviewTrigger: ((effectName: string) => void) | null = null;
@@ -741,12 +781,21 @@ function ensureCommandsRegistered(): void {
   monaco.editor.registerCommand('beatbax.loopSeq', (_acc: any, seqName: string) => {
     _seqLoopTrigger?.(seqName);
   });
-  monaco.editor.registerCommand(
-    'beatbax.previewInstNote',
-    (_acc: any, instName: string, note: string, options?: InstNotePreviewOptions) => {
-      _instNotePreviewTrigger?.(instName, note, options);
-    },
-  );
+  monaco.editor.registerCommand('beatbax.previewSection', (_acc: any, sectionName: string) => {
+    _sectionPreviewTrigger?.(sectionName);
+  });
+  monaco.editor.registerCommand('beatbax.loopSection', (_acc: any, sectionName: string) => {
+    _sectionLoopTrigger?.(sectionName);
+  });
+  monaco.editor.registerCommand('beatbax.previewSectionRole', (_acc: any, sectionName: string, role: string) => {
+    _sectionRolePreviewTrigger?.(sectionName, role);
+  });
+  monaco.editor.registerCommand('beatbax.loopSectionRole', (_acc: any, sectionName: string, role: string) => {
+    _sectionRoleLoopTrigger?.(sectionName, role);
+  });
+  monaco.editor.registerCommand('beatbax.previewInstNote', (_acc: any, instName: string, note: string) => {
+    _instNotePreviewTrigger?.(instName, note);
+  });
   monaco.editor.registerCommand('beatbax.editInstrument', (_acc: any, instName: string) => {
     _editInstrumentTrigger?.(instName);
   });
@@ -1030,6 +1079,115 @@ export function setupCodeLensPreview(
     await playNext();
   };
 
+  _sectionRolePreviewTrigger = async (sectionName: string, role: string) => {
+    ensureAudioCtxReady();
+    const seqName = sectionRoleSeqName(sectionName, role);
+    const key = `section-role:${sectionName}:${role}`;
+    if (previewState?.key === key) { stopPreview(); return; }
+    const generation = beginPreview();
+    const rawAst = await astForPreview();
+    if (!previewIsCurrent(generation) || !rawAst) return;
+    const state = await startSeqPreview(seqName, rawAst, () => {
+      previewState = null;
+      notifyChange();
+    });
+    if (state) state.key = key;
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: no instrument found for section role '${sectionName}.${role}'.`,
+    );
+  };
+
+  _sectionRoleLoopTrigger = async (sectionName: string, role: string) => {
+    ensureAudioCtxReady();
+    const seqName = sectionRoleSeqName(sectionName, role);
+    const key = `section-role-loop:${sectionName}:${role}`;
+    if (previewState?.key === key) { stopPreview(); return; }
+    const generation = beginPreview();
+
+    let cancelled = false;
+    const cancel = () => { cancelled = true; };
+
+    async function playNext(): Promise<void> {
+      if (cancelled || !previewIsCurrent(generation)) return;
+      const rawAst = await astForPreview();
+      if (!rawAst || cancelled || !previewIsCurrent(generation)) return;
+      let fired = false;
+      const onIterationDone = () => {
+        if (fired || cancelled || !previewIsCurrent(generation)) return;
+        fired = true;
+        void playNext();
+      };
+      const state = await startSeqPreview(seqName, rawAst, onIterationDone);
+      if (!state || cancelled || !previewIsCurrent(generation)) {
+        abandonUnassignedPreview(state);
+        if (!state && !cancelled && previewIsCurrent(generation)) {
+          failPreview(`Preview unavailable: no instrument found for section role '${sectionName}.${role}'.`);
+        }
+        return;
+      }
+      state.key = key;
+      state.cancelLoop = cancel;
+      previewState = state;
+      notifyChange();
+    }
+
+    await playNext();
+  };
+
+  _sectionPreviewTrigger = async (sectionName: string) => {
+    ensureAudioCtxReady();
+    if (previewState?.key === `section:${sectionName}`) { stopPreview(); return; }
+    const generation = beginPreview();
+    const rawAst = await astForPreview();
+    if (!previewIsCurrent(generation) || !rawAst) return;
+    const state = await startSectionPreview(sectionName, rawAst, () => {
+      previewState = null;
+      notifyChange();
+    });
+    assignPreviewIfCurrent(
+      generation,
+      state,
+      `Preview unavailable: section '${sectionName}' has no playable roles.`,
+    );
+  };
+
+  _sectionLoopTrigger = async (sectionName: string) => {
+    ensureAudioCtxReady();
+    if (previewState?.key === `section-loop:${sectionName}`) { stopPreview(); return; }
+    const generation = beginPreview();
+
+    let cancelled = false;
+    const cancel = () => { cancelled = true; };
+
+    async function playNext(): Promise<void> {
+      if (cancelled || !previewIsCurrent(generation)) return;
+      const rawAst = await astForPreview();
+      if (!rawAst || cancelled || !previewIsCurrent(generation)) return;
+      let fired = false;
+      const onIterationDone = () => {
+        if (fired || cancelled || !previewIsCurrent(generation)) return;
+        fired = true;
+        void playNext();
+      };
+      const state = await startSectionPreview(sectionName, rawAst, onIterationDone);
+      if (!state || cancelled || !previewIsCurrent(generation)) {
+        abandonUnassignedPreview(state);
+        if (!state && !cancelled && previewIsCurrent(generation)) {
+          failPreview(`Preview unavailable: section '${sectionName}' has no playable roles.`);
+        }
+        return;
+      }
+      state.key = `section-loop:${sectionName}`;
+      state.cancelLoop = cancel;
+      previewState = state;
+      notifyChange();
+    }
+
+    await playNext();
+  };
+
   _effectPreviewTrigger = async (effectName: string) => {
     ensureAudioCtxReady();
     if (previewState?.key === `effect:${effectName}`) { stopPreview(); return; }
@@ -1140,9 +1298,109 @@ export function setupCodeLensPreview(
       const lenses: monaco.languages.CodeLens[] = [];
       const lineCount = model.getLineCount();
       const categories = getCodeLensCategoryFlags();
+      // Track `section name { … }` so role lines get lenses gated by sequences.
+      let openSectionName: string | null = null;
+      let sectionBraceDepth = 0;
 
       for (let ln = 1; ln <= lineCount; ln++) {
         const line = model.getLineContent(ln);
+
+        // ── section header (block or Beginner `use`) ─────────────────────
+        const sectionUseMatch = line.match(/^\s*section\s+([A-Za-z_][A-Za-z0-9_]*)\s+use\b/);
+        const sectionBlockMatch = line.match(/^\s*section\s+([A-Za-z_][A-Za-z0-9_]*)\b/);
+        if (sectionUseMatch || (sectionBlockMatch && line.includes('{'))) {
+          const sectionName = (sectionUseMatch ?? sectionBlockMatch)![1];
+          if (categories.sequences) {
+            const activeKey = previewState?.key;
+            const isActive = activeKey === `section:${sectionName}`
+              || activeKey === `section-loop:${sectionName}`;
+            if (isActive) {
+              const isLooping = activeKey === `section-loop:${sectionName}`;
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-section-stop-${sectionName}`,
+                command: { id: 'beatbax.stopPreview', title: isLooping ? '⬛ Stop  ↺' : '⬛ Stop', arguments: [] },
+              });
+            } else {
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-section-preview-${sectionName}`,
+                command: { id: 'beatbax.previewSection', title: '▶ Preview', arguments: [sectionName] },
+              });
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-section-loop-${sectionName}`,
+                command: { id: 'beatbax.loopSection', title: '↺ Loop', arguments: [sectionName] },
+              });
+            }
+          }
+          if (sectionUseMatch) {
+            // One-liner — no role-line body to track.
+            openSectionName = null;
+            sectionBraceDepth = 0;
+            continue;
+          }
+          // Count braces on the header line, then keep scanning for role lines.
+          openSectionName = sectionName;
+          sectionBraceDepth = 0;
+          for (const ch of line) {
+            if (ch === '{') sectionBraceDepth += 1;
+            else if (ch === '}') sectionBraceDepth -= 1;
+          }
+          if (sectionBraceDepth <= 0) {
+            openSectionName = null;
+            sectionBraceDepth = 0;
+          }
+          continue;
+        }
+
+        if (openSectionName) {
+          for (const ch of line) {
+            if (ch === '{') sectionBraceDepth += 1;
+            else if (ch === '}') sectionBraceDepth -= 1;
+          }
+          const roleMatch = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+          if (roleMatch && categories.sequences) {
+            const role = roleMatch[1];
+            const sectionName = openSectionName;
+            const activeKey = previewState?.key;
+            const isActive = activeKey === `section-role:${sectionName}:${role}`
+              || activeKey === `section-role-loop:${sectionName}:${role}`;
+            if (isActive) {
+              const isLooping = activeKey === `section-role-loop:${sectionName}:${role}`;
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-section-role-stop-${sectionName}-${role}`,
+                command: { id: 'beatbax.stopPreview', title: isLooping ? '⬛ Stop  ↺' : '⬛ Stop', arguments: [] },
+              });
+            } else {
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-section-role-preview-${sectionName}-${role}`,
+                command: {
+                  id: 'beatbax.previewSectionRole',
+                  title: '▶ Preview',
+                  arguments: [sectionName, role],
+                },
+              });
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-section-role-loop-${sectionName}-${role}`,
+                command: {
+                  id: 'beatbax.loopSectionRole',
+                  title: '↺ Loop',
+                  arguments: [sectionName, role],
+                },
+              });
+            }
+          }
+          if (sectionBraceDepth <= 0) {
+            openSectionName = null;
+            sectionBraceDepth = 0;
+          }
+          // Role / brace lines are not pat/seq/inst/effect headers.
+          continue;
+        }
 
         // ── pat definitions ──────────────────────────────────────────────
         const patMatch = line.match(/^\s*pat\s+([A-Za-z0-9_-]+)\s*=/);
@@ -1214,53 +1472,27 @@ export function setupCodeLensPreview(
             });
           }
           if (!categories.instruments) continue;
-          const typeMatch = line.match(/\btype\s*=\s*([A-Za-z0-9_-]+)/i);
-          const instType = typeMatch?.[1];
-          let chip = 'gameboy';
-          const modelText = typeof (model as { getValue?: () => string }).getValue === 'function'
-            ? (model as { getValue: () => string }).getValue()
-            : '';
-          const chipMatch = modelText.match(/^\s*chip\s+(\S+)/im);
-          if (chipMatch) chip = chipMatch[1].toLowerCase();
-          else {
-            for (let i = 1; i <= Math.min(lineCount, 40); i++) {
-              const m = model.getLineContent(i).match(/^\s*chip\s+(\S+)/i);
-              if (m) { chip = m[1].toLowerCase(); break; }
-            }
-          }
-          const toneMixMatch = line.match(/\btone_mix\s*=\s*(\S+)/i);
-          const previewMode = resolvePreviewMode(instType, chip, undefined, {
-            tone_mix: toneMixMatch?.[1],
-          });
-          const activeKey = previewState?.key;
-
-          if (previewMode === 'oneshot' || previewMode === 'uge_note') {
-            const isDmc = (instType ?? '').toLowerCase() === 'dmc';
-            const title = isDmc ? '▶ Sample' : '▶ Hit';
-            const hitKey = `inst-hit:${instName}:hit`;
-            const isActive = typeof activeKey === 'string'
-              && (activeKey === hitKey || activeKey.startsWith(`inst-hit:${instName}:`));
+          // Sample-based instruments (type=dmc) get a single ▶ Sample button
+          // instead of individual note buttons — DMC samples have no meaningful pitch.
+          const isSampleBased = /\btype=dmc\b/.test(line);
+          if (isSampleBased) {
+            const activeKey = previewState?.key;
+            const isActive = activeKey === `inst-note:${instName}:C4`;
             if (isActive) {
               lenses.push({
                 range: new monaco.Range(ln, 1, ln, 1),
-                id: `bb-inst-hit-stop-${instName}`,
+                id: `bb-inst-sample-stop-${instName}`,
                 command: { id: 'beatbax.stopPreview', title: '⬛ Stop', arguments: [] },
               });
             } else {
               lenses.push({
                 range: new monaco.Range(ln, 1, ln, 1),
-                id: `bb-inst-hit-${instName}`,
-                command: {
-                  id: 'beatbax.previewInstNote',
-                  title,
-                  // Third arg: hit mode (handled in command registration / trigger options).
-                  arguments: [instName, 'hit', { mode: 'hit' }],
-                },
+                id: `bb-inst-sample-${instName}`,
+                command: { id: 'beatbax.previewInstNote', title: '▶ Sample', arguments: [instName, 'C4'] },
               });
             }
           } else {
-            const oct = resolvePreviewOctave(undefined, instType, chip);
-            for (const note of melodicPreviewNotesForOctave(oct)) {
+            for (const note of INST_PREVIEW_NOTES) {
               lenses.push({
                 range: new monaco.Range(ln, 1, ln, 1),
                 id: `bb-inst-${instName}-${note}`,
@@ -1327,6 +1559,10 @@ export function setupCodeLensPreview(
       _loopTrigger = null;
       _seqPreviewTrigger = null;
       _seqLoopTrigger = null;
+      _sectionPreviewTrigger = null;
+      _sectionLoopTrigger = null;
+      _sectionRolePreviewTrigger = null;
+      _sectionRoleLoopTrigger = null;
       _instNotePreviewTrigger = null;
       _stepEntryAuditionTrigger = null;
       _effectPreviewTrigger = null;

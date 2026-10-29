@@ -23,8 +23,8 @@ export const loadLoggingFromStorage = jest.fn();
 export const saveLoggingToStorage = jest.fn();
 export const loadLoggingFromURL = jest.fn();
 export const getLoggingConfig = jest.fn(() => ({
-  level: 'error',
-  modules: undefined,
+  level: 'error' as string,
+  modules: undefined as string[] | undefined,
   timestamps: true,
   webaudioTrace: false,
   colorize: false,

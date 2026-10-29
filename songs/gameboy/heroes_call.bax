@@ -299,64 +299,91 @@ pat drums_climax  = kick hat hat . snare hat hat . kick hat hat . snare hat hat 
 #   Bar  19    : DCM coda (duty-cycle modulation)
 #   Bars 20–21 : Final resolution (sustained tonic fade)
 
+# =============================================================================
+
 # --- Section 1: Grand Opening Fanfare (Bars 1–2) ---
-seq fanfare_mel  = fan_a fan_b
-seq fanfare_harm = harm_fanfare harm_fanfare
-seq fanfare_bass = bass_intro bass_intro
-seq fanfare_perc = drums_sparse drums_sparse
+
+section fanfare {
+  mel = fan_a fan_b
+  harm = harm_fanfare harm_fanfare
+  bass = bass_intro bass_intro
+  perc = drums_sparse drums_sparse
+}
 
 # --- Section 2: Main Hero Theme (Bars 3–6) ---
-seq theme_mel  = theme_a theme_b theme_a theme_c
-seq theme_harm = harm_I_V harm_I_IV harm_I_V harm_IV_V
-seq theme_bass = bass_I_IV_V bass_ii_V_I bass_I_IV_V bass_I_IV_V
-seq theme_perc = drums_march drums_march drums_march drums_march
+
+section theme {
+  mel = theme_a theme_b theme_a theme_c
+  harm = harm_I_V harm_I_IV harm_I_V harm_IV_V
+  bass = bass_I_IV_V bass_ii_V_I bass_I_IV_V bass_I_IV_V
+  perc = drums_march drums_march drums_march drums_march
+}
 
 # --- Section 3: Mysterious Bridge (Bars 7–8) ---
-seq bridge_mel  = bridge_a bridge_b
-seq bridge_harm = harm_bridge1 harm_bridge2
-seq bridge_bass = bass_bridge bass_bridge
-seq bridge_perc = drums_bridge drums_bridge
+
+section bridge {
+  mel = bridge_a bridge_b
+  harm = harm_bridge1 harm_bridge2
+  bass = bass_bridge bass_bridge
+  perc = drums_bridge drums_bridge
+}
 
 # --- Section 4: Ascending Run — transition into reprise (Bar 9) ---
-seq run_mel  = mel_run
-seq run_harm = harm_run
-seq run_bass = bass_run
-seq run_perc = drums_climax
+
+section run {
+  mel = mel_run
+  harm = harm_run
+  bass = bass_run
+  perc = drums_climax
+}
 
 # --- Section 5: Shimmer Reprise (Bars 10–13) ---
-seq shimmer_mel  = theme_a_sh theme_b_sh theme_a_sh theme_c_sh
-seq shimmer_harm = harm_I_V_r harm_I_IV_r harm_I_V_r harm_IV_V_r
-seq shimmer_bass = bass_I_IV_V bass_ii_V_I bass_I_IV_V bass_I_IV_V
-seq shimmer_perc = drums_march drums_march drums_climax drums_climax
+
+section shimmer {
+  mel = theme_a_sh theme_b_sh theme_a_sh theme_c_sh
+  harm = harm_I_V_r harm_I_IV_r harm_I_V_r harm_IV_V_r
+  bass = bass_I_IV_V bass_ii_V_I bass_I_IV_V bass_I_IV_V
+  perc = drums_march drums_march drums_climax drums_climax
+}
 
 # --- Section 6: Bold Final Reprise (Bars 14–17) ---
-seq reprise_mel  = theme_a theme_b theme_a theme_c
-seq reprise_harm = harm_I_V harm_I_IV harm_I_V harm_IV_V
-seq reprise_bass = bass_I_IV_V bass_ii_V_I bass_I_IV_V bass_I_IV_V
-seq reprise_perc = drums_march drums_march drums_climax drums_climax
+
+section reprise {
+  mel = theme_a theme_b theme_a theme_c
+  harm = harm_I_V harm_I_IV harm_I_V harm_IV_V
+  bass = bass_I_IV_V bass_ii_V_I bass_I_IV_V bass_I_IV_V
+  perc = drums_march drums_march drums_climax drums_climax
+}
 
 # --- Section 7: Grand Ascending Flourish (Bar 18) ---
-seq flourish_mel  = flourish_up
-seq flourish_harm = harm_flourish
-seq flourish_bass = bass_run
-seq flourish_perc = drums_climax
+
+section flourish {
+  mel = flourish_up
+  harm = harm_flourish
+  bass = bass_run
+  perc = drums_climax
+}
 
 # --- Section 8: DCM Coda — duty-cycle modulation (Bar 19) ---
-seq coda_mel  = coda_a
-seq coda_harm = harm_coda
-seq coda_bass = bass_coda
-seq coda_perc = drums_sparse
+
+section coda {
+  mel = coda_a
+  harm = harm_coda
+  bass = bass_coda
+  perc = drums_sparse
+}
 
 # --- Section 9: Final Resolution — warm tonic fade (Bars 20–21) ---
-seq outro_mel  = coda_final coda_final
-seq outro_harm = harm_coda_final harm_coda_final
-seq outro_bass = bass_coda bass_coda
-seq outro_perc = drums_sparse drums_climax
 
-# =============================================================================
-channel 1 => inst hero_bright  seq fanfare_mel  theme_mel  bridge_mel  run_mel  shimmer_mel  reprise_mel  flourish_mel  coda_mel  outro_mel
-channel 2 => inst chord_bright seq fanfare_harm theme_harm bridge_harm run_harm shimmer_harm reprise_harm flourish_harm coda_harm outro_harm
-channel 3 => inst deep_bass    seq fanfare_bass theme_bass bridge_bass run_bass shimmer_bass reprise_bass flourish_bass coda_bass outro_bass
-channel 4 => inst kick         seq fanfare_perc theme_perc bridge_perc run_perc shimmer_perc reprise_perc flourish_perc coda_perc outro_perc
+section outro {
+  mel = coda_final coda_final
+  harm = harm_coda_final harm_coda_final
+  bass = bass_coda bass_coda
+  perc = drums_sparse drums_climax
+}
+
+form main = fanfare > theme > bridge > run > shimmer > reprise > flourish > coda > outro
+
+channel auto form main inst=hero_bright|chord_bright|deep_bass|kick
 
 play auto

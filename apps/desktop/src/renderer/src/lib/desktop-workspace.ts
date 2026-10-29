@@ -69,7 +69,7 @@ import {
   pickTimelineStart,
   tryPlayRequestedRange,
   type TimelinePickDeps,
-} from './pattern-grid-timeline';
+} from '@beatbax/app-core/playback/pattern-grid-timeline';
 import { setupSectionFocusEditor } from './section-focus-editor';
 import { setupSectionFocusOverlay } from './section-focus-overlay';
 import { setupPatternNavFlash } from './pattern-nav-flash';
@@ -443,10 +443,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
           instrumentEditorNav.syncSubpat(name, { focus: true, reveal: true });
         });
       },
-      previewNote: (instName, note, options) => triggerInstNotePreview(instName, note, {
-        sustain: true,
-        ...options,
-      }),
+      previewNote: (instName, note) => triggerInstNotePreview(instName, note, { sustain: true }),
       stopPreview: () => stopInstPreview(),
       isMidiRecordArmed: () => (window as any).__beatbax_midiStepEntry?.isArmed?.() ?? false,
     });
@@ -853,9 +850,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     capabilities,
     transportDisplay,
     tryPlayFocused: () => tryPlayOverride(),
-    getInstrumentMidiAudition: () => {
+    getInstrumentAuditionTarget: () => {
       if (rightTabs.activeTab !== 'instruments') return null;
-      return instrumentEditor?.getMidiAudition?.() ?? null;
+      return instrumentEditor?.getSelectedName?.() ?? null;
     },
   });
   syncInstrumentMidiAudition();
@@ -877,11 +874,24 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         // the Pattern Grid / song context with the synthetic AST.
         if (ephemeral) return;
 
-        const layoutAst = ast ?? resolvedAst;
-        const channels = (layoutAst as { channels?: Array<{ id: number }> })?.channels;
+        // Playback emits SongModel as `ast` (channels carry `events`, no `sections`).
+        // Keep a prior parse AST for Pattern Grid section navigation when that happens.
+        const incomingAst = (ast ?? resolvedAst) as
+          | { chip?: string; channels?: Array<{ id: number; events?: unknown }> }
+          | undefined;
+        const looksLikeSongModel = !!incomingAst?.channels?.some((ch) => Array.isArray(ch?.events));
+        const priorLayoutAst = lastSongContext?.ast as typeof incomingAst | undefined;
+        const layoutAst = (looksLikeSongModel && priorLayoutAst ? priorLayoutAst : null)
+          ?? incomingAst
+          ?? resolvedAst;
+        const channels = layoutAst?.channels
+          ?? (song as { channels?: Array<{ id: number }> } | undefined)?.channels;
         if (channels?.length) ensureChannels(channels.map((c) => c.id));
-        toolbar.setChip((layoutAst as { chip?: string })?.chip || 'gameboy');
-        menuBar?.setChip((layoutAst as { chip?: string })?.chip || 'gameboy');
+        const chipName = layoutAst?.chip
+          || (song as { chip?: string } | undefined)?.chip
+          || 'gameboy';
+        toolbar.setChip(chipName);
+        menuBar?.setChip(chipName);
         if (!isParseSuccessValid({ valid })) {
           toolbar.setExportEnabled(false);
           if (verifyPending) {
@@ -898,7 +908,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
           return;
         }
         if (song) clampPlaybackRangeToSong(songStepCount(song));
-        if (song && patternGrid) patternGrid.setSong(song, layoutAst);
+        if (song && patternGrid) patternGrid.setSong(song, layoutAst, getSource());
         // Instrument editor needs merged imports (spec 021 read-only imported list).
         instrumentEditor?.setAst(resolvedAst ?? ast ?? layoutAst);
         if (song) lastSongContext = { song, ast: layoutAst };

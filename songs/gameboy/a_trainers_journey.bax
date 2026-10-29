@@ -328,58 +328,82 @@ pat drums_coda   = kick . . . snare . . . . . . . . . . .
 #   Bars 16–17 : B Reprise with shimmer
 #   Bars 18–19 : Coda
 
+# =============================================================================
+
 # --- Section 1: Intro Fanfare (Bars 1–2) ---
-seq intro_mel  = open_a open_b
-seq intro_harm = harm_fanfare harm_I_V
-seq intro_bass = bass_C bass_C_G
-seq intro_perc = drums_intro drums_bounce
+
+section intro {
+  mel = open_a open_b
+  harm = harm_fanfare harm_I_V
+  bass = bass_C bass_C_G
+  perc = drums_intro drums_bounce
+}
 
 # --- Section 2: Theme A — main hook (Bars 3–6) ---
-seq theme_mel  = riff_a riff_b riff_a riff_b
-seq theme_harm = harm_I_V harm_IV_V harm_I_vi harm_IV_V
-seq theme_bass = bass_C bass_F_G bass_Am_F bass_F_G
-seq theme_perc = drums_bounce drums_alt drums_bounce drums_alt
+
+section theme {
+  mel = riff_a riff_b riff_a riff_b
+  harm = harm_I_V harm_IV_V harm_I_vi harm_IV_V
+  bass = bass_C bass_F_G bass_Am_F bass_F_G
+  perc = drums_bounce drums_alt drums_bounce drums_alt
+}
 
 # --- Section 3: Theme B — soaring secondary phrase (Bars 7–8) ---
-seq soar_mel   = soar_a soar_b
-seq soar_harm  = harm_I_IV harm_I_V
-seq soar_bass  = bass_C bass_C_G
-seq soar_perc  = drums_bounce drums_bounce
+
+section soar {
+  mel = soar_a soar_b
+  harm = harm_I_IV harm_I_V
+  bass = bass_C bass_C_G
+  perc = drums_bounce drums_bounce
+}
 
 # --- Section 4: Bridge — mysterious A-minor descent (Bars 9–10) ---
-seq bridge_mel  = bridge_a bridge_b
-seq bridge_harm = harm_bridge1 harm_bridge2
-seq bridge_bass = bass_bridge bass_bridge
-seq bridge_perc = drums_bridge drums_bridge
+
+section bridge {
+  mel = bridge_a bridge_b
+  harm = harm_bridge1 harm_bridge2
+  bass = bass_bridge bass_bridge
+  perc = drums_bridge drums_bridge
+}
 
 # --- Section 5: Ascending Run — transition into reprise (Bar 11) ---
-seq run_mel  = accel
-seq run_harm = harm_run
-seq run_bass = bass_run
-seq run_perc = drums_run
+
+section run {
+  mel = accel
+  harm = harm_run
+  bass = bass_run
+  perc = drums_run
+}
 
 # --- Section 6: DCM Reprise A — duty-cycle modulation (Bars 12–15) ---
-seq reprise_mel  = riff_a_dcm riff_b_dcm riff_a_dcm riff_b_dcm
-seq reprise_harm = harm_I_V harm_IV_V harm_I_vi harm_IV_V_r
-seq reprise_bass = bass_C bass_F_G bass_Am_F bass_F_G
-seq reprise_perc = drums_bounce drums_alt drums_fill drums_alt
+
+section reprise {
+  mel = riff_a_dcm riff_b_dcm riff_a_dcm riff_b_dcm
+  harm = harm_I_V harm_IV_V harm_I_vi harm_IV_V_r
+  bass = bass_C bass_F_G bass_Am_F bass_F_G
+  perc = drums_bounce drums_alt drums_fill drums_alt
+}
 
 # --- Section 7: B Reprise — shimmer sparkle (Bars 16–17) ---
-seq bsoar_mel  = soar_a_sh soar_b_sh
-seq bsoar_harm = harm_I_IV harm_I_V
-seq bsoar_bass = bass_C bass_C_G
-seq bsoar_perc = drums_bounce drums_fill
+
+section bsoar {
+  mel = soar_a_sh soar_b_sh
+  harm = harm_I_IV harm_I_V
+  bass = bass_C bass_C_G
+  perc = drums_bounce drums_fill
+}
 
 # --- Section 8: Coda — peak shimmer and warm fade (Bars 18–19) ---
-seq coda_mel  = coda_peak coda_fade
-seq coda_harm = harm_coda harm_coda
-seq coda_bass = bass_coda bass_coda
-seq coda_perc = drums_coda drums_intro
 
-# =============================================================================
-channel 1 => inst poke_lead seq intro_mel  theme_mel  soar_mel  bridge_mel  run_mel  reprise_mel  bsoar_mel  coda_mel
-channel 2 => inst poke_harm seq intro_harm theme_harm soar_harm bridge_harm run_harm reprise_harm bsoar_harm coda_harm
-channel 3 => inst poke_bass seq intro_bass theme_bass soar_bass bridge_bass run_bass reprise_bass bsoar_bass coda_bass
-channel 4 => inst kick      seq intro_perc theme_perc soar_perc bridge_perc run_perc reprise_perc bsoar_perc coda_perc
+section coda {
+  mel = coda_peak coda_fade
+  harm = harm_coda harm_coda
+  bass = bass_coda bass_coda
+  perc = drums_coda drums_intro
+}
+
+form main = intro > theme > soar > bridge > run > reprise > bsoar > coda
+
+channel auto form main inst=poke_lead|poke_harm|poke_bass|kick
 
 play auto

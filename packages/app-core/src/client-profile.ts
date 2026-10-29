@@ -6,6 +6,8 @@ export interface ClientCapabilities {
   channelMixer: boolean;
   songVisualizer: boolean;
   patternGrid: boolean;
+  /** Whether the Pattern Grid requires the experimental `feature.patternGrid` flag (desktop: true, web-lite: false). */
+  patternGridBehindFlag: boolean;
   advancedEditor: boolean;
   midiStepEntry: boolean;
   helpPanel: boolean;
@@ -22,7 +24,8 @@ const WEB_LITE: ClientCapabilities = {
   copilot: false,
   channelMixer: true,
   songVisualizer: false,
-  patternGrid: false,
+  patternGrid: true,
+  patternGridBehindFlag: false,
   advancedEditor: false,
   midiStepEntry: false,
   helpPanel: true,
@@ -39,6 +42,7 @@ const DESKTOP_FULL: ClientCapabilities = {
   channelMixer: true,
   songVisualizer: true,
   patternGrid: true,
+  patternGridBehindFlag: true,
   advancedEditor: true,
   midiStepEntry: true,
   helpPanel: true,
