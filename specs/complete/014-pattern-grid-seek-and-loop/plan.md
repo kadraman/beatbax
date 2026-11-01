@@ -39,7 +39,8 @@ Confirmed app-core APIs:
 
 - `PlaybackManager.play(source, { range })`, `playFrom(source, { startStep })`, `playRange(source, { startStep, endStep, loop })` and `getActiveRange()`.
 - Range helpers in `packages/app-core/src/playback/playback-range.ts`.
-- Session store `packages/app-core/src/stores/playback-range.store.ts` (`playbackStartStep`, `playbackLoopRange`, `playbackLoopEnabled`, `playbackRangeMode`, `getActivePlaybackLoopRange()`). `playbackLoopEnabled` mirrors the transport Loop toggle (`full-ide-setup.ts` keeps both in sync); the range only drives playback while it is on.
+- Shared timeline gesture/seek/loop helpers in `packages/app-core/src/playback/pattern-grid-timeline.ts` (moved from `apps/desktop` in spec 097 so both desktop and web-lite share the same logic).
+- Session store `packages/app-core/src/stores/playback-range.store.ts` (`playbackStartStep`, `playbackLoopRange`, `playbackLoopEnabled`, `playbackRangeMode`, `getActivePlaybackLoopRange()`). `playbackLoopEnabled` mirrors the transport Loop toggle (`full-ide-setup.ts` and `apps/web-ui/src/main.ts` keep both in sync); the range only drives playback while it is on.
 
 ## Implementation Phases
 

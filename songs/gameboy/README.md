@@ -28,6 +28,8 @@ Same convention as `songs/nes/`, `songs/sms/`, and `songs/spectrum-128/`.
 
 Full songs are original compositions. They demonstrate pulse duty/envelopes/sweep, wave tables, noise kits, macros (`vol_env`, `pitch_env`, `duty_env`, `arp_env`, `subpat`), and UGE-oriented instrument fields such as `uge_note=`.
 
+**Song structure:** multi-section full arrangements use compile-time `section` / `form` (spec 008). Most Game Boy full songs use Beginner Mode `channel auto` (`mel|harm|bass|perc` → channels 1–4). `dancefloor_pulse.bax` keeps advanced per-channel `role` binding because bass/harm are remapped across pulse2/wave. `tutorial_groove.bax` stays on classic per-channel seqs (single-timeline tutorial). Pair demos: `songs/features/song_composition_demo.bax` (Beginner Mode) and `songs/features/song_composition_advanced_demo.bax`.
+
 ## Play / export
 
 ```bash

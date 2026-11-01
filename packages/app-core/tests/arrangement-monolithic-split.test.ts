@@ -1,13 +1,29 @@
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
 import { detectArrangementLayout } from '../src/editor/arrangement-slice';
 import {
   BATTLE_FANFARE_SECTION_SPLITS,
   splitMonolithicChannelSeqs,
 } from '../src/editor/arrangement-monolithic-split';
 
-const battleFanfarePath = resolve(__dirname, '../../../songs/nes/battle_fanfare.bax');
-const battleFanfare = readFileSync(battleFanfarePath, 'utf8');
+/** Frozen monolithic fixture (battle_fanfare 19-slot layout). Live song is section/form. */
+const battleFanfareMonolith = `chip nes
+bpm 155
+inst lead type=pulse1
+inst harm type=pulse2
+inst tri type=triangle
+inst kick type=noise
+inst kick_dmc type=dmc
+pat p = C4
+seq pulse1_main = ${Array(19).fill('p').join(' ')}
+seq pulse2_main = ${Array(19).fill('p').join(' ')}
+seq tri_main = ${Array(19).fill('p').join(' ')}
+seq noise_main = ${Array(19).fill('p').join(' ')}
+seq dmc_main = ${Array(19).fill('p').join(' ')}
+channel 1 => inst lead seq pulse1_main
+channel 2 => inst harm seq pulse2_main
+channel 3 => inst tri seq tri_main
+channel 4 => inst kick seq noise_main
+channel 5 => inst kick_dmc seq dmc_main
+play`;
 
 function battleFanfareAst() {
   return {
@@ -25,11 +41,11 @@ function battleFanfareAst() {
 }
 
 describe('splitMonolithicChannelSeqs', () => {
-  it('splits battle_fanfare into five aligned section seq groups', () => {
+  it('splits battle_fanfare-shaped monolith into five aligned section seq groups', () => {
     const ast = battleFanfareAst();
-    expect(detectArrangementLayout(battleFanfare, ast)).toBe('monolithic');
+    expect(detectArrangementLayout(battleFanfareMonolith, ast)).toBe('monolithic');
 
-    const result = splitMonolithicChannelSeqs(battleFanfare, ast, BATTLE_FANFARE_SECTION_SPLITS);
+    const result = splitMonolithicChannelSeqs(battleFanfareMonolith, ast, BATTLE_FANFARE_SECTION_SPLITS);
     expect(result).not.toBeNull();
     expect(result!.sectionCount).toBe(5);
     expect(result!.source).toMatch(/# --- Section 1: Fanfare ---/);

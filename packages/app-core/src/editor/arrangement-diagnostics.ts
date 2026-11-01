@@ -11,11 +11,11 @@ import {
 
 const LAYOUT_MESSAGES: Record<Exclude<ArrangementLayout, 'structured'>, string> = {
   monolithic:
-    'Monolithic layout detected. Section focus plays the whole song. Split each channel into multiple top-level seq refs (e.g. fanfare, theme_a, theme_b) for Pattern Grid sections.',
+    'Monolithic layout detected. Section focus plays the whole song. Prefer `section` / `form` with `channel auto` (or `role` + `form`) so Pattern Grid gets real sections. Classic alternative: split each channel into multiple top-level seq refs, or use Arrange: Split Monolithic Channel Sequences for the 19-slot layout.',
   phased:
-    'Phased layout detected. Add `# --- Section N ---` headers above cross-channel seq groups for full section focus editor highlighting.',
+    'Phased layout detected. Prefer migrating to `section` / `form` with `channel auto` (or `role` + `form`) for Pattern Grid sections. Legacy alternative: add `# --- Section N ---` headers above cross-channel seq groups, or use Arrange: Restructure Phased Sections into Headers.',
   mixed:
-    'Mixed layout detected. Channels have different seq counts; section slices may be misaligned across channels.',
+    'Mixed layout detected. Channels have different seq counts; section slices may be misaligned. Prefer equalizing timelines or moving to `section` / `form` with a shared form order.',
 };
 
 /** Info diagnostics for non-structured arrangement layouts (section focus hints). */

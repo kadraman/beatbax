@@ -9,6 +9,7 @@ import {
   type ShortcutCommandId,
 } from '@beatbax/app-core/shortcuts';
 import { FeatureFlag, isFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
+import { isPatternGridAllowed } from '@beatbax/app-core/utils/pattern-grid-panel';
 
 export type PanelMenuId =
   | 'output'
@@ -142,7 +143,7 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
       group: 'window',
       shortcut: panelShortcut('view.togglePatternGrid'),
       checked: state.patternGridVisible,
-      disabled: !isFeatureEnabled(FeatureFlag.PATTERN_GRID),
+      disabled: !isPatternGridAllowed(caps),
     });
   }
 

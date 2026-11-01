@@ -2,11 +2,11 @@
 title: "Song Timing Pattern Grid Inspector"
 id: 15
 slug: "song-timing-pattern-grid-inspector"
-status: "specified"
+status: "planned"
 authors:
   - "kadraman"
 created: "2026-06-28"
-updated: "2026-09-03"
+updated: "2026-10-28"
 issue: "https://github.com/kadraman/beatbax/issues/191"
 area: "desktop"
 related:

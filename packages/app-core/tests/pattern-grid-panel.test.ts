@@ -22,19 +22,25 @@ import { FeatureFlag, setFeatureEnabled } from '../src/utils/feature-flags';
 import { isPatternGridAllowed, shouldShowPatternGrid } from '../src/utils/pattern-grid-panel';
 
 const desktop = getCapabilities('desktop-full');
+const webLite = getCapabilities('web-lite');
 
 beforeEach(() => {
   localStorage.clear();
 });
 
 describe('isPatternGridAllowed', () => {
-  it('is false when the Pattern Grid feature flag is off', () => {
+  it('is false on desktop when the Pattern Grid feature flag is off', () => {
     expect(isPatternGridAllowed(desktop)).toBe(false);
   });
 
-  it('is true when the Pattern Grid feature flag is on', () => {
+  it('is true on desktop when the Pattern Grid feature flag is on', () => {
     setFeatureEnabled(FeatureFlag.PATTERN_GRID, true);
     expect(isPatternGridAllowed(desktop)).toBe(true);
+  });
+
+  it('is true on web-lite even when the Pattern Grid feature flag is off', () => {
+    setFeatureEnabled(FeatureFlag.PATTERN_GRID, false);
+    expect(isPatternGridAllowed(webLite)).toBe(true);
   });
 });
 
@@ -56,5 +62,14 @@ describe('shouldShowPatternGrid', () => {
     localStorage.setItem('beatbax:panel.pattern-grid', 'true');
     setFeatureEnabled(FeatureFlag.PATTERN_GRID, false);
     expect(shouldShowPatternGrid(desktop)).toBe(false);
+  });
+
+  it('defaults to visible on web-lite without the feature flag and honours panel preference', () => {
+    setFeatureEnabled(FeatureFlag.PATTERN_GRID, false);
+    expect(shouldShowPatternGrid(webLite)).toBe(true);
+    localStorage.setItem('beatbax:panel.pattern-grid', 'false');
+    expect(shouldShowPatternGrid(webLite)).toBe(false);
+    localStorage.setItem('beatbax:panel.pattern-grid', 'true');
+    expect(shouldShowPatternGrid(webLite)).toBe(true);
   });
 });

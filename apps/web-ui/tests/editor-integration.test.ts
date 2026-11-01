@@ -101,6 +101,7 @@ describe('Editor Integration', () => {
         onDidChangeModelContent: jest.fn(),
         getModel: jest.fn(() => null),
         layout: jest.fn(),
+        getSupportedActions: jest.fn(() => []),
       };
 
       (monaco.editor.create as jest.Mock).mockReturnValue(mockEditor);

@@ -63,6 +63,22 @@ import { buildNewSongWizard, claimNewSongWizardOnboarding } from './panels/new-s
 
 // Playback imports
 import { TransportControls } from '@beatbax/app-core/playback/transport-controls';
+import { songStepCount } from '@beatbax/app-core/playback/playback-range';
+import {
+  followActiveLoop,
+  pickTimelineLoop,
+  pickTimelineStart,
+  tryPlayRequestedRange,
+  type TimelinePickDeps,
+} from '@beatbax/app-core/playback/pattern-grid-timeline';
+import {
+  clampPlaybackRangeToSong,
+  clearPlaybackRange,
+  getActivePlaybackLoopRange,
+  playbackLoopEnabled,
+  playbackLoopRange,
+  setPlaybackStartStep,
+} from '@beatbax/app-core/stores/playback-range.store';
 import { toggleChannelMuted, toggleChannelSoloed, ensureChannels } from '@beatbax/app-core/stores/channel.store';
 import {
   parseStatus,
@@ -118,7 +134,7 @@ import { LoadingSpinner } from './utils/loading-spinner';
 import { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
 import { shouldShowLegacySongVisualizerTab } from '@beatbax/app-core/utils/song-visualizer-panel';
 import { shouldShowChannelMixer } from '@beatbax/app-core/utils/channel-mixer-panel';
-import { shouldShowPatternGrid } from '@beatbax/app-core/utils/pattern-grid-panel';
+import { isPatternGridAllowed, shouldShowPatternGrid } from '@beatbax/app-core/utils/pattern-grid-panel';
 import { BeatBaxStorage } from '@beatbax/app-core/utils/local-storage';
 
 const log = createLogger('ui:main');
@@ -573,7 +589,7 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
     } catch (_e) { /* ignore */ }
   }
   if (panel === 'pattern-grid') {
-    if (visible && !isFeatureEnabled(FeatureFlag.PATTERN_GRID)) return;
+    if (visible && !isPatternGridAllowed(capabilities)) return;
     patternGridContainer.style.display = visible ? '' : 'none';
     settingShowPatternGrid.set(visible);
   }
@@ -628,6 +644,7 @@ if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
 // ─── Pattern Grid (sequence overview, sits below TransportBar) ───────────────
 let patternGrid: PatternGrid | null = null;
 let lastSongContext: { song: unknown; ast?: unknown } | null = null;
+let _slicePlaybackActive = false;
 if (capabilities.patternGrid) {
   patternGrid = new PatternGrid();
   patternGridContainer.appendChild(patternGrid.el);
@@ -716,6 +733,7 @@ eventBus.on('parse:success', ({ ast, song, valid, ephemeral }: any) => {
     }
     if (!isParseSuccessValid({ valid })) return;
     if (song) {
+      clampPlaybackRangeToSong(songStepCount(song));
       lastSongContext = { song, ast };
       patternGrid?.setSong(song, ast, getSource());
     } else {
@@ -723,6 +741,19 @@ eventBus.on('parse:success', ({ ast, song, valid, ephemeral }: any) => {
     }
   } catch (_e) {}
 });
+
+const getSource = () => (editor?.getValue?.() as string) || '';
+
+const timelinePickDeps: TimelinePickDeps = {
+  playbackManager,
+  getSource,
+  exitSectionFocus: () => {
+    if (_slicePlaybackActive) {
+      _slicePlaybackActive = false;
+      playbackManager.stop();
+    }
+  },
+};
 
 // Navigate Monaco editor when user clicks a pattern block in the grid
 if (patternGrid) {
@@ -757,9 +788,14 @@ patternGrid.onPlaySlice = (request) => {
     );
     if (!result) return;
     bottomTabs.show('output');
-    void playbackManager.play(result.source, { ephemeral: true });
+    _slicePlaybackActive = true;
+    void playbackManager.play(result.source, { ephemeral: true }).catch(() => {
+      _slicePlaybackActive = false;
+    });
   } catch (_e) {}
 };
+patternGrid.onPickStart = (startStep) => pickTimelineStart(startStep, timelinePickDeps);
+patternGrid.onPickLoop = (loop, enableLoop) => pickTimelineLoop(loop, { enableLoop }, timelinePickDeps);
 }
 
 eventBus.on('playback:position', ({ current, total }) => {
@@ -803,6 +839,7 @@ eventBus.on('playback:position-changed', ({ channelId, position }) => {
 
 // Reset position LCDs when playback stops
 eventBus.on('playback:stopped', () => {
+  _slicePlaybackActive = false;
   try { transportBar.resetPosition(); } catch (_e) {}
   try { patternGrid?.clearPositions(); } catch (_e) {}
   _lastBeat = -1;
@@ -817,8 +854,11 @@ eventBus.on('playback:resumed',  () => { try { patternGrid?.resumePositions(); }
 
 // When a new file is loaded, clear the manual loop override so the next
 // parse:success can re-sync the loop button from the incoming song's play directive.
-// Also clear the BPM override so the song's own BPM takes effect again.
+// Also clear the BPM override and playback range state so the new song starts clean.
 eventBus.on('song:loaded', () => {
+  _slicePlaybackActive = false;
+  clearPlaybackRange();
+  lastSongContext = null;
   _loopUserOverride = false;
   _bpmUserOverride = false;
   _lastAstBpm = 120;
@@ -826,7 +866,22 @@ eventBus.on('song:loaded', () => {
   _clearBpmOverrideDecoration();
 });
 
-const getSource = () => (editor?.getValue?.() as string) || '';
+const tryPlayOverride = (): boolean => tryPlayRequestedRange(playbackManager, getSource);
+
+// Stop returns the pending start to the beginning unless a loop range is active.
+transportBar.stopButton.addEventListener('click', () => {
+  if (!getActivePlaybackLoopRange()) setPlaybackStartStep(null);
+});
+
+const onActiveLoopChanged = (): void => {
+  followActiveLoop({
+    playbackManager,
+    getSource,
+    isSectionFocusActive: () => _slicePlaybackActive,
+  });
+};
+playbackLoopRange.listen(onActiveLoopChanged);
+playbackLoopEnabled.listen(onActiveLoopChanged);
 
 const transportControls = new TransportControls(
   {
@@ -835,6 +890,7 @@ const transportControls = new TransportControls(
     stopButton: transportBar.stopButton,
     applyButton: transportBar.applyButton,
     enableKeyboardShortcuts: false, // central ks registry owns all menu shortcuts
+    tryPlayOverride: () => tryPlayOverride(),
   },
   playbackManager,
   eventBus,
@@ -889,7 +945,10 @@ transportBar.rewindButton.addEventListener('click', () => {
   const wasPlaying = playbackManager.isPlaying();
   playbackManager.stop();
   if (wasPlaying) {
-    setTimeout(() => playbackManager.play(getSource()), 80);
+    setTimeout(() => {
+      if (tryPlayOverride()) return;
+      void playbackManager.play(getSource());
+    }, 80);
   }
 });
 
@@ -902,12 +961,21 @@ function _applyLoopMode(enabled: boolean): void {
   transportBar.loopButton.title = _loopMode ? 'Loop ON — click to disable' : 'Toggle loop playback';
   transportBar.setLoopActive(_loopMode);
   playbackManager.setLoop(_loopMode);
+  playbackLoopEnabled.set(_loopMode);
 }
 
 transportBar.loopButton.addEventListener('click', () => {
   _loopUserOverride = true;   // user is explicitly choosing; suppress AST sync
   _applyLoopMode(!_loopMode);
   opLog(outputPanel, _loopMode ? '⟳ Loop enabled' : '⟳ Loop disabled');
+});
+
+// Pattern Grid turns Loop on when a new loop range is dragged, or off on a ruler click.
+playbackLoopEnabled.listen((enabled) => {
+  if (enabled === _loopMode) return;
+  _loopUserOverride = true;
+  _applyLoopMode(enabled);
+  opLog(outputPanel, enabled ? '⟳ Loop enabled (loop range)' : '⟳ Loop disabled');
 });
 
 // Expose for Settings panel "Loop by default" toggle
@@ -918,7 +986,7 @@ transportBar.loopButton.addEventListener('click', () => {
 };
 
 // Apply stored default on startup (after loopButton exists in the DOM)
-if (_loopMode) _applyLoopMode(true);
+_applyLoopMode(_loopMode);
 
 // Apply stored live mode on startup
 if (liveMode) _applyLiveMode(true);
@@ -1145,7 +1213,10 @@ eventBus.on('editor:changed', () => {
   // Additionally trigger live playback when Live mode is on and song is valid.
   if (!liveMode || hasParseErrors) return;
   clearTimeout((window as any).__bb_liveTimer);
-  (window as any).__bb_liveTimer = setTimeout(() => playbackManager.play(getSource()), 800);
+  (window as any).__bb_liveTimer = setTimeout(() => {
+    if (tryPlayOverride()) return;
+    void playbackManager.play(getSource());
+  }, 800);
 });
 
 
@@ -1301,6 +1372,7 @@ function createSongFromWizard(source: string, songName: string): void {
   editor.setValue?.(source);
   storage.set(StorageKey.EDITOR_CONTENT, source);
   opLog(outputPanel, '📄 New song');
+  eventBus.emit('song:loaded', { filename: `${stem}.bax` });
   emitParse(source);
   scheduleCommentsFoldPreference();
 }
@@ -1836,8 +1908,7 @@ setupCommandPalette({
   getSongContext: () => lastSongContext,
   onExportData: handleExportData,
   getFeatureContext: () => ({
-    patternGrid: Boolean(capabilities.patternGrid)
-      && isFeatureEnabled(FeatureFlag.PATTERN_GRID)
+    patternGrid: isPatternGridAllowed(capabilities)
       && patternGridContainer.style.display !== 'none',
     copilot: false,
     midi: Boolean((window as any).__beatbax_midiStepEntry),

@@ -251,42 +251,6 @@ pat drums_fill    = kick . hat . snare . hat snare kick . hat snare snare snare 
 #   Bars 8–9   A reprise  — hook_dcm + answer_dcm with duty modulation
 #   Bar  10    Coda       — shimmer landing and loop
 
-# --- Section 1: A section — main theme introduction (Bars 1–2) ---
-seq intro_mel  = mel_hook mel_answer
-seq intro_harm = harm_A harm_B
-seq intro_bass = wave_A wave_Ar
-seq intro_perc = drums_a drums_b
-
-# --- Section 2: A repeat — theme reinforced (Bars 3–4) ---
-seq theme_mel  = mel_hook mel_answer
-seq theme_harm = harm_A harm_B
-seq theme_bass = wave_A wave_Ar
-seq theme_perc = drums_a drums_b
-
-# --- Section 3: B bridge — lyrical contrast (Bars 5–6) ---
-seq bridge_mel  = mel_bridge mel_run
-seq bridge_harm = harm_bridge_a harm_bridge_b
-seq bridge_bass = wave_bridge_a wave_bridge_b
-seq bridge_perc = drums_sparse drums_sparse
-
-# --- Section 4: Fill — arpeggiated climax burst (Bar 7) ---
-seq fill_mel  = mel_fill
-seq fill_harm = harm_fill
-seq fill_bass = wave_fill
-seq fill_perc = drums_fill
-
-# --- Section 5: A reprise — duty-cycle modulation (Bars 8–9) ---
-seq reprise_mel  = mel_hook_dcm mel_answer_dcm
-seq reprise_harm = harm_A_reset harm_B_reset
-seq reprise_bass = wave_A wave_Ar
-seq reprise_perc = drums_a drums_b
-
-# --- Section 6: Coda — shimmer landing (Bar 10) ---
-seq coda_mel  = mel_coda
-seq coda_harm = harm_coda
-seq coda_bass = wave_coda
-seq coda_perc = drums_a
-
 # --- Master per-channel sequences (splice sections in song order) ---
 #seq melody_seq  = intro_mel  theme_mel  bridge_mel  fill_mel  reprise_mel  coda_mel
 #seq harmony_seq = intro_harm theme_harm bridge_harm fill_harm reprise_harm coda_harm
@@ -294,9 +258,63 @@ seq coda_perc = drums_a
 #seq drums_seq   = intro_perc theme_perc bridge_perc fill_perc reprise_perc coda_perc
 
 # =============================================================================
-channel 1 => inst lead_full  seq intro_mel  theme_mel  bridge_mel  fill_mel  reprise_mel  coda_mel
-channel 2 => inst harm       seq intro_harm theme_harm bridge_harm fill_harm reprise_harm coda_harm
-channel 3 => inst bass       seq intro_bass theme_bass bridge_bass fill_bass reprise_bass coda_bass
-channel 4 => inst kick       seq intro_perc theme_perc bridge_perc fill_perc reprise_perc coda_perc
+
+# --- Section 1: A section — main theme introduction (Bars 1–2) ---
+
+section intro {
+  mel = mel_hook mel_answer
+  harm = harm_A harm_B
+  bass = wave_A wave_Ar
+  perc = drums_a drums_b
+}
+
+# --- Section 2: A repeat — theme reinforced (Bars 3–4) ---
+
+section theme {
+  mel = mel_hook mel_answer
+  harm = harm_A harm_B
+  bass = wave_A wave_Ar
+  perc = drums_a drums_b
+}
+
+# --- Section 3: B bridge — lyrical contrast (Bars 5–6) ---
+
+section bridge {
+  mel = mel_bridge mel_run
+  harm = harm_bridge_a harm_bridge_b
+  bass = wave_bridge_a wave_bridge_b
+  perc = drums_sparse drums_sparse
+}
+
+# --- Section 4: Fill — arpeggiated climax burst (Bar 7) ---
+
+section fill {
+  mel = mel_fill
+  harm = harm_fill
+  bass = wave_fill
+  perc = drums_fill
+}
+
+# --- Section 5: A reprise — duty-cycle modulation (Bars 8–9) ---
+
+section reprise {
+  mel = mel_hook_dcm mel_answer_dcm
+  harm = harm_A_reset harm_B_reset
+  bass = wave_A wave_Ar
+  perc = drums_a drums_b
+}
+
+# --- Section 6: Coda — shimmer landing (Bar 10) ---
+
+section coda {
+  mel = mel_coda
+  harm = harm_coda
+  bass = wave_coda
+  perc = drums_a
+}
+
+form main = intro > theme > bridge > fill > reprise > coda
+
+channel auto form main inst=lead_full|harm|bass|kick
 
 play auto

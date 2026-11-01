@@ -132,6 +132,7 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
       channelMixer: true,
       songVisualizer: true,
       patternGrid: true,
+      patternGridBehindFlag: true,
       advancedEditor: true,
       midiStepEntry: true,
       helpPanel: true,

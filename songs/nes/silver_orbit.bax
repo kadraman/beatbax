@@ -242,36 +242,41 @@ pat silence15 = . . . . . . . . . . . . . . .
 # Sequences
 # =============================================================================
 
-seq sq1_intro  = silence sq1_intro1 sq1_intro2 sq1_intro3 sq1_intro4 sq1_intro5
-seq sq1_main   = sq1_mel1 sq1_mel2 sq1_mel3 sq1_mel4 sq1_mel5 sq1_mel6 sq1_mel7 sq1_mel8
-seq sq1_bridge = sq1_bridge1 sq1_bridge2 sq1_bridge3 sq1_bridge4 sq1_bridge5
-seq sq1_outro  = sq1_out1 sq1_out2 sq1_out3
-
-seq sq2_intro  = sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1
-seq sq2_main   = sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo2
-seq sq2_bridge = sq2_brid1 sq2_brid2 sq2_brid3 sq2_brid4 sq2_beeplo1
-seq sq2_outro  = sq2_out1 sq2_out2 sq2_out3
-
-seq tri_intro  = silence tri_intro1 tri_intro2 tri_intro3 tri_intro4 tri_intro5
-seq tri_main   = tri_bass1 tri_bass2 tri_bass3 tri_bass4 tri_bass5 tri_bass6 tri_bass7 tri_bass8
-seq tri_bridge = tri_bbrid1 tri_bbrid2 tri_bbrid1 tri_bbrid2 tri_bbrid3
-seq tri_outro  = tri_out1 tri_out2 tri_out3
-
-seq drum_intro  = silence silence15 silence15 silence15 drum_intro_p silence15
-seq drum_main   = drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p
-seq drum_bridge = drum_bridge_p drum_bridge_p drum_bridge_p drum_bridge_p drum_bridge_p
-seq drum_outro  = drum_out1_p drum_out2_p drum_out3_p
-
 # =============================================================================
 # Channels
 # =============================================================================
-channel 1 => inst lead_intro  seq sq1_intro  sq1_main  sq1_bridge  sq1_outro
-channel 2 => inst bleep_intro seq sq2_intro  sq2_main  sq2_bridge  sq2_outro
-channel 3 => inst bass        seq tri_intro  tri_main  tri_bridge  tri_outro
-channel 4 => inst drum_lo     seq drum_intro drum_main drum_bridge drum_outro
 
 # =============================================================================
 # Playback
 # =============================================================================
+
+section intro {
+  mel = silence sq1_intro1 sq1_intro2 sq1_intro3 sq1_intro4 sq1_intro5
+  harm = sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1
+  bass = silence tri_intro1 tri_intro2 tri_intro3 tri_intro4 tri_intro5
+  perc = silence silence15 silence15 silence15 drum_intro_p silence15
+}
+section main {
+  mel = sq1_mel1 sq1_mel2 sq1_mel3 sq1_mel4 sq1_mel5 sq1_mel6 sq1_mel7 sq1_mel8
+  harm = sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo2
+  bass = tri_bass1 tri_bass2 tri_bass3 tri_bass4 tri_bass5 tri_bass6 tri_bass7 tri_bass8
+  perc = drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p
+}
+section bridge {
+  mel = sq1_bridge1 sq1_bridge2 sq1_bridge3 sq1_bridge4 sq1_bridge5
+  harm = sq2_brid1 sq2_brid2 sq2_brid3 sq2_brid4 sq2_beeplo1
+  bass = tri_bbrid1 tri_bbrid2 tri_bbrid1 tri_bbrid2 tri_bbrid3
+  perc = drum_bridge_p drum_bridge_p drum_bridge_p drum_bridge_p drum_bridge_p
+}
+section outro {
+  mel = sq1_out1 sq1_out2 sq1_out3
+  harm = sq2_out1 sq2_out2 sq2_out3
+  bass = tri_out1 tri_out2 tri_out3
+  perc = drum_out1_p drum_out2_p drum_out3_p
+}
+
+form main = intro > main > bridge > outro
+
+channel auto form main inst=lead_intro|bleep_intro|bass|drum_lo
 
 play auto

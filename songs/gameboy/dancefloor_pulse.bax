@@ -40,7 +40,6 @@ bpm 130
 # Instruments
 # =============================================================================
 
-
 # =============================================================================
 # Pulse
 # =============================================================================
@@ -222,53 +221,75 @@ pat drum_build_fill  = kick . hat . snare . hat hat kick . kick snare hat snare 
 # Sequences — grouped by song section
 # =============================================================================
 
-# --- Section 1: Intro (Bars 1-4) — drums only ---
-seq lead_intro = rest_bar rest_bar rest_bar rest_bar
-seq bass_intro = rest_bar rest_bar rest_bar rest_bar
-seq arp_intro  = rest_bar rest_bar rest_bar arp_Am_sustain
-seq drum_seq_intro = drum_intro drum_intro_tick drum_intro_snap drum_intro_fill
-
-# --- Section 2: Build (Bars 5-8) — arpeggio hook enters ---
-seq lead_build = rest_bar rest_bar rest_bar rest_bar
-seq bass_build = bass_intro_pulse bass_intro_pulse bass_intro_tick bass_intro_rise
-seq arp_build  = arp_Am arp_F arp_C arp_G
-seq drum_seq_build = drum_build drum_build_lift drum_build drum_build_fill
-
-# --- Section 3: Main groove (Bars 9-16) — full band, Am-F-C-G x2 ---
-seq lead_main = lead_call lead_response lead_call lead_response_turn lead_call lead_response lead_call lead_response_peak
-seq bass_main = bass_Am bass_F bass_C bass_G bass_Am bass_F bass_C bass_G
-seq arp_main  = arp_Am arp_F arp_C arp_G arp_Am arp_F arp_C arp_G
-seq drum_seq_main = drum_full drum_full drum_full drum_full drum_full drum_full drum_full drum_full
-
-# --- Section 4: Breakdown (Bars 17-20) — arp + bass only ---
-seq lead_break = rest_bar rest_bar rest_bar rest_bar
-seq bass_break = bass_Am bass_F bass_C bass_G_glide
-seq arp_break  = arp_Am arp_F arp_C arp_G
-seq drum_seq_break = drum_break drum_break drum_break drum_break
-
-# --- Section 5: Surge (Bars 21-28) — full band, brighter lead, fills ---
-seq lead_surge = lead_var:inst(pwm_wash) lead_var:inst(pwm_wash) lead_call lead_response lead_var lead_var lead_call lead_response
-seq bass_surge = bass_Am bass_F bass_C bass_G bass_Am bass_F bass_C bass_G
-seq arp_surge  = arp_Am arp_F arp_C arp_G arp_Am arp_F arp_C arp_G
-seq drum_seq_surge = drum_fill drum_full drum_full drum_full drum_fill drum_full drum_full drum_full
-
-# --- Section 6: Outro (Bars 29-32) — fade back to drums only, then silence ---
-seq lead_outro = rest_bar rest_bar rest_bar rest_bar
-seq bass_outro = bass_Am bass_Am rest_bar rest_bar
-seq arp_outro  = arp_Am_sustain arp_Am_sustain rest_bar rest_bar
-seq drum_seq_outro = drum_outro1 drum_outro1 drum_outro2 drum_outro2
-
 # =============================================================================
 # Channel routing
 # =============================================================================
 
-channel 1 => inst prism_lead  seq lead_intro lead_build lead_main lead_break lead_surge lead_outro
-channel 2 => inst growl_bass  seq bass_intro bass_build bass_main bass_break bass_surge bass_outro
-channel 3 => inst arp_gb   seq arp_intro arp_build arp_main arp_break arp_surge arp_outro
-channel 4 => inst kick     seq drum_seq_intro drum_seq_build drum_seq_main drum_seq_break drum_seq_surge drum_seq_outro
-
 # =============================================================================
 # Playback
 # =============================================================================
+
+# --- Section 1: Intro (Bars 1-4) — drums only ---
+
+section intro {
+  mel = rest_bar rest_bar rest_bar rest_bar
+  bass = rest_bar rest_bar rest_bar rest_bar
+  harm = rest_bar rest_bar rest_bar arp_Am_sustain
+  perc = drum_intro drum_intro_tick drum_intro_snap drum_intro_fill
+}
+
+# --- Section 2: Build (Bars 5-8) — arpeggio hook enters ---
+
+section build {
+  mel = rest_bar rest_bar rest_bar rest_bar
+  bass = bass_intro_pulse bass_intro_pulse bass_intro_tick bass_intro_rise
+  harm = arp_Am arp_F arp_C arp_G
+  perc = drum_build drum_build_lift drum_build drum_build_fill
+}
+
+# --- Section 3: Main groove (Bars 9-16) — full band, Am-F-C-G x2 ---
+
+section main {
+  mel = lead_call lead_response lead_call lead_response_turn lead_call lead_response lead_call lead_response_peak
+  bass = bass_Am bass_F bass_C bass_G bass_Am bass_F bass_C bass_G
+  harm = arp_Am arp_F arp_C arp_G arp_Am arp_F arp_C arp_G
+  perc = drum_full drum_full drum_full drum_full drum_full drum_full drum_full drum_full
+}
+
+# --- Section 4: Breakdown (Bars 17-20) — arp + bass only ---
+
+section break {
+  mel = rest_bar rest_bar rest_bar rest_bar
+  bass = bass_Am bass_F bass_C bass_G_glide
+  harm = arp_Am arp_F arp_C arp_G
+  perc = drum_break drum_break drum_break drum_break
+}
+
+# --- Section 5: Surge (Bars 21-28) — full band, brighter lead, fills ---
+
+section surge {
+  mel = lead_var:inst(pwm_wash) lead_var:inst(pwm_wash) lead_call lead_response lead_var lead_var lead_call lead_response
+  bass = bass_Am bass_F bass_C bass_G bass_Am bass_F bass_C bass_G
+  harm = arp_Am arp_F arp_C arp_G arp_Am arp_F arp_C arp_G
+  perc = drum_fill drum_full drum_full drum_full drum_fill drum_full drum_full drum_full
+}
+
+# --- Section 6: Outro (Bars 29-32) — fade back to drums only, then silence ---
+
+section outro {
+  mel = rest_bar rest_bar rest_bar rest_bar
+  bass = bass_Am bass_Am rest_bar rest_bar
+  harm = arp_Am_sustain arp_Am_sustain rest_bar rest_bar
+  perc = drum_outro1 drum_outro1 drum_outro2 drum_outro2
+}
+
+form main = intro, build, main, break, surge, outro
+
+# Advanced binding (not `channel auto`): bass is pulse2 on ch2 and harm is wave on ch3.
+# Beginner `channel auto` always maps mel|harm|bass|perc → ch1..ch4.
+channel 1 => inst prism_lead role mel form main
+channel 2 => inst growl_bass role bass form main
+channel 3 => inst arp_gb role harm form main
+channel 4 => inst kick role perc form main
 
 play auto repeat

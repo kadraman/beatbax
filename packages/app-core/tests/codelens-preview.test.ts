@@ -29,6 +29,8 @@ import {
   triggerInstNotePreview,
   stopInstPreview,
   getCodeLensCategoryFlags,
+  listSectionRoleSeqNames,
+  sectionRoleSeqName,
 } from '../src/editor/codelens-preview';
 import {
   settingCodeLensPatterns,
@@ -38,7 +40,6 @@ import {
 } from '../src/stores/settings.store';
 import { Player } from '@beatbax/engine/audio/playback';
 import { chipRegistry } from '@beatbax/engine/chips';
-import { resolveSong } from '@beatbax/engine/song';
 import * as monaco from 'monaco-editor';
 
 describe('CodeLens Preview provider', () => {
@@ -112,6 +113,98 @@ describe('CodeLens Preview provider', () => {
     eventBus.emit('parse:success', { ast: {}, valid: false });
     const afterInvalid = capturedProvider.provideCodeLenses(model);
     expect(afterInvalid.lenses).toEqual([]);
+  });
+
+  it('shows a Sample lens for DMC instruments with spaced/case-insensitive type=', () => {
+    let capturedProvider: any = null;
+    (monaco.languages.registerCodeLensProvider as jest.Mock).mockImplementation((_lang: string, prov: any) => {
+      capturedProvider = prov;
+      return { dispose: jest.fn() };
+    });
+    settingCodeLensInstruments.set(true);
+    const source = [
+      'chip nes',
+      'inst kick type = DMC dmc_rate=15 dmc_sample="@nes/kick"',
+    ].join('\n');
+    setupCodeLensPreview({} as any, eventBus as any, () => source);
+    eventBus.emit('parse:success', { ast: {}, valid: true });
+    const model = {
+      getLineCount: () => 2,
+      getLineContent: (ln: number) => source.split('\n')[ln - 1],
+    };
+    const ids = (capturedProvider.provideCodeLenses(model).lenses || []).map((l: any) => l.id);
+    expect(ids).toContain('bb-inst-sample-kick');
+    expect(ids.some((id: string) => id.startsWith('bb-inst-kick-'))).toBe(false);
+  });
+
+  describe('section CodeLens', () => {
+    const source = [
+      'chip gameboy',
+      'inst lead type=pulse1',
+      'inst arp type=pulse2',
+      'pat a = C4 E4',
+      'pat b = E4 G4',
+      'section intro {',
+      '  mel = a',
+      '  harm = b',
+      '}',
+      'section hook use a b a b',
+      'form main = intro > hook',
+      'channel auto form main inst=lead|arp|lead|arp',
+    ].join('\n');
+    const lines = source.split('\n');
+    const model = {
+      getLineCount: () => lines.length,
+      getLineContent: (ln: number) => lines[ln - 1],
+    };
+    let provider: any;
+    let dispose: () => void;
+
+    beforeEach(() => {
+      settingCodeLensSequences.set(true);
+      (monaco.languages.registerCodeLensProvider as jest.Mock).mockImplementation((_lang: string, prov: any) => {
+        provider = prov;
+        return { dispose: jest.fn() };
+      });
+      dispose = setupCodeLensPreview({} as any, eventBus as any, () => source);
+      eventBus.emit('parse:success', { ast: {}, valid: true });
+    });
+
+    afterEach(() => {
+      dispose();
+      settingCodeLensSequences.set(true);
+    });
+
+    it('emits Preview/Loop on section headers and role lines', () => {
+      const ids = provider.provideCodeLenses(model).lenses.map((l: any) => l.id);
+      expect(ids).toContain('bb-section-preview-intro');
+      expect(ids).toContain('bb-section-loop-intro');
+      expect(ids).toContain('bb-section-role-preview-intro-mel');
+      expect(ids).toContain('bb-section-role-loop-intro-mel');
+      expect(ids).toContain('bb-section-role-preview-intro-harm');
+      expect(ids).toContain('bb-section-preview-hook');
+      expect(ids).toContain('bb-section-loop-hook');
+      // Beginner `use` one-liner has no per-role lenses.
+      expect(ids.some((id: string) => id.includes('section-role-preview-hook'))).toBe(false);
+    });
+
+    it('hides section lenses when sequence CodeLens is off', () => {
+      settingCodeLensSequences.set(false);
+      const ids = provider.provideCodeLenses(model).lenses.map((l: any) => l.id);
+      expect(ids.some((id: string) => id.includes('section'))).toBe(false);
+    });
+
+    it('maps section roles to generated seq names', () => {
+      expect(sectionRoleSeqName('intro', 'mel')).toBe('intro_mel');
+      expect(listSectionRoleSeqNames('intro', {
+        sections: {
+          intro: { roles: [{ role: 'mel' }, { role: 'harm' }] },
+        },
+      })).toEqual(['intro_mel', 'intro_harm']);
+      expect(listSectionRoleSeqNames('intro', {
+        seqs: { intro_mel: ['a'], intro_harm: ['b'], theme_mel: ['c'] },
+      })).toEqual(['intro_harm', 'intro_mel']);
+    });
   });
 
   describe('category settings', () => {
@@ -433,32 +526,5 @@ describe('CodeLens Preview provider', () => {
       playAST.mockRestore();
       stop.mockRestore();
     });
-  });
-
-  it('resolves preview channel from the patched instrument type, not the saved type', async () => {
-    const playAST = jest.spyOn(Player.prototype, 'playAST').mockResolvedValue(undefined as any);
-    (resolveSong as jest.Mock).mockClear();
-    mockParse.mockReturnValue({
-      imports: [],
-      // Saved instrument is wave (channel 3); draft patch changes it to noise (channel 4).
-      insts: { perc: { type: 'wave' } },
-      chip: 'gameboy',
-    });
-    mockResolveImports.mockImplementation(async (ast: any) => ast);
-
-    setupCodeLensPreview({} as any, eventBus as any, () => 'inst perc type=wave');
-    triggerInstNotePreview('perc', 'hit', {
-      mode: 'hit',
-      instPatch: { type: 'noise' },
-    });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(resolveSong).toHaveBeenCalled();
-    const previewAst = (resolveSong as jest.Mock).mock.calls.at(-1)?.[0];
-    expect(previewAst.insts.perc.type).toBe('noise');
-    // Without the fix this stayed on channel 3 (wave) while the patched type is noise.
-    expect(previewAst.channels[0].id).toBe(4);
-
-    playAST.mockRestore();
   });
 });

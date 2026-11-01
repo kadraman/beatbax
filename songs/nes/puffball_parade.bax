@@ -689,63 +689,53 @@ pat dmc_bridge  = kick_dmc . . . . . . . snare_dmc . . . . . . .  # 1+7+1+7 = 16
 # Structural map across all sequences:
 #   Patterns 1–2   : Intro    (bars 1–2)
 #   Patterns 3–6   : Theme A first time (bars 3–6)
-#   Patterns 7–8   : Theme A abbreviated repeat (bars 7–8)
-#   Patterns 9–12  : Theme B bridge (bars 9–12)
-#   Patterns 13–16 : Reprise (bars 13–16)
-
-## Pulse 1 sequence — lead melody through all 16 bars.
-#   Bridge slots (9–12) apply :inst(lead_warm) to switch to 50% duty without
-#   defining separate patterns — the four Bridge patterns (mel_b1 through mel_b4)
-#   are played with the warmer instrument via the transform.
-seq pulse1_main = mel_intro1 mel_intro2 mel_a1 mel_a2 mel_a3 mel_a4 mel_a1 mel_a2 mel_b1:inst(lead_warm) mel_b2:inst(lead_warm) mel_b3:inst(lead_warm) mel_b4:inst(lead_warm) mel_a1 mel_a2 mel_a3 mel_fin
-
-## Pulse 2 sequence — harmony through all 16 bars.
-#   Bars 1–2  : harm_silence (solo intro; Pulse 2 off)
-#   Bars 3–6  : chd_a1–chd_a4 (parallel thirds, Theme A first time)
-#   Bars 7–8  : chd_a1–chd_a2 (abbreviated repeat of Phrase A1 harmony)
-#   Bars 9–12 : chd_b1–chd_b4 (arpeggios → sustains, bridge progression)
-#   Bars 13–16: chd_a1–chd_a3 + chd_fin (reprise thirds + broad final voicing)
-seq pulse2_main = harm_silence harm_silence chd_a1 chd_a2 chd_a3 chd_a4 chd_a1 chd_a2 chd_b1 chd_b2 chd_b3 chd_b4 chd_a1 chd_a2 chd_a3 chd_fin
-
-## Triangle sequence — walking bass through all 16 bars.
-#   Bass is present from bar 1 onward (establishes key even during solo intro).
-#   Bars 1–2  : bass_intro (F2–C3 tonic root+fifth)
-#   Bars 3–6  : bass_a1–bass_a4 (F arpeggio → Bb/C → rising → cadence)
-#   Bars 7–8  : bass_a1–bass_a2 (abbreviated Theme A bass repeat)
-#   Bars 9–12 : bass_b1–bass_b4 (Dm → Bb → C → F, mirrors chord progression)
-#   Bars 13–16: bass_a1–bass_a3 + bass_fin (reprise bass + ascending finale)
-seq tri_main = bass_intro bass_intro bass_a1 bass_a2 bass_a3 bass_a4 bass_a1 bass_a2 bass_b1 bass_b2 bass_b3 bass_b4 bass_a1 bass_a2 bass_a3 bass_fin
-
-## Noise sequence — percussion through all 16 bars.
-#   Bars 1–2  : beat_intro (sparse kick only)
-#   Bars 3–8  : beat_main × 6 (full groove; Theme A both times)
-#   Bars 9–12 : beat_bridge × 4 (lighter groove; no continuous hi-hat)
-#   Bars 13–16: beat_main × 4 (full groove returns with reprise)
-seq noise_main = beat_intro beat_intro beat_main beat_main beat_main beat_main beat_main beat_main beat_bridge beat_bridge beat_bridge beat_bridge beat_main beat_main beat_main beat_main
-
-## DMC sequence — kick/snare sample reinforcement through all 16 bars.
-#   Bars 1–2  : dmc_sparse × 2 (kick on 1&3 only; mirrors noise sparse intro)
-#   Bars 3–8  : dmc_full × 6 (full kick+snare reinforcement; Theme A)
-#   Bars 9–12 : dmc_bridge × 4 (half-density; kick 1 + snare 3 only)
-#   Bars 13–16: dmc_full × 4 (full reinforcement returns with reprise)
-seq dmc_seq = dmc_sparse dmc_sparse dmc_full dmc_full dmc_full dmc_full dmc_full dmc_full dmc_bridge dmc_bridge dmc_bridge dmc_bridge dmc_full dmc_full dmc_full dmc_full
-
 # =============================================================================
-# CHANNELS
+# SECTIONS / FORM (spec 008)
 # =============================================================================
-#
-# Each channel maps a default instrument and a sequence. The default instrument
-# is used for all patterns in the sequence unless overridden by an :inst() transform.
-#
-# Channel 1 default = lead (25% duty); overridden to lead_warm in bridge slots.
-# Channel 5's default inst (kick_dmc) is the first DMC trigger in every pattern;
-# snare_dmc is triggered by pattern-level inst references within dmc_full etc.
 
-channel 1 => inst lead      seq pulse1_main   # Pulse 1  — lead melody (25% duty; 50% in bridge)
-channel 2 => inst harm      seq pulse2_main   # Pulse 2  — parallel thirds + bridge arpeggios
-channel 3 => inst tri       seq tri_main      # Triangle — quarter-note walking bass
-channel 4 => inst kick      seq noise_main    # Noise    — light platform groove
-channel 5 => inst kick_dmc  seq dmc_seq       # DMC      — bundled kick/snare reinforcement
+# --- Section: Intro ---
+
+section intro {
+  mel = mel_intro1 mel_intro2
+  harm = harm_silence harm_silence
+  bass = bass_intro bass_intro
+  perc = beat_intro beat_intro
+  dmc = dmc_sparse dmc_sparse
+}
+
+# --- Section: Theme A ---
+
+section theme_a {
+  mel = mel_a1 mel_a2 mel_a3 mel_a4 mel_a1 mel_a2
+  harm = chd_a1 chd_a2 chd_a3 chd_a4 chd_a1 chd_a2
+  bass = bass_a1 bass_a2 bass_a3 bass_a4 bass_a1 bass_a2
+  perc = beat_main beat_main beat_main beat_main beat_main beat_main
+  dmc = dmc_full dmc_full dmc_full dmc_full dmc_full dmc_full
+}
+
+# --- Section: Theme B ---
+
+section theme_b {
+  mel = mel_b1:inst(lead_warm) mel_b2:inst(lead_warm) mel_b3:inst(lead_warm) mel_b4:inst(lead_warm)
+  harm = chd_b1 chd_b2 chd_b3 chd_b4
+  bass = bass_b1 bass_b2 bass_b3 bass_b4
+  perc = beat_bridge beat_bridge beat_bridge beat_bridge
+  dmc = dmc_bridge dmc_bridge dmc_bridge dmc_bridge
+}
+
+# --- Section: Reprise ---
+
+section reprise {
+  mel = mel_a1 mel_a2 mel_a3 mel_fin
+  harm = chd_a1 chd_a2 chd_a3 chd_fin
+  bass = bass_a1 bass_a2 bass_a3 bass_fin
+  perc = beat_main beat_main beat_main beat_main
+  dmc = dmc_full dmc_full dmc_full dmc_full
+}
+
+form main = intro > theme_a > theme_b > reprise
+
+channel auto form main inst=lead|harm|tri|kick|kick_dmc
 
 # =============================================================================
 # Playback

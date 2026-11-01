@@ -2,11 +2,11 @@
 title: "Web-lite Pattern Grid with seek and loop"
 id: 97
 slug: "web-lite-pattern-grid"
-status: "planned"
+status: "in-progress"
 authors:
   - "kadraman"
 created: "2026-10-12"
-updated: "2026-10-23"
+updated: "2026-10-28"
 issue: "https://github.com/kadraman/beatbax/issues/227"
 area: "web"
 related:
@@ -14,7 +14,6 @@ related:
   - "specs/complete/076-desktop-first-client-split/spec.md"
   - "specs/complete/079-desktop-web-ui-retirement/spec.md"
   - "specs/complete/087-pattern-combination-preview/spec.md"
-  - "specs/features/100-pattern-grid-zoom/spec.md"
 ---
 
 # Feature Specification: Web-lite Pattern Grid with seek and loop
@@ -107,11 +106,6 @@ This reverses one decision in [spec 076](../../complete/076-desktop-first-client
 - Persisting start/loop state, or encoding it in the song.
 - Merging the desktop and web-lite grid components or stylesheets. Sharing the desktop React component was considered (one implementation, no duplicated alignment and gesture code) and rejected to keep React and react-dom out of the web-lite bundle.
 - Restoring any other feature spec 076 removed from web-lite (export, Copilot, channel mixer host, advanced editor, MIDI step entry).
-- Pattern Grid zoom / horizontal scroll UI (desktop feature [100](../100-pattern-grid-zoom/spec.md)). FR-010 remains transport-outcome parity only; zoom is not required for this feature.
-
-## Future
-
-- **Pattern Grid zoom and scroll on web-lite.** Desktop zoom/scroll is specified in [feature 100](../100-pattern-grid-zoom/spec.md). When that ships, web-lite may reuse the same `@beatbax/app-core` zoom helpers for Auto / Fit / clamp / zoom-about-anchor without sharing the React grid component. That work is a follow-up to this spec, not part of FR-010.
 
 ## Success criteria
 
@@ -128,11 +122,11 @@ This reverses one decision in [spec 076](../../complete/076-desktop-first-client
 - The web-lite status bar Window menu already has a Pattern Grid entry that is hidden only by the capability gate.
 - Desktop's "Pattern grid" feature flag stays as it is; this spec does not change desktop defaults.
 
-## Open questions
+## Resolved questions
 
-1. **Keyboard shortcut.** Desktop toggles the grid with `view.togglePatternGrid`. Should web-lite get a shortcut, given browser shortcut conflicts, or only the Window menu toggle?
-2. **Touch input.** Should ruler click/drag be required to work with touch (tablets), which needs the ruler to stop page scrolling during a drag? This spec assumes mouse/trackpad; touch can follow.
-3. **Shift+click section play.** Keep it in web-lite as today, or drop it now that the loop range covers auditioning a section?
+1. **Keyboard shortcut.** Keep none for v1 (`view.togglePatternGrid` remains desktop-only; web-lite has no Settings panel for experimental flags, so the status bar Window menu is sufficient).
+2. **Touch input.** Mouse/pointer only for v1 (same as the desktop pointer model via Pointer Events).
+3. **Shift+click section play.** Keep in web-lite as today alongside the loop range.
 
 ## References
 
