@@ -2,6 +2,15 @@
 
 Notes for stable `desktop-v*` GitHub Releases, generated from pull request titles. Rolling development builds are published on the [Development pre-release](https://github.com/kadraman/beatbax/releases/tag/desktop-dev).
 
+## 0.4.0 — 2026-11-01
+
+## What's Changed
+* feat(098/099): instrument editor preview pitch and Live edit draft by @kadraman in https://github.com/kadraman/beatbax/pull/231
+* feat(008): add section/form composition and Beginner Mode sugar by @kadraman in https://github.com/kadraman/beatbax/pull/235
+
+
+**Full Changelog**: https://github.com/kadraman/beatbax/compare/desktop-v0.3.0...desktop-v0.4.0
+
 ## 0.3.0 — 2026-09-12
 
 ## What's Changed
