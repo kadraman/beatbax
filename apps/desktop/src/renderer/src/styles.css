@@ -3620,6 +3620,69 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
     inset 0 1px 0 rgba(255,255,255,0.04),   /* top highlight */
     0 3px 6px rgba(0,0,0,0.45);
   overflow: hidden;
+  --bb-pgrid-px-per-step: 4px;
+}
+
+.bb-pgrid__zoom {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 2px;
+}
+
+.bb-pgrid__btn.bb-pgrid__btn--zoom {
+  width: auto;
+  min-width: 18px;
+  height: 14px;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.bb-pgrid__body {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bb-pgrid__gutter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.bb-pgrid__gutter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 16px;
+}
+
+.bb-pgrid__gutter-row--ruler {
+  height: 12px;
+}
+
+.bb-pgrid__gutter-row--sections {
+  height: 20px;
+  margin-bottom: 2px;
+}
+
+.bb-pgrid__scroller {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.bb-pgrid__content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 100%;
 }
 
 /* Hide grid entirely when no song has been parsed */
@@ -3868,6 +3931,13 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   gap: 3px;
 }
 
+.bb-pgrid__row .bb-pgrid__track,
+.bb-pgrid__row--ruler .bb-pgrid__track,
+.bb-pgrid__row--sections .bb-pgrid__track {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
 /* Coloured channel-identity dot */
 .bb-pgrid__dot {
   width: 7px;
@@ -3966,8 +4036,12 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   background: repeating-linear-gradient(
     90deg,
     rgba(255, 255, 255, 0.07) 0 1px,
-    transparent 1px 12px
+    transparent 1px max(4px, calc(var(--bb-pgrid-px-per-step) * 4))
   ), rgba(255, 255, 255, 0.03);
+}
+
+.bb-pgrid__section-block--compact .bb-pgrid__section-label {
+  display: none;
 }
 
 .bb-pgrid__btn.bb-pgrid__btn--clear-range {

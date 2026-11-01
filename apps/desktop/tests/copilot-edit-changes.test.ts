@@ -152,11 +152,43 @@ describe('discardRemainingCopilotEditChanges', () => {
     expect(result.content).toBe(baseline);
   });
 
-  it('keeps kept changes and reverts only pending definitions', () => {
+  it('keeps kept definition changes and strips non-definition residue from the edit', () => {
     const result = discardRemainingCopilotEditChanges(edited, review(['kept', 'pending', 'pending']), baseline);
-    expect(result.content).toContain('pat melody_pat = C4 E4 G4 C5<vib:4,3>');
-    expect(result.content).toContain('pat bass_pat = C2 . G2 .');
+    expect(result.content).toBe([
+      '# Sample song',
+      'pat melody_pat = C4 E4 G4 C5<vib:4,3>',
+      'pat bass_pat = C2 . G2 .',
+      'seq main = melody_pat bass_pat',
+      'play',
+    ].join('\r\n'));
+    expect(result.content).not.toContain('##   vib');
     expect(result.changes.map((change) => change.status)).toEqual(['kept', 'discarded', 'discarded']);
+  });
+
+  it('applies a kept addition onto the baseline without leftover comments', () => {
+    const withAdd = [
+      '# Sample song',
+      '## leftover note',
+      'pat melody_pat = C4 E4 G4 C5',
+      'pat melody_fill = G4 A4',
+      'pat bass_pat = C2 . G2 .',
+      'seq main = melody_pat bass_pat',
+      'play',
+    ].join('\r\n');
+    const changes = collectCopilotEditChanges(baseline, withAdd).map((change) => ({
+      ...change,
+      status: (change.name === 'melody_fill' ? 'kept' : 'pending') as 'kept' | 'pending',
+    }));
+    const result = discardRemainingCopilotEditChanges(withAdd, changes, baseline);
+    expect(result.content).toBe([
+      '# Sample song',
+      'pat melody_pat = C4 E4 G4 C5',
+      'pat bass_pat = C2 . G2 .',
+      'pat melody_fill = G4 A4',
+      'seq main = melody_pat bass_pat',
+      'play',
+    ].join('\r\n'));
+    expect(result.content).not.toContain('## leftover note');
   });
 });
 

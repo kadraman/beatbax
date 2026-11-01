@@ -9,6 +9,7 @@ import {
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type RefCallback,
+  type WheelEvent as ReactWheelEvent,
 } from 'react';
 import type { Root } from 'react-dom/client';
 import {
@@ -31,6 +32,14 @@ import {
   setPlaybackLoopRange,
   setPlaybackStartStep,
 } from '@beatbax/app-core/stores/playback-range.store';
+import {
+  contentWidth,
+  edgeAutoscrollDelta,
+  fitPxPerStep,
+  resolveAutoPxPerStep,
+  steppedPxPerStep,
+  zoomAboutAnchor,
+} from '@beatbax/app-core/playback/pattern-grid-zoom';
 import { getChannelColor } from '@beatbax/ui-tokens/channel-meta';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 import {
@@ -40,6 +49,11 @@ import {
   stepFromClientX,
   type TimelineDragKind,
 } from '@beatbax/app-core/playback/pattern-grid-timeline';
+
+type ZoomMode = 'auto' | 'fit' | 'manual';
+
+/** Hide block text when the block is narrower than this many CSS pixels. */
+const COMPACT_LABEL_PX = 28;
 
 interface Segment {
   patName: string;
@@ -138,53 +152,25 @@ function sectionWindowStartPct(
   return Math.min(99.5, Math.max(0, (window.startStep / globalEventTotal) * 100));
 }
 
+/** Overlay rect as % of the scrolled content strip (tracks fill that strip). */
 function sectionWindowRect(
   window: { startStep: number; endStep: number } | null | undefined,
   globalEventTotal: number,
-  rowsWrap: HTMLElement | null,
-  firstTrack: HTMLElement | null,
 ): { left: string; width: string } | null {
   if (!window || globalEventTotal <= 0) return null;
   const startPct = window.startStep / globalEventTotal;
   const widthPct = (window.endStep - window.startStep) / globalEventTotal;
   if (widthPct <= 0) return null;
-
-  if (!rowsWrap || !firstTrack) {
-    return {
-      left: `${startPct * 100}%`,
-      width: `${widthPct * 100}%`,
-    };
-  }
-
-  const wrapRect = rowsWrap.getBoundingClientRect();
-  const trackRect = firstTrack.getBoundingClientRect();
-  if (wrapRect.width <= 0 || trackRect.width <= 0) {
-    return {
-      left: `${startPct * 100}%`,
-      width: `${widthPct * 100}%`,
-    };
-  }
-
-  const trackLeft = trackRect.left - wrapRect.left;
   return {
-    left: `${trackLeft + trackRect.width * startPct}px`,
-    width: `${trackRect.width * widthPct}px`,
+    left: `${startPct * 100}%`,
+    width: `${widthPct * 100}%`,
   };
 }
 
-/** Horizontal offset of a global step inside the rows wrapper (matches the global playhead). */
-function stepOffsetLeft(
-  step: number,
-  globalEventTotal: number,
-  rowsWrap: HTMLElement | null,
-  firstTrack: HTMLElement | null,
-): string {
+/** Horizontal offset of a global step inside the scrolled content strip. */
+function stepOffsetLeft(step: number, globalEventTotal: number): string {
   const pct = globalEventTotal > 0 ? Math.min(1, Math.max(0, step / globalEventTotal)) : 0;
-  if (!rowsWrap || !firstTrack) return `${pct * 100}%`;
-  const wrapRect = rowsWrap.getBoundingClientRect();
-  const trackRect = firstTrack.getBoundingClientRect();
-  if (wrapRect.width <= 0 || trackRect.width <= 0) return `${pct * 100}%`;
-  return `${trackRect.left - wrapRect.left + trackRect.width * pct}px`;
+  return `${pct * 100}%`;
 }
 
 function channelPositionsAtPct(
@@ -264,7 +250,8 @@ function DesktopPatternGrid({
   const sectionFocusRef = useRef<SectionFocusInfo | null>(null);
   const slicePlaybackRemapRef = useRef(false);
   const globalEventTotalRef = useRef(1);
-  const rowsWrapRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const firstTrackRef = useRef<HTMLDivElement | null>(null);
   const rowsRef = useRef<PatternGridRow[]>([]);
   const onPlaySliceRef = useRef(onPlaySlice);
@@ -288,6 +275,10 @@ function DesktopPatternGrid({
   const rangeShownRef = useRef<{ loop: LoopRange | null; start: number | null }>({ loop: null, start: null });
   const rulerTrackRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<TimelineDrag | null>(null);
+  const [zoomMode, setZoomMode] = useState<ZoomMode>('auto');
+  const [manualPxPerStep, setManualPxPerStep] = useState(4);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const pxPerStepRef = useRef(4);
 
   useEffect(() => channelStates.subscribe((states) => {
     setChannelInfo({ ...states });
@@ -352,6 +343,11 @@ function DesktopPatternGrid({
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (!drag.moved && Math.abs(event.clientX - drag.originX) < 4) return;
     drag.moved = true;
+    const scroller = scrollerRef.current;
+    if (scroller) {
+      const delta = edgeAutoscrollDelta(event.clientX, scroller.getBoundingClientRect());
+      if (delta !== 0) scroller.scrollLeft += delta;
+    }
     const snap = event.altKey ? 'step' as const : 'pattern' as const;
     const result = resolveTimelineGesture(
       drag.kind, drag.anchorStep, rulerStepAt(event.clientX), true, stepBoundaries, playbackLoopRange.get(),
@@ -408,32 +404,70 @@ function DesktopPatternGrid({
     rowsRef.current = rows;
   }, [rows]);
 
+  const pxPerStep = useMemo(() => {
+    if (viewportWidth <= 0 || globalEventTotal <= 0) return 4;
+    if (zoomMode === 'fit') return fitPxPerStep(viewportWidth, globalEventTotal);
+    if (zoomMode === 'manual') return manualPxPerStep;
+    return resolveAutoPxPerStep(viewportWidth, globalEventTotal);
+  }, [viewportWidth, globalEventTotal, zoomMode, manualPxPerStep]);
+
+  useEffect(() => {
+    pxPerStepRef.current = pxPerStep;
+  }, [pxPerStep]);
+
+  const trackContentWidth = useMemo(
+    () => contentWidth(viewportWidth, globalEventTotal, pxPerStep),
+    [viewportWidth, globalEventTotal, pxPerStep],
+  );
+
+  const applyZoom = useCallback((nextMode: ZoomMode, nextManualPx?: number, anchorClientX?: number): void => {
+    const scroller = scrollerRef.current;
+    const track = rulerTrackRef.current ?? firstTrackRef.current;
+    const oldPx = pxPerStepRef.current;
+    let newPx = oldPx;
+    if (nextMode === 'fit') {
+      newPx = fitPxPerStep(viewportWidth, globalEventTotalRef.current);
+    } else if (nextMode === 'auto') {
+      newPx = resolveAutoPxPerStep(viewportWidth, globalEventTotalRef.current);
+    } else if (nextManualPx !== undefined) {
+      newPx = nextManualPx;
+    }
+    let nextScroll: number | null = null;
+    if (scroller && track && anchorClientX !== undefined && oldPx > 0) {
+      const anchorStep = stepFromClientX(
+        anchorClientX,
+        track.getBoundingClientRect(),
+        globalEventTotalRef.current,
+      );
+      nextScroll = zoomAboutAnchor({
+        oldPxPerStep: oldPx,
+        newPxPerStep: newPx,
+        anchorStep,
+        scrollLeft: scroller.scrollLeft,
+      });
+    }
+    setZoomMode(nextMode);
+    if (nextMode === 'manual' && nextManualPx !== undefined) setManualPxPerStep(nextManualPx);
+    if (nextScroll !== null && scroller) {
+      requestAnimationFrame(() => {
+        const el = scrollerRef.current;
+        if (!el) return;
+        const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+        el.scrollLeft = Math.min(maxScroll, Math.max(0, nextScroll!));
+      });
+    }
+  }, [viewportWidth]);
+
   const updateGlobalLeft = useCallback((pct: number | null): void => {
     if (pct === null) return;
-    const rowsWrap = rowsWrapRef.current;
-    const firstTrack = firstTrackRef.current;
-    if (!rowsWrap || !firstTrack) {
-      setGlobalLeft(`${pct}%`);
-      return;
-    }
-    const wrapRect = rowsWrap.getBoundingClientRect();
-    const trackRect = firstTrack.getBoundingClientRect();
-    if (wrapRect.width <= 0 || trackRect.width <= 0) {
-      setGlobalLeft(`${pct}%`);
-      return;
-    }
-    const x = trackRect.left - wrapRect.left + trackRect.width * (pct / 100);
-    setGlobalLeft(`${x}px`);
+    setGlobalLeft(`${pct}%`);
   }, []);
 
   const updateFocusColumnRect = useCallback((): void => {
-    const rect = sectionWindowRect(
+    setFocusColumnRect(sectionWindowRect(
       sectionFocusRef.current?.window,
       globalEventTotalRef.current,
-      rowsWrapRef.current,
-      firstTrackRef.current,
-    );
-    setFocusColumnRect(rect);
+    ));
   }, []);
 
   useLayoutEffect(() => {
@@ -445,32 +479,23 @@ function DesktopPatternGrid({
     const { loop, start } = rangeShownRef.current;
     const total = globalEventTotalRef.current;
     setRangeOverlay({
-      loopRect: loop ? sectionWindowRect(loop, total, rowsWrapRef.current, firstTrackRef.current) : null,
-      startLeft: start !== null ? stepOffsetLeft(start, total, rowsWrapRef.current, firstTrackRef.current) : null,
+      loopRect: loop ? sectionWindowRect(loop, total) : null,
+      startLeft: start !== null ? stepOffsetLeft(start, total) : null,
     });
   }, []);
 
   useEffect(() => {
-    const onResize = () => {
+    const scroller = scrollerRef.current;
+    if (!scroller || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = (): void => {
+      setViewportWidth(scroller.clientWidth);
       updateGlobalLeft(globalPct);
       updateFocusColumnRect();
       updateRangeOverlay();
     };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [globalPct, updateGlobalLeft, updateFocusColumnRect, updateRangeOverlay]);
-
-  useEffect(() => {
-    const rowsWrap = rowsWrapRef.current;
-    const firstTrack = firstTrackRef.current;
-    if (!rowsWrap || !firstTrack || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(() => {
-      updateGlobalLeft(globalPct);
-      updateFocusColumnRect();
-      updateRangeOverlay();
-    });
-    observer.observe(rowsWrap);
-    observer.observe(firstTrack);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
     return () => observer.disconnect();
   }, [globalPct, rows, sectionFocus, updateGlobalLeft, updateFocusColumnRect, updateRangeOverlay]);
 
@@ -481,9 +506,11 @@ function DesktopPatternGrid({
       setSectionBlocks(next.sectionBlocks);
       globalEventTotalRef.current = next.globalEventTotal;
       setGlobalEventTotal(next.globalEventTotal);
+      setZoomMode('auto');
       setSliceWindow(null);
       setSectionFocusState(null);
       sectionFocusRef.current = null;
+      if (scrollerRef.current) scrollerRef.current.scrollLeft = 0;
       if (next.rows.length > 0 && playbackStatus.get() === 'stopped') {
         showIdlePlayhead(next.rows, next.globalEventTotal);
       } else {
@@ -525,12 +552,7 @@ function DesktopPatternGrid({
       const prevWindow = sectionFocusRef.current?.window;
       sectionFocusRef.current = info;
       setSectionFocusState(info);
-      setFocusColumnRect(sectionWindowRect(
-        info?.window,
-        globalEventTotalRef.current,
-        rowsWrapRef.current,
-        firstTrackRef.current,
-      ));
+      setFocusColumnRect(sectionWindowRect(info?.window, globalEventTotalRef.current));
       const window = info?.window;
       const windowChanged = !prevWindow || !window
         || prevWindow.startStep !== window.startStep
@@ -551,6 +573,7 @@ function DesktopPatternGrid({
       setGlobalPct(null);
       setSliceWindow(null);
       setSectionFocusState(null);
+      setZoomMode('auto');
       dragRef.current = null;
       setDragPreview(null);
     },
@@ -585,6 +608,49 @@ function DesktopPatternGrid({
   const startMarkerLeft = showStartMarker ? rangeOverlay.startLeft : null;
   const stepLabel = (step: number): string => `step ${step + 1}`;
 
+  const onScrollerWheel = (event: ReactWheelEvent<HTMLDivElement>): void => {
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      const direction = event.deltaY < 0 ? 'in' : 'out';
+      applyZoom('manual', steppedPxPerStep(pxPerStepRef.current, direction), event.clientX);
+      return;
+    }
+    if (event.shiftKey && scrollerRef.current) {
+      event.preventDefault();
+      scrollerRef.current.scrollLeft += event.deltaY || event.deltaX;
+    }
+  };
+
+  const rulerClearControl = loopRange ? (
+    <button
+      aria-label="Clear loop range"
+      className="bb-pgrid__btn bb-pgrid__btn--clear-range"
+      onClick={(event) => {
+        event.stopPropagation();
+        clearPlaybackLoopRange();
+      }}
+      title="Clear loop range"
+      type="button"
+    >
+      ✕
+    </button>
+  ) : pendingStart !== null && pendingStart > 0 ? (
+    <button
+      aria-label="Clear start marker"
+      className="bb-pgrid__btn bb-pgrid__btn--clear-range"
+      onClick={(event) => {
+        event.stopPropagation();
+        setPlaybackStartStep(null);
+      }}
+      title="Clear start marker (play from the beginning)"
+      type="button"
+    >
+      ✕
+    </button>
+  ) : (
+    <span className="bb-pgrid__section-heading">Pos</span>
+  );
+
   return (
     <div
       className="bb-pgrid"
@@ -592,316 +658,359 @@ function DesktopPatternGrid({
       aria-label="Pattern grid"
       data-empty={empty ? 'true' : undefined}
       data-section-focus={sectionFocus ? 'true' : undefined}
+      data-zoom-mode={zoomMode}
+      style={{ ['--bb-pgrid-px-per-step' as string]: `${pxPerStep}px` }}
     >
       {empty ? null : (
-        <div className="bb-pgrid__rows" ref={rowsWrapRef}>
-          {sectionFocus && focusColumnRect ? (
-            <div
-              aria-hidden="true"
-              className="bb-pgrid__focus-column"
-              style={focusColumnRect}
-            />
-          ) : null}
-          {loopRect ? (
-            <div
-              aria-hidden="true"
-              className={[
-                'bb-pgrid__loop-range',
-                dragPreview ? 'bb-pgrid__loop-range--preview' : '',
-                shownLoopInactive ? 'bb-pgrid__loop-range--inactive' : '',
-              ].filter(Boolean).join(' ')}
-              style={loopRect}
-            />
-          ) : null}
-          {startMarkerLeft ? (
-            <div
-              aria-hidden="true"
-              className="bb-pgrid__start-marker"
-              style={{ left: startMarkerLeft }}
-            />
-          ) : null}
-          <div
-            aria-hidden="true"
-            className={`bb-pgrid__cursor bb-pgrid__cursor--global${paused ? ' bb-pgrid__cursor--paused' : ''}`}
-            style={{ display: globalPct === null ? 'none' : 'block', left: globalLeft }}
-          />
-          <div className="bb-pgrid__row bb-pgrid__row--ruler" role="group" aria-label="Playback timeline">
-            <div className="bb-pgrid__controls bb-pgrid__controls--ruler">
-              {loopRange ? (
-                <button
-                  aria-label="Clear loop range"
-                  className="bb-pgrid__btn bb-pgrid__btn--clear-range"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    clearPlaybackLoopRange();
-                  }}
-                  title="Clear loop range"
-                  type="button"
-                >
-                  ✕
-                </button>
-              ) : pendingStart !== null && pendingStart > 0 ? (
-                <button
-                  aria-label="Clear start marker"
-                  className="bb-pgrid__btn bb-pgrid__btn--clear-range"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setPlaybackStartStep(null);
-                  }}
-                  title="Clear start marker (play from the beginning)"
-                  type="button"
-                >
-                  ✕
-                </button>
-              ) : (
-                <span className="bb-pgrid__section-heading">Pos</span>
-              )}
-            </div>
-            <span aria-hidden="true" className="bb-pgrid__dot bb-pgrid__dot--spacer" />
-            <div
-              className="bb-pgrid__track bb-pgrid__track--ruler"
-              data-range-mode={loopRange && loopEnabled ? 'loop' : pendingStart ? 'pending-start' : 'off'}
-              onLostPointerCapture={onRulerPointerCancel}
-              onPointerCancel={onRulerPointerCancel}
-              onPointerDown={(event) => beginTimelineDrag(event, 'new')}
-              onPointerMove={onRulerPointerMove}
-              onPointerUp={onRulerPointerUp}
-              ref={rulerTrackRef}
-              title={'Click: set playback start · Drag: set loop range (turns Loop on)\nAlt: snap to steps'}
+        <>
+          <div className="bb-pgrid__zoom" role="toolbar" aria-label="Pattern grid zoom">
+            <button
+              aria-label="Zoom out"
+              className="bb-pgrid__btn bb-pgrid__btn--zoom"
+              onClick={() => applyZoom('manual', steppedPxPerStep(pxPerStep, 'out'))}
+              title="Zoom out"
+              type="button"
             >
-              {shownLoop ? (
-                <div
-                  className={`bb-pgrid__ruler-loop${shownLoopInactive ? ' bb-pgrid__ruler-loop--inactive' : ''}`}
-                  style={{
-                    left: `${stepPct(shownLoop.startStep, globalEventTotal)}%`,
-                    width: `${stepPct(shownLoop.endStep - shownLoop.startStep, globalEventTotal)}%`,
-                  }}
-                  title={shownLoopInactive
-                    ? `Loop ${stepLabel(shownLoop.startStep)} – ${stepLabel(shownLoop.endStep - 1)} (off — turn Loop on to repeat it)`
-                    : `Loop ${stepLabel(shownLoop.startStep)} – ${stepLabel(shownLoop.endStep - 1)}`}
-                >
-                  <span
-                    aria-label="Loop start handle"
-                    className="bb-pgrid__loop-handle bb-pgrid__loop-handle--start"
-                    onPointerDown={(event) => beginTimelineDrag(event, 'loop-start')}
-                    role="separator"
-                    title="Drag to move loop start"
-                  />
-                  <span
-                    aria-label="Loop end handle"
-                    className="bb-pgrid__loop-handle bb-pgrid__loop-handle--end"
-                    onPointerDown={(event) => beginTimelineDrag(event, 'loop-end')}
-                    role="separator"
-                    title="Drag to move loop end"
-                  />
+              −
+            </button>
+            <button
+              aria-label="Auto zoom"
+              aria-pressed={zoomMode === 'auto'}
+              className={`bb-pgrid__btn bb-pgrid__btn--zoom${zoomMode === 'auto' ? ' bb-pgrid__btn--active' : ''}`}
+              onClick={() => applyZoom('auto')}
+              title="Auto — readable scale from panel width"
+              type="button"
+            >
+              Auto
+            </button>
+            <button
+              aria-label="Zoom to fit"
+              aria-pressed={zoomMode === 'fit'}
+              className={`bb-pgrid__btn bb-pgrid__btn--zoom${zoomMode === 'fit' ? ' bb-pgrid__btn--active' : ''}`}
+              onClick={() => applyZoom('fit')}
+              title="Zoom to Fit — whole song in the panel"
+              type="button"
+            >
+              Fit
+            </button>
+            <button
+              aria-label="Zoom in"
+              className="bb-pgrid__btn bb-pgrid__btn--zoom"
+              onClick={() => applyZoom('manual', steppedPxPerStep(pxPerStep, 'in'))}
+              title="Zoom in"
+              type="button"
+            >
+              +
+            </button>
+          </div>
+          <div className="bb-pgrid__body">
+            <div className="bb-pgrid__gutter" aria-hidden={false}>
+              <div className="bb-pgrid__gutter-row bb-pgrid__gutter-row--ruler">
+                <div className="bb-pgrid__controls bb-pgrid__controls--ruler">{rulerClearControl}</div>
+                <span aria-hidden="true" className="bb-pgrid__dot bb-pgrid__dot--spacer" />
+              </div>
+              {showSectionLane ? (
+                <div className="bb-pgrid__gutter-row bb-pgrid__gutter-row--sections">
+                  <div className="bb-pgrid__controls bb-pgrid__controls--section">
+                    <span className="bb-pgrid__section-heading">Seq</span>
+                  </div>
+                  <span aria-hidden="true" className="bb-pgrid__dot bb-pgrid__dot--spacer" />
                 </div>
               ) : null}
-              {showStartMarker ? (
-                <span
-                  aria-label={`Pending start at ${stepLabel(shownStart as number)}`}
-                  className="bb-pgrid__start-flag"
-                  onPointerDown={(event) => beginTimelineDrag(event, 'start')}
-                  role="separator"
-                  style={{ left: `${stepPct(shownStart as number, globalEventTotal)}%` }}
-                  title={`Pending start (${stepLabel(shownStart as number)}) — drag to move`}
-                />
-              ) : null}
-            </div>
-          </div>
-          {showSectionLane ? (
-            <div className="bb-pgrid__row bb-pgrid__row--sections" role="group" aria-label="Sequence sections">
-              <div aria-hidden="true" className="bb-pgrid__controls bb-pgrid__controls--section">
-                <span className="bb-pgrid__section-heading">Seq</span>
-              </div>
-              <span aria-hidden="true" className="bb-pgrid__dot bb-pgrid__dot--spacer" />
-              <div className="bb-pgrid__track bb-pgrid__track--sections" ref={firstTrackRef}>
-                {sectionLane.blocks.map((block) => {
-                  const displayUnits = block.endStep - block.startStep;
-                  const flexBasis = `${(displayUnits / Math.max(1, globalEventTotal)) * 100}%`;
-                  const sliceRequest: ArrangementSlicePlayRequest = {
-                    channelId: block.channelId,
-                    startStep: block.startStep,
-                    endStep: block.endStep,
-                    seqName: block.seqName,
-                    patName: block.patName,
-                    channelItemIndex: block.channelItemIndex,
-                  };
-                  const inSlice = sectionFocus
-                    ? segmentMatchesSectionFocus(
-                      { channelItemIndex: block.channelItemIndex, startStep: block.startStep, endStep: block.endStep },
-                      sectionFocus,
-                    )
-                    : !!sliceWindow
-                      && block.startStep < sliceWindow.endStep
-                      && sliceWindow.startStep < block.endStep;
-                  const chipLabel = abbreviatePatternName(block.label, 11);
-                  return (
-                    <div
-                      key={block.key}
-                      className={[
-                        'bb-pgrid__section-block',
-                        inSlice ? 'bb-pgrid__section-block--focus' : '',
-                      ].filter(Boolean).join(' ')}
-                      style={{ flex: `0 0 ${flexBasis}` }}
-                      title={`${block.label}\nClick: focus section · ▶: play section`}
-                    >
+              {rows.map((row) => {
+                const info = channelInfo[row.channelId];
+                return (
+                  <div className="bb-pgrid__gutter-row" key={`gutter-${row.channelId}`}>
+                    <div className="bb-pgrid__controls">
                       <button
-                        aria-label={`Play sequence section ${block.label}`}
-                        className="bb-pgrid__section-play"
+                        aria-label={`Mute channel ${row.channelId}`}
+                        aria-pressed={!!info?.muted}
+                        className={`bb-pgrid__btn bb-pgrid__btn--mute${info?.muted ? ' bb-pgrid__btn--active' : ''}`}
                         onClick={(event) => {
                           event.stopPropagation();
-                          onPlaySliceRef.current?.({ ...sliceRequest, autoPlay: true });
+                          toggleChannelMuted(row.channelId);
                         }}
-                        title={`Play ${block.label}`}
+                        title={`Mute channel ${row.channelId}`}
                         type="button"
                       >
-                        ▶
+                        M
                       </button>
                       <button
-                        aria-label={`Focus sequence section ${block.label}`}
-                        className="bb-pgrid__section-label"
-                        onClick={() => {
-                          onPlaySliceRef.current?.({ ...sliceRequest, autoPlay: false });
+                        aria-label={`Solo channel ${row.channelId}`}
+                        aria-pressed={!!info?.soloed}
+                        className={`bb-pgrid__btn bb-pgrid__btn--solo${info?.soloed ? ' bb-pgrid__btn--active' : ''}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleChannelSoloed(row.channelId);
                         }}
-                        title={`Focus ${block.label}`}
+                        title={`Solo channel ${row.channelId}`}
                         type="button"
                       >
-                        {chipLabel}
+                        S
                       </button>
+                    </div>
+                    <span
+                      aria-hidden="true"
+                      className="bb-pgrid__dot"
+                      style={{ background: row.color, boxShadow: `0 0 5px ${hexToRgba(row.color, 0.5)}` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div
+              className="bb-pgrid__scroller"
+              onWheel={onScrollerWheel}
+              ref={scrollerRef}
+            >
+              <div
+                className="bb-pgrid__content"
+                ref={contentRef}
+                style={{ width: trackContentWidth > 0 ? `${trackContentWidth}px` : '100%' }}
+              >
+                {sectionFocus && focusColumnRect ? (
+                  <div
+                    aria-hidden="true"
+                    className="bb-pgrid__focus-column"
+                    style={focusColumnRect}
+                  />
+                ) : null}
+                {loopRect ? (
+                  <div
+                    aria-hidden="true"
+                    className={[
+                      'bb-pgrid__loop-range',
+                      dragPreview ? 'bb-pgrid__loop-range--preview' : '',
+                      shownLoopInactive ? 'bb-pgrid__loop-range--inactive' : '',
+                    ].filter(Boolean).join(' ')}
+                    style={loopRect}
+                  />
+                ) : null}
+                {startMarkerLeft ? (
+                  <div
+                    aria-hidden="true"
+                    className="bb-pgrid__start-marker"
+                    style={{ left: startMarkerLeft }}
+                  />
+                ) : null}
+                <div
+                  aria-hidden="true"
+                  className={`bb-pgrid__cursor bb-pgrid__cursor--global${paused ? ' bb-pgrid__cursor--paused' : ''}`}
+                  style={{ display: globalPct === null ? 'none' : 'block', left: globalLeft }}
+                />
+                <div className="bb-pgrid__row bb-pgrid__row--ruler" role="group" aria-label="Playback timeline">
+                  <div
+                    className="bb-pgrid__track bb-pgrid__track--ruler"
+                    data-range-mode={loopRange && loopEnabled ? 'loop' : pendingStart ? 'pending-start' : 'off'}
+                    onLostPointerCapture={onRulerPointerCancel}
+                    onPointerCancel={onRulerPointerCancel}
+                    onPointerDown={(event) => beginTimelineDrag(event, 'new')}
+                    onPointerMove={onRulerPointerMove}
+                    onPointerUp={onRulerPointerUp}
+                    ref={rulerTrackRef}
+                    title={'Click: set playback start · Drag: set loop range (turns Loop on)\nAlt: snap to steps'}
+                  >
+                    {shownLoop ? (
+                      <div
+                        className={`bb-pgrid__ruler-loop${shownLoopInactive ? ' bb-pgrid__ruler-loop--inactive' : ''}`}
+                        style={{
+                          left: `${stepPct(shownLoop.startStep, globalEventTotal)}%`,
+                          width: `${stepPct(shownLoop.endStep - shownLoop.startStep, globalEventTotal)}%`,
+                        }}
+                        title={shownLoopInactive
+                          ? `Loop ${stepLabel(shownLoop.startStep)} – ${stepLabel(shownLoop.endStep - 1)} (off — turn Loop on to repeat it)`
+                          : `Loop ${stepLabel(shownLoop.startStep)} – ${stepLabel(shownLoop.endStep - 1)}`}
+                      >
+                        <span
+                          aria-label="Loop start handle"
+                          className="bb-pgrid__loop-handle bb-pgrid__loop-handle--start"
+                          onPointerDown={(event) => beginTimelineDrag(event, 'loop-start')}
+                          role="separator"
+                          title="Drag to move loop start"
+                        />
+                        <span
+                          aria-label="Loop end handle"
+                          className="bb-pgrid__loop-handle bb-pgrid__loop-handle--end"
+                          onPointerDown={(event) => beginTimelineDrag(event, 'loop-end')}
+                          role="separator"
+                          title="Drag to move loop end"
+                        />
+                      </div>
+                    ) : null}
+                    {showStartMarker ? (
+                      <span
+                        aria-label={`Pending start at ${stepLabel(shownStart as number)}`}
+                        className="bb-pgrid__start-flag"
+                        onPointerDown={(event) => beginTimelineDrag(event, 'start')}
+                        role="separator"
+                        style={{ left: `${stepPct(shownStart as number, globalEventTotal)}%` }}
+                        title={`Pending start (${stepLabel(shownStart as number)}) — drag to move`}
+                      />
+                    ) : null}
+                  </div>
+                </div>
+                {showSectionLane ? (
+                  <div className="bb-pgrid__row bb-pgrid__row--sections" role="group" aria-label="Sequence sections">
+                    <div className="bb-pgrid__track bb-pgrid__track--sections" ref={firstTrackRef}>
+                      {sectionLane.blocks.map((block) => {
+                        const displayUnits = block.endStep - block.startStep;
+                        const flexBasis = `${(displayUnits / Math.max(1, globalEventTotal)) * 100}%`;
+                        const sliceRequest: ArrangementSlicePlayRequest = {
+                          channelId: block.channelId,
+                          startStep: block.startStep,
+                          endStep: block.endStep,
+                          seqName: block.seqName,
+                          patName: block.patName,
+                          channelItemIndex: block.channelItemIndex,
+                        };
+                        const inSlice = sectionFocus
+                          ? segmentMatchesSectionFocus(
+                            { channelItemIndex: block.channelItemIndex, startStep: block.startStep, endStep: block.endStep },
+                            sectionFocus,
+                          )
+                          : !!sliceWindow
+                            && block.startStep < sliceWindow.endStep
+                            && sliceWindow.startStep < block.endStep;
+                        const chipLabel = abbreviatePatternName(block.label, 11);
+                        const compact = displayUnits * pxPerStep < COMPACT_LABEL_PX;
+                        return (
+                          <div
+                            key={block.key}
+                            className={[
+                              'bb-pgrid__section-block',
+                              inSlice ? 'bb-pgrid__section-block--focus' : '',
+                              compact ? 'bb-pgrid__section-block--compact' : '',
+                            ].filter(Boolean).join(' ')}
+                            style={{ flex: `0 0 ${flexBasis}` }}
+                            title={`${block.label}\nClick: focus section · ▶: play section`}
+                          >
+                            <button
+                              aria-label={`Play sequence section ${block.label}`}
+                              className="bb-pgrid__section-play"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onPlaySliceRef.current?.({ ...sliceRequest, autoPlay: true });
+                              }}
+                              title={`Play ${block.label}`}
+                              type="button"
+                            >
+                              ▶
+                            </button>
+                            <button
+                              aria-label={`Focus sequence section ${block.label}`}
+                              className="bb-pgrid__section-label"
+                              onClick={() => {
+                                onPlaySliceRef.current?.({ ...sliceRequest, autoPlay: false });
+                              }}
+                              title={`Focus ${block.label}`}
+                              type="button"
+                            >
+                              {chipLabel}
+                            </button>
+                          </div>
+                        );
+                      })}
+                      {sectionLane.tailEvents > 0 ? (
+                        <div
+                          className="bb-pgrid__block bb-pgrid__block--filler"
+                          style={{ flex: `0 0 ${(sectionLane.tailEvents / Math.max(1, globalEventTotal)) * 100}%` }}
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                {rows.map((row, rowIndex) => {
+                  const audible = isChannelAudible(channelInfo, row.channelId);
+                  const tailEvents = globalEventTotal - row.displayTotal;
+                  const patternToneByName = new Map<string, number>();
+                  const toneLevels = [0.80, 0.64, 0.48, 0.32];
+                  let stepCursor = 0;
+                  return (
+                    <div className="bb-pgrid__row" role="group" aria-label={`Channel ${row.channelId}`} key={row.channelId}>
+                      <div
+                        className="bb-pgrid__track"
+                        ref={rowIndex === 0 && !showSectionLane ? firstTrackRef : undefined}
+                        style={{ opacity: audible ? '1' : '0.4' }}
+                      >
+                        {row.segs.map((seg, index) => {
+                          const displayUnits = Math.max(1, seg.count);
+                          const startStep = stepCursor;
+                          const endStep = stepCursor + Math.max(1, displayUnits);
+                          stepCursor = endStep;
+                          const flexBasis = `${(displayUnits / Math.max(1, globalEventTotal)) * 100}%`;
+                          let tone = patternToneByName.get(seg.patName);
+                          if (tone === undefined) {
+                            tone = toneLevels[hashPatternName(seg.patName) % toneLevels.length];
+                            patternToneByName.set(seg.patName, tone);
+                          }
+                          const blockLabel = seg.seqName ? `${seg.seqName} › ${seg.patName}` : seg.patName;
+                          const chipLabel = abbreviatePatternName(seg.patName);
+                          const inSlice = sectionFocus
+                            ? segmentMatchesSectionFocus(
+                              { channelItemIndex: seg.channelItemIndex, startStep, endStep },
+                              sectionFocus,
+                            )
+                            : !!sliceWindow
+                              && startStep < sliceWindow.endStep
+                              && sliceWindow.startStep < endStep;
+                          const navigate = () => onNavigate?.(seg.patName);
+                          const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              navigate();
+                            }
+                          };
+                          const compact = displayUnits <= 1 || displayUnits * pxPerStep < COMPACT_LABEL_PX;
+                          return (
+                            <div
+                              aria-label={`Pattern block: ${blockLabel}. Click to go to pattern.`}
+                              className={[
+                                'bb-pgrid__block',
+                                compact ? 'bb-pgrid__block--compact' : '',
+                                inSlice ? 'bb-pgrid__block--slice' : '',
+                              ].filter(Boolean).join(' ')}
+                              data-label={seg.patName}
+                              data-start-step={startStep}
+                              data-end-step={endStep}
+                              key={`${row.channelId}-${seg.seqName ?? 'pat'}-${seg.patName}-${index}`}
+                              onClick={() => navigate()}
+                              onKeyDown={onKeyDown}
+                              role="button"
+                              style={{
+                                background: hexToRgba(row.color, tone),
+                                borderColor: hexToRgba(row.color, Math.min(0.95, tone + 0.18)),
+                                cursor: 'pointer',
+                                flex: `0 0 ${flexBasis}`,
+                              }}
+                              tabIndex={0}
+                              title={`${blockLabel}\nClick: go to pattern`}
+                            >
+                              <span aria-hidden="true" className="bb-pgrid__block-label">{chipLabel}</span>
+                            </div>
+                          );
+                        })}
+                        {tailEvents > 0 ? (
+                          <div
+                            className="bb-pgrid__block bb-pgrid__block--filler"
+                            style={{ flex: `0 0 ${(tailEvents / Math.max(1, globalEventTotal)) * 100}%` }}
+                          />
+                        ) : null}
+                        <div
+                          aria-hidden="true"
+                          className={`bb-pgrid__cursor bb-pgrid__cursor--channel${paused ? ' bb-pgrid__cursor--paused' : ''}`}
+                          style={{
+                            display: positions[row.channelId] === undefined ? 'none' : 'block',
+                            left: `${positions[row.channelId] ?? 0}%`,
+                          }}
+                        />
+                      </div>
                     </div>
                   );
                 })}
-                {sectionLane.tailEvents > 0 ? (
-                  <div
-                    className="bb-pgrid__block bb-pgrid__block--filler"
-                    style={{ flex: `0 0 ${(sectionLane.tailEvents / Math.max(1, globalEventTotal)) * 100}%` }}
-                  />
-                ) : null}
               </div>
             </div>
-          ) : null}
-          {rows.map((row, rowIndex) => {
-            const info = channelInfo[row.channelId];
-            const audible = isChannelAudible(channelInfo, row.channelId);
-            const tailEvents = globalEventTotal - row.displayTotal;
-            const patternToneByName = new Map<string, number>();
-            const toneLevels = [0.80, 0.64, 0.48, 0.32];
-            let stepCursor = 0;
-            return (
-              <div className="bb-pgrid__row" role="group" aria-label={`Channel ${row.channelId}`} key={row.channelId}>
-                <div className="bb-pgrid__controls">
-                  <button
-                    aria-label={`Mute channel ${row.channelId}`}
-                    aria-pressed={!!info?.muted}
-                    className={`bb-pgrid__btn bb-pgrid__btn--mute${info?.muted ? ' bb-pgrid__btn--active' : ''}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      toggleChannelMuted(row.channelId);
-                    }}
-                    title={`Mute channel ${row.channelId}`}
-                    type="button"
-                  >
-                    M
-                  </button>
-                  <button
-                    aria-label={`Solo channel ${row.channelId}`}
-                    aria-pressed={!!info?.soloed}
-                    className={`bb-pgrid__btn bb-pgrid__btn--solo${info?.soloed ? ' bb-pgrid__btn--active' : ''}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      toggleChannelSoloed(row.channelId);
-                    }}
-                    title={`Solo channel ${row.channelId}`}
-                    type="button"
-                  >
-                    S
-                  </button>
-                </div>
-                <span
-                  aria-hidden="true"
-                  className="bb-pgrid__dot"
-                  style={{ background: row.color, boxShadow: `0 0 5px ${hexToRgba(row.color, 0.5)}` }}
-                />
-                <div
-                  className="bb-pgrid__track"
-                  ref={rowIndex === 0 && !showSectionLane ? firstTrackRef : undefined}
-                  style={{ opacity: audible ? '1' : '0.4' }}
-                >
-                  {row.segs.map((seg, index) => {
-                    const displayUnits = Math.max(1, seg.count);
-                    const startStep = stepCursor;
-                    const endStep = stepCursor + Math.max(1, displayUnits);
-                    stepCursor = endStep;
-                    const flexBasis = `${(displayUnits / Math.max(1, globalEventTotal)) * 100}%`;
-                    let tone = patternToneByName.get(seg.patName);
-                    if (tone === undefined) {
-                      tone = toneLevels[hashPatternName(seg.patName) % toneLevels.length];
-                      patternToneByName.set(seg.patName, tone);
-                    }
-                    const blockLabel = seg.seqName ? `${seg.seqName} › ${seg.patName}` : seg.patName;
-                    const chipLabel = abbreviatePatternName(seg.patName);
-                    const inSlice = sectionFocus
-                      ? segmentMatchesSectionFocus(
-                        { channelItemIndex: seg.channelItemIndex, startStep, endStep },
-                        sectionFocus,
-                      )
-                      : !!sliceWindow
-                        && startStep < sliceWindow.endStep
-                        && sliceWindow.startStep < endStep;
-                    const navigate = () => onNavigate?.(seg.patName);
-                    const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        navigate();
-                      }
-                    };
-                    return (
-                      <div
-                        aria-label={`Pattern block: ${blockLabel}. Click to go to pattern.`}
-                        className={[
-                          'bb-pgrid__block',
-                          displayUnits <= 1 ? 'bb-pgrid__block--compact' : '',
-                          inSlice ? 'bb-pgrid__block--slice' : '',
-                        ].filter(Boolean).join(' ')}
-                        data-label={seg.patName}
-                        data-start-step={startStep}
-                        data-end-step={endStep}
-                        key={`${row.channelId}-${seg.seqName ?? 'pat'}-${seg.patName}-${index}`}
-                        onClick={() => navigate()}
-                        onKeyDown={onKeyDown}
-                        role="button"
-                        style={{
-                          background: hexToRgba(row.color, tone),
-                          borderColor: hexToRgba(row.color, Math.min(0.95, tone + 0.18)),
-                          cursor: 'pointer',
-                          flex: `0 0 ${flexBasis}`,
-                        }}
-                        tabIndex={0}
-                        title={`${blockLabel}\nClick: go to pattern`}
-                      >
-                        <span aria-hidden="true" className="bb-pgrid__block-label">{chipLabel}</span>
-                      </div>
-                    );
-                  })}
-                  {tailEvents > 0 ? (
-                    <div
-                      className="bb-pgrid__block bb-pgrid__block--filler"
-                      style={{ flex: `0 0 ${(tailEvents / Math.max(1, globalEventTotal)) * 100}%` }}
-                    />
-                  ) : null}
-                  <div
-                    aria-hidden="true"
-                    className={`bb-pgrid__cursor bb-pgrid__cursor--channel${paused ? ' bb-pgrid__cursor--paused' : ''}`}
-                    style={{
-                      display: positions[row.channelId] === undefined ? 'none' : 'block',
-                      left: `${positions[row.channelId] ?? 0}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
