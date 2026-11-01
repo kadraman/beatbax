@@ -1,6 +1,6 @@
 # Instruments Reference
 
-Desktop can edit `inst` lines graphically (Settings → Features → Instrument Editor). The language syntax below is unchanged; with **Live edit** on (default), the panel writes valid field changes back into the `.bax` `inst` line. Turn Live edit off to audition a panel draft without rewriting that line; **Apply** writes the draft to the editor, **Revert** discards panel edits and reloads from the editor. Hardware `env` / `sweep` appear as parametric controls with a live shape preview; software macros (`vol_env`, …) are editable bar graphs (click/drag), one tab per defined macro.
+Desktop can edit `inst` lines graphically (Settings → Features → Instrument Editor). The language syntax below is unchanged; the panel writes the same fields back into source. Hardware `env` / `sweep` appear as parametric controls with a live shape preview; software macros (`vol_env`, …) are editable bar graphs (click/drag), one tab per defined macro.
 
 ## Pulse (Duty)
 
@@ -232,15 +232,6 @@ When exporting to hUGETracker, BeatBax maps `bpm` to integer ticks per row (`rou
 | Pulse 1 / 2 | `duty`, `env`, `sweep` (Pulse 1 only) | duty 50, env=gb:15,down,1 |
 | Wave | `wave=[32]` (or `[16]` shorthand), `volume=` | 32 nibbles 0..15, volume default `100` |
 | Noise | `width`, `uge_note`, `env`, `length` | width=15, uge_note=C-7, env=gb:15,down,1 |
-
-## Shareable kits
-
-Reusable kits live in [kadraman/beatbax-instruments](https://github.com/kadraman/beatbax-instruments) (`gameboy/` and `nes/` leaf `.ins` files, plus concatenated `kit.ins`). Remote `.ins` files **cannot nest `import`** (security); import leaf files or a single concatenated kit. Local `.ins` may nest imports. See also [import-security.md](import-security.md).
-
-```bax
-import "github:kadraman/beatbax-instruments/main/gameboy/kit.ins"
-import "github:kadraman/beatbax-instruments/main/nes/drums.ins"
-```
 
 ## Tests & examples
 - See `songs/instrument_demo.bax` and the added tutorial example for quick demos.

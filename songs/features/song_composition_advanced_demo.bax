@@ -1,0 +1,56 @@
+## song_composition_advanced_demo.bax
+## Spec 008 advanced binding — section blocks + form + per-channel role
+##
+## Same song as song_composition_demo.bax after Beginner Mode desugars.
+## Prefer this form when you need to:
+##   - Remap roles (e.g. bass on pulse2 / harm on wave — see dancefloor_pulse.bax)
+##   - Mix role-bound channels with classic `seq` / `pat` channels
+##   - Target chips that are not exactly four channels
+##
+## `form` still declares section order once; each channel picks a role from that form.
+
+song name "Song Composition (Advanced)"
+song artist "The BeatBax Team"
+song description """Advanced section / form / channel role binding demo (spec 008)."""
+song tags "demo,composition,advanced,section,form,role"
+
+chip gameboy
+bpm 140
+stepsPerBar 4
+
+inst lead type=pulse1 duty=2 env=12,down,3
+inst arp type=pulse2 duty=1 env=10,down,2
+inst bass type=wave volume=100 wave=0123456789ABCDEFFEDCBA9876543210
+inst kick type=noise env=15,down,1
+
+pat mel_a = C4 E4 G4 E4
+pat mel_b = D4 F4 A4 F4
+pat harm_a = E4 G4 C5 G4
+pat harm_b = F4 A4 D5 A4
+pat bass_a = C3 C3 G2 G2
+pat bass_b = D3 D3 A2 A2
+pat drum_a = C4 . C4 .
+pat drum_b = C4 C4 . C4
+
+section intro {
+  mel = mel_a
+  harm = harm_a
+  bass = bass_a
+  perc = drum_a
+}
+
+section hook {
+  mel = mel_b
+  harm = harm_b
+  bass = bass_b
+  perc = drum_b
+}
+
+form main = intro, hook
+
+channel 1 => inst lead role mel form main
+channel 2 => inst arp role harm form main
+channel 3 => inst bass role bass form main
+channel 4 => inst kick role perc form main
+
+play

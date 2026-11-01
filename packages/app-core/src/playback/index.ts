@@ -31,3 +31,23 @@ export type { TransportState, TransportControlsConfig } from './transport-contro
 
 export { attachTransportBarFit } from './transport-bar-fit.js';
 
+export {
+  rowStepSpans,
+  stepFromClientX,
+  snapPendingStart,
+  resolveTimelineGesture,
+  idlePlayheadStep,
+  pickTimelineStart,
+  pickTimelineLoop,
+  followActiveLoop,
+  tryPlayRequestedRange,
+} from './pattern-grid-timeline.js';
+export type {
+  StepSpan,
+  TimelineDragKind,
+  TimelineGestureResult,
+  TimelineGestureOptions,
+  TimelinePickDeps,
+} from './pattern-grid-timeline.js';
+
+

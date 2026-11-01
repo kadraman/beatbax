@@ -192,8 +192,8 @@ export interface ClientCapabilities {
 | Capability | web-lite | desktop-full |
 |------------|----------|--------------|
 | Editing | Basic Monaco (syntax, diagnostics, completions, folding) | Full IDE (code lens, glyph margin, command palette, MIDI step entry) |
-| Playback | Play/pause/stop, BPM, volume, loop | Full transport + pattern grid sync |
-| Panels | Visualizer, Help, Problems, Output | Visualizer, Mixer, Help, Copilot, Problems, Output |
+| Playback | Play/pause/stop, BPM, volume, loop + pattern grid seek/loop (restored in spec 097) | Full transport + pattern grid sync |
+| Panels | Pattern Grid (restored in spec 097), Channel Mixer, Help, Problems, Output | Visualizer, Mixer, Pattern Grid, Help, Copilot, Problems, Output |
 | Export | **None** | All formats via native save dialog |
 | CoPilot | **No** | Yes |
 | File open | Hidden input + `?song=` URL | Native Open dialog + drag-drop + associations |
@@ -265,6 +265,7 @@ During implementation the web-lite scope was refined:
 | "Get the Desktop App" header CTA | **Text logo + social icons** (GitHub; X / itch.io optional) |
 | Save = localStorage only | **Save** also triggers `.bax` download via `download-helper` |
 | Minimal settings (theme + word wrap) | **Settings modal disabled** (`settingsPanel: false`); theme via toolbar / **Alt+Shift+L**, word wrap via toolbar |
+| Remove Pattern Grid from web-lite | **Pattern Grid restored to web-lite** (shown by default with spec 014 timeline seek and loop) in [spec 097](../../features/097-web-lite-pattern-grid/spec.md) |
 
 These are reflected in `packages/app-core/src/client-profile.ts` and `apps/web-ui/src/app/web-lite-header.ts`.
 

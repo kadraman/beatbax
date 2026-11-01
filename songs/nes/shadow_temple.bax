@@ -399,45 +399,51 @@ pat drum_loop_p = drum_lo drum_hi drum_med drum_hi drum_lo drum_hi drum_med drum
 # Intro: silence for slot 0 (Square 2 plays alone), then 5 intro melody patterns.
 # Main:  8 melody patterns (mel1–mel8).
 # Bridge: 5 bridge patterns (bridge1–bridge5).
-seq sq1_intro  = silence sq1_intro1 sq1_intro2 sq1_intro3 sq1_intro4 sq1_intro5
-seq sq1_main   = sq1_mel1 sq1_mel2 sq1_mel3 sq1_mel4 sq1_mel5 sq1_mel6 sq1_mel7 sq1_mel8
-seq sq1_bridge = sq1_bridge1 sq1_bridge2 sq1_bridge3 sq1_bridge4 sq1_bridge5
 
 # ── Square 2 (Arpeggio counter-melody) ────────────────────────────────────────
 # Intro: 5 × beepin1 (arpeggios play from bar 1, no silence slot — Square 2 leads).
 # Main:  beeplo1 × 8 then beeplo2 for the final pattern (harmonic variety).
 # Bridge: two bridge arpeggio patterns, then two more, ending on beeplo1.
-seq sq2_intro  = sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1
-seq sq2_main   = sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo2
-seq sq2_bridge = sq2_brid1 sq2_brid2 sq2_brid3 sq2_brid4 sq2_beeplo1
 
 # ── Triangle (Bass) ───────────────────────────────────────────────────────────
 # Intro: silence for slot 0, then 5 intro bass ramps (root→5th→octave builds).
 # Main:  8 bass patterns cycling through Dm/Am/Gm/C area roots.
 # Bridge: 3 bridge bass patterns (alternating Am and Bbm feel) then resolution.
-seq tri_intro  = silence tri_intro1 tri_intro2 tri_intro3 tri_intro4 tri_intro5
-seq tri_main   = tri_bass1 tri_bass2 tri_bass3 tri_bass4 tri_bass5 tri_bass6 tri_bass7 tri_bass8
-seq tri_bridge = tri_bbrid1 tri_bbrid2 tri_bbrid1 tri_bbrid2 tri_bbrid3
 
 # ── Noise (Drums) ─────────────────────────────────────────────────────────────
 # Intro: silence × 4 then drum_intro_p (hits only in last 4 rows of the 5th intro slot).
 # Main:  9 × drum_loop_p (full groove for all 8 main + 1 extra to align with sq2).
 # Bridge: 5 × drum_loop_p (groove continues through bridge).
-seq drum_intro  = silence silence silence silence drum_intro_p
-seq drum_main   = drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p
-seq drum_bridge = drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p
 
 # =============================================================================
 # Channel routing
 # =============================================================================
 
-channel 1 => inst lead_intro  seq sq1_intro  sq1_main  sq1_bridge
-channel 2 => inst bleep_intro seq sq2_intro  sq2_main  sq2_bridge
-channel 3 => inst bass        seq tri_intro  tri_main  tri_bridge
-channel 4 => inst drum_lo     seq drum_intro drum_main drum_bridge
-
 # =============================================================================
 # Playback
 # =============================================================================
+
+section intro {
+  mel = silence sq1_intro1 sq1_intro2 sq1_intro3 sq1_intro4 sq1_intro5
+  harm = sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1
+  bass = silence tri_intro1 tri_intro2 tri_intro3 tri_intro4 tri_intro5
+  perc = silence silence silence silence drum_intro_p
+}
+section main {
+  mel = sq1_mel1 sq1_mel2 sq1_mel3 sq1_mel4 sq1_mel5 sq1_mel6 sq1_mel7 sq1_mel8
+  harm = sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo2
+  bass = tri_bass1 tri_bass2 tri_bass3 tri_bass4 tri_bass5 tri_bass6 tri_bass7 tri_bass8
+  perc = drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p
+}
+section bridge {
+  mel = sq1_bridge1 sq1_bridge2 sq1_bridge3 sq1_bridge4 sq1_bridge5
+  harm = sq2_brid1 sq2_brid2 sq2_brid3 sq2_brid4 sq2_beeplo1
+  bass = tri_bbrid1 tri_bbrid2 tri_bbrid1 tri_bbrid2 tri_bbrid3
+  perc = drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p
+}
+
+form main = intro > main > bridge
+
+channel auto form main inst=lead_intro|bleep_intro|bass|drum_lo
 
 play auto

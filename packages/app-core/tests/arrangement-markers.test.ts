@@ -1,10 +1,22 @@
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
 import { addDefaultSectionMarkers, mergeSectionMarkersFromCopilotTexts } from '../src/editor/arrangement-markers';
 import { detectArrangementLayout } from '../src/editor/arrangement-slice';
 
-const battleFanfarePath = resolve(__dirname, '../../../songs/nes/battle_fanfare.bax');
-const battleFanfare = readFileSync(battleFanfarePath, 'utf8');
+/** Monolithic fixture — live battle_fanfare.bax is now section/form. */
+const battleFanfareMonolith = `chip nes
+bpm 155
+inst lead type=pulse1
+pat p = C4
+seq pulse1_main = p p p p p
+seq pulse2_main = p p p p p
+seq tri_main = p p p p p
+seq noise_main = p p p p p
+seq dmc_main = p p p p p
+channel 1 => inst lead seq pulse1_main
+channel 2 => inst lead seq pulse2_main
+channel 3 => inst lead seq tri_main
+channel 4 => inst lead seq noise_main
+channel 5 => inst lead seq dmc_main
+play`;
 
 function battleFanfareAst() {
   return {
@@ -102,10 +114,10 @@ play`;
     expect(idx('Section 2: Two')).toBeGreaterThan(idx('seq part_a'));
   });
 
-  it('does not change monolithic layout classification on battle_fanfare', () => {
-    expect(detectArrangementLayout(battleFanfare, battleFanfareAst())).toBe('monolithic');
+  it('does not change monolithic layout classification on a battle_fanfare-shaped song', () => {
+    expect(detectArrangementLayout(battleFanfareMonolith, battleFanfareAst())).toBe('monolithic');
 
-    const result = addDefaultSectionMarkers(battleFanfare);
+    const result = addDefaultSectionMarkers(battleFanfareMonolith);
     expect(result.status).toBe('applied');
     if (result.status !== 'applied') return;
 

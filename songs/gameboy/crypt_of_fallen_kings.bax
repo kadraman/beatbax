@@ -274,52 +274,73 @@ pat drums_climax = kick . hat snare snare . hat snare kick . snare snare snare s
 #   Bars 21–24 : Climax             (mel_run + mel_finale, blazing ascending + peak)
 #   Bars 25–28 : Finale hook        (mel_a + mel_a2, loop-ready close)
 
+# =============================================================================
+
 # --- Section 1: Dark intro (Bars 1–4) ---
-seq intro_mel  = mel_intro mel_intro mel_intro2 mel_intro2
-seq intro_harm = harm_intro harm_intro harm_intro harm_intro
-seq intro_bass = bass_intro bass_intro bass_intro bass_intro
-seq intro_perc = drums_intro drums_intro drums_intro drums_intro
+
+section intro {
+  mel = mel_intro mel_intro mel_intro2 mel_intro2
+  harm = harm_intro harm_intro harm_intro harm_intro
+  bass = bass_intro bass_intro bass_intro bass_intro
+  perc = drums_intro drums_intro drums_intro drums_intro
+}
 
 # --- Section 2: Main hook A (Bars 5–8) ---
-seq hook_mel  = mel_a mel_a2 mel_a mel_a2
-seq hook_harm = harm_main1 harm_main2 harm_main1 harm_main2
-seq hook_bass = bass_main1 bass_gallop bass_main1 bass_gallop
-seq hook_perc = drums_main drums_main drums_drive drums_main
+
+section hook {
+  mel = mel_a mel_a2 mel_a mel_a2
+  harm = harm_main1 harm_main2 harm_main1 harm_main2
+  bass = bass_main1 bass_gallop bass_main1 bass_gallop
+  perc = drums_main drums_main drums_drive drums_main
+}
 
 # --- Section 3: B section — climax tension (Bars 9–12) ---
-seq bsec_mel  = mel_b_hi mel_b_hi2 mel_b_hi mel_b_hi2
-seq bsec_harm = harm_b1 harm_b2 harm_b1 harm_b2
-seq bsec_bass = bass_b_main bass_b_main bass_b_main bass_b_main
-seq bsec_perc = drums_drive drums_main drums_drive drums_drive
+
+section bsec {
+  mel = mel_b_hi mel_b_hi2 mel_b_hi mel_b_hi2
+  harm = harm_b1 harm_b2 harm_b1 harm_b2
+  bass = bass_b_main bass_b_main bass_b_main bass_b_main
+  perc = drums_drive drums_main drums_drive drums_drive
+}
 
 # --- Section 4: Bridge — atmospheric descent (Bars 13–16) ---
-seq bridge_mel  = mel_bridge_a mel_bridge_b mel_bridge_a mel_bridge_b
-seq bridge_harm = harm_bridge harm_bridge harm_bridge harm_bridge
-seq bridge_bass = bass_bridge bass_bridge bass_bridge bass_bridge
-seq bridge_perc = drums_bridge drums_bridge drums_bridge drums_bridge
+
+section bridge {
+  mel = mel_bridge_a mel_bridge_b mel_bridge_a mel_bridge_b
+  harm = harm_bridge harm_bridge harm_bridge harm_bridge
+  bass = bass_bridge bass_bridge bass_bridge bass_bridge
+  perc = drums_bridge drums_bridge drums_bridge drums_bridge
+}
 
 # --- Section 5: Return to A — triumphant vibrato (Bars 17–20) ---
-seq return_mel  = mel_a_vib mel_a2 mel_a_vib mel_a2
-seq return_harm = harm_main1 harm_main2 harm_main1 harm_main2
-seq return_bass = bass_main1 bass_gallop bass_main1 bass_gallop
-seq return_perc = drums_main drums_main drums_drive drums_drive
+
+section return {
+  mel = mel_a_vib mel_a2 mel_a_vib mel_a2
+  harm = harm_main1 harm_main2 harm_main1 harm_main2
+  bass = bass_main1 bass_gallop bass_main1 bass_gallop
+  perc = drums_main drums_main drums_drive drums_drive
+}
 
 # --- Section 6: Climax — blazing ascending run + peak (Bars 21–24) ---
-seq climax_mel  = mel_run mel_finale mel_run mel_finale
-seq climax_harm = harm_run harm_main1 harm_run harm_main1
-seq climax_bass = bass_run bass_main1 bass_run bass_main1
-seq climax_perc = drums_climax drums_drive drums_climax drums_drive
+
+section climax {
+  mel = mel_run mel_finale mel_run mel_finale
+  harm = harm_run harm_main1 harm_run harm_main1
+  bass = bass_run bass_main1 bass_run bass_main1
+  perc = drums_climax drums_drive drums_climax drums_drive
+}
 
 # --- Section 7: Finale hook — loop-ready close (Bars 25–28) ---
-seq finale_mel  = mel_a mel_a2 mel_a mel_a2
-seq finale_harm = harm_main1 harm_main2 harm_main1 harm_main2
-seq finale_bass = bass_main1 bass_gallop bass_main1 bass_gallop
-seq finale_perc = drums_main drums_main drums_main drums_climax
 
-# =============================================================================
-channel 1 => inst lead  seq intro_mel  hook_mel  bsec_mel  bridge_mel  return_mel  climax_mel  finale_mel
-channel 2 => inst arp   seq intro_harm hook_harm bsec_harm bridge_harm return_harm climax_harm finale_harm
-channel 3 => inst bass  seq intro_bass hook_bass bsec_bass bridge_bass return_bass climax_bass finale_bass
-channel 4 => inst kick  seq intro_perc hook_perc bsec_perc bridge_perc return_perc climax_perc finale_perc
+section finale {
+  mel = mel_a mel_a2 mel_a mel_a2
+  harm = harm_main1 harm_main2 harm_main1 harm_main2
+  bass = bass_main1 bass_gallop bass_main1 bass_gallop
+  perc = drums_main drums_main drums_main drums_climax
+}
+
+form main = intro > hook > bsec > bridge > return > climax > finale
+
+channel auto form main inst=lead|arp|bass|kick
 
 play auto

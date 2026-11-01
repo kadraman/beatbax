@@ -89,12 +89,6 @@ export {
   instIsReferenced,
   splitTrailingComment,
 } from './instrument-editor-writeback.js';
-export {
-  stripInstrumentDraftMeta,
-  instrumentDraftFingerprint,
-  isInstrumentDraftDirty,
-  instrumentDraftPreviewPatch,
-} from './instrument-editor-draft.js';
 
 export { setupBeatDecorations } from './beat-decorations.js';
 export {

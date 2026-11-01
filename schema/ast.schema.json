@@ -47,6 +47,21 @@
       "description": "Import directives.",
       "items": { "$ref": "#/definitions/importNode" }
     },
+    "aliases": {
+      "type": "object",
+      "description": "Authored alias declarations (spec 008).",
+      "additionalProperties": { "$ref": "#/definitions/aliasDeclNode" }
+    },
+    "sections": {
+      "type": "object",
+      "description": "Authored section declarations (spec 008).",
+      "additionalProperties": { "$ref": "#/definitions/sectionDeclNode" }
+    },
+    "forms": {
+      "type": "object",
+      "description": "Authored form declarations (spec 008).",
+      "additionalProperties": { "$ref": "#/definitions/formDeclNode" }
+    },
     "bpm": {
       "type": "integer",
       "description": "Top-level tempo in BPM.",
@@ -206,12 +221,61 @@
       }
     },
 
+    "aliasDeclNode": {
+      "type": "object",
+      "required": ["items"],
+      "additionalProperties": false,
+      "properties": {
+        "items": { "type": "array", "items": { "$ref": "#/definitions/sequenceItem" } },
+        "loc": { "$ref": "#/definitions/loc" }
+      }
+    },
+
+    "sectionDeclNode": {
+      "type": "object",
+      "required": ["roles"],
+      "additionalProperties": false,
+      "properties": {
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["role", "items"],
+            "additionalProperties": false,
+            "properties": {
+              "role": { "type": "string" },
+              "items": { "type": "array", "items": { "$ref": "#/definitions/sequenceItem" } },
+              "loc": { "$ref": "#/definitions/loc" }
+            }
+          }
+        },
+        "loc": { "$ref": "#/definitions/loc" }
+      }
+    },
+
+    "formDeclNode": {
+      "type": "object",
+      "required": ["sectionNames"],
+      "additionalProperties": false,
+      "properties": {
+        "sectionNames": { "type": "array", "items": { "type": "string" } },
+        "defaults": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "instruments": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "loc": { "$ref": "#/definitions/loc" }
+      }
+    },
+
     "channelNode": {
       "type": "object",
       "required": ["id"],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "integer", "minimum": 1, "maximum": 4, "description": "Game Boy channel number (1-4)." },
+        "id": { "type": "integer", "minimum": 1, "maximum": 8, "description": "Channel number (chip-dependent)." },
         "inst": { "type": "string", "description": "Default instrument name for this channel." },
         "pat": {
           "oneOf": [
@@ -226,6 +290,8 @@
           "enum": ["scale", "root+fifth", "chord", "chord7", "octaves"],
           "description": "Optional scale lock restriction for this channel."
         },
+        "role": { "type": "string", "description": "Composition role binding before expansion (spec 008)." },
+        "formRef": { "type": "string", "description": "Composition form binding before expansion (spec 008)." },
         "seqSpecTokens": { "type": "array", "items": { "type": "string" }, "description": "Raw sequence spec tokens from the channel RHS." },
         "loc": { "$ref": "#/definitions/loc" }
       }

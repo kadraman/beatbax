@@ -69,9 +69,13 @@ export function buildSongStructureSummary(content: string): string {
   const patternNames: string[] = [];
   const sequenceLines: string[] = [];
   const channelLines: string[] = [];
+  const sectionLines: string[] = [];
+  const formLines: string[] = [];
+  const aliasNames: string[] = [];
   let chip = '';
   let bpm = '';
   let play = '';
+  let channelAuto = '';
 
   for (const raw of content.split('\n')) {
     const line = raw.trim();
@@ -80,8 +84,20 @@ export function buildSongStructureSummary(content: string): string {
     if (!chip && (m = line.match(/^chip\s+(\S+)/))) chip = m[1];
     else if (!bpm && (m = line.match(/^bpm\s+(\S+)/))) bpm = m[1];
     else if ((m = line.match(/^pat\s+([A-Za-z_]\w*)\s*=/))) patternNames.push(m[1]);
+    else if ((m = line.match(/^alias\s+([A-Za-z_]\w*)\s*=/))) aliasNames.push(m[1]);
     else if ((m = line.match(/^seq\s+([A-Za-z_]\w*)\s*=\s*(.*)$/))) {
       sequenceLines.push(`${m[1]} → ${clipLine(m[2], 72)}`);
+    } else if ((m = line.match(/^section\s+([A-Za-z_]\w*)\b(.*)$/))) {
+      const rest = m[2].trim();
+      if (rest.startsWith('use ')) {
+        sectionLines.push(`${m[1]} (beginner use) → ${clipLine(rest.slice(4), 64)}`);
+      } else {
+        sectionLines.push(`${m[1]} (block)`);
+      }
+    } else if ((m = line.match(/^form\s+([A-Za-z_]\w*)\s*=\s*(.*)$/))) {
+      formLines.push(`${m[1]} → ${clipLine(m[2], 72)}`);
+    } else if ((m = line.match(/^channel\s+auto\b(.*)$/))) {
+      channelAuto = clipLine(`channel auto${m[1]}`, 88);
     } else if ((m = line.match(/^channel\s+(\d+)\s*=>\s*(.*)$/))) {
       channelLines.push(`channel ${m[1]} → ${clipLine(m[2], 72)}`);
     } else if (/^play\b/.test(line)) play = clipLine(line, 72);
@@ -90,12 +106,22 @@ export function buildSongStructureSummary(content: string): string {
   if (chip) lines.push(`Chip: ${chip}`);
   if (bpm) lines.push(`BPM: ${bpm}`);
   if (patternNames.length > 0) lines.push(`Patterns (${patternNames.length}): ${patternNames.join(', ')}`);
+  if (aliasNames.length > 0) lines.push(`Aliases: ${aliasNames.join(', ')}`);
   if (sequenceLines.length > 0) {
     lines.push('Sequences:');
     for (const seq of sequenceLines) lines.push(`  - ${seq}`);
   }
+  if (sectionLines.length > 0) {
+    lines.push('Sections (compile-time):');
+    for (const sec of sectionLines) lines.push(`  - ${sec}`);
+  }
+  if (formLines.length > 0) {
+    lines.push('Forms:');
+    for (const form of formLines) lines.push(`  - ${form}`);
+  }
+  if (channelAuto) lines.push(`Channels: ${channelAuto}`);
   if (channelLines.length > 0) {
-    lines.push('Channels:');
+    if (!channelAuto) lines.push('Channels:');
     for (const ch of channelLines) lines.push(`  - ${ch}`);
   }
   if (play) lines.push(`Playback: ${play}`);
@@ -122,18 +148,26 @@ const ARRANGEMENT_LAYOUT_GUIDE = [
   '- These are optional authoring hints, NOT parse errors. The song is valid and playable as written.',
   '- Do not rewrite the song to clear them unless the user explicitly asks to improve section focus or restructure.',
   '',
+  'Preferred authoring (spec 008) — always prefer these over comment headers:',
+  '- `section <name> { mel = …; harm = …; bass = …; perc = … }` (add `dmc = …` on NES 5-channel songs).',
+  '- Beginner sugar: `section intro use mel_a harm_a bass_a perc_a` (NES may append a 5th `dmc` name).',
+  '- `form main = intro > hook > outro` (or commas) once; bind with `channel auto form main inst=…` or `channel N => inst … role <role> form main`.',
+  '- Authored `section` / `form` drive Pattern Grid strip blocks and section focus. Do NOT recommend `# --- Section N: … ---` comments when `section`/`form` can express the arrangement.',
+  '- Comment headers are a legacy fallback for classic multi-`seq` channel songs only (no `section`/`form` yet).',
+  '',
   'Layouts:',
-  '- **Structured**: `# --- Section N: … ---` headers above cross-channel `seq` groups; parallel `seq` tokens on each `channel` line. Full section lane + editor highlighting.',
-  '- **Phased**: same number of top-level `seq` tokens on every channel (e.g. intro/main/bridge), often with channel-grouped `seq` definitions. Slice play works; add section headers for richer editor grouping.',
+  '- **Structured**: authored `section`/`form` (preferred), or legacy `# --- Section N: … ---` headers above cross-channel `seq` groups with parallel `seq` tokens on each `channel` line.',
+  '- **Phased**: same number of top-level `seq` tokens on every channel without authored sections; slice play works. Prefer migrating to `section`/`form` (+ `channel auto` or role bindings) over adding comment headers.',
   '- **Monolithic**: one top-level `seq` per channel; musical form lives inside long `seq` bodies. Section focus spans the whole song — pat navigation and F6 on individual pats still work.',
   '- **Mixed**: channels have different `seq` token counts; cross-channel section slices may misalign.',
   '',
   'When the user asks about an `[arrangement]` info message:',
-  '- **Monolithic** ("Section focus plays the whole song…"): explain that Pattern Grid sections need multiple top-level `seq` refs per `channel` line — comment headers do not help. For battle_fanfare-shaped songs (`*_main`, 19 patterns/channel), tell the user about **Arrange: Split Monolithic Channel Sequences** (F1 → command palette). Say that **Fix in Edit mode** or **Apply fix** will show steps and a **Run command locally** button — Copilot does not rewrite the whole file with AI. Do not claim the song was already split unless the user confirmed and ran the command.',
-  '- **Phased** ("Phased layout detected…"): mention **Arrange: Restructure Phased Sections into Headers** (F1). Same confirm flow: propose first, then **Run command locally** or **yes, run it**.',
-  '- **Mixed** ("Channels have different seq counts…"): explain alignment risk; suggest equalizing `seq` token lists per channel or using structured section blocks.',
+  '- **Structured with `section`/`form`**: explain that Pattern Grid already uses those authored names; no comment headers needed.',
+  '- **Monolithic** ("Section focus plays the whole song…"): prefer teaching `section`/`form`/`channel auto` (or role+form). For classic `*_main` 19-slot songs only, mention **Arrange: Split Monolithic Channel Sequences** (F1) as a local command — propose first, then **Run command locally** / **yes, run it**. Do not claim a split already happened unless confirmed.',
+  '- **Phased** ("Phased layout detected…"): prefer migrating to `section`/`form`. The **Arrange: Restructure Phased Sections into Headers** command only adds legacy comments — mention it only if the user wants that fallback.',
+  '- **Mixed** ("Channels have different seq counts…"): explain alignment risk; suggest equalizing timelines or moving to `section`/`form` with shared form order.',
   '',
-  'In Edit mode: never restructure solely to remove `[arrangement]` info hints. In Ask mode: explain the hint and offer options; point to Edit mode or the restructure command only when the user wants to apply a change.',
+  'In Edit mode: never restructure solely to remove `[arrangement]` info hints. When the user does ask to improve section focus, prefer `section`/`form`/`channel auto` (or role bindings) over inserting `# --- Section ---` comments. In Ask mode: explain the hint and offer those options; point to Edit mode or a local Arrange command only when the user wants to apply a change.',
 ].join('\n');
 
 /** Detect the canonical chip id from song source (`chip gb` / `chip dmg` → `gameboy`). */
@@ -159,7 +193,14 @@ function buildSyntaxGuide(mode: ChatMode): string {
     '- NEVER use bar separators `|` or commas between pattern tokens — they are invalid. Chain groups with spaces: `pat bass = (C2 E2) * 2 (F2 A2) * 2 (G2 B2) * 2`.',
     '- Use grouping/repeats like `(C5 E5 G5 C6) * 4`.',
     '- Define sequences with `seq name = pat_name other_pat`, not comma-separated note lists.',
-    '- Map playback with `channel N => inst instrumentName seq sequenceName` or `channel N => inst instrumentName pat patternName`.',
+    '- Optional `alias name = items` and `seq song = cat(a, b, c)` expand at compile time to ordinary seq lists.',
+    '- Multi-part songs: prefer compile-time `section` + `form` over repeating the same order on every `channel` line or inserting `# --- Section ---` comments.',
+    '- Section block example: `section hook { mel = mel_a mel_a2; harm = harm_a; bass = bass_a; perc = drums_a }` (roles are author-defined; common: mel/harm/bass/perc; NES may add `dmc`).',
+    '- Beginner Mode: `section intro use mel_a harm_a bass_a perc_a` and `form main = intro > hook`; bind with `channel auto form main inst=lead|arp|bass|kick`.',
+    '- NES Beginner Mode: 4 lanes (no DMC) or 5 with trailing `dmc` / fifth instrument. Game Boy Beginner Mode is 4 lanes only.',
+    '- Advanced binding: `channel N => inst name role mel form main` (role + form together). Do not mix `channel auto` with other role/form channel lines.',
+    '- Beginner `section … use` only accepts bare names (no `:inst(...)`); keep advanced `section { … }` blocks when pattern refs need `:inst(...)` modifiers.',
+    '- Classic map still valid: `channel N => inst instrumentName seq sequenceName` or `… pat patternName`.',
     '- Effects are top-level presets or inline note suffixes: `effect leadVib = vib:3,5` and `pat p = C5<leadVib> D5<vib:3,5>`.',
     '- A named inline effect like `NOTE<leadVib>` ONLY works if a matching top-level `effect leadVib = ...` definition exists.',
     '- Never reference an instrument or effect name that is not defined in the song (see [DEFINED NAMES]).',
@@ -173,9 +214,11 @@ function buildSyntaxGuide(mode: ChatMode): string {
     '- Use `play`, `play auto`, or existing `play auto repeat`; do not invent `play a, b, c` arrangements.',
     '- If you introduce a new named effect, you MUST add its `effect name = ...` definition line. Otherwise use inline `NOTE<vib:3,5>`.',
     '- Existing transforms such as `:oct(-1)` apply to sequence/channel items, e.g. `seq bass_seq:oct(-1)`.',
-    '- For the sample song, make melody variations by adding/modifying `pat ... = ...`, then reference them from `seq lead_seq = ...` (keeping its other entries) while leaving bass/wave/drums channels valid.',
+    '- When improving arrangement/section focus, add or edit `section`/`form`/`channel auto` (or role+form). Do not insert `# --- Section N ---` comments if language constructs can express the form.',
+    '- If the song already uses `section`/`form`, preserve that model: edit role lines inside sections or the form order — do not flatten back to long classic `*_main` seqs unless asked.',
+    '- For classic seq-only sample songs, make melody variations by adding/modifying `pat ... = ...`, then reference them from `seq lead_seq = ...` (keeping its other entries) while leaving bass/wave/drums channels valid.',
     '',
-    'Valid edit example:',
+    'Valid edit example (classic seq song):',
     '```bax',
     ...EDIT_EXAMPLE_LINES,
     '```',
@@ -187,17 +230,18 @@ function buildAskModeHint(): string {
     'You are in ASK mode. Explain, analyse, and answer questions — you cannot modify the user\'s song in this mode.',
     'The user already has the full song in the editor. Your job is to explain it in plain language, not to repeat it.',
     'Use [SONG STRUCTURE] as your outline. When explaining how the song works, structure the reply with short sections',
-    'such as ## Overview, ## Instruments, ## Patterns, ## Sequences, ## Channels, and ## Playback.',
+    'such as ## Overview, ## Instruments, ## Patterns, ## Sequences, ## Sections / Form (when present), ## Channels, and ## Playback.',
     'Describe each named item in prose. Cite at most ONE short inline line per bullet (e.g. `pat melody_pat = C5:4 D5:4`).',
     'Do NOT paste multiple definition lines together. Do NOT add sections titled "Example Code" or similar.',
     'Do NOT reproduce the syntax-reference edit example or bulk-quote [EDITOR CONTENT].',
-    'Never output more than 3 consecutive lines that look like BeatBax source (pat/seq/channel/inst/effect/play).',
+    'Never output more than 3 consecutive lines that look like BeatBax source (pat/seq/channel/inst/effect/play/section/form).',
     'If the user asks you to make or apply a change, briefly describe it, show at most a few NEW lines in a short ```bax',
     'block if helpful, then tell them to switch to Edit mode (Ask/Edit toggle above the input).',
     'When suggesting effects, prefer built-in parametric syntax such as `C5<vib:3,5>` or show a short `effect preset = ...`',
     'definition together with `C5<preset>`; never use `<preset>` without its definition.',
     'When answering loudness or mix questions, name the correct playback field (`volume=` for wave, `env=` for pulse/noise).',
-    'When the user asks about `[arrangement]` info diagnostics or Pattern Grid section focus, use [ARRANGEMENT LAYOUT HINTS].',
+    'When the user asks about `[arrangement]` info diagnostics, Pattern Grid section focus, or song form, use [ARRANGEMENT LAYOUT HINTS]',
+    'and prefer authored `section`/`form`/`channel auto` over `# --- Section ---` comment headers.',
     'Do not mention unrelated instrument fields (e.g. `gm=` for MIDI export) unless the user asked about them.',
     'Format prose with Markdown: short paragraphs, `##` headings, **bold** key terms, `-` bullet lists, and tables when comparing channels.',
   ].join(' ');
@@ -240,7 +284,8 @@ export function buildCopilotContext(
         'Ignore `info` severity `[arrangement]` hints in [DIAGNOSTICS] unless the user asked to improve section focus or restructure (see [ARRANGEMENT LAYOUT HINTS]).',
         'Invalid syntax (e.g. `|` bar separators in patterns) is rejected before apply; you may be asked to repair parse errors automatically.',
         'If diagnostics warn that an effect is not defined, add `effect name = type:params` before using `<name>`, or replace `<name>` with a built-in parametric form such as `<vib:3,5>`.',
-        'Prefer minimal edits to the current song; preserve comments, metadata, instruments, channel structure, and play directives unless the user asks otherwise.',
+        'Prefer minimal edits to the current song; preserve comments, metadata, instruments, channel structure, authored `section`/`form`/`role`/`channel auto`, and play directives unless the user asks otherwise.',
+        'When restructuring arrangement or section focus, prefer `section`/`form`/`channel auto` (or role+form) over adding `# --- Section ---` comments.',
         'Change only what the request needs. Do not rename, deduplicate, merge, or reorganise existing definitions, and do not edit patterns, sequences, or channels unrelated to the request — even when a name looks misleading (imported songs reuse hash-named patterns such as `lead_0c0dd0e2` across channels). Copy every unrelated line verbatim.',
         'Define each name once. To change an existing `pat`, `seq`, `inst` or `effect`, edit its line in place — never add a second definition with the same name, because the later one silently replaces the earlier one.',
         'Keep the existing entries of every `seq` and `channel` line, in order: do not remove, reorder, or repeat entries unless the user asks. When asked to use a new pattern in a sequence without saying where, replace one occurrence of the pattern it was copied or varied from, so the sequence keeps its length; if it is not derived from a pattern in that sequence, add it without removing anything.',

@@ -20,12 +20,20 @@
     "ism": "8a021f19d81c8a4d"
   },
   "songs/features/sequence_demo.bax": {
-    "defs": "7561776b0871fd12",
-    "ism": "6076bbd39f5153ec"
+    "defs": "b89b0de7e5f75dae",
+    "ism": "b56876eed61e46aa"
   },
   "songs/features/simple_modifiers_demo.bax": {
     "defs": "16075db9c655c7bd",
     "ism": "b08533243fc9931e"
+  },
+  "songs/features/song_composition_advanced_demo.bax": {
+    "defs": "c8b960fd60b086f0",
+    "ism": "2eb601be53382a11"
+  },
+  "songs/features/song_composition_demo.bax": {
+    "defs": "4c8dd26e848847a0",
+    "ism": "153f12411958d0d4"
   },
   "songs/features/sustain_demo.bax": {
     "defs": "6a243fbdfd7703fd",
@@ -40,8 +48,8 @@
     "ism": "de2e212b8172b40a"
   },
   "songs/gameboy/dancefloor_pulse.bax": {
-    "defs": "116eec91f64dae1f",
-    "ism": "2bda94d4b1661393"
+    "defs": "542ebe9655df38e5",
+    "ism": "44c3253990cb20a7"
   },
   "songs/gameboy/digital_citadel.bax": {
     "defs": "2fca91989c1cf761",
@@ -148,8 +156,8 @@
     "ism": "fb63e6a9cf6fd3d0"
   },
   "songs/nes/battle_fanfare.bax": {
-    "defs": "eb0e59f3b4b25ea0",
-    "ism": "46c5ef0dcd44c035"
+    "defs": "454404e238b66928",
+    "ism": "5a20c737cc828fcd"
   },
   "songs/nes/effects/nes_effects_demo.bax": {
     "defs": "011c082233c03ad5",
@@ -192,28 +200,28 @@
     "ism": "94d751049b5af62a"
   },
   "songs/nes/iron_keep.bax": {
-    "defs": "fc1b328ab538f7ca",
-    "ism": "bbc5b32d0faec866"
+    "defs": "b8d57d77f15e658d",
+    "ism": "f86d0620ead572ff"
   },
   "songs/nes/kingdom_hall.bax": {
-    "defs": "a9a0fe8fe839be48",
-    "ism": "3776f095380fd8a5"
+    "defs": "cd4b71eaabe95ecb",
+    "ism": "66cc1630adbe9415"
   },
   "songs/nes/puffball_parade.bax": {
-    "defs": "0b68f91c60349b4b",
-    "ism": "0601b980c5f6f9ff"
+    "defs": "1b5ff2adde2b663f",
+    "ism": "5f39aebe807bad39"
   },
   "songs/nes/shadow_temple.bax": {
-    "defs": "3a43269be0ac930c",
-    "ism": "507b013cb8e33c61"
+    "defs": "7651edae697cb4b5",
+    "ism": "fc65fcc32b4da1eb"
   },
   "songs/nes/silver_orbit.bax": {
-    "defs": "809e4f35029c2078",
-    "ism": "cc1b2ec7dc34448e"
+    "defs": "711771aa9cc28910",
+    "ism": "5a09ec744aac7a24"
   },
   "songs/nes/wily_fortress.bax": {
-    "defs": "0880a0735626c06c",
-    "ism": "6572f16355c43e0c"
+    "defs": "e574eb8433ed4241",
+    "ism": "bc7e192c7785517b"
   },
   "songs/sample.bax": {
     "defs": "e64e277e10105f93",
@@ -288,8 +296,8 @@
     "ism": "492c254197833611"
   },
   "songs/spectrum-128/cave_run_theme.bax": {
-    "defs": "1379771e87d42fac",
-    "ism": "4a52fb75b2762f89"
+    "defs": "8c0cf35852ac178b",
+    "ism": "a260593f83c0550f"
   },
   "songs/spectrum-128/effects/ay_effects_showcase.bax": {
     "defs": "2ea3d83e86aaec61",
@@ -332,11 +340,11 @@
     "ism": "1429a9ada1adb01c"
   },
   "songs/spectrum-128/spectral_phantoms.bax": {
-    "defs": "11f056a3f6267771",
-    "ism": "279e8482a758d0f4"
+    "defs": "ef9c30fdc0077e31",
+    "ism": "db651ae21c819cbb"
   },
   "songs/spectrum-128/steel_justice.bax": {
-    "defs": "c31dae9ef12e122b",
-    "ism": "8915ef5925d83e39"
+    "defs": "8d2e494b0409fac8",
+    "ism": "5a38c72ad4e50abd"
   }
 }

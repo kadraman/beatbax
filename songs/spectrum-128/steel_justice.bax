@@ -159,40 +159,49 @@ pat kit_cd  = kick . snare . kick . . . crash _ _ _ _ _ _ _
 # Sequences (one per channel per section)
 # =============================================================================
 
-seq intro_mel = mel_in_a mel_in_b
-seq intro_ost = ost_am ost_am
-seq intro_bs  = bs_in_a bs_in_b
-
-seq themeA_mel = mel_a_am mel_a_g mel_a_f mel_a_e
-seq themeA_ost = ost_am ost_g ost_f ost_e
-seq themeA_bs  = bs_am bs_g bs_f bs_e
-
-seq break_mel = rest16 rest16
-seq break_ost = rest16 rest16
-seq break_bs  = kit_grv kit_fil
-
-seq themeB_mel = mel_b_am mel_b_g mel_b_f mel_b_e
-seq themeB_ost = ost_h_am ost_h_g ost_h_f ost_h_e
-seq themeB_bs  = bs_am bs_g bs_f bs_e
-
-seq themeP_mel = mel_p_am mel_p_g mel_p_f mel_p_e
-seq themeP_ost = ost_am ost_g ost_f ost_e
-seq themeP_bs  = bs_am bs_g bs_f bs_e
-
-seq coda_mel = mel_cd_a mel_cd_b
-seq coda_ost = ost_cd_a ost_cd_b
-seq coda_bs  = bs_am kit_cd
-
 # =============================================================================
 # Channels — form: Intro → A → Break → B → A' → Coda
 # =============================================================================
 
-channel 1 => inst lead seq intro_mel themeA_mel break_mel themeB_mel themeP_mel coda_mel
-channel 2 => inst ost  seq intro_ost themeA_ost break_ost themeB_ost themeP_ost coda_ost
-channel 3 => inst buzz seq intro_bs  themeA_bs  break_bs  themeB_bs  themeP_bs  coda_bs
-
 # =============================================================================
 # Playback
 # =============================================================================
+
+section intro {
+  mel = mel_in_a mel_in_b
+  harm = ost_am ost_am
+  bass = bs_in_a bs_in_b
+}
+section themeA {
+  mel = mel_a_am mel_a_g mel_a_f mel_a_e
+  harm = ost_am ost_g ost_f ost_e
+  bass = bs_am bs_g bs_f bs_e
+}
+section break {
+  mel = rest16 rest16
+  harm = rest16 rest16
+  bass = kit_grv kit_fil
+}
+section themeB {
+  mel = mel_b_am mel_b_g mel_b_f mel_b_e
+  harm = ost_h_am ost_h_g ost_h_f ost_h_e
+  bass = bs_am bs_g bs_f bs_e
+}
+section themeP {
+  mel = mel_p_am mel_p_g mel_p_f mel_p_e
+  harm = ost_am ost_g ost_f ost_e
+  bass = bs_am bs_g bs_f bs_e
+}
+section coda {
+  mel = mel_cd_a mel_cd_b
+  harm = ost_cd_a ost_cd_b
+  bass = bs_am kit_cd
+}
+
+form main = intro, themeA, break, themeB, themeP, coda
+
+channel 1 => inst lead role mel form main
+channel 2 => inst ost role harm form main
+channel 3 => inst buzz role bass form main
 
 play auto

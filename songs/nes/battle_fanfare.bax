@@ -805,37 +805,63 @@ pat dmc_out3 = kick_dmc . . . . . . . . . . . . . . .  # 1+15 = 16 ✓
 #   Slots  4– 7: Theme A     (4 × 16-step patterns = 64 steps)
 #   Slots  8–11: Theme B     (4 × 16-step patterns = 64 steps)
 #   Slots 12–15: Trans+Rep   (4 × 16-step patterns = 64 steps)
-#   Slots 16–18: Outro       (3 × 16-step patterns = 48 steps)
-#   Total: 32 + 64 + 64 + 64 + 48 = 272 steps ✓ (all 5 sequences must match)
-#
-# Reprise (slots 14–15) = Theme A Phrase A1.
-# Outro slot 16 continues into Phrase A2 bar 1 (mel_a3) so the groove never
-# jumps; slots 17–18 then half-time resolve and fade.
-
-# ── Pulse 1 sequence ────────────────────────────────────────────────────────
-seq pulse1_main = fan_p1_1:inst(lead_stab) fan_p1_2:inst(lead_stab) fan_p1_3:inst(lead_stab) fan_p1_4:inst(lead_stab) mel_a1 mel_a2 mel_a3 mel_a4 mel_b1:inst(lead_long) mel_b2:inst(lead_long) mel_b3:inst(lead_long) mel_b4 mel_trans mel_pause mel_a1 mel_a2 mel_a3 mel_out2:inst(lead_long) mel_out3
-
-# ── Pulse 2 sequence ────────────────────────────────────────────────────────
-seq pulse2_main = fan_p2_1:inst(harm_stab) fan_p2_2:inst(harm_stab) fan_p2_3:inst(harm_stab) fan_p2_4:inst(harm_stab) chd_a1 chd_a2 chd_a3 chd_a4 chd_b1:inst(harm_arp) chd_b2:inst(harm_arp) chd_b3:inst(harm_arp) chd_b4:inst(harm_arp) chd_trans:inst(harm_arp) silence16 chd_a1 chd_a2 chd_a3 chd_out2 chd_out3
-
-# ── Triangle sequence ────────────────────────────────────────────────────────
-seq tri_main = fan_tri_1 silence8 silence8 fan_tri_4 tri_am tri_am tri_am tri_am tri_cm tri_cm tri_em tri_em tri_trans tri_pause tri_am tri_am tri_am tri_out2 tri_out3
-
-# ── Noise sequence ───────────────────────────────────────────────────────────
-seq noise_main = fan_drum_1 fan_drum_2 fan_drum_3 fan_drum_4 drum_battle drum_battle drum_battle drum_battle drum_battle drum_battle drum_battle drum_battle drum_trans drum_pause drum_battle drum_battle drum_battle drum_out2 drum_out3
-
-# ── DMC sequence ─────────────────────────────────────────────────────────────
-seq dmc_main = fan_dmc_1 fan_dmc_1 fan_dmc_1 fan_dmc_4 dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_trans dmc_pause dmc_battle dmc_battle dmc_battle dmc_out2 dmc_out3
-
 # =============================================================================
-# CHANNELS
+# SECTIONS / FORM (spec 008)
 # =============================================================================
 
-channel 1 => inst lead       seq pulse1_main   # Pulse 1  — lead melody
-channel 2 => inst harm       seq pulse2_main   # Pulse 2  — harmony / arp
-channel 3 => inst tri        seq tri_main      # Triangle — ostinato bass
-channel 4 => inst kick       seq noise_main    # Noise    — martial percussion
-channel 5 => inst kick_dmc   seq dmc_main      # DMC      — kick/snare reinforcement
+# --- Section: Fanfare ---
+
+section fanfare {
+  mel = fan_p1_1:inst(lead_stab) fan_p1_2:inst(lead_stab) fan_p1_3:inst(lead_stab) fan_p1_4:inst(lead_stab)
+  harm = fan_p2_1:inst(harm_stab) fan_p2_2:inst(harm_stab) fan_p2_3:inst(harm_stab) fan_p2_4:inst(harm_stab)
+  bass = fan_tri_1 silence8 silence8 fan_tri_4
+  perc = fan_drum_1 fan_drum_2 fan_drum_3 fan_drum_4
+  dmc = fan_dmc_1 fan_dmc_1 fan_dmc_1 fan_dmc_4
+}
+
+# --- Section: Theme A ---
+
+section theme_a {
+  mel = mel_a1 mel_a2 mel_a3 mel_a4
+  harm = chd_a1 chd_a2 chd_a3 chd_a4
+  bass = tri_am tri_am tri_am tri_am
+  perc = drum_battle drum_battle drum_battle drum_battle
+  dmc = dmc_battle dmc_battle dmc_battle dmc_battle
+}
+
+# --- Section: Theme B ---
+
+section theme_b {
+  mel = mel_b1:inst(lead_long) mel_b2:inst(lead_long) mel_b3:inst(lead_long) mel_b4
+  harm = chd_b1:inst(harm_arp) chd_b2:inst(harm_arp) chd_b3:inst(harm_arp) chd_b4:inst(harm_arp)
+  bass = tri_cm tri_cm tri_em tri_em
+  perc = drum_battle drum_battle drum_battle drum_battle
+  dmc = dmc_battle dmc_battle dmc_battle dmc_battle
+}
+
+# --- Section: Transition + Reprise ---
+
+section transition_reprise {
+  mel = mel_trans mel_pause mel_a1 mel_a2 mel_a3
+  harm = chd_trans:inst(harm_arp) silence16 chd_a1 chd_a2 chd_a3
+  bass = tri_trans tri_pause tri_am tri_am tri_am
+  perc = drum_trans drum_pause drum_battle drum_battle drum_battle
+  dmc = dmc_trans dmc_pause dmc_battle dmc_battle dmc_battle
+}
+
+# --- Section: Outro ---
+
+section outro {
+  mel = mel_out2:inst(lead_long) mel_out3
+  harm = chd_out2 chd_out3
+  bass = tri_out2 tri_out3
+  perc = drum_out2 drum_out3
+  dmc = dmc_out2 dmc_out3
+}
+
+form main = fanfare > theme_a > theme_b > transition_reprise > outro
+
+channel auto form main inst=lead|harm|tri|kick|kick_dmc
 
 # =============================================================================
 # Playback

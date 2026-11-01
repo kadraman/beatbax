@@ -1,26 +1,20 @@
 # Specification status index
 
-Assign the next feature id as **103** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **098** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
-
-- **102** `instrument-editor-sample-browse-verify` (Desktop Instrument Editor DMC sample Browse + Check; bundled name validation) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/234 — [specs/features/102-instrument-editor-sample-browse-verify/](specs/features/102-instrument-editor-sample-browse-verify/)
-- **101** `instrument-editor-subpat-rows` (Desktop Instrument Editor single-column Game Boy `subpat` Create/Attach/Detach + row edit) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/233 — [specs/features/101-instrument-editor-subpat-rows/](specs/features/101-instrument-editor-subpat-rows/)
-- **100** `pattern-grid-zoom` (desktop Pattern Grid zoom / scroll; Auto readable scale from panel width; Zoom to Fit) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/232 — [specs/features/100-pattern-grid-zoom/](specs/features/100-pattern-grid-zoom/)
-- **099** `instrument-editor-live-edit` (Live edit toggle + Apply/Revert draft audition) — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/230 — [specs/features/099-instrument-editor-live-edit/](specs/features/099-instrument-editor-live-edit/)
-- **098** `instrument-editor-preview-pitch` (per-type preview octave / oneshot / uge_note; DMC sample meta) — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/229 — [specs/features/098-instrument-editor-preview-pitch/](specs/features/098-instrument-editor-preview-pitch/)
 
 - **001** `hot-reload` — specified — engine — issue: https://github.com/kadraman/beatbax/issues/6 — [specs/features/001-hot-reload/](specs/features/001-hot-reload/)
 - **002** `vscode-plugin` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/21 — [specs/features/002-vscode-plugin/](specs/features/002-vscode-plugin/)
 - **003** `ai-chatbot-rag` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/66 — [specs/features/003-ai-chatbot-rag/](specs/features/003-ai-chatbot-rag/)
 - **005** `plugin-starter-template` — in-progress — plugin — issue: https://github.com/kadraman/beatbax/issues/86 — [specs/features/005-plugin-starter-template/](specs/features/005-plugin-starter-template/)
-- **008** `song-composition-abstractions` — specified — language — issue: https://github.com/kadraman/beatbax/issues/125 — [specs/features/008-song-composition-abstractions/](specs/features/008-song-composition-abstractions/)
+- **008** `song-composition-abstractions` — in-progress — language — issue: https://github.com/kadraman/beatbax/issues/125 — [specs/features/008-song-composition-abstractions/](specs/features/008-song-composition-abstractions/)
 - **009** `c64-sid-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/199 — [specs/features/009-c64-sid-chip-plugin/](specs/features/009-c64-sid-chip-plugin/)
 - **010** `c64-sid-goattracker-exporter` — specified — export — issue: https://github.com/kadraman/beatbax/issues/200 — [specs/features/010-c64-sid-goattracker-exporter/](specs/features/010-c64-sid-goattracker-exporter/)
 - **011** `c64-sid-psid-rsid-exporter` — specified — export — issue: https://github.com/kadraman/beatbax/issues/201 — [specs/features/011-c64-sid-psid-rsid-exporter/](specs/features/011-c64-sid-psid-rsid-exporter/)
 - **012** `snes-sdsp-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/132 — [specs/features/012-snes-sdsp-chip-plugin/](specs/features/012-snes-sdsp-chip-plugin/)
 - **013** `virtual-piano-keyboard` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/133 — [specs/features/013-virtual-piano-keyboard/](specs/features/013-virtual-piano-keyboard/)
-- **015** `song-timing-pattern-grid-inspector` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/191 — [specs/features/015-song-timing-pattern-grid-inspector/](specs/features/015-song-timing-pattern-grid-inspector/)
+- **015** `song-timing-pattern-grid-inspector` — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/191 — [specs/features/015-song-timing-pattern-grid-inspector/](specs/features/015-song-timing-pattern-grid-inspector/)
 - **016** `hugetracker-uge-converter` — specified — cli — issue: https://github.com/kadraman/beatbax/issues/151 — [specs/features/016-hugetracker-uge-converter/](specs/features/016-hugetracker-uge-converter/)
 - **018** `performance-mode-video-recording` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/192 — [specs/features/018-performance-mode-video-recording/](specs/features/018-performance-mode-video-recording/)
 - **020** `spectrum-cpc-arkos-exporter-phase-2` — specified — export — issue: https://github.com/kadraman/beatbax/issues/162 — [specs/features/020-spectrum-cpc-arkos-exporter-phase-2/](specs/features/020-spectrum-cpc-arkos-exporter-phase-2/)
@@ -29,7 +23,7 @@ Assign the next feature id as **103** (one past the highest id below). Process: 
 - **094** `midi-import-sms-spectrum` (MIDI import chip profiles `--chip sms` and `--chip spectrum-128`) — specified — engine — issue: https://github.com/kadraman/beatbax/issues/211 — [specs/features/094-midi-import-sms-spectrum/](specs/features/094-midi-import-sms-spectrum/)
 - **095** `midi-import-chord-arp` (opt-in MIDI chord policy `arp` → `arp:` effect) — specified — engine — issue: https://github.com/kadraman/beatbax/issues/209 — [specs/features/095-midi-import-chord-arp/](specs/features/095-midi-import-chord-arp/)
 - **096** `desktop-midi-import` (Desktop File → Import MIDI… wizard + companion `.import.json`) — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/210 — [specs/features/096-desktop-midi-import/](specs/features/096-desktop-midi-import/)
-- **097** `web-lite-pattern-grid` (Pattern Grid back in web-lite, shown by default, with spec 014 ruler seek and Loop-gated loop range; shared timeline logic moves to app-core) — planned — web — issue: https://github.com/kadraman/beatbax/issues/227 — [specs/features/097-web-lite-pattern-grid/](specs/features/097-web-lite-pattern-grid/)
+- **097** `web-lite-pattern-grid` (Pattern Grid back in web-lite, shown by default, with spec 014 ruler seek and Loop-gated loop range; shared timeline logic moves to app-core) — in-progress (manual browser QA T901 pending) — web — issue: https://github.com/kadraman/beatbax/issues/227 — [specs/features/097-web-lite-pattern-grid/](specs/features/097-web-lite-pattern-grid/)
 
 ## Complete (`specs/complete/`)
 

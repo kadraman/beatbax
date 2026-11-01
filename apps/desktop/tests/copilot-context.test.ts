@@ -148,6 +148,32 @@ describe('buildCopilotContext', () => {
     expect(summary).toContain('Playback: play auto repeat');
   });
 
+  it('buildSongStructureSummary lists section/form/channel auto composition constructs', () => {
+    const composed = [
+      'chip nes',
+      'bpm 120',
+      'alias hook_body = mel_a',
+      'pat mel_a = C4',
+      'pat harm_a = E4',
+      'pat bass_a = C3',
+      'pat drum_a = C4',
+      'pat dmc_a = C4',
+      'section intro use mel_a harm_a bass_a drum_a dmc_a',
+      'section hook {',
+      '  mel = mel_a',
+      '}',
+      'form main = intro > hook',
+      'channel auto form main inst=lead|harm|tri|kick|kick_dmc',
+      'play',
+    ].join('\n');
+    const summary = buildSongStructureSummary(composed);
+    expect(summary).toContain('Aliases: hook_body');
+    expect(summary).toContain('intro (beginner use)');
+    expect(summary).toContain('hook (block)');
+    expect(summary).toContain('main → intro > hook');
+    expect(summary).toContain('channel auto form main inst=lead|harm|tri|kick|kick_dmc');
+  });
+
   it('includes formatted diagnostics', () => {
     const diagnostics: Diagnostic[] = [{
       severity: 'error',
@@ -224,7 +250,7 @@ describe('buildCopilotContext', () => {
     expect(context).toContain('[INSTRUMENT LOUDNESS]');
   });
 
-  it('includes arrangement layout hints and edit-mode exclusion for info diagnostics', () => {
+  it('includes arrangement layout hints and prefers section/form over comment headers', () => {
     const context = buildCopilotContext(
       defaultSettings,
       'edit',
@@ -234,8 +260,24 @@ describe('buildCopilotContext', () => {
 
     expect(context).toContain('[ARRANGEMENT LAYOUT HINTS]');
     expect(context).toContain('optional authoring hints, NOT parse errors');
+    expect(context).toContain('prefer these over comment headers');
+    expect(context).toContain('channel auto form main');
+    expect(context).toContain('Do NOT recommend `# --- Section N: … ---` comments');
     expect(context).toContain('Restructure Phased Sections into Headers');
     expect(context).toContain('Ignore `info` severity `[arrangement]` hints');
+    expect(context).toContain('prefer `section`/`form`/`channel auto`');
+  });
+
+  it('syntax reference teaches composition constructs', () => {
+    const ask = buildCopilotContext(defaultSettings, 'ask', () => sampleSong, () => []);
+    expect(ask).toContain('prefer compile-time `section` + `form`');
+    expect(ask).toContain('channel auto form main');
+    expect(ask).toContain('NES Beginner Mode');
+    expect(ask).toContain('alias name = items');
+
+    const edit = buildCopilotContext(defaultSettings, 'edit', () => sampleSong, () => []);
+    expect(edit).toContain('Do not insert `# --- Section N ---` comments');
+    expect(edit).toContain('If the song already uses `section`/`form`, preserve that model');
   });
 
   it('ask mode references arrangement layout hints for section-focus questions', () => {
@@ -255,5 +297,6 @@ describe('buildCopilotContext', () => {
     expect(context).toContain('info    line 6, col 1:');
     expect(context).toContain('Phased layout detected');
     expect(context).toContain('use [ARRANGEMENT LAYOUT HINTS]');
+    expect(context).toContain('prefer authored `section`/`form`/`channel auto`');
   });
 });
