@@ -1,5 +1,13 @@
 # @beatbax/engine
 
+## 0.27.0
+
+### Minor Changes
+
+- fd7f4ca: Add `listTopLevelDefinitions(source)` to `@beatbax/engine/parser`. It lists top-level `pat`, `seq`, `inst` and `effect` definitions with their stored name and 1-based line, reading every form the grammar accepts: shorthand patterns (`name = …`), hyphenated names, and `pat X:rev = …`, which is listed as `X`.
+- 63560d1: Add optional `PlayASTOptions.lengthSteps` to `Player.playAST`. When set, one pass lasts exactly that many steps at the song bpm (including trailing rests) instead of ending at the last scheduled note. Used by Pattern Grid loop ranges so `[startStep, endStep)` repeats for the full window. Omitted calls keep the previous last-note pass length; `stop()` clears the override.
+- b3b9e0f: Add compile-time song composition abstractions (`alias`, `cat()`, `section`, `form`, channel `role`/`form`, Beginner Mode) that lower to classic `seq`/`channel` before resolve. Beginner Mode supports Game Boy 4-lane `channel auto` and NES/Famicom 4|5-lane profiles (optional trailing `dmc`); generated `section_role` seq names that collide with existing seqs now error instead of silently overwriting.
+
 ## 0.26.0
 
 ### Minor Changes
