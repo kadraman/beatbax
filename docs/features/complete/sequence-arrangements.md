@@ -6,4 +6,4 @@ This feature specification moved to the SDD tree:
 
 - [spec.md](../../../specs/complete/039-sequence-arrangements/spec.md)
 
-**Successor ergonomics:** song-level `section` / `form` / channel `role` (and `cat` / `alias`) live in [`specs/features/008-song-composition-abstractions/`](../../../specs/features/008-song-composition-abstractions/) — compile-time authoring that lowers to today's `seq` + `channel` model without reviving `arrange`.
+**Successor ergonomics:** song-level `section` / `form` / channel `role` (and `cat` / `alias`) live in [`specs/complete/008-song-composition-abstractions/`](../../../specs/complete/008-song-composition-abstractions/) — compile-time authoring that lowers to today's `seq` + `channel` model without reviving `arrange`.

@@ -236,7 +236,7 @@ Reuse synthetic preview / play-selection. If the motif fragment has no `inst`, w
 - [`docs/features/complete/new-song-wizard.md`](../../../docs/features/complete/new-song-wizard.md)
 - [`docs/features/complete/instrument-imports.md`](../../../docs/features/complete/instrument-imports.md)
 - [`docs/features/complete/enhanced-command-palette-commands.md`](../../../docs/features/complete/enhanced-command-palette-commands.md)
-- [`docs/features/song-composition-abstractions.md`](../../../docs/features/song-composition-abstractions.md) — `include` is **not** this feature; active SDD: [`008-song-composition-abstractions`](../008-song-composition-abstractions/spec.md)
+- [`docs/features/song-composition-abstractions.md`](../../../docs/features/song-composition-abstractions.md) — `include` is **not** this feature; shipped SDD: [`008-song-composition-abstractions`](../../complete/008-song-composition-abstractions/spec.md) (Phase 3 `include` deferred)
 - [`docs/features/FEATURE_TEMPLATE.md`](../../../docs/features/FEATURE_TEMPLATE.md)
 
 ## Additional Notes

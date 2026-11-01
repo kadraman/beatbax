@@ -2,8 +2,8 @@
 
 This feature specification moved to the SDD tree:
 
-**[`specs/features/008-song-composition-abstractions/`](../../specs/features/008-song-composition-abstractions/)**
+**[`specs/complete/008-song-composition-abstractions/`](../../specs/complete/008-song-composition-abstractions/)**
 
-- [spec.md](../../specs/features/008-song-composition-abstractions/spec.md)
-- [plan.md](../../specs/features/008-song-composition-abstractions/plan.md)
-- [tasks.md](../../specs/features/008-song-composition-abstractions/tasks.md)
+- [spec.md](../../specs/complete/008-song-composition-abstractions/spec.md)
+- [plan.md](../../specs/complete/008-song-composition-abstractions/plan.md)
+- [tasks.md](../../specs/complete/008-song-composition-abstractions/tasks.md)

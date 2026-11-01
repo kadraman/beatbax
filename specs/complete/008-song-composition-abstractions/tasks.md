@@ -61,4 +61,4 @@ Migrated multi-section full arrangements to `section`/`form`. NES root songs use
 ## Polish
 
 - [x] T900 Cross-link `docs/features/complete/sequence-arrangements.md`
-- [ ] T901 Full `npm test` monorepo green; move 008 to `specs/complete/` when 097 manual QA done (or ship 008 complete with 097 still in-progress)
+- [x] T901 Full `npm test` monorepo green (PR #235); moved 008 to `specs/complete/` with 097 still in-progress (Phase 3 `include` / Phase 4 preprocessor deferred)
