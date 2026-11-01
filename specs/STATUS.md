@@ -1,6 +1,6 @@
 # Specification status index
 
-Assign the next feature id as **098** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **104** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
@@ -23,6 +23,8 @@ Assign the next feature id as **098** (one past the highest id below). Process: 
 - **095** `midi-import-chord-arp` (opt-in MIDI chord policy `arp` → `arp:` effect) — specified — engine — issue: https://github.com/kadraman/beatbax/issues/209 — [specs/features/095-midi-import-chord-arp/](specs/features/095-midi-import-chord-arp/)
 - **096** `desktop-midi-import` (Desktop File → Import MIDI… wizard + companion `.import.json`) — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/210 — [specs/features/096-desktop-midi-import/](specs/features/096-desktop-midi-import/)
 - **097** `web-lite-pattern-grid` (Pattern Grid back in web-lite, shown by default, with spec 014 ruler seek and Loop-gated loop range; shared timeline logic moves to app-core) — in-progress (manual browser QA T901 pending) — web — issue: https://github.com/kadraman/beatbax/issues/227 — [specs/features/097-web-lite-pattern-grid/](specs/features/097-web-lite-pattern-grid/)
+- **100** `pattern-grid-zoom` (desktop Pattern Grid zoom / scroll; Auto readable scale from panel width; Zoom to Fit) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/232 — [specs/features/100-pattern-grid-zoom/](specs/features/100-pattern-grid-zoom/)
+- **103** `instrument-editor-workspace` (Instrument Editor Settings-style modal + toolbar picker; Game Boy `subpat` rows; NES DMC Browse/Check; absorbs 101/102) — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/236 — [specs/features/103-instrument-editor-workspace/](specs/features/103-instrument-editor-workspace/)
 
 ## Complete (`specs/complete/`)
 
@@ -31,6 +33,8 @@ Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this e
 - **008** `song-composition-abstractions` (Phase 1–2 + Beginner Mode; Phase 3 `include` / Phase 4 preprocessor deferred) — complete — language — issue: https://github.com/kadraman/beatbax/issues/125 — [specs/complete/008-song-composition-abstractions/](specs/complete/008-song-composition-abstractions/)
 - **014** `pattern-grid-seek-and-loop` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/190 — [specs/complete/014-pattern-grid-seek-and-loop/](specs/complete/014-pattern-grid-seek-and-loop/)
 - **093** `desktop-remote-imports-ipc` (Desktop `github:` / `https:` instrument imports via main-process `fetchRemoteAsset` IPC; CSP stays `connect-src 'self'`) — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/216 — [specs/complete/093-desktop-remote-imports-ipc/](specs/complete/093-desktop-remote-imports-ipc/)
+- **098** `instrument-editor-preview-pitch` (per-type preview octave / oneshot / uge_note; DMC sample meta) — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/229 — [specs/complete/098-instrument-editor-preview-pitch/](specs/complete/098-instrument-editor-preview-pitch/)
+- **099** `instrument-editor-live-edit` (Live edit toggle + Apply/Revert draft audition) — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/230 — [specs/complete/099-instrument-editor-live-edit/](specs/complete/099-instrument-editor-live-edit/)
 - **004** `daw-channel-mixer` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/75 — [specs/complete/004-daw-channel-mixer/](specs/complete/004-daw-channel-mixer/)
 - **006** `midi-importer` (CLI MIDI → `.bax` conversion) — complete — engine — issue: https://github.com/kadraman/beatbax/issues/101 — [specs/complete/006-midi-importer/](specs/complete/006-midi-importer/)
 - **088** `copilot-request-controls` (reply budgets, reasoning effort, out-of-budget diagnostics) — complete (live-model QA scenarios 31–36 in `docs/qa/copilot-test-scenarios.md` pending) — desktop — issue: https://github.com/kadraman/beatbax/issues/212 — [specs/complete/088-copilot-request-controls/](specs/complete/088-copilot-request-controls/)
@@ -111,3 +115,5 @@ Historical only — not authoritative for current behavior.
 
 - **040** `sequence-arrangements-spec` — superseded — language — issue: https://github.com/kadraman/beatbax/issues/10 — [specs/archive/040-sequence-arrangements-spec/](specs/archive/040-sequence-arrangements-spec/)
 - **060** `gameboy-plugin-extraction` — superseded — plugin — issue: _none_ — [specs/archive/060-gameboy-plugin-extraction/](specs/archive/060-gameboy-plugin-extraction/)
+- **101** `instrument-editor-subpat-rows` — superseded by **103** `instrument-editor-workspace` (requirements from https://github.com/kadraman/beatbax/issues/233) — desktop — no folder
+- **102** `instrument-editor-sample-browse-verify` — superseded by **103** `instrument-editor-workspace` (requirements from https://github.com/kadraman/beatbax/issues/234) — desktop — no folder
