@@ -27,7 +27,8 @@ jobs:
         with:
           fetch-depth: 0   # full history, so large diffs aren't limited by GitHub's API
 
-      - uses: kadraman/reviewbrief@main 
+      # Pin to commit SHA (not @main) so a compromised branch tip cannot exfiltrate secrets.
+      - uses: kadraman/reviewbrief@ea67c5d9f0d0e5777839a8988c98566d3071653e
         with:
           api-key: ${{ secrets.LLM_API_KEY }}
           model: ${{ vars.LLM_MODEL }}

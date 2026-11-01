@@ -102,6 +102,8 @@ export const StorageKey = {
   FEATURE_SONG_VISUALIZER: 'feature.songVisualizer',
   /** Instrument Editor panel feature flag (boolean). Experimental, default off. */
   FEATURE_INSTRUMENT_EDITOR: 'feature.instrumentEditor',
+  /** Instrument Editor Live edit (write each change to source). Default true when unset. */
+  INSTRUMENT_EDITOR_LIVE_EDIT: 'ui.instrumentEditor.liveEdit',
   /** AI Copilot connection settings (JSON: endpoint, model, maxContextChars, contextWindowTokens). API keys are not stored here. */
   CHAT_SETTINGS: 'ai.settings',
   /** AI Copilot interaction mode ('edit' | 'ask'). */

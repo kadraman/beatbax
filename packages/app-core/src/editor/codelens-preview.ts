@@ -28,7 +28,10 @@ import { chipRegistry } from '@beatbax/engine/chips';
 import type { EventBus } from '../utils/event-bus.js';
 import { buildImportResolverOptions } from '../import/import-resolver-options.js';
 import { findChannelForNamedItem } from './preview-channel-resolve.js';
-import { resolvePreviewChannel } from './instrument-editor-schema.js';
+import {
+  hitOneshotPreviewTiming,
+  resolvePreviewChannel,
+} from './instrument-editor-schema.js';
 import { FeatureFlag, isFeatureEnabled } from '../utils/feature-flags.js';
 import {
   settingCodeLensPatterns,
@@ -393,6 +396,13 @@ export interface InstNotePreviewOptions {
    * / MIDI note-on. CodeLens clicks leave this false (≈2 s oneshot).
    */
   sustain?: boolean;
+  /**
+   * `note` (default) — melodic pattern note.
+   * `hit` — named instrument token so noise/DMC use instrument props (`uge_note`, `noise_period`, …).
+   */
+  mode?: 'note' | 'hit';
+  /** Temporary instrument prop overrides for audition only (e.g. `{ uge_note: 'C-7' }`). */
+  instPatch?: Record<string, unknown>;
 }
 
 /** Steps at bpm 60 (≈1 s/step) while a key is held; release stops earlier. */
@@ -400,7 +410,23 @@ const INST_NOTE_SUSTAIN_STEPS = 180;
 const INST_NOTE_ONESHOT_MS = 2000;
 const INST_NOTE_SUSTAIN_SAFETY_MS = INST_NOTE_SUSTAIN_STEPS * 1000 + 500;
 
-/** Play a single note with the named instrument; auto-stops after the note decays. */
+function buildInstPreviewPatternEvents(
+  instName: string,
+  note: string,
+  steps: number,
+  mode: 'note' | 'hit',
+): any[] {
+  if (mode === 'hit') {
+    const events: any[] = [{ kind: 'token', value: instName, raw: instName }];
+    if (steps > 1) {
+      events.push({ kind: 'rest', value: '_', duration: steps - 1, raw: '_'.repeat(steps - 1) });
+    }
+    return events;
+  }
+  return [{ kind: 'note', value: note, duration: steps, raw: `${note}:${steps}` }];
+}
+
+/** Play a single note or named hit with the instrument; auto-stops after decay. */
 async function startInstNotePreview(
   instName: string,
   note: string,
@@ -409,17 +435,40 @@ async function startInstNotePreview(
   options?: InstNotePreviewOptions,
   isCancelled?: () => boolean,
 ): Promise<PreviewState | null> {
-  const channelId = instChannelId(instName, rawAst);
   const sustain = options?.sustain === true;
-  const steps = sustain ? INST_NOTE_SUSTAIN_STEPS : 1;
+  const mode = options?.mode === 'hit' ? 'hit' : 'note';
+  const baseInst = rawAst.insts?.[instName];
+  const effectiveInst = options?.instPatch && baseInst
+    ? { ...baseInst, ...options.instPatch }
+    : options?.instPatch && !baseInst
+      ? { ...options.instPatch }
+      : baseInst;
+  // Named hits (DMC / noise / uge_note): play for sample or envelope end, not button hold.
+  const hitOneshot = mode === 'hit' && !sustain;
+  const hitTiming = hitOneshot ? hitOneshotPreviewTiming(effectiveInst) : null;
+  const steps = sustain
+    ? INST_NOTE_SUSTAIN_STEPS
+    : hitTiming
+      ? hitTiming.steps
+      : 1;
+  const bpm = sustain ? 60 : hitTiming ? hitTiming.bpm : 60;
+  const insts = effectiveInst && (options?.instPatch || baseInst)
+    ? { ...rawAst.insts, [instName]: effectiveInst }
+    : rawAst.insts;
+  // Resolve after patching so a draft type change (e.g. tone3 → noise) targets
+  // the correct hardware channel when live-edit is off.
+  const channelId = instChannelId(instName, { ...rawAst, insts });
+
+  const previewKey = mode === 'hit'
+    ? `inst-hit:${instName}:${String(options?.instPatch?.uge_note ?? note ?? 'hit')}`
+    : `inst-note:${instName}:${note}`;
 
   const previewAst = {
     chip:  rawAst.chip ? chipRegistry.resolve(String(rawAst.chip).toLowerCase()) : (rawAst.chip ?? 'gameboy'),
-    bpm:   60,   // 1 beat = 1 s at 60 BPM — gives envelope plenty of time
-    insts: rawAst.insts,
-    // Prefer structured events so `:N` duration expands to note + sustains.
+    bpm,   // hit oneshots raise bpm so one step ≈ envelope length (vol_env is ~60 Hz)
+    insts,
     patternEvents: {
-      __inst_note__: [{ kind: 'note', value: note, duration: steps, raw: `${note}:${steps}` }],
+      __inst_note__: buildInstPreviewPatternEvents(instName, note, steps, mode),
     },
     pats:  { __inst_note__: [] as string[] },
     seqs:  {},
@@ -449,18 +498,24 @@ async function startInstNotePreview(
     return null;
   }
 
-  // Oneshot: short cap for CodeLens clicks. Sustain: long safety net; release stops earlier.
+  // Melodic oneshot: short CodeLens cap. Hit oneshot: sized to vol_env / DMC sample.
+  // Sustain: long safety net; release may stop earlier (melodic hold path only).
+  const stopAfterMs = sustain
+    ? INST_NOTE_SUSTAIN_SAFETY_MS
+    : hitTiming
+      ? hitTiming.stopAfterMs
+      : INST_NOTE_ONESHOT_MS;
   const stopTimer = window.setTimeout(() => {
     try { player.stop(); } catch (_e) { /* ignore */ }
     onDone();
-  }, sustain ? INST_NOTE_SUSTAIN_SAFETY_MS : INST_NOTE_ONESHOT_MS);
+  }, stopAfterMs);
 
   player.onComplete = () => {
     clearTimeout(stopTimer);
     onDone();
   };
 
-  return { player, key: `inst-note:${instName}:${note}`, stopTimer };
+  return { player, key: previewKey, stopTimer };
 }
 
 // ---------------------------------------------------------------------------
@@ -1474,10 +1529,13 @@ export function setupCodeLensPreview(
           if (!categories.instruments) continue;
           // Sample-based instruments (type=dmc) get a single ▶ Sample button
           // instead of individual note buttons — DMC samples have no meaningful pitch.
-          const isSampleBased = /\btype=dmc\b/.test(line);
+          const isSampleBased = /\btype\s*=\s*dmc\b/i.test(line);
           if (isSampleBased) {
             const activeKey = previewState?.key;
-            const isActive = activeKey === `inst-note:${instName}:C4`;
+            const isActive =
+              typeof activeKey === 'string' &&
+              (activeKey.startsWith(`inst-note:${instName}:`) ||
+                activeKey.startsWith(`inst-hit:${instName}:`));
             if (isActive) {
               lenses.push({
                 range: new monaco.Range(ln, 1, ln, 1),

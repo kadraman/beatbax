@@ -187,7 +187,7 @@ form main = intro
 channel 1 => inst lead role mel form main
 `;
     const { ast } = parseWithPeggy(src);
-    expect(ast.diagnostics?.some((d) => /collides with an explicit seq/i.test(d.message))).toBe(true);
+    expect(ast.diagnostics?.some((d) => /collides with an explicit or generated seq/i.test(d.message))).toBe(true);
   });
 
   it('resolves equivalently to hand-written channel seq lists', () => {

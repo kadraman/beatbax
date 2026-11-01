@@ -910,7 +910,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const layout = detectArrangementLayout(source, ast);
       if (layout === 'monolithic') {
         showToast(
-          'Comment headers do not create Pattern Grid sections on monolithic songs. Split each channel into multiple top-level seq refs (e.g. fanfare, theme_a, theme_b) instead.',
+          'Comment headers do not create Pattern Grid sections on monolithic songs. Prefer `section` / `form` with `channel auto` (or `role` + `form`), or split each channel into multiple top-level seq refs.',
           { level: 'warning', duration: 8000 },
         );
         return;

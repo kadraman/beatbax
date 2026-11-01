@@ -115,6 +115,28 @@ describe('CodeLens Preview provider', () => {
     expect(afterInvalid.lenses).toEqual([]);
   });
 
+  it('shows a Sample lens for DMC instruments with spaced/case-insensitive type=', () => {
+    let capturedProvider: any = null;
+    (monaco.languages.registerCodeLensProvider as jest.Mock).mockImplementation((_lang: string, prov: any) => {
+      capturedProvider = prov;
+      return { dispose: jest.fn() };
+    });
+    settingCodeLensInstruments.set(true);
+    const source = [
+      'chip nes',
+      'inst kick type = DMC dmc_rate=15 dmc_sample="@nes/kick"',
+    ].join('\n');
+    setupCodeLensPreview({} as any, eventBus as any, () => source);
+    eventBus.emit('parse:success', { ast: {}, valid: true });
+    const model = {
+      getLineCount: () => 2,
+      getLineContent: (ln: number) => source.split('\n')[ln - 1],
+    };
+    const ids = (capturedProvider.provideCodeLenses(model).lenses || []).map((l: any) => l.id);
+    expect(ids).toContain('bb-inst-sample-kick');
+    expect(ids.some((id: string) => id.startsWith('bb-inst-kick-'))).toBe(false);
+  });
+
   describe('section CodeLens', () => {
     const source = [
       'chip gameboy',

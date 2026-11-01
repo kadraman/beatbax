@@ -266,16 +266,13 @@ export function expandComposition(input: CompositionExpandInput): void {
       seenRoles.add(role.role);
       const genName = `${section.name}_${role.role}`;
       if (explicitSeqNames.has(genName) || sequenceItems[genName]) {
-        // Collision with explicit user seq (or earlier generated)
-        if (explicitSeqNames.has(genName)) {
-          diag(
-            diagnostics,
-            'error',
-            `Generated sequence '${genName}' collides with an explicit seq declaration.`,
-            role.loc || section.loc,
-          );
-          continue;
-        }
+        diag(
+          diagnostics,
+          'error',
+          `Generated sequence '${genName}' collides with an explicit or generated seq.`,
+          role.loc || section.loc,
+        );
+        continue;
       }
       const items = expandAliasItems(role.items, aliases, diagnostics, []);
       sequenceItems[genName] = items;
