@@ -8,7 +8,6 @@ Assign the next feature id as **098** (one past the highest id below). Process: 
 - **002** `vscode-plugin` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/21 — [specs/features/002-vscode-plugin/](specs/features/002-vscode-plugin/)
 - **003** `ai-chatbot-rag` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/66 — [specs/features/003-ai-chatbot-rag/](specs/features/003-ai-chatbot-rag/)
 - **005** `plugin-starter-template` — in-progress — plugin — issue: https://github.com/kadraman/beatbax/issues/86 — [specs/features/005-plugin-starter-template/](specs/features/005-plugin-starter-template/)
-- **008** `song-composition-abstractions` — in-progress — language — issue: https://github.com/kadraman/beatbax/issues/125 — [specs/features/008-song-composition-abstractions/](specs/features/008-song-composition-abstractions/)
 - **009** `c64-sid-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/199 — [specs/features/009-c64-sid-chip-plugin/](specs/features/009-c64-sid-chip-plugin/)
 - **010** `c64-sid-goattracker-exporter` — specified — export — issue: https://github.com/kadraman/beatbax/issues/200 — [specs/features/010-c64-sid-goattracker-exporter/](specs/features/010-c64-sid-goattracker-exporter/)
 - **011** `c64-sid-psid-rsid-exporter` — specified — export — issue: https://github.com/kadraman/beatbax/issues/201 — [specs/features/011-c64-sid-psid-rsid-exporter/](specs/features/011-c64-sid-psid-rsid-exporter/)
@@ -29,6 +28,7 @@ Assign the next feature id as **098** (one past the highest id below). Process: 
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
 
+- **008** `song-composition-abstractions` (Phase 1–2 + Beginner Mode; Phase 3 `include` / Phase 4 preprocessor deferred) — complete — language — issue: https://github.com/kadraman/beatbax/issues/125 — [specs/complete/008-song-composition-abstractions/](specs/complete/008-song-composition-abstractions/)
 - **014** `pattern-grid-seek-and-loop` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/190 — [specs/complete/014-pattern-grid-seek-and-loop/](specs/complete/014-pattern-grid-seek-and-loop/)
 - **093** `desktop-remote-imports-ipc` (Desktop `github:` / `https:` instrument imports via main-process `fetchRemoteAsset` IPC; CSP stays `connect-src 'self'`) — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/216 — [specs/complete/093-desktop-remote-imports-ipc/](specs/complete/093-desktop-remote-imports-ipc/)
 - **004** `daw-channel-mixer` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/75 — [specs/complete/004-daw-channel-mixer/](specs/complete/004-daw-channel-mixer/)

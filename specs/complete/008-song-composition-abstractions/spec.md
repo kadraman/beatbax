@@ -2,11 +2,11 @@
 title: "Song Composition Abstractions — Sections, Aliases, Concatenation, and Includes"
 id: 8
 slug: "song-composition-abstractions"
-status: "in-progress"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-05-27"
-updated: "2026-10-28"
+updated: "2026-11-01"
 issue: "https://github.com/kadraman/beatbax/issues/125"
 area: "language"
 ---
