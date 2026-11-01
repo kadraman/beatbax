@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md)
 
-Complete. The 2026-10-03 local-Ollama QA run (T020) found Edit-apply problems, fixed in Phase 3 and re-checked on 2026-10-04. The **Discard remaining** residue (former T038) is tracked in [#218](https://github.com/kadraman/beatbax/issues/218).
+Complete. The 2026-10-03 local-Ollama QA run (T020) found Edit-apply problems, fixed in Phase 3 and re-checked on 2026-10-04. The **Discard remaining** residue (former T038 / [#218](https://github.com/kadraman/beatbax/issues/218)) is fixed: discard rebuilds from the pre-edit baseline and reapplies only kept definition edits.
 
 ## Phase 0: Verify shipped behaviour
 

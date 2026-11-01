@@ -4,8 +4,10 @@ import {
   insertDefinitionLine,
   removeDefinitionLine,
   replaceDefinitionLine,
+  type BaxDef,
   type BaxDefKind,
 } from './bax-def-index';
+import { matchLineEndings } from './line-change-diff';
 
 export type CopilotEditChangeAction = 'added' | 'updated' | 'removed' | 'moved';
 export type CopilotChangeReviewStatus = 'pending' | 'kept' | 'discarded';
@@ -149,23 +151,75 @@ export function revertCopilotEditChange(
   return insertDefinitionLine(content, previous);
 }
 
+function defFromChangeLine(change: CopilotEditChange, line: string): BaxDef | null {
+  const trimmed = line.trim();
+  const match = trimmed.match(
+    change.kind === 'instrument'
+      ? /^inst\s+([A-Za-z_]\w*)\s+(.*)$/
+      : change.kind === 'channel'
+        ? /^channel\s+(\d+)\s*=>\s*(.*)$/
+        : /^(?:pat|seq|effect)\s+([A-Za-z_]\w*)\s*=\s*(.*)$/,
+  );
+  if (!match) return null;
+  return {
+    kind: change.kind,
+    name: change.name,
+    body: match[2].replace(/\s+/g, ' ').trim(),
+    line: trimmed,
+    lineNumber: 0,
+  };
+}
+
+/** Apply a single kept Copilot edit onto baseline-derived content. */
+export function applyCopilotEditChange(content: string, change: CopilotEditChange): string {
+  if (change.action === 'added') {
+    if (!change.nextLine) return content;
+    const def = defFromChangeLine(change, change.nextLine);
+    if (!def) return content;
+    return insertDefinitionLine(content, def);
+  }
+
+  if (change.action === 'updated') {
+    if (!change.nextLine) return content;
+    const def = defFromChangeLine(change, change.nextLine);
+    if (!def) return content;
+    return replaceDefinitionLine(content, def) ?? content;
+  }
+
+  if (change.action === 'moved') {
+    if (!change.nextLine) return content;
+    const current = collectBaxDefs(content).get(change.id);
+    const def = defFromChangeLine(change, change.nextLine);
+    if (!current || !def) return content;
+    const without = removeDefinitionLine(content, current);
+    if (!without) return content;
+    return insertDefinitionLine(without, def);
+  }
+
+  const current = collectBaxDefs(content).get(change.id);
+  if (!current) return content;
+  return removeDefinitionLine(content, current) ?? content;
+}
+
 /**
- * Discard every pending change. When nothing was kept the result is the
- * baseline verbatim, because per-definition reverts cannot undo comment or
- * blank lines the edit added outside definitions.
+ * Discard every pending change. Rebuilds from the pre-edit baseline and
+ * reapplies only kept definition edits so comment / blank residue the model
+ * added outside definitions does not survive (issue #218).
  */
 export function discardRemainingCopilotEditChanges<T extends CopilotEditChange & { status: CopilotChangeReviewStatus }>(
-  content: string,
+  _content: string,
   changes: T[],
   baseline: string,
 ): { content: string; changes: T[] } {
-  let next = content;
-  const settled = changes.map((change): T => {
-    if (change.status !== 'pending') return change;
-    next = revertCopilotEditChange(next, change, baseline);
-    return { ...change, status: 'discarded' };
-  });
-  if (!settled.some((change) => change.status === 'kept')) next = baseline;
+  const settled = changes.map((change): T => (
+    change.status === 'pending' ? { ...change, status: 'discarded' } : change
+  ));
+  const kept = settled.filter((change) => change.status === 'kept');
+  let next = baseline;
+  for (const change of kept) {
+    next = applyCopilotEditChange(next, change);
+  }
+  next = matchLineEndings(next, baseline);
   return { content: next, changes: refreshCopilotEditChangeLines(next, settled) };
 }
 

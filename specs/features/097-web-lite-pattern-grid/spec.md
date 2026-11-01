@@ -128,9 +128,14 @@ This reverses one decision in [spec 076](../../complete/076-desktop-first-client
 2. **Touch input.** Mouse/pointer only for v1 (same as the desktop pointer model via Pointer Events).
 3. **Shift+click section play.** Keep in web-lite as today alongside the loop range.
 
+## Future
+
+- **Pattern Grid zoom / scroll** for long songs ships on desktop in [spec 100](../../complete/100-pattern-grid-zoom/spec.md). Pure scale helpers live in `@beatbax/app-core` (`pattern-grid-zoom`). Web-lite zoom is out of scope for 100 and remains a follow-up here.
+
 ## References
 
 - [Spec 014 — Pattern Grid seek and loop](../../complete/014-pattern-grid-seek-and-loop/spec.md) (behaviour this spec mirrors)
+- [Spec 100 — Pattern Grid zoom and scroll](../../complete/100-pattern-grid-zoom/spec.md) (desktop zoom; helpers reusable here later)
 - [Spec 076 — Desktop-first client split](../../complete/076-desktop-first-client-split/spec.md) (removed the grid from web-lite; partly reversed here)
 - [Spec 079 — Desktop web-ui retirement](../../complete/079-desktop-web-ui-retirement/spec.md) (separate UI implementations)
 - [Spec 087 — Pattern combination preview](../../complete/087-pattern-combination-preview/spec.md) (Shift+click section play, desktop section focus)

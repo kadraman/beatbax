@@ -2,7 +2,7 @@
 title: "Pattern Grid zoom and scroll"
 id: 100
 slug: "pattern-grid-zoom"
-status: "planned"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-10-23"

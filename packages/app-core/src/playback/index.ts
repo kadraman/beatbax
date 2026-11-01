@@ -50,4 +50,17 @@ export type {
   TimelinePickDeps,
 } from './pattern-grid-timeline.js';
 
+export {
+  DEFAULT_MIN_PX_PER_STEP,
+  DEFAULT_MAX_PX_PER_STEP,
+  DEFAULT_ZOOM_FACTOR,
+  fitPxPerStep,
+  resolveAutoPxPerStep,
+  clampPxPerStep,
+  contentWidth,
+  zoomAboutAnchor,
+  steppedPxPerStep,
+  edgeAutoscrollDelta,
+} from './pattern-grid-zoom.js';
+
 
