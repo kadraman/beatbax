@@ -18,22 +18,24 @@ Canonical release steps: [docs/releasing.md](../releasing.md).
 
 | Field | Value |
 |-------|-------|
-| Version | _(e.g. 0.2.0)_ |
-| Tag | _(e.g. desktop-v0.2.0)_ |
-| Date | |
-| Tester | |
-| Primary platform | _(e.g. Windows 10/11)_ |
+| Version | 0.4.0 |
+| Tag | desktop-v0.4.0 |
+| Date | 2026-11-01 |
+| Tester | agent (automated + prep) |
+| Primary platform | Windows 10/11 |
 
 ## Automated validation
 
 | Check | Platform | Result | Notes |
 |-------|----------|--------|-------|
-| `npm run desktop:test` | Primary | | |
-| `npm run desktop:build` | Primary | | |
-| Playwright e2e (`npm run desktop:test` / CI e2e) | Primary | | |
-| `npm run desktop:dist` (optional local package) | Primary | | |
-| Desktop CI validate job | Linux (ubuntu-latest) | | Via `desktop-build.yaml` on `main` |
-| Desktop CI package matrix | ubuntu / windows / macos | | After `desktop-v*` tag, a Development `main` push, or manual workflow run |
+| `npm run desktop:test` | Primary | Pass | 439 unit tests green (`@beatbax/desktop@0.4.0`) |
+| `npm run desktop:build` | Primary | Pass | electron-vite renderer/main build |
+| Playwright e2e (`npm run desktop:test` / CI e2e) | Primary | _ | Defer to CI on `desktop-v0.4.0` tag |
+| `npm run desktop:dist` (optional local package) | Primary | _ | Defer to release CI |
+| Desktop CI validate job | Linux (ubuntu-latest) | _ | Via `desktop-build.yaml` on tag |
+| Desktop CI package matrix | ubuntu / windows / macos | _ | After `desktop-v*` tag |
+| app-core pattern-grid / zoom tests | Primary | Pass | pattern-grid-zoom + timeline + panel |
+| desktop typecheck | Primary | Pass | node + web tsconfigs |
 
 ### E2E coverage reference (Playwright)
 
@@ -67,9 +69,9 @@ Confirm these remain covered (or note gaps):
 | Shared keyboard shortcuts (menus, toolbar, Help, editor) | | Include macOS label check when on macOS |
 | Pattern Grid section focus shortcuts | | F6 focus; Esc exit; Alt+←/→ prev/next section; F5/F8 scoped playback |
 | Pattern Grid seek and loop (spec 014) | Pass | Manual QA 2026-10-17 (phases 1–4). Pos ruler: click sets a green start flag, Play starts there, Stop returns to the beginning; clicking while playing jumps playback to the clicked block (ahead or behind), clicking while paused stops at the click; drag sets a blue loop range across all rows and turns transport Loop on (jumping into it if already playing), Play loops it, handles adjust it, ✕ clears it; transport Loop off dims the range and Play ignores it, turning Loop back on while playing jumps into the range; clicking the ruler while looping turns Loop off and sets the start flag; pause/resume inside the loop does not drift; Alt+click/drag snaps to steps; mid-hold seek retriggers remaining sustain |
-| Pattern Grid zoom / scroll (spec 100) | | Long song: Auto keeps blocks readable with horizontal scroll; Fit shows whole song; Zoom in/out; Ctrl/Cmd+wheel about pointer; seek/loop overlays stay aligned; View menu font zoom still independent |
+| Pattern Grid zoom / scroll (spec 100) | Pass (unit) | app-core Auto/Fit/clamp/anchor/autoscroll helpers covered; desktop UI shipped. Spot-check long song + seek/loop overlays after installers build |
 | Copilot smoke (panel, Settings AI, Ask prompt) | | See [copilot-test-scenarios.md](../copilot-test-scenarios.md). Include Discard remaining after a partial Keep (#218): editor matches baseline + kept defs only |
-| Copilot Discard remaining (issue #218) | | Edit that adds comments + definition changes; Keep one def, Discard remaining — no leftover comments/blanks |
+| Copilot Discard remaining (issue #218) | Pass (unit) | `discardRemainingCopilotEditChanges` rebuilds from baseline + kept defs; CRLF residue cases in `copilot-edit-changes.test.ts` |
 | New Song Wizard (chip cards, metadata, audible preview) | | |
 | Export smoke: JSON and WAV | | |
 | Export smoke: UGE and/or Arkos (`.aks`/`.aki`) when relevant | | Skip if out of scope for this cut |
