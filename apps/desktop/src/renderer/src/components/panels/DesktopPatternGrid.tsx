@@ -9,7 +9,6 @@ import {
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type RefCallback,
-  type WheelEvent as ReactWheelEvent,
 } from 'react';
 import type { Root } from 'react-dom/client';
 import {
@@ -22,7 +21,7 @@ import {
 import type { ArrangementSectionBlock, SectionFocusInfo } from '@beatbax/app-core/editor/arrangement-slice';
 import { buildChannelTimelines, listArrangementSections, segmentMatchesSectionFocus } from '@beatbax/app-core/editor/arrangement-slice';
 import { collectStepBoundaries, type LoopRange } from '@beatbax/app-core/playback/playback-range';
-import { playbackStatus } from '@beatbax/app-core/stores/playback.store';
+import { playbackBpm, playbackStatus } from '@beatbax/app-core/stores/playback.store';
 import {
   clearPlaybackLoopRange,
   getActivePlaybackLoopRange,
@@ -55,6 +54,18 @@ type ZoomMode = 'auto' | 'fit' | 'manual';
 /** Hide block text when the block is narrower than this many CSS pixels. */
 const COMPACT_LABEL_PX = 28;
 
+/** Match playback engine: 16th-note steps → `60 / bpm / 4` seconds each. */
+function stepSecondsAtBpm(bpm: number): number {
+  return 60 / Math.max(1, bpm) / 4;
+}
+
+function formatStepClock(step: number, bpm: number): string {
+  const sec = Math.max(0, step) * stepSecondsAtBpm(bpm);
+  const mins = Math.floor(sec / 60);
+  const secs = Math.floor(sec % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 interface Segment {
   patName: string;
   seqName: string | null;
@@ -84,7 +95,8 @@ export interface ArrangementSlicePlayRequest {
 
 interface DesktopPatternGridProps {
   gridRef: RefCallback<DesktopPatternGridHandle>;
-  onNavigate?: (patName: string) => void;
+  /** Pattern selection changed: name to highlight in the editor, or `null` when cleared. */
+  onNavigate?: (patName: string | null) => void;
   onPlaySlice?: (request: ArrangementSlicePlayRequest) => void;
   /** Ruler click or start-flag drop; owns setting the pending start and seeking playback. */
   onPickStart?: (startStep: number) => void;
@@ -105,6 +117,8 @@ export interface DesktopPatternGridHandle {
   setSectionFocus: (info: SectionFocusInfo | null) => void;
   /** When true, map playback progress into the focused section column (slice playback only). */
   setSlicePlaybackRemap: (remap: boolean) => void;
+  /** Clear same-name pattern selection (grid + editor highlight). */
+  clearPatternSelection: () => void;
   dispose: () => void;
 }
 
@@ -252,8 +266,12 @@ function DesktopPatternGrid({
   const globalEventTotalRef = useRef(1);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const hscrollRef = useRef<HTMLDivElement | null>(null);
   const firstTrackRef = useRef<HTMLDivElement | null>(null);
   const rowsRef = useRef<PatternGridRow[]>([]);
+  const onNavigateRef = useRef(onNavigate);
+  onNavigateRef.current = onNavigate;
+  const selectedPatNameRef = useRef<string | null>(null);
   const onPlaySliceRef = useRef(onPlaySlice);
   onPlaySliceRef.current = onPlaySlice;
   const onPickLoopRef = useRef(onPickLoop);
@@ -267,6 +285,7 @@ function DesktopPatternGrid({
   const [pendingStart, setPendingStart] = useState<number | null>(playbackStartStep.get());
   const [loopRange, setLoopRangeState] = useState<LoopRange | null>(playbackLoopRange.get());
   const [loopEnabled, setLoopEnabled] = useState(playbackLoopEnabled.get());
+  const [bpm, setBpm] = useState(playbackBpm.get());
   const [dragPreview, setDragPreview] = useState<{ start?: number; loop?: LoopRange | null } | null>(null);
   const [rangeOverlay, setRangeOverlay] = useState<{
     loopRect: { left: string; width: string } | null;
@@ -276,9 +295,13 @@ function DesktopPatternGrid({
   const rulerTrackRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<TimelineDrag | null>(null);
   const [zoomMode, setZoomMode] = useState<ZoomMode>('auto');
+  const [selectedPatName, setSelectedPatName] = useState<string | null>(null);
   const [manualPxPerStep, setManualPxPerStep] = useState(4);
   const [viewportWidth, setViewportWidth] = useState(0);
+  const [hscrollTrackWidth, setHscrollTrackWidth] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
   const pxPerStepRef = useRef(4);
+  const hScrollDraggingRef = useRef(false);
 
   useEffect(() => channelStates.subscribe((states) => {
     setChannelInfo({ ...states });
@@ -287,6 +310,7 @@ function DesktopPatternGrid({
   useEffect(() => playbackStartStep.subscribe((step) => setPendingStart(step)), []);
   useEffect(() => playbackLoopRange.subscribe((range) => setLoopRangeState(range)), []);
   useEffect(() => playbackLoopEnabled.subscribe((enabled) => setLoopEnabled(enabled)), []);
+  useEffect(() => playbackBpm.subscribe((value) => setBpm(value)), []);
 
   const stepBoundaries = useMemo(
     () => collectStepBoundaries(rows.map((row) => rowStepSpans(row.segs.map((seg) => seg.count))), globalEventTotal),
@@ -419,6 +443,66 @@ function DesktopPatternGrid({
     () => contentWidth(viewportWidth, globalEventTotal, pxPerStep),
     [viewportWidth, globalEventTotal, pxPerStep],
   );
+  const needsHScroll = viewportWidth > 0 && trackContentWidth > viewportWidth + 0.5;
+  const maxScrollLeft = Math.max(0, trackContentWidth - viewportWidth);
+  const scrollTrackWidth = hscrollTrackWidth > 0 ? hscrollTrackWidth : viewportWidth;
+  const hScrollThumbWidth = needsHScroll && trackContentWidth > 0
+    ? Math.max(24, (viewportWidth / trackContentWidth) * scrollTrackWidth)
+    : 0;
+  const hScrollThumbLeft = needsHScroll && maxScrollLeft > 0
+    ? (scrollLeft / maxScrollLeft) * Math.max(0, scrollTrackWidth - hScrollThumbWidth)
+    : 0;
+
+  const setScrollerScrollLeft = useCallback((next: number): void => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const clamped = Math.min(maxScrollLeft, Math.max(0, next));
+    scroller.scrollLeft = clamped;
+    setScrollLeft(scroller.scrollLeft);
+  }, [maxScrollLeft]);
+
+  const onScrollerScroll = useCallback((): void => {
+    if (hScrollDraggingRef.current) return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    setScrollLeft(scroller.scrollLeft);
+  }, []);
+
+  const onHScrollTrackPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (!needsHScroll || maxScrollLeft <= 0) return;
+    const track = event.currentTarget;
+    const rect = track.getBoundingClientRect();
+    const travel = Math.max(1, rect.width - hScrollThumbWidth);
+    const x = event.clientX - rect.left - hScrollThumbWidth / 2;
+    setScrollerScrollLeft((x / travel) * maxScrollLeft);
+  }, [hScrollThumbWidth, maxScrollLeft, needsHScroll, setScrollerScrollLeft]);
+
+  const onHScrollThumbPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (!needsHScroll || maxScrollLeft <= 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const thumb = event.currentTarget;
+    const startX = event.clientX;
+    const startScroll = scrollerRef.current?.scrollLeft ?? scrollLeft;
+    const trackWidth = hscrollRef.current?.clientWidth || scrollTrackWidth;
+    const travel = Math.max(1, trackWidth - hScrollThumbWidth);
+    hScrollDraggingRef.current = true;
+    thumb.setPointerCapture(event.pointerId);
+    const onMove = (ev: PointerEvent): void => {
+      const dx = ev.clientX - startX;
+      setScrollerScrollLeft(startScroll + (dx / travel) * maxScrollLeft);
+    };
+    const onUp = (ev: PointerEvent): void => {
+      hScrollDraggingRef.current = false;
+      thumb.releasePointerCapture(ev.pointerId);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }, [hScrollThumbWidth, maxScrollLeft, needsHScroll, scrollLeft, scrollTrackWidth, setScrollerScrollLeft]);
 
   const applyZoom = useCallback((nextMode: ZoomMode, nextManualPx?: number, anchorClientX?: number): void => {
     const scroller = scrollerRef.current;
@@ -454,6 +538,7 @@ function DesktopPatternGrid({
         if (!el) return;
         const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
         el.scrollLeft = Math.min(maxScroll, Math.max(0, nextScroll!));
+        setScrollLeft(el.scrollLeft);
       });
     }
   }, [viewportWidth]);
@@ -499,6 +584,29 @@ function DesktopPatternGrid({
     return () => observer.disconnect();
   }, [globalPct, rows, sectionFocus, updateGlobalLeft, updateFocusColumnRect, updateRangeOverlay]);
 
+  useEffect(() => {
+    if (!needsHScroll) {
+      setHscrollTrackWidth(0);
+      return undefined;
+    }
+    const track = hscrollRef.current;
+    if (!track || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = (): void => setHscrollTrackWidth(track.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, [needsHScroll, rows, zoomMode]);
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    if (scroller.scrollLeft > maxScrollLeft) {
+      scroller.scrollLeft = maxScrollLeft;
+      setScrollLeft(maxScrollLeft);
+    }
+  }, [maxScrollLeft]);
+
   useImperativeHandle(gridRef, () => ({
     setSong: (song, ast, source) => {
       const next = buildRows(song, ast, source ?? '');
@@ -507,10 +615,22 @@ function DesktopPatternGrid({
       globalEventTotalRef.current = next.globalEventTotal;
       setGlobalEventTotal(next.globalEventTotal);
       setZoomMode('auto');
+      // Keep same-name highlight across re-parse / section-focus play; drop only if gone.
+      {
+        const prev = selectedPatNameRef.current;
+        const nextSelected = prev
+          && next.rows.some((row) => row.segs.some((seg) => seg.patName === prev))
+          ? prev
+          : null;
+        selectedPatNameRef.current = nextSelected;
+        setSelectedPatName(nextSelected);
+        if (prev && !nextSelected) onNavigateRef.current?.(null);
+      }
       setSliceWindow(null);
       setSectionFocusState(null);
       sectionFocusRef.current = null;
       if (scrollerRef.current) scrollerRef.current.scrollLeft = 0;
+      setScrollLeft(0);
       if (next.rows.length > 0 && playbackStatus.get() === 'stopped') {
         showIdlePlayhead(next.rows, next.globalEventTotal);
       } else {
@@ -548,6 +668,11 @@ function DesktopPatternGrid({
     setSlicePlaybackRemap: (remap) => {
       slicePlaybackRemapRef.current = remap;
     },
+    clearPatternSelection: () => {
+      if (selectedPatNameRef.current) onNavigateRef.current?.(null);
+      selectedPatNameRef.current = null;
+      setSelectedPatName(null);
+    },
     setSectionFocus: (info) => {
       const prevWindow = sectionFocusRef.current?.window;
       sectionFocusRef.current = info;
@@ -574,6 +699,9 @@ function DesktopPatternGrid({
       setSliceWindow(null);
       setSectionFocusState(null);
       setZoomMode('auto');
+      if (selectedPatNameRef.current) onNavigateRef.current?.(null);
+      selectedPatNameRef.current = null;
+      setSelectedPatName(null);
       dragRef.current = null;
       setDragPreview(null);
     },
@@ -608,18 +736,50 @@ function DesktopPatternGrid({
   const startMarkerLeft = showStartMarker ? rangeOverlay.startLeft : null;
   const stepLabel = (step: number): string => `step ${step + 1}`;
 
-  const onScrollerWheel = (event: ReactWheelEvent<HTMLDivElement>): void => {
-    if (event.ctrlKey || event.metaKey) {
-      event.preventDefault();
-      const direction = event.deltaY < 0 ? 'in' : 'out';
-      applyZoom('manual', steppedPxPerStep(pxPerStepRef.current, direction), event.clientX);
-      return;
+  const posStep = shownStart !== null && shownStart > 0 ? shownStart : 0;
+  const navReadout = useMemo(() => {
+    const position = posStep > 0
+      ? { step: String(posStep), time: formatStepClock(posStep, bpm) }
+      : null;
+    if (!shownLoop) {
+      return { position, loop: null as null | { steps: string; time: string; inactive: boolean } };
     }
-    if (event.shiftKey && scrollerRef.current) {
-      event.preventDefault();
-      scrollerRef.current.scrollLeft += event.deltaY || event.deltaX;
+    const loopStart = shownLoop.startStep;
+    const loopEnd = Math.max(loopStart, shownLoop.endStep);
+    if (loopEnd <= loopStart) {
+      return { position, loop: null };
     }
-  };
+    const loopEndDisplay = Math.max(loopStart, loopEnd - 1);
+    return {
+      position,
+      loop: {
+        steps: `${loopStart}–${loopEndDisplay}`,
+        time: `${formatStepClock(loopStart, bpm)}–${formatStepClock(loopEnd, bpm)}`,
+        inactive: shownLoopInactive,
+      },
+    };
+  }, [bpm, posStep, shownLoop, shownLoopInactive]);
+
+  // Non-passive wheel listener: React's onWheel is passive, so preventDefault
+  // fails and macOS pinch / Ctrl+scroll never reaches applyZoom reliably.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const onWheel = (event: WheelEvent): void => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        const direction = event.deltaY < 0 ? 'in' : 'out';
+        applyZoom('manual', steppedPxPerStep(pxPerStepRef.current, direction), event.clientX);
+        return;
+      }
+      if (event.shiftKey) {
+        event.preventDefault();
+        scroller.scrollLeft += event.deltaY || event.deltaX;
+      }
+    };
+    scroller.addEventListener('wheel', onWheel, { passive: false });
+    return () => scroller.removeEventListener('wheel', onWheel);
+  }, [applyZoom, empty]);
 
   const rulerClearControl = loopRange ? (
     <button
@@ -658,51 +818,12 @@ function DesktopPatternGrid({
       aria-label="Pattern grid"
       data-empty={empty ? 'true' : undefined}
       data-section-focus={sectionFocus ? 'true' : undefined}
+      data-pat-select={selectedPatName ? 'true' : undefined}
       data-zoom-mode={zoomMode}
       style={{ ['--bb-pgrid-px-per-step' as string]: `${pxPerStep}px` }}
     >
       {empty ? null : (
         <>
-          <div className="bb-pgrid__zoom" role="toolbar" aria-label="Pattern grid zoom">
-            <button
-              aria-label="Zoom out"
-              className="bb-pgrid__btn bb-pgrid__btn--zoom"
-              onClick={() => applyZoom('manual', steppedPxPerStep(pxPerStep, 'out'))}
-              title="Zoom out"
-              type="button"
-            >
-              −
-            </button>
-            <button
-              aria-label="Auto zoom"
-              aria-pressed={zoomMode === 'auto'}
-              className={`bb-pgrid__btn bb-pgrid__btn--zoom${zoomMode === 'auto' ? ' bb-pgrid__btn--active' : ''}`}
-              onClick={() => applyZoom('auto')}
-              title="Auto — readable scale from panel width"
-              type="button"
-            >
-              Auto
-            </button>
-            <button
-              aria-label="Zoom to fit"
-              aria-pressed={zoomMode === 'fit'}
-              className={`bb-pgrid__btn bb-pgrid__btn--zoom${zoomMode === 'fit' ? ' bb-pgrid__btn--active' : ''}`}
-              onClick={() => applyZoom('fit')}
-              title="Zoom to Fit — whole song in the panel"
-              type="button"
-            >
-              Fit
-            </button>
-            <button
-              aria-label="Zoom in"
-              className="bb-pgrid__btn bb-pgrid__btn--zoom"
-              onClick={() => applyZoom('manual', steppedPxPerStep(pxPerStep, 'in'))}
-              title="Zoom in"
-              type="button"
-            >
-              +
-            </button>
-          </div>
           <div className="bb-pgrid__body">
             <div className="bb-pgrid__gutter" aria-hidden={false}>
               <div className="bb-pgrid__gutter-row bb-pgrid__gutter-row--ruler">
@@ -758,9 +879,10 @@ function DesktopPatternGrid({
                 );
               })}
             </div>
+            <div className="bb-pgrid__scroll-col">
             <div
               className="bb-pgrid__scroller"
-              onWheel={onScrollerWheel}
+              onScroll={onScrollerScroll}
               ref={scrollerRef}
             >
               <div
@@ -953,27 +1075,35 @@ function DesktopPatternGrid({
                             : !!sliceWindow
                               && startStep < sliceWindow.endStep
                               && sliceWindow.startStep < endStep;
-                          const navigate = () => onNavigate?.(seg.patName);
+                          const selected = selectedPatName === seg.patName;
+                          const selectAndNavigate = () => {
+                            const next = selectedPatName === seg.patName ? null : seg.patName;
+                            selectedPatNameRef.current = next;
+                            setSelectedPatName(next);
+                            onNavigate?.(next);
+                          };
                           const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                               event.preventDefault();
-                              navigate();
+                              selectAndNavigate();
                             }
                           };
                           const compact = displayUnits <= 1 || displayUnits * pxPerStep < COMPACT_LABEL_PX;
                           return (
                             <div
-                              aria-label={`Pattern block: ${blockLabel}. Click to go to pattern.`}
+                              aria-label={`Pattern block: ${blockLabel}. Click to highlight all uses and go to pattern.`}
+                              aria-pressed={selected}
                               className={[
                                 'bb-pgrid__block',
                                 compact ? 'bb-pgrid__block--compact' : '',
                                 inSlice ? 'bb-pgrid__block--slice' : '',
+                                selected ? 'bb-pgrid__block--selected' : '',
                               ].filter(Boolean).join(' ')}
                               data-label={seg.patName}
                               data-start-step={startStep}
                               data-end-step={endStep}
                               key={`${row.channelId}-${seg.seqName ?? 'pat'}-${seg.patName}-${index}`}
-                              onClick={() => navigate()}
+                              onClick={() => selectAndNavigate()}
                               onKeyDown={onKeyDown}
                               role="button"
                               style={{
@@ -983,7 +1113,7 @@ function DesktopPatternGrid({
                                 flex: `0 0 ${flexBasis}`,
                               }}
                               tabIndex={0}
-                              title={`${blockLabel}\nClick: go to pattern`}
+                              title={`${blockLabel}\nClick: highlight all “${seg.patName}” in the grid and editor · click again to clear`}
                             >
                               <span aria-hidden="true" className="bb-pgrid__block-label">{chipLabel}</span>
                             </div>
@@ -1009,6 +1139,93 @@ function DesktopPatternGrid({
                 })}
               </div>
             </div>
+            <div className="bb-pgrid__nav">
+              {navReadout.position || navReadout.loop ? (
+                <div className="bb-pgrid__nav-readout" aria-live="polite">
+                  {navReadout.position ? (
+                    <div className="bb-pgrid__nav-chip bb-pgrid__nav-chip--position" title="Playback start">
+                      <span className="bb-pgrid__nav-chip-label">Position</span>
+                      <span className="bb-pgrid__nav-chip-value">{navReadout.position.step}</span>
+                      <span className="bb-pgrid__nav-chip-sep" aria-hidden="true" />
+                      <span className="bb-pgrid__nav-chip-time">{navReadout.position.time}</span>
+                    </div>
+                  ) : null}
+                  {navReadout.loop ? (
+                    <div
+                      className={`bb-pgrid__nav-chip bb-pgrid__nav-chip--loop${navReadout.loop.inactive ? ' bb-pgrid__nav-chip--inactive' : ''}`}
+                      title={navReadout.loop.inactive ? 'Loop range (off)' : 'Loop range'}
+                    >
+                      <span className="bb-pgrid__nav-chip-label">Loop</span>
+                      <span className="bb-pgrid__nav-chip-value">{navReadout.loop.steps}</span>
+                      <span className="bb-pgrid__nav-chip-sep" aria-hidden="true" />
+                      <span className="bb-pgrid__nav-chip-time">{navReadout.loop.time}</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {needsHScroll ? (
+                <div
+                  aria-label="Pattern grid horizontal scroll"
+                  className="bb-pgrid__hscroll"
+                  onPointerDown={onHScrollTrackPointerDown}
+                  ref={hscrollRef}
+                  role="scrollbar"
+                  aria-orientation="horizontal"
+                  aria-valuemin={0}
+                  aria-valuemax={Math.round(maxScrollLeft)}
+                  aria-valuenow={Math.round(scrollLeft)}
+                >
+                  <div
+                    className="bb-pgrid__hscroll-thumb"
+                    onPointerDown={onHScrollThumbPointerDown}
+                    style={{ width: `${hScrollThumbWidth}px`, left: `${hScrollThumbLeft}px` }}
+                  />
+                </div>
+              ) : (
+                <div aria-hidden="true" className="bb-pgrid__nav-spacer" />
+              )}
+              <div className="bb-pgrid__zoom-actions" role="toolbar" aria-label="Pattern grid zoom">
+                <button
+                  aria-label="Zoom out"
+                  className="bb-pgrid__btn bb-pgrid__btn--zoom"
+                  onClick={() => applyZoom('manual', steppedPxPerStep(pxPerStep, 'out'))}
+                  title="Zoom out"
+                  type="button"
+                >
+                  −
+                </button>
+                <button
+                  aria-label="Auto zoom — readable scale from panel width; scrolls when the song is longer"
+                  aria-pressed={zoomMode === 'auto'}
+                  className={`bb-pgrid__btn bb-pgrid__btn--zoom${zoomMode === 'auto' ? ' bb-pgrid__btn--active' : ''}`}
+                  onClick={() => applyZoom('auto')}
+                  title={"Auto — keep a readable block size based on panel width.\nLonger songs scroll horizontally instead of shrinking past a readable minimum."}
+                  type="button"
+                >
+                  Auto
+                </button>
+                <button
+                  aria-label="Zoom to fit — shrink the whole song into the panel width"
+                  aria-pressed={zoomMode === 'fit'}
+                  className={`bb-pgrid__btn bb-pgrid__btn--zoom${zoomMode === 'fit' ? ' bb-pgrid__btn--active' : ''}`}
+                  onClick={() => applyZoom('fit')}
+                  title={"Fit — show the whole song in the panel width.\nBlocks may shrink below the readable minimum so nothing scrolls off-screen."}
+                  type="button"
+                >
+                  Fit
+                </button>
+                <button
+                  aria-label="Zoom in"
+                  className="bb-pgrid__btn bb-pgrid__btn--zoom"
+                  onClick={() => applyZoom('manual', steppedPxPerStep(pxPerStep, 'in'))}
+                  title="Zoom in"
+                  type="button"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            </div>
           </div>
         </>
       )}
@@ -1019,7 +1236,8 @@ function DesktopPatternGrid({
 export function createDesktopPatternGrid(
   container: HTMLElement,
   options: {
-    onNavigate?: (patName: string) => void;
+    /** Pattern selection changed: name to highlight in the editor, or `null` when cleared. */
+  onNavigate?: (patName: string | null) => void;
     onPlaySlice?: (request: ArrangementSlicePlayRequest) => void;
     onPickStart?: (startStep: number) => void;
     onPickLoop?: (loop: LoopRange, enableLoop: boolean) => void;
@@ -1065,6 +1283,7 @@ export function createDesktopPatternGrid(
     setSliceHighlight: (window) => call((handle) => handle.setSliceHighlight(window)),
     setSlicePlaybackRemap: (remap) => call((handle) => handle.setSlicePlaybackRemap(remap)),
     setSectionFocus: (info) => call((handle) => handle.setSectionFocus(info)),
+    clearPatternSelection: () => call((handle) => handle.clearPatternSelection()),
     dispose: () => {
       handleRef.current?.dispose();
       unmountReactRoot(container, root);

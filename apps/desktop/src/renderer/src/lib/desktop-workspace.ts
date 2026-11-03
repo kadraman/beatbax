@@ -233,8 +233,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     patternGridContainer.style.display = showGrid ? '' : 'none';
     settingShowPatternGrid.set(showGrid);
     patternGrid = createDesktopPatternGrid(patternGridContainer, {
-      onNavigate: (patName: string) => {
-        patternNavFlash.flashPat(patName);
+      onNavigate: (patName: string | null) => {
+        patternNavFlash.setPat(patName);
       },
       onPlaySlice: enterSectionSlice,
       onPickStart: (startStep) => pickTimelineStart(startStep, timelinePickDeps),
@@ -870,6 +870,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       clearSectionFocus();
       clearPlaybackRange();
       lastSongContext = null;
+      patternGrid?.clearPatternSelection();
+      patternNavFlash.setPat(null);
     }),
     eventBus.on('parse:success', ({ ast, resolvedAst, song, valid, ephemeral }: { ast?: unknown; resolvedAst?: unknown; song?: unknown; valid?: boolean; ephemeral?: boolean }) => {
       try {
@@ -916,6 +918,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         instrumentEditor?.setAst(resolvedAst ?? ast ?? layoutAst);
         if (song) lastSongContext = { song, ast: layoutAst };
         else lastSongContext = null;
+        patternNavFlash.refresh();
         if (sectionFocusController?.isActive()) {
           sectionFocusController.refresh();
         }

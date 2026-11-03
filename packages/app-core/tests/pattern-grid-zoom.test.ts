@@ -71,6 +71,11 @@ describe('contentWidth', () => {
     expect(contentWidth(400, 50, 4)).toBe(400);
     expect(contentWidth(400, 200, 4)).toBe(800);
   });
+
+  it('treats subpixel near-fit as fit (avoids a 1px Windows scrollbar)', () => {
+    expect(contentWidth(400, 100, 4.001)).toBe(400);
+    expect(contentWidth(400, 100, 4.01)).toBe(401);
+  });
 });
 
 describe('zoomAboutAnchor', () => {

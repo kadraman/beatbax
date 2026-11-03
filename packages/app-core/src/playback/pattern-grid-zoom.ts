@@ -46,7 +46,11 @@ export function contentWidth(
   pxPerStep: number,
 ): number {
   if (totalSteps <= 0) return Math.max(0, viewportWidth);
-  return Math.max(viewportWidth, totalSteps * pxPerStep);
+  const needed = totalSteps * pxPerStep;
+  // Float / DPI rounding can make needed ≈ viewportWidth + ε and force a
+  // useless 1px scrollbar (especially on Windows). Treat near-fit as fit.
+  if (needed <= viewportWidth + 0.5) return Math.max(0, viewportWidth);
+  return needed;
 }
 
 /**

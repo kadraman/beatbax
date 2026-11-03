@@ -5,7 +5,7 @@
   },
   "songs/features/local_import_example.bax": {
     "defs": "e627e16716910442",
-    "ism": "error: Import file not found: \"local:lib/gameboy-common.ins\" (imported from \"<repo>/songs/features/local_import_example.bax\")"
+    "ism": "6e7a21086d823e71"
   },
   "songs/features/metadata_example.bax": {
     "defs": "22991f83dae96cce",
