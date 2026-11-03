@@ -3623,14 +3623,132 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   --bb-pgrid-px-per-step: 4px;
 }
 
-.bb-pgrid__zoom {
+.bb-pgrid__nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bb-pgrid__nav-readout {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 58%;
+  overflow: hidden;
+}
+
+.bb-pgrid__nav-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  height: 14px;
+  padding: 0 6px 0 5px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.28);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.bb-pgrid__nav-chip-label {
+  flex-shrink: 0;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.bb-pgrid__nav-chip-value,
+.bb-pgrid__nav-chip-time {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.bb-pgrid__nav-chip-time {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.bb-pgrid__nav-chip-sep {
+  flex-shrink: 0;
+  width: 1px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.bb-pgrid__nav-chip--position {
+  border-color: rgba(120, 200, 255, 0.28);
+  background: rgba(40, 90, 130, 0.28);
+}
+.bb-pgrid__nav-chip--position .bb-pgrid__nav-chip-label {
+  color: rgba(150, 210, 255, 0.7);
+}
+.bb-pgrid__nav-chip--position .bb-pgrid__nav-chip-value {
+  color: rgba(190, 230, 255, 0.95);
+}
+
+.bb-pgrid__nav-chip--loop {
+  border-color: rgba(90, 200, 120, 0.28);
+  background: rgba(30, 90, 50, 0.28);
+}
+.bb-pgrid__nav-chip--loop .bb-pgrid__nav-chip-label {
+  color: rgba(140, 220, 160, 0.7);
+}
+.bb-pgrid__nav-chip--loop .bb-pgrid__nav-chip-value {
+  color: rgba(180, 235, 195, 0.95);
+}
+
+.bb-pgrid__nav-chip--inactive {
+  opacity: 0.55;
+  filter: saturate(0.65);
+}
+
+.bb-pgrid__nav-spacer {
+  flex: 1;
+  min-width: 0;
+  height: 8px;
+}
+
+[data-theme=light] .bb-pgrid__nav-chip {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.05);
+}
+[data-theme=light] .bb-pgrid__nav-chip-label { color: rgba(0, 0, 0, 0.4); }
+[data-theme=light] .bb-pgrid__nav-chip-value { color: rgba(0, 0, 0, 0.78); }
+[data-theme=light] .bb-pgrid__nav-chip-time { color: rgba(0, 0, 0, 0.5); }
+[data-theme=light] .bb-pgrid__nav-chip-sep { background: rgba(0, 0, 0, 0.12); }
+[data-theme=light] .bb-pgrid__nav-chip--position {
+  border-color: rgba(20, 110, 180, 0.3);
+  background: rgba(20, 110, 180, 0.08);
+}
+[data-theme=light] .bb-pgrid__nav-chip--position .bb-pgrid__nav-chip-label { color: rgba(20, 100, 170, 0.7); }
+[data-theme=light] .bb-pgrid__nav-chip--position .bb-pgrid__nav-chip-value { color: rgba(10, 80, 140, 0.95); }
+[data-theme=light] .bb-pgrid__nav-chip--loop {
+  border-color: rgba(30, 130, 60, 0.3);
+  background: rgba(30, 130, 60, 0.08);
+}
+[data-theme=light] .bb-pgrid__nav-chip--loop .bb-pgrid__nav-chip-label { color: rgba(20, 110, 50, 0.7); }
+[data-theme=light] .bb-pgrid__nav-chip--loop .bb-pgrid__nav-chip-value { color: rgba(15, 90, 40, 0.95); }
+
+.bb-pgrid__zoom-actions {
   display: flex;
   align-items: center;
   gap: 3px;
-  margin-bottom: 2px;
+  flex-shrink: 0;
 }
 
 .bb-pgrid__btn.bb-pgrid__btn--zoom {
+  position: relative;
   width: auto;
   min-width: 18px;
   height: 14px;
@@ -3638,6 +3756,14 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+/* Electron/macOS native title tooltips are flaky unless hover hits the
+   titled element itself — cover the face so Auto/Fit tooltips register. */
+.bb-pgrid__btn.bb-pgrid__btn--zoom[title]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
 }
 
 .bb-pgrid__body {
@@ -3670,11 +3796,67 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   margin-bottom: 2px;
 }
 
+.bb-pgrid__scroll-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
 .bb-pgrid__scroller {
   flex: 1;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
+  /* Native bar is hidden — macOS overlay scrollbars never stay visible.
+     A custom `.bb-pgrid__hscroll` below the tracks is the cross-platform bar. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.bb-pgrid__scroller::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.bb-pgrid__hscroll {
+  position: relative;
+  height: 8px;
+  flex: 1;
+  min-width: 0;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+}
+.bb-pgrid__hscroll-thumb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 24px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.32);
+  cursor: grab;
+  touch-action: none;
+}
+.bb-pgrid__hscroll-thumb:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+.bb-pgrid__hscroll-thumb:active {
+  cursor: grabbing;
+  background: rgba(255, 255, 255, 0.55);
+}
+[data-theme=light] .bb-pgrid__hscroll {
+  background: rgba(0, 0, 0, 0.1);
+}
+[data-theme=light] .bb-pgrid__hscroll-thumb {
+  background: rgba(0, 0, 0, 0.35);
+}
+[data-theme=light] .bb-pgrid__hscroll-thumb:hover {
+  background: rgba(0, 0, 0, 0.48);
+}
+[data-theme=light] .bb-pgrid__hscroll-thumb:active {
+  background: rgba(0, 0, 0, 0.58);
 }
 
 .bb-pgrid__content {
@@ -3846,9 +4028,14 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   background: rgba(255, 200, 80, 0.07);
 }
 
-.bb-pgrid[data-section-focus="true"] .bb-pgrid__block:not(.bb-pgrid__block--slice):not(.bb-pgrid__block--filler):not(.bb-pgrid__block--tail) {
+.bb-pgrid[data-section-focus="true"] .bb-pgrid__block:not(.bb-pgrid__block--slice):not(.bb-pgrid__block--selected):not(.bb-pgrid__block--filler):not(.bb-pgrid__block--tail) {
   opacity: 0.42;
   filter: saturate(0.65);
+}
+
+.bb-pgrid[data-pat-select="true"] .bb-pgrid__block:not(.bb-pgrid__block--selected):not(.bb-pgrid__block--filler):not(.bb-pgrid__block--tail) {
+  opacity: 0.45;
+  filter: saturate(0.7);
 }
 
 .bb-pgrid[data-section-focus="true"] .bb-pgrid__section-block:not(.bb-pgrid__section-block--focus) {
@@ -3990,6 +4177,38 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   filter: brightness(1.12) saturate(1.08);
   z-index: 2;
   box-shadow: inset 0 0 0 1px rgba(255, 190, 70, 0.35);
+}
+
+.bb-pgrid__block--selected {
+  outline: 2px solid rgba(120, 210, 255, 0.95);
+  outline-offset: -1px;
+  filter: brightness(1.18) saturate(1.12);
+  opacity: 1;
+  z-index: 3;
+  box-shadow:
+    inset 0 0 0 1px rgba(120, 210, 255, 0.4),
+    0 0 0 1px rgba(120, 210, 255, 0.25);
+}
+
+/* Keep name selection readable while a play region / section focus is active. */
+.bb-pgrid[data-section-focus="true"] .bb-pgrid__block--selected,
+.bb-pgrid[data-pat-select="true"] .bb-pgrid__block--selected {
+  opacity: 1;
+  filter: brightness(1.18) saturate(1.12);
+}
+
+.bb-pgrid__block--selected.bb-pgrid__block--slice {
+  outline-color: rgba(160, 220, 255, 0.98);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 190, 70, 0.35),
+    0 0 0 1px rgba(120, 210, 255, 0.45);
+}
+
+[data-theme=light] .bb-pgrid__block--selected {
+  outline-color: rgba(10, 110, 180, 0.9);
+  box-shadow:
+    inset 0 0 0 1px rgba(10, 110, 180, 0.3),
+    0 0 0 1px rgba(10, 110, 180, 0.22);
 }
 
 .bb-pgrid__block-play {
@@ -5572,8 +5791,18 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   background-color: rgba(180, 110, 10, 0.12) !important;
 }
 
-.monaco-editor .view-overlays .cdr.bb-pat-nav-flash {
-  animation: bb-pat-nav-flash 720ms ease-out forwards;
+.monaco-editor .view-overlays .cdr.bb-pat-nav-highlight {
+  background: rgba(120, 210, 255, 0.18) !important;
+  box-shadow: inset 0 0 0 1px rgba(120, 210, 255, 0.42);
+}
+
+.monaco-editor .view-overlays .cdr.bb-pat-nav-highlight--flash {
+  animation: bb-pat-nav-highlight-in 480ms ease-out forwards;
+}
+
+[data-theme="light"] .monaco-editor .view-overlays .cdr.bb-pat-nav-highlight {
+  background: rgba(10, 110, 180, 0.14) !important;
+  box-shadow: inset 0 0 0 1px rgba(10, 110, 180, 0.35);
 }
 
 .monaco-editor .view-overlays .cdr.bb-inst-editor-active-line {
@@ -5586,18 +5815,14 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   box-shadow: inset 0 0 0 1px rgba(5, 150, 105, 0.35);
 }
 
-@keyframes bb-pat-nav-flash {
+@keyframes bb-pat-nav-highlight-in {
   0% {
-    background: rgba(160, 210, 255, 0.42) !important;
-    box-shadow: inset 0 0 0 1px rgba(160, 210, 255, 0.55);
-  }
-  70% {
-    background: rgba(160, 210, 255, 0.12) !important;
-    box-shadow: inset 0 0 0 1px rgba(160, 210, 255, 0.15);
+    background: rgba(120, 210, 255, 0.45) !important;
+    box-shadow: inset 0 0 0 1px rgba(120, 210, 255, 0.65);
   }
   100% {
-    background: transparent !important;
-    box-shadow: none;
+    background: rgba(120, 210, 255, 0.18) !important;
+    box-shadow: inset 0 0 0 1px rgba(120, 210, 255, 0.42);
   }
 }
 .bb-section-focus-overlay {
@@ -7743,8 +7968,18 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   background-color: rgba(180, 110, 10, 0.12) !important;
 }
 
-.monaco-editor .view-overlays .cdr.bb-pat-nav-flash {
-  animation: bb-pat-nav-flash 720ms ease-out forwards;
+.monaco-editor .view-overlays .cdr.bb-pat-nav-highlight {
+  background: rgba(120, 210, 255, 0.18) !important;
+  box-shadow: inset 0 0 0 1px rgba(120, 210, 255, 0.42);
+}
+
+.monaco-editor .view-overlays .cdr.bb-pat-nav-highlight--flash {
+  animation: bb-pat-nav-highlight-in 480ms ease-out forwards;
+}
+
+[data-theme="light"] .monaco-editor .view-overlays .cdr.bb-pat-nav-highlight {
+  background: rgba(10, 110, 180, 0.14) !important;
+  box-shadow: inset 0 0 0 1px rgba(10, 110, 180, 0.35);
 }
 
 .monaco-editor .view-overlays .cdr.bb-inst-editor-active-line {
@@ -7757,18 +7992,14 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   box-shadow: inset 0 0 0 1px rgba(5, 150, 105, 0.35);
 }
 
-@keyframes bb-pat-nav-flash {
+@keyframes bb-pat-nav-highlight-in {
   0% {
-    background: rgba(160, 210, 255, 0.42) !important;
-    box-shadow: inset 0 0 0 1px rgba(160, 210, 255, 0.55);
-  }
-  70% {
-    background: rgba(160, 210, 255, 0.12) !important;
-    box-shadow: inset 0 0 0 1px rgba(160, 210, 255, 0.15);
+    background: rgba(120, 210, 255, 0.45) !important;
+    box-shadow: inset 0 0 0 1px rgba(120, 210, 255, 0.65);
   }
   100% {
-    background: transparent !important;
-    box-shadow: none;
+    background: rgba(120, 210, 255, 0.18) !important;
+    box-shadow: inset 0 0 0 1px rgba(120, 210, 255, 0.42);
   }
 }
 .bb-section-focus-overlay {
