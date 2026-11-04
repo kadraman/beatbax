@@ -5,8 +5,19 @@ Notes for stable `desktop-v*` GitHub Releases, generated from pull request title
 ## 0.4.0 — 2026-11-04
 
 ## What's Changed
-* feat(098/099): instrument editor preview pitch and Live edit draft by @kadraman in https://github.com/kadraman/beatbax/pull/231
+* feat(desktop): Pattern Grid navigation and scrolling — click a pattern block to highlight every use and jump to it in the editor
+* feat(desktop): Pattern Grid zoom and horizontal scroll for long songs
 * feat(008): add section/form composition and Beginner Mode sugar by @kadraman in https://github.com/kadraman/beatbax/pull/235
+* feat(098/099): instrument editor preview pitch and Live edit draft by @kadraman in https://github.com/kadraman/beatbax/pull/231
+* feat(093): implement desktop remote imports via main-process IPC by @kadraman in https://github.com/kadraman/beatbax/pull/228
+* feat(014): Pattern Grid seek and loop at pattern boundaries by @kadraman in https://github.com/kadraman/beatbax/pull/225
+* feat(092): warn on same-file duplicate definitions; Copilot repairs or blocks duplicate Edit replies by @kadraman in https://github.com/kadraman/beatbax/pull/224
+* feat(088): Copilot request controls and budget diagnostics by @kadraman in https://github.com/kadraman/beatbax/pull/223
+* fix(desktop): restore pre-edit song when Copilot Discard remaining keeps nothing by @kadraman in https://github.com/kadraman/beatbax/pull/221
+* feat(091): desktop developer tools opt-in and diagnostics log by @kadraman in https://github.com/kadraman/beatbax/pull/220
+* feat(017, 019, 024): Copilot edit-apply hardening, DMC load warnings, granular CodeLens settings by @kadraman in https://github.com/kadraman/beatbax/pull/219
+* feat(089, 090): arrangement-aware MIDI import and readable generated names by @kadraman in https://github.com/kadraman/beatbax/pull/215
+* feat(006): CLI MIDI → .bax conversion by @kadraman in https://github.com/kadraman/beatbax/pull/208
 
 
 **Full Changelog**: https://github.com/kadraman/beatbax/compare/desktop-v0.3.0...desktop-v0.4.0
