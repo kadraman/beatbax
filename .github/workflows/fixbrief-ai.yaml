@@ -1,0 +1,44 @@
+# Copy this to .github/workflows/fixbrief-ai.yml in the repo you want reviewed.
+#
+# Settings > Secrets and variables > Actions:
+#   Secret    LLM_API_KEY    your provider's API key
+#   Variable  LLM_MODEL      model name (required; recommended gpt-5-mini)
+#   Variable  LLM_PROVIDER   "openai" (default) or "anthropic"
+#   Variable  LLM_BASE_URL   leave unset for OpenAI; set for DeepSeek/OpenRouter/etc.
+#
+# On opened/reopened the action reviews the full PR against the PR head SHA.
+# On synchronize it reviews only the new commits (before...PR head) when that
+# SHA is still an ancestor of the new head; if nothing meets the publish gate,
+# it stays silent so the earlier review remains. Inline comments are anchored
+# to GitHub's PR diff even when the model sees extra context lines.
+# Default consistency-runs is 2: agreement adjusts confidence; critical/high that
+# clear the floor still publish as one-offs.
+
+name: FixBrief AI - PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    # Secrets aren't available to PRs from forks, so only review same-repo PRs.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history, so large diffs aren't limited by GitHub's API
+                           # and synchronize can resolve github.event.before
+
+      - uses: kadraman/fixbrief-ai@v1
+        with:
+          api-key: ${{ secrets.LLM_API_KEY }}
+          model: ${{ vars.LLM_MODEL }}
+          provider: ${{ vars.LLM_PROVIDER || 'openai' }}
+          base-url: ${{ vars.LLM_BASE_URL }}
