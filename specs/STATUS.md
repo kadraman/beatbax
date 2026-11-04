@@ -1,6 +1,6 @@
 # Specification status index
 
-Assign the next feature id as **104** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **105** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
@@ -24,6 +24,7 @@ Assign the next feature id as **104** (one past the highest id below). Process: 
 - **096** `desktop-midi-import` (Desktop File → Import MIDI… wizard + companion `.import.json`) — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/210 — [specs/features/096-desktop-midi-import/](specs/features/096-desktop-midi-import/)
 - **097** `web-lite-pattern-grid` (Pattern Grid back in web-lite, shown by default, with spec 014 ruler seek and Loop-gated loop range; shared timeline logic moves to app-core) — in-progress (manual browser QA T901 pending) — web — issue: https://github.com/kadraman/beatbax/issues/227 — [specs/features/097-web-lite-pattern-grid/](specs/features/097-web-lite-pattern-grid/)
 - **103** `instrument-editor-workspace` (Instrument Editor Settings-style modal + toolbar picker; Game Boy `subpat` rows; NES DMC Browse/Check; absorbs 101/102) — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/236 — [specs/features/103-instrument-editor-workspace/](specs/features/103-instrument-editor-workspace/)
+- **104** `midi-import-section-form` (opt-in MIDI import output: canonical `section`/`form`/`role`, or Beginner Mode when the lanes match the chip profile; default stays classic `seq`/`channel`) — specified — engine — issue: https://github.com/kadraman/beatbax/issues/238 — [specs/features/104-midi-import-section-form/](specs/features/104-midi-import-section-form/)
 
 ## Complete (`specs/complete/`)
 

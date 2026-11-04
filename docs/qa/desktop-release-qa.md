@@ -127,12 +127,12 @@ Update only when product policy changes:
 
 ## Sign-off
 
-| Field | Value |
-|-------|-------|
-| Cleared for tag | `desktop-v______` |
-| Signed off by | |
-| Date | |
+| Field           | Value                               |
+| --------------- | ----------------------------------- |
+| Cleared for tag | `desktop-v0.4.0                     |
+| Signed off by   | kadraman                            |
+| Date            | 4-11-2026                           |
 | Deferred checks | _(e.g. macOS/Linux interactive QA)_ |
-| Blockers | _(none / list)_ |
+| Blockers        | _(none / list)_                     |
 
-Desktop `v______` is cleared for GitHub Release when automated suites pass, packaging succeeds for required platforms, and primary-platform manual checks above are Pass or explicitly Skip with rationale.
+Desktop `v0.4.0` is cleared for GitHub Release when automated suites pass, packaging succeeds for required platforms, and primary-platform manual checks above are Pass or explicitly Skip with rationale.

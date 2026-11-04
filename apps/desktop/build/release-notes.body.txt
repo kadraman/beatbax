@@ -1,9 +1,11 @@
 BeatBax Desktop 0.4.0 highlights:
 
-- Pattern Grid seek, loop, and zoom for long songs
+- Pattern Grid seek, loop, and zoom for long songs; click a pattern block to highlight every use and jump to it in the editor
 - Instrument Editor preview pitch and Live edit
 - Remote github:/https: instrument imports via main-process IPC
-- Developer tools opt-in and diagnostics log
-- Copilot request budgets; Discard remaining restores the pre-edit song (kept definitions only)
+- Developer tools opt-in and diagnostics log (packaged macOS hides View → Toggle Developer Tools until Settings → Advanced enables them)
+- Copilot reply budgets and reasoning effort; Discard remaining restores the pre-edit song (kept definitions only)
+- Duplicate pat/seq/inst/effect definitions in one file warn (the later definition wins); Copilot repairs or blocks Edit replies that add another
+- Per-type CodeLens preview toggles for pat, seq, inst, and effect
 - Section / form composition and Beginner Mode
-- CLI MIDI import (arrangement-aware) — Desktop Import MIDI wizard still upcoming
+- CLI MIDI import (arrangement-aware, readable generated names) — Desktop Import MIDI wizard still upcoming
