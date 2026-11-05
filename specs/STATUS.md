@@ -1,9 +1,10 @@
 # Specification status index
 
-Assign the next feature id as **105** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **106** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
+- **105** `tracker-pattern-editor` (Desktop tracker for one `pat` + Pattern Grid arrangement grips; flatten-on-edit; `.bax` text remains source of truth) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/239 — [specs/features/105-tracker-pattern-editor/](specs/features/105-tracker-pattern-editor/)
 - **001** `hot-reload` — specified — engine — issue: https://github.com/kadraman/beatbax/issues/6 — [specs/features/001-hot-reload/](specs/features/001-hot-reload/)
 - **002** `vscode-plugin` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/21 — [specs/features/002-vscode-plugin/](specs/features/002-vscode-plugin/)
 - **003** `ai-chatbot-rag` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/66 — [specs/features/003-ai-chatbot-rag/](specs/features/003-ai-chatbot-rag/)
