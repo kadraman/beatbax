@@ -330,8 +330,8 @@ jobs:
           git fetch origin main
           git checkout -B main origin/main
           node apps/desktop/scripts/generate-changelog.cjs --prepend --tag "$TAG"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "kadraman"
+          git config user.email "4321872+kadraman@users.noreply.github.com"
           git add apps/desktop/CHANGELOG.md
           if git diff --staged --quiet; then
             echo "CHANGELOG.md unchanged"
