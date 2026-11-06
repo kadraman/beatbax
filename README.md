@@ -108,6 +108,7 @@ beatbax/
 ```
 
 Engineering changes follow [specs/README.md](specs/README.md). See also [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
+
 ## Development
 
 ```bash
@@ -135,6 +136,12 @@ Contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md) · toolchain docs: [Develo
 | Roadmap | [ROADMAP.md](ROADMAP.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Releasing | [docs/releasing.md](docs/releasing.md) |
+
+## Use of AI
+
+BeatBax is developed with assistance from AI coding tools. Those tools help with drafting code, tests, docs, and refactors; humans still own design choices, review, and correctness. Spec-driven development in [`specs/`](specs/) remains the source of truth for language and product behaviour.
+
+Separately, **BeatBax Desktop** includes an optional in-app **Copilot** for song authoring help (OpenAI, local Ollama, and other OpenAI-compatible endpoints). That product feature is distinct from the AI tools used to build the project.
 
 ## Contributing
 
