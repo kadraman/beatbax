@@ -44,6 +44,12 @@ export type {
 
 export { registerBeatBaxLanguage, registerNoteEditCommands, transposeCurrentNote } from './beatbax-language.js';
 export { insertHelpSnippetBlock } from './help-snippet-insertion.js';
+export {
+  formatHelpSnippetHtml,
+  tokenizeHelpSnippet,
+  tokenizeHelpSnippetLine,
+} from './help-snippet-highlight.js';
+export type { HelpSnippetSpan } from './help-snippet-highlight.js';
 export { applyUndoableReplace, minimalTextEdit } from './undoable-replace.js';
 
 export {

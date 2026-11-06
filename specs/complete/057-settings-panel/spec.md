@@ -7,7 +7,7 @@ authors:
   - "GitHub Copilot"
   - "kadraman"
 created: "2026-04-05"
-updated: "2026-09-03"
+updated: "2026-11-06"
 issue: "https://github.com/kadraman/beatbax/issues/78"
 area: "desktop"
 ---
@@ -107,7 +107,9 @@ On narrow screens (< 600 px) the sidebar collapses into a horizontal tab strip a
 | Show CodeLens previews | Toggle | `true` | `beatbax:editor.codelens` |
 | Show beat decorations | Toggle | `true` | `beatbax:editor.beatDecorations` |
 | Default BPM | Number input (60–300) | `128` | `beatbax:editor.bpm` |
-| Font size | Number input (10–24) | `14` | `beatbax:editor.fontSize` |
+| Font size | Number input (**8–32**; was 10–24) | `14` | `beatbax:editor.fontSize` |
+
+> **Amendment (feature 108):** Font-size bounds are **8–32** and additional Desktop Monaco view rows (font family, tab size, minimap, line numbers, whitespace, indent guides, cursor style, fold comments in Settings, mouse-wheel zoom) are specified in [`specs/features/108-desktop-editor-view/spec.md`](../../features/108-desktop-editor-view/spec.md) (issue https://github.com/kadraman/beatbax/issues/248). This table remains the index for the original Editor settings; do not duplicate the 108 rows here.
 
 ### Playback
 

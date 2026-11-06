@@ -1470,6 +1470,9 @@
   tab-size: 2;
 }
 
+/* Match Monaco beatbax-dark / beatbax-light comment tokens */
+.bb-help__comment { color: #6A9955; }
+
 .bb-help__snippet-pre::-webkit-scrollbar        { height: 4px; }
 .bb-help__snippet-pre::-webkit-scrollbar-track  { background: #1e1e1e; }
 .bb-help__snippet-pre::-webkit-scrollbar-thumb  { background: #555; border-radius: 2px; }
@@ -1492,6 +1495,7 @@
 [data-theme="light"] .bb-help__kbd            { background: #eaeaea; border-color: #aaa; color: #333; }
 [data-theme="light"] .bb-help__snippet        { border-color: #ccc; }
 [data-theme="light"] .bb-help__snippet-pre    { background: #f8f8f8; color: #a31515; }
+[data-theme="light"] .bb-help__comment        { color: #008000; }
 [data-theme="light"] .bb-help__snippet-header { background: #ebebeb; border-color: #ddd; }
 [data-theme="light"] .bb-help__snippet-label  { color: #0d47a1; }
 

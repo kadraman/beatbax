@@ -11,6 +11,7 @@
  */
 
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
+import { formatHelpSnippetHtml } from '@beatbax/app-core/editor';
 import type { ShortcutDescriptor } from '../utils/keyboard-shortcuts';
 import { bindingToKeyArray, detectShortcutPlatform } from '@beatbax/app-core/shortcuts';
 import { chipRegistry } from '@beatbax/engine/chips';
@@ -666,7 +667,7 @@ export class HelpPanel {
         const pre = document.createElement('pre');
         pre.className = 'bb-help__snippet-pre';
         const code = document.createElement('code');
-        code.textContent = item.code;
+        code.innerHTML = formatHelpSnippetHtml(item.code);
         pre.appendChild(code);
 
         el.append(snippetHeader, pre);
@@ -706,7 +707,7 @@ export class HelpPanel {
         const pre = document.createElement('pre');
         pre.className = 'bb-help__snippet-pre';
         const code = document.createElement('code');
-        code.textContent = item.code;
+        code.innerHTML = formatHelpSnippetHtml(item.code);
         pre.appendChild(code);
 
         el.append(snippetHeader, pre);

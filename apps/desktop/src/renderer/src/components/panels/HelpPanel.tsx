@@ -12,6 +12,7 @@ import { flushSync } from 'react-dom';
 import type { Root } from 'react-dom/client';
 import { chipRegistry } from '@beatbax/engine/chips';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
+import { tokenizeHelpSnippet } from '@beatbax/app-core/editor';
 import type { ShortcutDescriptor } from '../../utils/keyboard-shortcuts';
 import { bindingToKeyArray, detectShortcutPlatform } from '@beatbax/app-core/shortcuts';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
@@ -352,7 +353,22 @@ function SnippetItem({
           {feedback ? feedbackLabel : label}
         </button>
       </div>
-      <pre className="bb-help__snippet-pre"><code>{item.code}</code></pre>
+      <pre className="bb-help__snippet-pre">
+        <code>
+          {tokenizeHelpSnippet(item.code).map((spans, lineIndex, lines) => (
+            <span key={lineIndex}>
+              {spans.map((span, spanIndex) =>
+                span.kind === 'comment' ? (
+                  <span className="bb-help__comment" key={spanIndex}>{span.text}</span>
+                ) : (
+                  <span key={spanIndex}>{span.text}</span>
+                ),
+              )}
+              {lineIndex < lines.length - 1 ? '\n' : null}
+            </span>
+          ))}
+        </code>
+      </pre>
     </div>
   );
 }
