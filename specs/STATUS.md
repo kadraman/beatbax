@@ -1,9 +1,11 @@
 # Specification status index
 
-Assign the next feature id as **106** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **108** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
+- **107** `web-lite-pattern-grid-zoom` (web-lite Pattern Grid Auto / Fit / zoom / horizontal scroll; reuse app-core helpers from 100) — planned — web — issue: https://github.com/kadraman/beatbax/issues/245 — [specs/features/107-web-lite-pattern-grid-zoom/](specs/features/107-web-lite-pattern-grid-zoom/)
+- **106** `cli-standalone-executable` (no-Node cross-platform CLI executables; stable assets on `desktop-v*`; rolling `cli-dev`) — planned — cli — issue: https://github.com/kadraman/beatbax/issues/244 — [specs/features/106-cli-standalone-executable/](specs/features/106-cli-standalone-executable/)
 - **105** `tracker-pattern-editor` (Desktop tracker for one `pat` + Pattern Grid arrangement grips; flatten-on-edit; `.bax` text remains source of truth) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/239 — [specs/features/105-tracker-pattern-editor/](specs/features/105-tracker-pattern-editor/)
 - **001** `hot-reload` — specified — engine — issue: https://github.com/kadraman/beatbax/issues/6 — [specs/features/001-hot-reload/](specs/features/001-hot-reload/)
 - **002** `vscode-plugin` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/21 — [specs/features/002-vscode-plugin/](specs/features/002-vscode-plugin/)

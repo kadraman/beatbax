@@ -130,7 +130,7 @@ This reverses one decision in [spec 076](../../complete/076-desktop-first-client
 
 ## Future
 
-- **Pattern Grid zoom / scroll** for long songs ships on desktop in [spec 100](../../complete/100-pattern-grid-zoom/spec.md). Pure scale helpers live in `@beatbax/app-core` (`pattern-grid-zoom`). Web-lite zoom is out of scope for 100 and remains a follow-up here.
+- **Pattern Grid zoom / scroll** for long songs ships on desktop in [spec 100](../../complete/100-pattern-grid-zoom/spec.md). Pure scale helpers live in `@beatbax/app-core` (`pattern-grid-zoom`). Web-lite zoom is specified in [spec 107](../107-web-lite-pattern-grid-zoom/spec.md) (issue https://github.com/kadraman/beatbax/issues/245).
 
 ## References
 

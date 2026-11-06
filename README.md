@@ -22,7 +22,7 @@
 Full documentation: **[beatbax.com/docs](https://beatbax.com/docs/intro)**
 
 <p align="center">
-  <img src="./media/desktop-screenshot-1.png" alt="BeatBax Desktop" width="600"/>
+  <img src="./media/desktop-screenshot-v0.4.0-1.png" alt="BeatBax Desktop" width="600"/>
   <br/>
   <em>BeatBax Desktop</em>
 </p>
