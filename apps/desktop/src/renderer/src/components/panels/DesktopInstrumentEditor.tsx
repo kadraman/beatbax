@@ -34,6 +34,7 @@ import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import {
   bundledSamplePrefix,
   fieldApplies,
+  findInstrumentTypeDef,
   formatInstrumentSampleRef,
   INSTRUMENT_SAMPLE_SCHEMES,
   listBundledSampleNames,
@@ -1577,6 +1578,14 @@ function DesktopInstrumentEditor({
                     ? 'Software macros are locked while subpat is set.'
                     : null
               }
+              emptyMessage={
+                schema.macros.length > 0
+                && schema.macros.every((m) => !fieldApplies(m.whenType, instType))
+                  ? `Macros are not available on ${
+                    findInstrumentTypeDef(instType, chip, schema)?.label ?? instType
+                  } channels`
+                  : null
+              }
               macros={schema.macros.filter((m) => fieldApplies(m.whenType, instType))}
               onChange={(name, text) => {
                 if (text === undefined) {
@@ -2418,6 +2427,7 @@ function MacroSection({
   draft,
   disabled,
   lockReason,
+  emptyMessage,
   onChange,
 }: {
   macros: ChipInstrumentMacroDef[];
@@ -2425,6 +2435,8 @@ function MacroSection({
   disabled: boolean;
   /** When set, macros are supported but temporarily non-editable. */
   lockReason?: string | null;
+  /** When no macros apply for this type, still show the Macros heading with this note. */
+  emptyMessage?: string | null;
   onChange: (name: string, text: string | undefined) => void;
 }): React.JSX.Element | null {
   const defined = useMemo(
@@ -2447,7 +2459,17 @@ function MacroSection({
     ));
   }, [defined]);
 
-  if (!macros.length) return null;
+  if (!macros.length) {
+    if (!emptyMessage) return null;
+    return (
+      <div className="bb-inst-editor__macros">
+        <div className="bb-inst-editor__macros-header">
+          <SectionHeading>Macros</SectionHeading>
+        </div>
+        <NoteText>{emptyMessage}</NoteText>
+      </div>
+    );
+  }
 
   const active = defined.find((m) => m.name === activeName) ?? defined[0] ?? null;
   const activeParsed = active ? parseMacro(draft[active.name]) : null;

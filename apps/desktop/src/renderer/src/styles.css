@@ -9941,6 +9941,82 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   border-radius: 3px;
 }
 .bb-inst-editor__keys { display: flex; flex-direction: column; gap: 6px; }
+.bb-inst-editor__oneshot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+.bb-inst-editor__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  min-width: 9.5rem;
+  min-height: 40px;
+  padding: 8px 18px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #2d2d2d;
+  color: #e8e8e8;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.bb-inst-editor__trigger:hover {
+  background: #3a3a3a;
+  border-color: #6a6a6a;
+  color: #fff;
+}
+.bb-inst-editor__trigger:focus-visible {
+  outline: 2px solid #4ea1ff;
+  outline-offset: 2px;
+}
+.bb-inst-editor__trigger.is-active {
+  background: #6ee7b7;
+  border-color: #34d399;
+  color: #064e3b;
+}
+.bb-inst-editor__sample-meta {
+  margin: 0;
+}
+.bb-inst-editor__uge-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.bb-inst-editor__uge-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+.bb-inst-editor__uge-key {
+  min-width: 2.6rem;
+  padding: 6px 8px;
+  border: 1px solid #555;
+  border-radius: 3px;
+  background: #2d2d2d;
+  color: #ccc;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  user-select: none;
+}
+.bb-inst-editor__uge-key:hover {
+  background: #3a3a3a;
+  color: #eee;
+}
+.bb-inst-editor__uge-key.is-active {
+  background: #6ee7b7;
+  border-color: #34d399;
+  color: #064e3b;
+}
 .bb-inst-editor__midi-bar {
   display: flex;
   flex-wrap: wrap;
@@ -10086,6 +10162,35 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 }
 [data-theme="light"] .bb-inst-editor__midi-enable { color: #333; }
 [data-theme="light"] .bb-inst-editor__midi-status { color: #666; }
+[data-theme="light"] .bb-inst-editor__trigger {
+  background: #fff;
+  border-color: #bbb;
+  color: #222;
+}
+[data-theme="light"] .bb-inst-editor__trigger:hover {
+  background: #ebebeb;
+  border-color: #999;
+  color: #111;
+}
+[data-theme="light"] .bb-inst-editor__trigger.is-active {
+  background: #6ee7b7;
+  border-color: #34d399;
+  color: #064e3b;
+}
+[data-theme="light"] .bb-inst-editor__uge-key {
+  background: #fff;
+  border-color: #bbb;
+  color: #333;
+}
+[data-theme="light"] .bb-inst-editor__uge-key:hover {
+  background: #ebebeb;
+  color: #111;
+}
+[data-theme="light"] .bb-inst-editor__uge-key.is-active {
+  background: #6ee7b7;
+  border-color: #34d399;
+  color: #064e3b;
+}
 [data-theme="light"] .bb-inst-editor__octave-btn {
   background: #e8e8e8;
   border-color: #bbb;

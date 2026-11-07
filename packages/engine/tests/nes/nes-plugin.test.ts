@@ -41,13 +41,77 @@ describe('NES plugin metadata', () => {
     expect(nesPlugin.version).toBeDefined();
   });
 
-  test('bundledSamples includes kick, snare, hihat, crash, bass_c2', () => {
+  test('bundledSamples includes classic and feature-109 kit keys', () => {
     expect(nesPlugin.bundledSamples).toBeDefined();
-    expect(nesPlugin.bundledSamples!['kick']).toBeDefined();
-    expect(nesPlugin.bundledSamples!['snare']).toBeDefined();
-    expect(nesPlugin.bundledSamples!['hihat']).toBeDefined();
-    expect(nesPlugin.bundledSamples!['crash']).toBeDefined();
-    expect(nesPlugin.bundledSamples!['bass_c2']).toBeDefined();
+    const s = nesPlugin.bundledSamples!;
+    for (const name of [
+      'kick',
+      'snare',
+      'kick_classic',
+      'snare_classic',
+      'hihat',
+      'crash',
+      'bass_c2',
+      'kick_punch',
+      'kick_body',
+      'snare_tight',
+      'snare_fat',
+      'hat_closed',
+      'hat_open',
+      'rim',
+      'shaker',
+      'cowbell',
+      'kick_808',
+      'snare_808',
+      'hat_808',
+      'hat_open_808',
+      'clap_808',
+      'cymbal_808',
+      'rim_808',
+      'cowbell_808',
+      'maracas_808',
+      'tom_low_808',
+      'tom_mid_808',
+      'tom_high_808',
+      'kick_909',
+      'snare_909',
+      'hat_909',
+      'hat_open_909',
+      'crash_cym',
+      'bass_saw_c0',
+      'bass_saw_d0',
+      'bass_saw_e0',
+      'bass_saw_g0',
+      'bass_saw_a0',
+      'bass_saw_c1',
+      'bass',
+      'orch_hit',
+      'orch_hit_up',
+      'voice_correct',
+      'voice_go',
+      'voice_go_go_go',
+      'voice_hurry_up',
+      'voice_level_up',
+      'voice_set',
+      'voice_you_win',
+      'voice_ready',
+    ]) {
+      expect(s[name]).toBeDefined();
+    }
+    expect(s['kick']).toBe(s['kick_classic']);
+    expect(s['snare']).toBe(s['snare_classic']);
+    expect(s['hihat']).toBe(s['hat_closed']);
+    expect(s['hihat']).not.toBe(s['clap']);
+    expect(s['crash']).not.toBe(s['clap']);
+    expect(s['bass']).toBe(s['bass_saw_c1']);
+    expect(s['voice_yeah']).toBeUndefined();
+  });
+
+  test('bundledSampleMeta marks voice_ready for rate 12', () => {
+    expect(nesPlugin.bundledSampleMeta?.['voice_ready']?.designedRate).toBe(12);
+    expect(nesPlugin.bundledSampleMeta?.['bass_saw_c0']?.baseNote).toBe('C0');
+    expect(nesPlugin.bundledSampleMeta?.['bass_saw_c1']?.baseNote).toBe('C1');
+    expect(nesPlugin.bundledSampleMeta?.['bass']?.baseNote).toBe('C1');
   });
 
   test('exposes chip-aware meter display gain per channel', () => {

@@ -253,13 +253,13 @@ inst crash      type=noise  noise_mode=normal  noise_period=3   vol_env=[12,11,1
 # kick_dmc  — Bundled @nes/kick; adds punchy sample transient to noise kick.
 #   Together: noise_period=12 for sustained thud + DMC for sharp click transient
 #   = the classic NES "compound kick drum" technique of the late NES era.
-inst kick_dmc   type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/kick"
+inst kick_dmc type=dmc dmc_sample=@nes/kick dmc_rate=15 dmc_loop=false
 
 # snare_dmc — Bundled @nes/snare; adds sample crack to noise snare.
 #   dmc_rate=15 (33.1 kHz, highest quality) ensures the sample transient is
 #   temporally sharp — important at 155 BPM where a blurry attack would
 #   perceptibly drag relative to the tight noise snare.
-inst snare_dmc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/snare"
+inst snare_dmc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/snare_tight"
 
 # =============================================================================
 # EFFECT PRESETS

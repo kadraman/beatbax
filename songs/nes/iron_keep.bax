@@ -96,16 +96,12 @@ inst hihat    type=noise  noise_mode=normal  noise_period=2   env=5,down   env_p
 
 # ── DMC (type=dmc) ────────────────────────────────────────────────────────────
 #
-# kick_dmc — ik_bassdrum.dmc (local or https://) for NES DMC kick reinforcement.
-#   dmc_rate=15  : NTSC rate index 15 → 33.1 kHz — highest quality for percussion.
-#   dmc_loop=false : one-shot single hit per trigger.
+# Bundled punch/tight kit (feature 109). Song-local ik_*.dmc files remain on disk
+# for optional local: experiments.
 #inst kick_dmc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:songs/nes/samples/ik_bassdrum.dmc"
-inst kick_dmc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="https://raw.githubusercontent.com/kadraman/beatbax/main/songs/nes/samples/ik_bassdrum.dmc"
-
-# snare_dmc — ik_snare.dmc (local or https://) for NES DMC snare reinforcement.
-#   Same rate and loop settings as kick_dmc.
 #inst snare_dmc type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:songs/nes/samples/ik_snare.dmc"
-inst snare_dmc type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="https://raw.githubusercontent.com/kadraman/beatbax/main/songs/nes/samples/ik_snare.dmc"
+inst kick_dmc type=dmc dmc_sample=@nes/kick_909 dmc_rate=15 dmc_loop=true
+inst snare_dmc type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/snare_tight"
 
 # =============================================================================
 # Effect Presets

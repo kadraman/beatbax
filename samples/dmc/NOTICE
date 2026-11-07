@@ -1,0 +1,104 @@
+# BeatBax NES DMC sample provenance
+
+Feature 109 kit after audition pass 5 (full Michael Fischer 808 WAV kit).
+Classic latin/drum files (`kick.dmc`, `snare.dmc`, …) unchanged.
+
+Encoded with `encodeDMCFromPCM` at NTSC dmc_rate=15 unless noted.
+`voice_ready` play with dmc_rate=12.
+
+**808 kit:** Michael Fischer TR-808 sample set (1994), CC0 via
+https://github.com/tidalcycles/sounds-tr808-fischer — not a ROM dump; original hardware recordings released as free samples.
+
+## Feature 109 kit
+
+| Name | Bytes | ~ms @15 | Author | Source | SHA-256 |
+|------|------:|--------:|--------|--------|---------|
+| bass_saw_a0 | 1483 | 358 | phoenix1291 pitch-shifted | https://opengameart.org/content/sfx-the-ultimate-2017-16-bit-mini-pack | 089e825fbe6d54407abb32c1bf2ee4c2f79cca93be5b4152924a6d048d9c6e23 |
+| bass_saw_c0 | 2137 | 516 | phoenix1291 pitch-shifted | https://opengameart.org/content/sfx-the-ultimate-2017-16-bit-mini-pack | 9a719484c4f322649841b1236c66acc379d15a6f67856ade66cdc7afb8c729c9 |
+| bass_saw_c1 | 1324 | 320 | phoenix1291 pitch-shifted | https://opengameart.org/content/sfx-the-ultimate-2017-16-bit-mini-pack | 3a0a721fd6bbdaa6cf930541b826d813ea87848c86b5e2619e6bc33e2ff9b99b |
+| bass_saw_d0 | 1973 | 476 | phoenix1291 pitch-shifted | https://opengameart.org/content/sfx-the-ultimate-2017-16-bit-mini-pack | 0ceddcc6866c008d8a67b6820ced4c3f6c0d3def4ea05c57c8235c5bebbae9ee |
+| bass_saw_e0 | 1820 | 439 | phoenix1291 pitch-shifted | https://opengameart.org/content/sfx-the-ultimate-2017-16-bit-mini-pack | d2d5c34b7b43a1d40c86e6c9433c5b8deae47671eb5acae4c83000767ea69bc7 |
+| bass_saw_g0 | 1655 | 399 | phoenix1291 pitch-shifted | https://opengameart.org/content/sfx-the-ultimate-2017-16-bit-mini-pack | db3f98b33f0891bcf545076cc9c12f725cef29ea3debd05248744deec0b79a21 |
+| clap_808 | 1014 | 245 | Michael Fischer TR-808 (1994), CC0 via tidalcycles/sounds-tr808-fischer | https://github.com/tidalcycles/sounds-tr808-fischer | 840cf257f3ed390388426a7ea8a21df0dc2882da1eacc39318955ef412ddf46d |
+| cowbell | 746 | 180 | BeatBax Team | scripts/apply-audition-verdicts.mjs | af20e0aef2e8eab45f4261a5761d3d26833f63513402c53f5b87bf1d89555da1 |
+| cowbell_808 | 908 | 219 | Michael Fischer TR-808 (1994), CC0 via tidalcycles/sounds-tr808-fischer | https://github.com/tidalcycles/sounds-tr808-fischer | 818eb9a8304630b34b9aaa2bd86df209206798a3b21c0d8e26b61bac609faeb1 |
+| crash | 1863 | 450 | BeatBax Team | scripts/apply-audition-verdicts.mjs | 33c43a12a36712b7db91dcaf3f66f0c27d07229d80f88c3aca2ed6831071077c |
+| crash_cym | 2278 | 550 | Michael Fischer TR-808 (1994), CC0 via tidalcycles/sounds-tr808-fischer | https://github.com/tidalcycles/sounds-tr808-fischer | 2af6257aab9ef41cd9cf878a5eb4478eb90bc8823ef78760024064d7f4a6c67f |
+| cymbal_808 | 2278 | 550 | Michael Fischer TR-808 (1994), CC0 via tidalcycles/sounds-tr808-fischer | https://github.com/tidalcycles/sounds-tr808-fischer | 2af6257aab9ef41cd9cf878a5eb4478eb90bc8823ef78760024064d7f4a6c67f |
+| hat_808 | 308 | 74 | Michael Fischer TR-808 (1994), CC0 via tidalcycles/sounds-tr808-fischer | https://github.com/tidalcycles/sounds-tr808-fischer | d4922d86cedfecedab84648734b27baa08dcda6805dfd08bb67bdad965f7acdb |
+| hat_909 | 153 | 37 | GRD-music- | https://freesound.org/people/GRD-music-/packs/23395/ | 4aba36bae68a8acdab11a3186dd8084c530452c0fd48c0cc0a745fca302a214b |
+| hat_closed | 283 | 68 | phoenix1291 | https://opengameart.org/content/sfx-the-ultimate-2017-16-bit-mini-pack | 36fdcf9c8ceb35d4ba6433cbe8d5eaffb6b10064b81782b02ca4a2c19efab366 |
+| hat_open | 1142 | 276 | Virtuosity Drums via keyboardia | https://github.com/sfzinstruments/virtuosity_drums | 8e1fcef8390836e912c42aae427ae279d5f98cfd3725a99e33e9398ab0d08cb9 |
+| hat_open_808 | 1160 | 280 | Michael Fischer TR-808 (1994), CC0 via tidalcycles/sounds-tr808-fischer | https://github.com/tidalcycles/sounds-tr808-fischer | 1b43bd46cd1bb9d88b984ffe42012645bafd01a8aca673bbefe53babfd067fa6 |
+| hat_open_909 | 1120 | 270 | GRD-music- | https://freesound.org/people/GRD-music-/packs/23395/ | 6511117d0729fcef987b1bf5551b673f14653a05c78e8a9f86f046891d774510 |
+| kick_808 | 751 | 181 | Michael Fischer TR-808 (BD0025+BD0000 click hybrid) | https://github.com/tidalcycles/sounds-tr808-fischer | 3a3f32cbf156c49a26242903a18e152ea4305839eee38f038a329764ce42b5dd |
+| kick_909 | 1118 | 270 | GRD-music- | https://freesound.org/people/GRD-music-/packs/23395/ | 751850ab2be556097375daa2bb4afa09d1bb19c7167c210c8a26b0cf3ef9db37 |
+| kick_body | 745 | 180 | BeatBax Team | scripts/apply-audition-verdicts-pass3.mjs | 645bd359782524be5d99e62b23a9cf277b6dfaecbf6b69757e717830e4e3df40 |
+| kick_punch | 539 | 130 | phoenix1291 | https://opengameart.org/content/sfx-the-ultimate-2017-16-bit-mini-pack | 70abeeeef928c474816a563563f86d36f29ac05f00c11ff3a615fe6b2428648b |
+| maracas_808 | 152 | 37 | Michael Fischer TR-808 (1994), CC0 via tidalcycles/sounds-tr808-fischer | https://github.com/tidalcycles/sounds-tr808-fischer | b9dc83d14b6666ade91a1fcecacda0ee3a43701e3b1de6d5f7476fb17a8b8ebe |
+| orch_hit | 3353 | 809 | SFXMint | https://sfxmint.com/sounds/orchestral-hit-01 | a743986a4390ae6102c0a8d93a21e716f90298115ba655b8e48eee3211c1ab05 |
+| orch_hit_up | 1024 | 247 | SFXMint pitch-shifted | https://sfxmint.com/sounds/orchestral-hit-01 | 09aa97a33918f104df284916206ca7b8c0962bd324a0a20094a8d93aa58e4a44 |
+| rim | 290 | 70 | BeatBax Team | scripts/apply-audition-verdicts-pass3.mjs | aa1f40a2ca57a14a8530e8764e38ffd8cd455f287372efe5b7f2025d887d613a |
+| rim_808 | 80 | 19 | Michael Fischer TR-808 (1994), CC0 via tidalcycles/sounds-tr808-fischer | https://github.com/tidalcycles/sounds-tr808-fischer | 17ea45fa521f5759bb25622e069a92f462fb433cb728efd3a5be907109343a9a |
+| shaker | 1014 | 245 | spaghettiSFX | https://freesound.org/people/spaghettiSFX/sounds/795302/ | 0405d1918cae187c2449b53527577c0c85dae538a89e350bb5ac98a2f28cef1d |
+| snare_808 | 639 | 154 | Michael Fischer TR-808 (1994), CC0 via tidalcycles/sounds-tr808-fischer | https://github.com/tidalcycles/sounds-tr808-fischer | ac9ff836ebccd0a217a30ae75baa5fef467587cd9d69046847a480723c79c700 |
+| snare_909 | 902 | 218 | ani_music | https://freesound.org/people/ani_music/sounds/165326/ | b688e1d19e0e20648f292df6d8100c31c86b9bdf2d49f060daefd75d925d3545 |
+| snare_fat | 826 | 199 | Spring Spring | https://opengameart.org/content/an-interesting-snare-drum-sound | 027194583ee797ad76e3244736d3ed5b517ffeb5c66f069858309d53c3b540f8 |
+| snare_tight | 662 | 160 | Spring Spring | https://opengameart.org/content/8-bitlo-fi-snare-drum-sound | 97a460e3b902d5403d23d7d2b6252ac7a18705793818420de84f645fdf16be50 |
+| tom_high_808 | 943 | 228 | Michael Fischer TR-808 (1994), CC0 via tidalcycles/sounds-tr808-fischer | https://github.com/tidalcycles/sounds-tr808-fischer | bc2457666c84fd848c847b6eda744e6350d6dc7cf1b51d625d73e5a98b3b25a4 |
+| tom_low_808 | 1160 | 280 | Michael Fischer TR-808 (1994), CC0 via tidalcycles/sounds-tr808-fischer | https://github.com/tidalcycles/sounds-tr808-fischer | f896d59f2fa1d3d5c89b9a1bb2a503a0c74e0d459c8ac04609a2882362b4a15d |
+| tom_mid_808 | 1051 | 254 | Michael Fischer TR-808 (1994), CC0 via tidalcycles/sounds-tr808-fischer | https://github.com/tidalcycles/sounds-tr808-fischer | 6292108696f0d900c7cdee88dfb5d6b2063dafb4f8c5922c860cb35ddea12ee5 |
+| voice_correct | 2383 | 575 | Kenney | https://opengameart.org/content/voiceover-pack-40-lines | c751baab5fc216ce677e90e7297c75bf8d7ebea016d6c517f261ff36a9fd5270 |
+| voice_go | 1328 | 321 | Kenney | https://opengameart.org/content/voiceover-pack-40-lines | 0792fb4b93a012dac4694a120d4ded3091cbac7a30c7673bae64947c9dd281a4 |
+| voice_go_go_go | 3664 | 884 | Kenney | https://opengameart.org/content/voiceover-pack-40-lines | 43c321c4674972981d182c47a6dd6f262622efc5d5df20ae97f4aaf49dd2b292 |
+| voice_hurry_up | 2481 | 599 | Kenney | https://opengameart.org/content/voiceover-pack-40-lines | 3ca808919da9ac2a0b61e93c474e769585662b4b16aa596d4a5ad5d8b28dd474 |
+| voice_level_up | 3087 | 745 | Kenney | https://opengameart.org/content/voiceover-pack-40-lines | 30ddb3df0aa23737f77dc54aa8da9624ebfd475674ae20788d4b38b6c372aca7 |
+| voice_ready | 1256 | 303 | Kenney | https://opengameart.org/content/voiceover-pack-40-lines | 1f294d38ad65d3c7abf275312c207229b6a4ee14655ef928e7e2f8e1260c53e3 |
+| voice_set | 2034 | 491 | Kenney | https://opengameart.org/content/voiceover-pack-40-lines | 90b86f78cc60f83d2e7fffe1a48a3ee2172c5a7da1eb3c5d9f90ed922c0eaadd |
+| voice_you_win | 3399 | 820 | Kenney | https://opengameart.org/content/voiceover-pack-40-lines | 055ae899e0fa653d4e06e407f36cfe6ffa88fe2df894f368e0bd57346015991a |
+
+### Notes
+
+- **bass_saw_a0**: A0
+- **bass_saw_c0**: C0
+- **bass_saw_c1**: C1 highest
+- **bass_saw_d0**: D0
+- **bass_saw_e0**: E0
+- **bass_saw_g0**: G0
+- **clap_808**: CP hand clap (CP.WAV)
+- **cowbell**: dual-partial cowbell
+- **cowbell_808**: CB cowbell (CB.WAV)
+- **crash**: tinny crash synth
+- **crash_cym**: alias of cymbal_808 (CY5050) — replaces non-cymbal acoustic take
+- **cymbal_808**: CY5050 cymbal (CY5050.WAV)
+- **hat_808**: CH closed hat (loudnorm) (CH.WAV)
+- **hat_909**: JDXi 909 closed hat
+- **hat_closed**: Hi-hat__002.wav
+- **hat_open**: acoustic open hi-hat
+- **hat_open_808**: OH50 open hat (OH50.WAV)
+- **hat_open_909**: JDXi 909 open hat
+- **kick_808**: BD0025 thump + BD0000 click (short; avoids DMC laser-glide on long BD5050)
+- **kick_909**: JDXi 909 kick
+- **kick_body**: tight sine-drop body kick
+- **kick_punch**: Bass Drum__002.wav
+- **maracas_808**: MA maracas (MA.WAV)
+- **orch_hit**: orch hit
+- **orch_hit_up**: orch hit up
+- **rim**: rimshot crack + shell
+- **rim_808**: RS rimshot (RS.WAV)
+- **shaker**: Deep Shaker
+- **snare_808**: SD5050 snare (loudnorm) (SD5050.WAV)
+- **snare_909**: 909 Snare + Clap
+- **snare_fat**: best_snare.wav
+- **snare_tight**: snare.wav
+- **tom_high_808**: HT50 hi tom (HT50.WAV)
+- **tom_low_808**: LT50 low tom (LT50.WAV)
+- **tom_mid_808**: MT50 mid tom (MT50.WAV)
+- **voice_correct**: correct
+- **voice_go**: go
+- **voice_go_go_go**: go_go_go
+- **voice_hurry_up**: hurry_up
+- **voice_level_up**: level_up
+- **voice_ready**: ready @12
+- **voice_set**: set
+- **voice_you_win**: you_win

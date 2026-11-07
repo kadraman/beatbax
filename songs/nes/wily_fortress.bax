@@ -112,8 +112,8 @@ inst hihat    type=noise  noise_mode=normal  noise_period=2   env=6,down   env_p
 # snare_dmc — bundled @nes/snare sample (no external file needed).
 #   dmc_rate=15 : NTSC rate index 15 → 33.1 kHz — highest quality, standard for drums.
 #   Note names in DMC patterns are triggers only; DMC does not re-pitch samples.
-inst kick_dmc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/kick"
-inst snare_dmc type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/snare"
+inst kick_dmc type=dmc dmc_sample=@nes/kick_classic dmc_rate=15 dmc_loop=false
+inst snare_dmc type=dmc dmc_sample=@nes/snare_fat dmc_rate=15 dmc_loop=false
 
 # =============================================================================
 # Effect Presets

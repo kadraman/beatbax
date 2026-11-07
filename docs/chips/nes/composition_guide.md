@@ -222,21 +222,31 @@ This was a standard technique in late-era NES game soundtracks (1991–1994) whe
 
 **ROM cost:** A 32-byte DMC sample at rate index 7 (8363 Hz) lasts approximately 3.8 ms — barely perceptible as a transient. At rate index 0 (4182 Hz), 64 bytes produces about 12 ms of bass hit — more useful but still very short.
 
-**Preparing samples in BeatBax:** DMC samples are raw 1-bit delta streams. Convert short WAV hits with the CLI, then use the emitted instrument line in your song:
+**Built-in kit:** BeatBax ships `@nes/<name>` samples (see `samples/dmc/NOTICE`). Prefer `@nes/kick_punch` / `@nes/snare_tight` (or `kick_body` / `snare_fat` at slower tempos) over the classic thin `@nes/kick` / `@nes/snare`. Hats: `hat_closed` / `hat_open`. Crash: tinny `crash` or `@nes/crash_cym` / `@nes/cymbal_808` (Michael Fischer CY). Full 808 kit (Fischer CC0 WAVs): `kick_808`, `snare_808`, `hat_808`, `hat_open_808`, `clap_808`, `cymbal_808`, `rim_808`, `cowbell_808`, `maracas_808`, `tom_low_808`, `tom_mid_808`, `tom_high_808`. Also 909: `kick_909`, `snare_909`, `hat_909`, `hat_open_909`. Special hits: pitched bass (`bass_saw_c0`…`c1`), `@nes/orch_hit` / `@nes/orch_hit_up`, and Kenney voices (`voice_go`, `voice_correct`, `voice_ready` at rate 12, plus `voice_set` / `voice_hurry_up` / `voice_level_up` / `voice_go_go_go` / `voice_you_win`).
+
+**Monophonic channel:** Channel 5 plays one sample at a time. A new trigger cuts the previous hit. Keep hats on noise for continuous grooves; use DMC hats as accents. Do not expect kick and snare to overlap.
+
+**Preparing samples in BeatBax:** DMC samples are raw 1-bit delta streams. Convert short **16-bit mono PCM** WAVs with the CLI, then use the emitted instrument line in your song. Keep peaks around −6 to −12 dB (`--gain 0.4–0.7`); full-scale audio slope-overloads into sand. Darken bright sources (extra low-pass ~4–8 kHz for drums, ~3–4 kHz for voice) before convert. Quiet WAV tails become DMC hiss — trim them.
 
 ```bash
-beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst --play
+beatbax convert wav2dmc hit.wav --dmc-rate 15 --gain 0.5 --trim-silence -45 --tail-ms 8 --fade-out-ms 4 --max-duration-ms 180 --emit-inst --play
 ```
 
 ```bax
-inst low_kick type=dmc dmc_rate=15 dmc_loop=false dmc_sample="local:samples/wav/low_kick.dmc"
+inst kick_punch type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/kick_punch"
 ```
 
-The `dmc_rate` value is not stored in the `.dmc` file; it must match the rate used during conversion. Rate `15` gives the best high-frequency detail and is the default for short hits, while lower values sound darker and more degraded. Quiet WAV tails often become DMC hiss, so use `--trim-silence`, `--tail-ms`, `--fade-out-ms`, or `--max-duration-ms` to keep samples short and controlled:
+The `dmc_rate` value is not stored in the `.dmc` file; it must match the rate used during conversion for drums and tonal hits. Rate `15` gives the best high-frequency detail. Hardware length max is 4081 bytes (~0.98 s at rate 15, ~1.93 s at rate 12).
 
-```bash
-beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --trim-silence -45 --tail-ms 8 --fade-out-ms 4 --max-duration-ms 120 --play
-```
+**Speech: encode fast, play slow.** Resample (or perform) a phrase faster by roughly `rate15 / rateP`, encode at `--dmc-rate 15`, then set the instrument to a slower `dmc_rate`. Pitch and duration move together (tape-speed). Useful NTSC pairs:
+
+| Encode | Play (`dmc_rate`) | Factor | ~Max phrase |
+|--------|-------------------|--------|-------------|
+| 15 | 15 | 1× | ~0.98 s |
+| 15 | 12 | ~1.96× | ~1.93 s |
+| 15 | 7 | ~3.96× | ~3.9 s |
+
+Example: `@nes/voice_ready` is encoded at 15 and designed for `dmc_rate=12`. Sibilants fail first — de-ess and low-pass before encoding.
 
 **Famous examples:**
 - *Battletoads* — Stage themes: DMC bass samples reinforce triangle bass for a much more powerful low end than early-era NES titles
