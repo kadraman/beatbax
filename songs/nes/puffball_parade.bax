@@ -199,7 +199,7 @@ inst kick_dmc type=dmc dmc_sample=@nes/kick_808 dmc_rate=15 dmc_loop=false
 #   dmc_rate=15 (NTSC index 15 → 33.1 kHz) is the highest quality rate available;
 #   essential for percussion where temporal accuracy matters.
 #   dmc_loop=false : one-shot playback — the sample fires once per trigger.
-inst snare_dmc type=dmc dmc_sample=@nes/snare_909 dmc_rate=15 dmc_loop=false dmc_level=1
+inst snare_dmc type=dmc dmc_sample=@nes/snare_909 dmc_rate=15 dmc_loop=false
 
 # =============================================================================
 # EFFECT PRESETS

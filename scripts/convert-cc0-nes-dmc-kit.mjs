@@ -31,11 +31,25 @@ const RATE15 = 33143.94;
 const RATE12 = 16884.65;
 
 function findFfmpeg() {
-  const which = spawnSync('where.exe', ['ffmpeg'], { encoding: 'utf8' });
-  if (which.status === 0) {
-    const line = which.stdout.split(/\r?\n/).find((l) => l.trim());
-    if (line) return line.trim();
+  const probes =
+    process.platform === 'win32'
+      ? [
+          ['where.exe', ['ffmpeg']],
+          ['where', ['ffmpeg']],
+        ]
+      : [
+          ['command', ['-v', 'ffmpeg']],
+          ['which', ['ffmpeg']],
+        ];
+  for (const [cmd, args] of probes) {
+    const found = spawnSync(cmd, args, { encoding: 'utf8', shell: process.platform !== 'win32' });
+    if (found.status === 0) {
+      const line = found.stdout.split(/\r?\n/).find((l) => l.trim());
+      if (line) return line.trim();
+    }
   }
+  const direct = spawnSync('ffmpeg', ['-version'], { encoding: 'utf8' });
+  if (direct.status === 0) return 'ffmpeg';
   throw new Error('ffmpeg not found on PATH');
 }
 

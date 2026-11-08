@@ -248,7 +248,18 @@ ${metaLines.join('\n')}
 
 const start = src.indexOf('export const BUNDLED_SAMPLES');
 if (start < 0) throw new Error('BUNDLED_SAMPLES missing');
-src = src.slice(0, start) + samplesObj + '\n' + metaObj + '\n';
+// Replace BUNDLED_SAMPLES through BUNDLED_SAMPLE_META (rewritten below), keep any tail.
+const metaStart = src.indexOf('export const BUNDLED_SAMPLE_META', start);
+let end = src.length;
+if (metaStart >= 0) {
+  const metaEnd = src.indexOf('\n};', metaStart);
+  if (metaEnd >= 0) end = metaEnd + 3;
+} else {
+  const samplesEnd = src.indexOf('\n};', start);
+  if (samplesEnd >= 0) end = samplesEnd + 3;
+}
+const tail = src.slice(end).replace(/^\r?\n+/, '');
+src = `${src.slice(0, start)}${samplesObj}\n${metaObj}\n${tail}`;
 
 fs.writeFileSync(srcPath, src);
 console.log('Updated', srcPath, `(${KIT_NAMES.length} feature-109 buffers)`);
