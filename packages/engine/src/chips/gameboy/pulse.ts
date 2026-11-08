@@ -9,6 +9,7 @@ import {
   tickRowVolume,
   type TickProgram,
 } from './instrumentProgram.js';
+import type { PulsePortamentoLink } from './pulsePortamento.js';
 
 /**
  * Pulse PCM/WebAudio output scale tuned against hUGETracker WAV export.
@@ -18,6 +19,41 @@ import {
  * scale sit ~2× above the DMG/hUGE mix on sustained tones.
  */
 export const PULSE_OUTPUT_GAIN = 0.25;
+
+interface HeldPulseVoice {
+  osc: any;
+  gainNode: any;
+  gain: any;
+  duty: number;
+  /** Pulse-scaled gain held for notes that join this voice. */
+  level: number;
+}
+
+const heldPulseVoices = new Map<number, HeldPulseVoice>();
+
+/** Drop oscillators kept for a portamento run. Called when playback stops. */
+export function clearHeldPulseVoices(): void {
+  heldPulseVoices.clear();
+}
+
+/** Game Boy envelope gain at `dur` seconds, on the same scale as a normal pulse attack. */
+function gbPulseGainAt(env: { initial?: number; direction?: string; period?: number }, dur: number): number {
+  const initial = env.initial ?? 15;
+  const initialVol = (initial / 15) * PULSE_OUTPUT_GAIN;
+  if (!env.period || env.period <= 0) return Math.max(0.0001, initialVol);
+  const stepPeriod = env.period * (65536 / GB_CLOCK);
+  const steps = Math.max(0, Math.floor(dur / stepPeriod));
+  let cur = initial;
+  for (let i = 0; i < steps; i++) {
+    if (env.direction === 'up') cur = Math.min(15, cur + 1);
+    else cur = Math.max(0, cur - 1);
+  }
+  return Math.max(0.0001, (cur / 15) * PULSE_OUTPUT_GAIN);
+}
+
+function scaledPortamentoGain(flag: unknown, fallback: number): number {
+  return typeof flag === 'number' ? Math.max(0.0001, flag * PULSE_OUTPUT_GAIN) : fallback;
+}
 
 function createPulsePeriodicWave(ctx: BaseAudioContext, duty = 0.5) {
   const size = 4096;
@@ -254,7 +290,7 @@ function scheduleTickProgramPitch(
   }
 }
 
-export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
+export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode, link?: PulsePortamentoLink) {
   const program = lowerGameBoyInstrumentProgram(inst ?? {});
   const useProgram = program.enabled;
   const useProgramVolume = useProgram && program.rows.some((r) => tickRowVolume(r) !== null);
@@ -329,6 +365,37 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
     return [src, gain];
   }
 
+  if (link?.join && heldPulseVoices.has(link.channelId)) {
+    const held = heldPulseVoices.get(link.channelId)!;
+    if (held.duty !== duty) {
+      try {
+        held.osc.setPeriodicWave(createPulsePeriodicWave(ctx, duty));
+        held.duty = duty;
+      } catch (_) {}
+    }
+    try {
+      const reg = registerFromFreq(freq);
+      held.osc._baseFreq = freqFromRegister(reg);
+    } catch (_) {
+      held.osc._baseFreq = freq;
+    }
+    (held.gainNode as any).__portamento_voice_joined__ = true;
+    if (!link.hold) {
+      const fadeAt = start + dur;
+      const fade = () => {
+        try {
+          const level = Math.max(0.0001, held.level || 0.0001);
+          held.gain.setValueAtTime(level, fadeAt);
+          held.gain.linearRampToValueAtTime(0.0001, fadeAt + 0.005);
+        } catch (_) {}
+      };
+      if (scheduler && typeof scheduler.scheduleAligned === 'function') scheduler.scheduleAligned(fadeAt, fade);
+      else if (scheduler && typeof scheduler.schedule === 'function') scheduler.schedule(fadeAt, fade);
+      else fade();
+    }
+    return [held.osc, held.gainNode];
+  }
+
   const osc = (ctx as any).createOscillator();
   const gain = (ctx as any).createGain();
   const pw = createPulsePeriodicWave(ctx, duty);
@@ -363,6 +430,18 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
 
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;
+  const voice: HeldPulseVoice = {
+    osc,
+    gainNode: gain,
+    gain: g,
+    duty,
+    level: PULSE_OUTPUT_GAIN,
+  };
+  if (link) {
+    (gain as any).__portamento_voice_joined__ = false;
+    (gain as any).__portamento_voice_attack__ = true;
+    heldPulseVoices.set(link.channelId, voice);
+  }
   if (env && env.mode === 'gb') {
     const initialVol = ((env.initial ?? 15) / 15) * PULSE_OUTPUT_GAIN;
     const stepPeriod = (env.period ?? 1) * (65536 / GB_CLOCK);
@@ -385,9 +464,17 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
       // node, replace the normal re-attacking envelope curve with a smooth gain
       // continuation so consecutive portamento notes don't produce audible attacks.
       function applyGainStart() {
+        if (link?.hold) {
+          const flat = Math.max(0.0001, initialVol);
+          try {
+            g.cancelScheduledValues(start);
+            g.setValueAtTime(flat, start);
+          } catch (_) {}
+          return;
+        }
         if ((g as any).__portamento_legato__) {
-          const startG: number = (g as any).__portamento_gain_start__ ?? initialVol;
-          const endG: number   = (g as any).__portamento_gain_end__   ?? initialVol;
+          const startG = scaledPortamentoGain((g as any).__portamento_gain_start__, initialVol);
+          const endG = scaledPortamentoGain((g as any).__portamento_gain_end__, initialVol);
           try {
             g.cancelScheduledValues(start);
             g.setValueAtTime(Math.max(0.0001, startG), start);
@@ -401,11 +488,18 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
       }
       function applyGainEnd() {
         try {
-          const endG: number = (g as any).__portamento_legato__
-            ? ((g as any).__portamento_gain_end__ ?? initialVol)
-            : g.value;
-          g.setValueAtTime(Math.max(0.0001, endG), start + dur);
-          g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+          if (link?.hold) {
+            const flat = Math.max(0.0001, initialVol);
+            g.setValueAtTime(flat, start + dur);
+            voice.level = flat;
+            return;
+          }
+          const endG = (g as any).__portamento_legato__
+            ? scaledPortamentoGain((g as any).__portamento_gain_end__, initialVol)
+            : gbPulseGainAt(env, dur);
+          g.setValueAtTime(endG, start + dur);
+          voice.level = endG;
+          if (!link?.hold) g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
         } catch (e) {}
       }
 
@@ -422,20 +516,31 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
       }
     } else {
       // GB envelope period 0 means constant volume at the initial level.
-      const hold = Math.max(0.0001, initialVol);
-      g.setValueAtTime(hold, start);
-      g.setValueAtTime(hold, start + dur);
-      g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+      const flat = Math.max(0.0001, initialVol);
+      g.setValueAtTime(flat, start);
+      g.setValueAtTime(flat, start + dur);
+      voice.level = flat;
+      if (!link?.hold) g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
     }
   } else {
-    g.setValueAtTime(0.0001, start);
-    g.exponentialRampToValueAtTime((env.attackLevel || 1.0) * PULSE_OUTPUT_GAIN, start + (env.attack || 0.001));
-    g.setTargetAtTime((env.sustainLevel ?? 0.5) * PULSE_OUTPUT_GAIN, start + (env.attack || 0.001), env.decay || 0.1);
-    g.setTargetAtTime(0.0001, start + dur - (env.release || 0.02), env.release || 0.02);
+    const peak = Math.max(0.0001, (env.attackLevel || 1.0) * PULSE_OUTPUT_GAIN);
+    if (link?.hold) {
+      g.setValueAtTime(peak, start);
+      g.setValueAtTime(peak, start + dur);
+      voice.level = peak;
+    } else {
+      const sustain = (env.sustainLevel ?? 0.5) * PULSE_OUTPUT_GAIN;
+      g.setValueAtTime(0.0001, start);
+      g.exponentialRampToValueAtTime((env.attackLevel || 1.0) * PULSE_OUTPUT_GAIN, start + (env.attack || 0.001));
+      g.setTargetAtTime(sustain, start + (env.attack || 0.001), env.decay || 0.1);
+      voice.level = Math.max(0.0001, sustain);
+      g.setTargetAtTime(0.0001, start + dur - (env.release || 0.02), env.release || 0.02);
+    }
   }
 
   try { (osc as any).start(start); } catch (e) { try { (osc as any).start(); } catch (_) {} }
-  try { (osc as any).stop(start + dur + 0.02); } catch (e) {}
+  const stopAt = (link?.voiceStopAt ?? (start + dur)) + 0.02;
+  try { (osc as any).stop(stopAt); } catch (e) {}
   return [osc, gain];
 }
 

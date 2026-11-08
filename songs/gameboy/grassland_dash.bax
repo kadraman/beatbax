@@ -50,6 +50,7 @@ bpm 149
 # hat      — Noise:   very short, quiet hi-hat fills on up-beats (15-bit).
 
 inst melody  type=pulse1 duty=50  env={"level":15,"direction":"down","period":1,"format":"gb"} gm=80
+inst melody_hold type=pulse1 duty=50 env={"level":15,"direction":"flat","period":0,"format":"gb"} gm=80
 inst harmony type=pulse2 duty=50  env={"level":8,"direction":"down","period":3,"format":"gb"}  gm=80
 inst bass1    type=wave volume=50  wave=[8,9,10,11,12,13,14,15,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,1,2,3,4,5,6,7]
 inst bass2   type=wave volume=50  wave=[7,7,7,5,0,0,0,0,0,0,0,0,0,0,0,0,15,15,15,14,14,14,14,14,14,12,2,2,1,7,7,6]
@@ -70,6 +71,7 @@ effect slide     = port:96           # fast UGE-friendly glide between short ste
 effect slowSlide = port:64           # UGE-friendly glide for short bass run notes
 
 effect riser     = bend:+12,exp,0,1  # dramatic one-octave rise — bridge lead-in
+effect faller     = bend:-1212,exp,0,1  # dramatic one-octave fall — bridge lead-in
 effect dive      = bend:-12,log,0,1  # falling pitch drop at phrase end
 
 effect wobble    = vib:3,5,sine,3    # gentle pitch wobble on bridge's sustained notes
@@ -94,7 +96,8 @@ pat phrase_d    = D6<wobble>:4 B5<wobble>:4 A5<wobble>:4 G5<wobble>:4
 
 # phrase_riser: one-bar pitch riser — the note bends up a full octave, launching
 #               into the final phrase repeat. Signals the turnaround.
-pat phrase_riser = G4<riser>:8 D5<riser>:8
+#               melody_hold keeps the pulse at full level so the rise stays audible.
+pat phrase_riser = inst(melody_hold,2) G4<riser>:8 D5<faller>:8
 
 # phrase_fill: arpeggiated major chord walk upward — quick energetic fill.
 pat phrase_fill = G5<majorArp>:4 A5<majorArp>:4 B5<majorArp>:4 D6<majorArp>:4
