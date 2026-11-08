@@ -32,17 +32,19 @@ export const activeTheme = atom<Theme>(loadTheme());
 /** Toggle the Tailwind `dark` / `light` class on <html> when the theme changes.
  *  Persistence is intentionally omitted here — callers that want to save the
  *  user's choice must call BeatBaxSettings.setTheme() themselves (ThemeManager
- *  does this via its `persist` flag). */
+ *  does this via its `persist` flag).
+ *  `color-scheme` tracks the resolved theme so native scrollbars and form
+ *  controls follow BeatBax instead of the OS preference (issue #247). */
 activeTheme.subscribe((theme) => {
-  // Apply data-theme attribute (used by CSS variable selectors)
-  document.documentElement.setAttribute('data-theme', theme);
+  const root = document.documentElement;
+  root.setAttribute('data-theme', theme);
+  root.style.colorScheme = theme;
 
-  // Apply / remove `dark` class for Tailwind dark-variant utilities
   if (theme === 'dark') {
-    document.documentElement.classList.add('dark');
-    document.documentElement.classList.remove('light');
+    root.classList.add('dark');
+    root.classList.remove('light');
   } else {
-    document.documentElement.classList.add('light');
-    document.documentElement.classList.remove('dark');
+    root.classList.add('light');
+    root.classList.remove('dark');
   }
 });

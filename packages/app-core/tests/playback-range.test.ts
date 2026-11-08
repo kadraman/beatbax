@@ -282,6 +282,12 @@ describe('PlaybackManager range playback', () => {
   });
 
   it('playFrom schedules from the start step and reports full-song positions', async () => {
+    // The first position sample adds real elapsed time. A loaded suite can
+    // spend more than 5ms between the clock capture and the emit, which fails
+    // toBeCloseTo(..., 2). Freeze time so the sample is the range start.
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+
     const positions: Array<{ current: number; total: number }> = [];
     const channelPositions = new Map<number, any>();
     const parsed: any[] = [];
@@ -289,23 +295,28 @@ describe('PlaybackManager range playback', () => {
     eventBus.on('playback:position-changed', ({ channelId, position }) => channelPositions.set(channelId, position));
     eventBus.on('parse:success', (p) => parsed.push(p));
 
-    await manager.playFrom(SONG, { startStep: 8 });
+    try {
+      await manager.playFrom(SONG, { startStep: 8 });
 
-    expect(playedAst.channels[0].events).toHaveLength(4);
-    expect(playedAst.channels[1].events).toHaveLength(8);
-    expect(playedAst.play.repeat).toBe(false);
-    expect(playedOptions).toBeUndefined();
-    // Grid still receives the full song.
-    expect(parsed[0].song.channels[0].events).toHaveLength(12);
-    expect(parsed[0].ephemeral).toBe(false);
+      expect(playedAst.channels[0].events).toHaveLength(4);
+      expect(playedAst.channels[1].events).toHaveLength(8);
+      expect(playedAst.play.repeat).toBe(false);
+      expect(playedOptions).toBeUndefined();
+      // Grid still receives the full song.
+      expect(parsed[0].song.channels[0].events).toHaveLength(12);
+      expect(parsed[0].ephemeral).toBe(false);
 
-    const stepSec = 60 / 120 / 4;
-    expect(positions[0].current).toBeCloseTo(8 * stepSec, 2);
-    expect(positions[0].total).toBeCloseTo(16 * stepSec, 5);
+      const stepSec = 60 / 120 / 4;
+      expect(positions[0].current).toBeCloseTo(8 * stepSec, 2);
+      expect(positions[0].total).toBeCloseTo(16 * stepSec, 5);
 
-    // Channel 1: 7 notes in a + b precede step 8 (b has one rest).
-    expect(channelPositions.get(1)).toMatchObject({ eventIndex: 7, totalEvents: 11, currentPattern: 'a' });
-    expect(manager.getActiveRange()).toEqual({ startStep: 8, endStep: 16, loop: false });
+      // Channel 1: 7 notes in a + b precede step 8 (b has one rest).
+      expect(channelPositions.get(1)).toMatchObject({ eventIndex: 7, totalEvents: 11, currentPattern: 'a' });
+      expect(manager.getActiveRange()).toEqual({ startStep: 8, endStep: 16, loop: false });
+    } finally {
+      manager.stop();
+      jest.useRealTimers();
+    }
   });
 
   it('playRange loops the selected window inside the engine', async () => {

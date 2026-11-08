@@ -6,14 +6,20 @@
 import * as monaco from 'monaco-editor';
 import { eventBus } from '../utils/event-bus.js';
 import { editorContent, editorDirty } from '../stores/editor.store.js';
+import { activeTheme } from '../stores/theme.store.js';
 import { hideIrrelevantMonacoActions } from './hide-monaco-actions.js';
+
+/** Monaco theme that matches the active BeatBax UI theme. */
+export function currentBeatBaxEditorTheme(): 'beatbax-dark' | 'beatbax-light' {
+  return activeTheme.get() === 'light' ? 'beatbax-light' : 'beatbax-dark';
+}
 
 export interface EditorOptions {
   /** Container element for the editor */
   container: HTMLElement;
   /** Initial content */
   value?: string;
-  /** Theme (default: 'beatbax-dark') */
+  /** Theme (default: the active BeatBax theme, not a hardcoded dark theme) */
   theme?: 'vs-dark' | 'vs-light' | 'beatbax-dark' | 'beatbax-light';
   /** Language (default: 'beatbax') */
   language?: string;
@@ -70,7 +76,7 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
   const {
     container,
     value = '',
-    theme = 'vs-dark',
+    theme = currentBeatBaxEditorTheme(),
     language = 'beatbax',
     readOnly = false,
     minimap = true,
@@ -107,6 +113,10 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
       strings: false,
     },
   });
+
+  // create() writes the global Monaco theme. Re-apply the resolved theme so a
+  // remount cannot leave the editor on the previous mode (issue #247).
+  monaco.editor.setTheme(theme);
 
   // F1 lists getSupportedActions(); drop Monaco developer / IDE leftovers.
   hideIrrelevantMonacoActions(editor);

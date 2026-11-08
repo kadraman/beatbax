@@ -2,7 +2,7 @@
  * Editor subsystem public API
  */
 
-export { createEditor, configureMonaco } from './monaco-setup.js';
+export { createEditor, configureMonaco, currentBeatBaxEditorTheme } from './monaco-setup.js';
 export type { EditorOptions, BeatBaxEditor } from './monaco-setup.js';
 
 export {
