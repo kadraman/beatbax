@@ -45,6 +45,14 @@ describe('spectrumPlugin metadata', () => {
     expect(typeof spectrumPlugin.version).toBe('string');
   });
 
+  test('sets instrument-editor preview mode and octave (spec 098)', () => {
+    const types = spectrumPlugin.instrumentEditor?.types ?? [];
+    const byId = Object.fromEntries(types.map((t) => [t.id, t]));
+    expect(byId.tone1).toMatchObject({ previewMode: 'melodic', previewOctave: 4 });
+    expect(byId.tone2).toMatchObject({ previewMode: 'melodic', previewOctave: 4 });
+    expect(byId.tone3).toMatchObject({ previewMode: 'melodic', previewOctave: 2 });
+  });
+
   test('has uiContributions', () => {
     expect(spectrumPlugin.uiContributions).toBeDefined();
     expect(spectrumPlugin.uiContributions?.copilotSystemPrompt).toBeTruthy();

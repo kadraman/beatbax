@@ -41,6 +41,16 @@ describe('plugin metadata', () => {
     const arp = smsPlugin.instrumentEditor?.macros.find((m) => m.name === 'arp_env');
     expect(arp?.whenType).toEqual(['tone1', 'tone2', 'tone3']);
   });
+
+  it('sets instrument-editor preview mode and octave (spec 098)', () => {
+    const types = smsPlugin.instrumentEditor?.types ?? [];
+    const byId = Object.fromEntries(types.map((t) => [t.id, t]));
+    expect(byId.tone1).toMatchObject({ previewMode: 'melodic', previewOctave: 4 });
+    expect(byId.tone2).toMatchObject({ previewMode: 'melodic', previewOctave: 4 });
+    expect(byId.tone3).toMatchObject({ previewMode: 'melodic', previewOctave: 3 });
+    expect(byId.noise).toMatchObject({ previewMode: 'oneshot' });
+    expect(byId.noise?.previewOctave).toBeUndefined();
+  });
 });
 
 describe('plugin registration', () => {
