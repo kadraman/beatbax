@@ -43,7 +43,7 @@ import {
 } from '@beatbax/engine/util/logger';
 import { parse } from '@beatbax/engine/parser';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
-import { createEditor, registerBeatBaxLanguage, configureMonaco, registerNoteEditCommands, setupBeatDecorations, insertHelpSnippetBlock } from '@beatbax/app-core/editor';
+import { createEditor, currentBeatBaxEditorTheme, registerBeatBaxLanguage, configureMonaco, registerNoteEditCommands, setupBeatDecorations, insertHelpSnippetBlock } from '@beatbax/app-core/editor';
 import {
   createDiagnosticsManager,
   setupDiagnosticsIntegration,
@@ -197,7 +197,7 @@ const { menuBarContainer, toolbarContainer, layoutHost, patternGridContainer, mi
 editor = createEditor({
   container: editorPane,
   value: getInitialContent(settingDefaultBpm.get()),
-  theme: 'beatbax-dark',
+  theme: currentBeatBaxEditorTheme(),
   language: 'beatbax',
   // Web has no disk auto-save, but this delay still batches editorContent /
   // localStorage draft writes and editor:changed emissions (parse/live have

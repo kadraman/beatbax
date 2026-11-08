@@ -546,6 +546,7 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --bb-accent:       #9a7110;
   --bb-accent-hover: #c8a227;
   --bb-accent-bg:    #9a7110;
@@ -1083,12 +1084,13 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 #output-pane { background-color: var(--bb-output-bg); color: var(--bb-output-fg); }
 #right-pane  { background-color: var(--bb-right-pane-bg); }
 
-/* Scrollable right-panel hosts (visualizer, help, mixer strips, AI chat) */
+/* Scrollable right-panel hosts (visualizer, help, mixer strips, AI chat, output) */
 #bb-channel-controls-host,
 .bb-right-panel-scroll,
 .bb-help__body,
 .bb-channel-mixer__strips,
-.bb-chat-messages {
+.bb-chat-messages,
+.output-messages {
   scrollbar-width: thin;
   scrollbar-color: #555 #1e1e1e;
 }
@@ -1096,7 +1098,8 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-right-panel-scroll::-webkit-scrollbar,
 .bb-help__body::-webkit-scrollbar,
 .bb-channel-mixer__strips::-webkit-scrollbar,
-.bb-chat-messages::-webkit-scrollbar {
+.bb-chat-messages::-webkit-scrollbar,
+.output-messages::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
@@ -1104,14 +1107,16 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-right-panel-scroll::-webkit-scrollbar-track,
 .bb-help__body::-webkit-scrollbar-track,
 .bb-channel-mixer__strips::-webkit-scrollbar-track,
-.bb-chat-messages::-webkit-scrollbar-track {
+.bb-chat-messages::-webkit-scrollbar-track,
+.output-messages::-webkit-scrollbar-track {
   background: #1e1e1e;
 }
 #bb-channel-controls-host::-webkit-scrollbar-thumb,
 .bb-right-panel-scroll::-webkit-scrollbar-thumb,
 .bb-help__body::-webkit-scrollbar-thumb,
 .bb-channel-mixer__strips::-webkit-scrollbar-thumb,
-.bb-chat-messages::-webkit-scrollbar-thumb {
+.bb-chat-messages::-webkit-scrollbar-thumb,
+.output-messages::-webkit-scrollbar-thumb {
   background: #555;
   border-radius: 4px;
 }
@@ -1119,7 +1124,8 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-right-panel-scroll::-webkit-scrollbar-thumb:hover,
 .bb-help__body::-webkit-scrollbar-thumb:hover,
 .bb-channel-mixer__strips::-webkit-scrollbar-thumb:hover,
-.bb-chat-messages::-webkit-scrollbar-thumb:hover {
+.bb-chat-messages::-webkit-scrollbar-thumb:hover,
+.output-messages::-webkit-scrollbar-thumb:hover {
   background: #666;
 }
 
@@ -1134,28 +1140,32 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 [data-theme="light"] .bb-right-panel-scroll,
 [data-theme="light"] .bb-help__body,
 [data-theme="light"] .bb-channel-mixer__strips,
-[data-theme="light"] .bb-chat-messages {
+[data-theme="light"] .bb-chat-messages,
+[data-theme="light"] .output-messages {
   scrollbar-color: #b0b0b0 #ececec;
 }
 [data-theme="light"] #bb-channel-controls-host::-webkit-scrollbar-track,
 [data-theme="light"] .bb-right-panel-scroll::-webkit-scrollbar-track,
 [data-theme="light"] .bb-help__body::-webkit-scrollbar-track,
 [data-theme="light"] .bb-channel-mixer__strips::-webkit-scrollbar-track,
-[data-theme="light"] .bb-chat-messages::-webkit-scrollbar-track {
+[data-theme="light"] .bb-chat-messages::-webkit-scrollbar-track,
+[data-theme="light"] .output-messages::-webkit-scrollbar-track {
   background: #ececec;
 }
 [data-theme="light"] #bb-channel-controls-host::-webkit-scrollbar-thumb,
 [data-theme="light"] .bb-right-panel-scroll::-webkit-scrollbar-thumb,
 [data-theme="light"] .bb-help__body::-webkit-scrollbar-thumb,
 [data-theme="light"] .bb-channel-mixer__strips::-webkit-scrollbar-thumb,
-[data-theme="light"] .bb-chat-messages::-webkit-scrollbar-thumb {
+[data-theme="light"] .bb-chat-messages::-webkit-scrollbar-thumb,
+[data-theme="light"] .output-messages::-webkit-scrollbar-thumb {
   background: #b0b0b0;
 }
 [data-theme="light"] #bb-channel-controls-host::-webkit-scrollbar-thumb:hover,
 [data-theme="light"] .bb-right-panel-scroll::-webkit-scrollbar-thumb:hover,
 [data-theme="light"] .bb-help__body::-webkit-scrollbar-thumb:hover,
 [data-theme="light"] .bb-channel-mixer__strips::-webkit-scrollbar-thumb:hover,
-[data-theme="light"] .bb-chat-messages::-webkit-scrollbar-thumb:hover {
+[data-theme="light"] .bb-chat-messages::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] .output-messages::-webkit-scrollbar-thumb:hover {
   background: #909090;
 }
 

@@ -152,7 +152,9 @@ export class ThemeManager {
 
     // 1. CSS custom-property layer: stamp root element with `data-theme`
     //    CSS should use [data-theme="dark"] / [data-theme="light"] selectors.
+    //    color-scheme keeps native scrollbars and controls on the same mode.
     this.root.setAttribute('data-theme', theme);
+    this.root.style.colorScheme = theme;
 
     // 2. Tailwind dark-mode class — enables `dark:` utility variants
     if (theme === 'dark') {
