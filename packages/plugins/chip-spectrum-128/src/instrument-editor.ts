@@ -2,9 +2,9 @@ import type { ChipInstrumentEditor } from '@beatbax/engine';
 
 export const spectrumInstrumentEditor: ChipInstrumentEditor = {
   types: [
-    { id: 'tone1', label: 'Tone A', previewChannel: 1 },
-    { id: 'tone2', label: 'Tone B', previewChannel: 2 },
-    { id: 'tone3', label: 'Tone C', previewChannel: 3 },
+    { id: 'tone1', label: 'Tone A', previewChannel: 1, previewMode: 'melodic', previewOctave: 4 },
+    { id: 'tone2', label: 'Tone B', previewChannel: 2, previewMode: 'melodic', previewOctave: 4 },
+    { id: 'tone3', label: 'Tone C', previewChannel: 3, previewMode: 'melodic', previewOctave: 2 },
   ],
   fields: [
     { name: 'vol', label: 'Volume', widget: 'int', min: 0, max: 15 },
