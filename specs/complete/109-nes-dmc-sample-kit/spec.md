@@ -2,11 +2,11 @@
 title: "NES DMC sample kit expansion"
 id: 109
 slug: "nes-dmc-sample-kit"
-status: "specified"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-11-07"
-updated: "2026-11-07"
+updated: "2026-11-08"
 issue: ""
 area: "engine"
 related:

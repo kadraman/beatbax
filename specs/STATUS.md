@@ -4,7 +4,6 @@ Assign the next feature id as **110** (one past the highest id below). Process: 
 
 ## Active (`specs/features/`)
 
-- **109** `nes-dmc-sample-kit` (expand built-in `@nes/` DMC library; license-clean percussion + voice/bass/orch; retarget DMC demo songs) — in-progress — engine — [specs/features/109-nes-dmc-sample-kit/](specs/features/109-nes-dmc-sample-kit/)
 - **108** `desktop-editor-view` (Desktop Settings → Editor Monaco view chrome; unified font size 8–32 with Zoom; web-lite unchanged) — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/248 — [specs/features/108-desktop-editor-view/](specs/features/108-desktop-editor-view/)
 - **107** `web-lite-pattern-grid-zoom` (web-lite Pattern Grid Auto / Fit / zoom / horizontal scroll; reuse app-core helpers from 100) — planned — web — issue: https://github.com/kadraman/beatbax/issues/245 — [specs/features/107-web-lite-pattern-grid-zoom/](specs/features/107-web-lite-pattern-grid-zoom/)
 - **106** `cli-standalone-executable` (no-Node cross-platform CLI executables; stable assets on `desktop-v*`; rolling `cli-dev`) — planned — cli — issue: https://github.com/kadraman/beatbax/issues/244 — [specs/features/106-cli-standalone-executable/](specs/features/106-cli-standalone-executable/)
@@ -35,6 +34,7 @@ Assign the next feature id as **110** (one past the highest id below). Process: 
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
 
+- **109** `nes-dmc-sample-kit` (expand built-in `@nes/` DMC library; license-clean percussion + voice/bass/orch; retarget DMC demo songs) — complete (shipped in #249) — engine — issue: _none_ — [specs/complete/109-nes-dmc-sample-kit/](specs/complete/109-nes-dmc-sample-kit/)
 - **008** `song-composition-abstractions` (Phase 1–2 + Beginner Mode; Phase 3 `include` / Phase 4 preprocessor deferred) — complete — language — issue: https://github.com/kadraman/beatbax/issues/125 — [specs/complete/008-song-composition-abstractions/](specs/complete/008-song-composition-abstractions/)
 - **014** `pattern-grid-seek-and-loop` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/190 — [specs/complete/014-pattern-grid-seek-and-loop/](specs/complete/014-pattern-grid-seek-and-loop/)
 - **100** `pattern-grid-zoom` (desktop Pattern Grid zoom / scroll; Auto readable scale from panel width; Zoom to Fit) — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/232 — [specs/complete/100-pattern-grid-zoom/](specs/complete/100-pattern-grid-zoom/)

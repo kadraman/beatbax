@@ -37,4 +37,4 @@
 ## Polish
 
 - [x] T900 Run `npm test` for NES-related suites and fix failures
-- [ ] T901 Move this folder to `specs/complete/109-nes-dmc-sample-kit/` and update `specs/STATUS.md` when shipped
+- [x] T901 Move this folder to `specs/complete/109-nes-dmc-sample-kit/` and update `specs/STATUS.md` when shipped
