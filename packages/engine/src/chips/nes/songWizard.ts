@@ -57,8 +57,8 @@ inst arp   type=pulse2 duty=50 vol_env=[15,15,14,12,10,8,7,6,6,5,5,4,4,3,3,2] gm
 inst bass  type=triangle linear=96 pitch_env=[1,0,0,0,0,0,0,0] gm=39
 
 inst hihat  type=noise noise_mode=normal noise_period=2 vol_env=[7,4,2,1] note=C5
-inst kick   type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/kick"
-inst snare  type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/snare"
+inst kick   type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/kick_punch"
+inst snare  type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/snare_tight"
 inst clap   type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/clap"
 `,
         },

@@ -178,6 +178,9 @@ tools
 # output files
 *.wav
 !samples/wav/*.wav
+!samples/wav/nes_kit/*.wav
+samples/wav/nes_kit/_dl/
+samples/dmc/audition-results-*.txt
 output.*
 test.ps1
 songs/**/*.uge

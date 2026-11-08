@@ -187,6 +187,18 @@ describe('chip instrumentEditor schemas', () => {
     expect(names.has('sweep_en')).toBe(false);
   });
 
+  it('hides NES macros for DMC (playback has no software macros)', () => {
+    const macros = nesPlugin.instrumentEditor?.macros ?? [];
+    expect(macros.every((m) => {
+      const types = Array.isArray(m.whenType) ? m.whenType : m.whenType ? [m.whenType] : null;
+      return types !== null && !types.includes('dmc');
+    })).toBe(true);
+    const arp = macros.find((m) => m.name === 'arp_env');
+    const pitch = macros.find((m) => m.name === 'pitch_env');
+    expect(arp?.whenType).toEqual(['pulse1', 'pulse2', 'triangle', 'noise']);
+    expect(pitch?.whenType).toEqual(['pulse1', 'pulse2', 'triangle', 'noise']);
+  });
+
   it('declares DMC sample as a sample widget backed by bundledSamples', () => {
     const dmcSample = nesPlugin.instrumentEditor?.fields.find((f) => f.name === 'dmc_sample');
     expect(dmcSample?.widget).toBe('sample');

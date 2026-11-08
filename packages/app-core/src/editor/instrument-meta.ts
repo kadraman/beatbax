@@ -58,7 +58,9 @@ export const CHIP_INSTRUMENT_META: Record<string, ChipInstrumentMeta> = {
       dmc_sample: { detail: 'DMC sample reference (@nes/, local:, https://, github:)' },
       dmc_rate: { detail: 'DMC playback rate 0–15' },
       dmc_loop: { values: ['true', 'false'], detail: 'Loop DMC sample' },
-      dmc_level: { detail: 'Initial DMC DAC level 0–127' },
+      dmc_level: {
+        detail: 'Initial DAC 0–127 (FamiTracker/export; BeatBax playback always starts at 64)',
+      },
       note: { detail: 'Default note for hits' },
     },
   },

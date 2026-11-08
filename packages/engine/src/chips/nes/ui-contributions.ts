@@ -55,7 +55,15 @@ INSTRUMENTS  (inst <name> <fields>)
     dmc_rate=<0-15>            — playback speed (0 = slowest ~4.18 kHz, 15 = fastest ~33.14 kHz)
     dmc_loop=true|false        — loop sample continuously
     dmc_sample="@nes/<name>"   — bundled sample reference (e.g. "@nes/bass_c2")
-    Available bundled samples: bass_c1, bass_c2, kick, snare, hihat, crash, shaker, clap
+    Available bundled samples: kick, kick_punch, kick_body, snare, snare_tight, snare_fat,
+      hat_closed, hat_open, hihat, crash, crash_cym, clap, rim, shaker, cowbell, bongo, muted_bongo,
+      high_tom, middle_tom, low_tom,
+      kick_808, snare_808, hat_808, hat_open_808, clap_808, cymbal_808, rim_808, cowbell_808,
+      maracas_808, tom_low_808, tom_mid_808, tom_high_808,
+      kick_909, snare_909, hat_909, hat_open_909, bass_saw_c0/d0/e0/g0/a0/c1, bass, bass_c2,
+      orch_hit, orch_hit_up, voice_correct, voice_go, voice_go_go_go, voice_hurry_up,
+      voice_level_up, voice_set, voice_you_win, voice_ready
+      (plus kick_classic / snare_classic aliases)
 
 NES CHIPTUNE STYLE GUIDE
   1. The NES has no wave channel — use triangle for bass and sub-melody lines.
@@ -180,7 +188,7 @@ const hoverDocs: Record<string, string> = {
     '- `dmc_rate` — playback rate index 0–15 (0 = ~4.18 kHz, 15 = ~33.14 kHz; recommended: 6–10)',
     '- `dmc_loop` — `true` to loop the sample continuously; `false` for one-shot',
     '- `dmc_sample` — sample reference:',
-    '  - `"@nes/<name>"` — bundled sample (`bass_c1`, `bass_c2`, `kick`, `snare`, `hihat`, `crash`, `shaker`, `clap`)',
+    '  - `"@nes/<name>"` — bundled sample (`kick_punch`, `snare_tight`, `hat_closed`, `bass_saw_c2`, `orch_hit`, `voice_ready`, …; see `BUNDLED_SAMPLES`)',
     '  - `"local:<path>"` — file-system path (CLI, Node.js, and BeatBax Desktop)',
     '  - `"https://…"` — remote URL (browser + Node.js 18+)',
     '',
@@ -257,7 +265,7 @@ inst hihat type=noise noise_mode=normal noise_period=3  env=8,down  env_period=0
         code:
 `inst bass_hit type=dmc dmc_rate=7 dmc_loop=false dmc_sample="@nes/bass_c2"
 inst sfx      type=dmc dmc_rate=10 dmc_loop=false dmc_sample="@nes/crash"
-# Bundled samples: bass_c1, bass_c2, kick, snare, hihat, crash, shaker, clap`,
+# Bundled: kick_punch, snare_tight, hat_closed, bass_saw_c2, orch_hit, voice_ready, …`,
       },
       {
         kind: 'snippet',

@@ -193,13 +193,13 @@ inst hihat     type=noise  noise_mode=normal  noise_period=2   env=6,down   env_
 #   The noise kick (period=12) provides the sustained "thud"; the DMC kick adds
 #   a sharp click transient — together they produce the characteristic NES kick
 #   drum of the mid-to-late NES era (e.g., Contra, Mega Man 3, Kirby's Adventure).
-inst kick_dmc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/kick"
+inst kick_dmc type=dmc dmc_sample=@nes/kick_808 dmc_rate=15 dmc_loop=false
 
 # snare_dmc — bundled @nes/snare sample; adds crack definition to snare hits.
 #   dmc_rate=15 (NTSC index 15 → 33.1 kHz) is the highest quality rate available;
 #   essential for percussion where temporal accuracy matters.
 #   dmc_loop=false : one-shot playback — the sample fires once per trigger.
-inst snare_dmc type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/snare"
+inst snare_dmc type=dmc dmc_sample=@nes/snare_909 dmc_rate=15 dmc_loop=false
 
 # =============================================================================
 # EFFECT PRESETS
