@@ -38,4 +38,4 @@
 - [x] T040 Keep the seeded previous-pitch glide covered by `packages/engine/tests/effects.port.test.ts` (FR-004, SC-004).
 - [x] T900 Note the shared pulse voice under pitch slides in `docs/chips/gameboy/composition_guide.md`.
 - [x] T902 Add an `@beatbax/engine` patch changeset at `.changeset/gameboy-pulse-portamento.md`.
-- [ ] T901 Move this folder to `specs/complete/110-gameboy-pulse-portamento/` and update `specs/STATUS.md` when the behavior has shipped.
+- [x] T901 Move this folder to `specs/complete/110-gameboy-pulse-portamento/` and update `specs/STATUS.md` when the behavior has shipped.

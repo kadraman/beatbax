@@ -2,11 +2,11 @@
 title: "Game Boy pulse portamento continuity"
 id: 110
 slug: "gameboy-pulse-portamento"
-status: "in-progress"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-11-08"
-updated: "2026-11-08"
+updated: "2026-11-09"
 issue: "https://github.com/kadraman/beatbax/issues/246"
 area: "engine"
 related:
