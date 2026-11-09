@@ -41,4 +41,4 @@
 ## Polish
 
 - [x] T900 Update user-facing Desktop docs under `docs/` if a Settings / editor preferences page lists Editor rows
-- [ ] T901 Move this folder to `specs/complete/108-desktop-editor-view/` and update `specs/STATUS.md` when shipped
+- [x] T901 Move this folder to `specs/complete/108-desktop-editor-view/` and update `specs/STATUS.md` when shipped

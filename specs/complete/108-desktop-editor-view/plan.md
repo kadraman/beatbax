@@ -68,7 +68,7 @@ None.
 
 ### Documentation updates
 
-- Amend [spec 057](../../complete/057-settings-panel/spec.md) with a pointer that font-size bounds and the new view rows are specified in 108 (done in the same intake PR as this folder).
+- Amend [spec 057](../057-settings-panel/spec.md) with a pointer that font-size bounds and the new view rows are specified in 108 (done in the same intake PR as this folder).
 - User-facing Desktop docs only when the implementation PR ships (tasks T900).
 
 ## Testing strategy

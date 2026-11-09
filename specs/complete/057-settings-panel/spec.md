@@ -109,7 +109,7 @@ On narrow screens (< 600 px) the sidebar collapses into a horizontal tab strip a
 | Default BPM | Number input (60–300) | `128` | `beatbax:editor.bpm` |
 | Font size | Number input (**8–32**; was 10–24) | `14` | `beatbax:editor.fontSize` |
 
-> **Amendment (feature 108):** Font-size bounds are **8–32** and additional Desktop Monaco view rows (font family, tab size, minimap, line numbers, whitespace, indent guides, cursor style, fold comments in Settings, mouse-wheel zoom) are specified in [`specs/features/108-desktop-editor-view/spec.md`](../../features/108-desktop-editor-view/spec.md) (issue https://github.com/kadraman/beatbax/issues/248). This table remains the index for the original Editor settings; do not duplicate the 108 rows here.
+> **Amendment (feature 108):** Font-size bounds are **8–32** and additional Desktop Monaco view rows (font family, tab size, minimap, line numbers, whitespace, indent guides, cursor style, fold comments in Settings, mouse-wheel zoom) are specified in [`specs/complete/108-desktop-editor-view/spec.md`](../108-desktop-editor-view/spec.md) (issue https://github.com/kadraman/beatbax/issues/248). This table remains the index for the original Editor settings; do not duplicate the 108 rows here.
 
 ### Playback
 

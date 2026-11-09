@@ -2,7 +2,7 @@
 title: "Desktop Monaco editor view settings"
 id: 108
 slug: "desktop-editor-view"
-status: "in-progress"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-11-06"
@@ -23,14 +23,14 @@ related:
 
 Desktop Settings → Editor gains a coherent set of **Monaco view** preferences (font family, tab size, minimap, line numbers, whitespace, indent guides, cursor style, fold-comments row, and a single persisted font size shared with View → Zoom and optional mouse-wheel zoom). Defaults match today’s hardcoded look. Web-lite stays toolbar-limited and does not mount a Settings modal for these controls. No language, parse, or theme-engine changes.
 
-This amends the font-size range in [spec 057](../../complete/057-settings-panel/spec.md) (10–24 → **8–32**). Existing Editor rows in 057 and granular CodeLens in [spec 024](../../complete/024-granular-codelens-settings/spec.md) are unchanged.
+This amends the font-size range in [spec 057](../057-settings-panel/spec.md) (10–24 → **8–32**). Existing Editor rows in 057 and granular CodeLens in [spec 024](../024-granular-codelens-settings/spec.md) are unchanged.
 
 ## Problem
 
 1. Beyond font size, word wrap, CodeLens, and beat decorations, Desktop Monaco chrome is fixed in the shared editor factory (minimap on, tab size 2, line numbers on, whitespace only in the selection). Authors who prefer a denser or clearer view have no Settings control.
 2. Settings font size (10–24) and View → Zoom (session-only 8–32, reset to 14) diverge after reload because Zoom does not persist.
 3. Fold comments already persist (`beatbax:editor.foldComments`) but have no Settings row; discovery is limited to the toolbar / View menu.
-4. Web-lite correctly omits the Settings modal ([spec 076](../../complete/076-desktop-first-client-split/spec.md)); any new chrome must not expand the web settings surface.
+4. Web-lite correctly omits the Settings modal ([spec 076](../076-desktop-first-client-split/spec.md)); any new chrome must not expand the web settings surface.
 
 ## User scenarios
 
@@ -75,7 +75,7 @@ This amends the font-size range in [spec 057](../../complete/057-settings-panel/
 
 - Missing or corrupt stored values fall back to factory defaults without breaking editor mount.
 - Tab size changes how Tab inserts and how tab characters render; the buffer is not reformatted; parse rules are unchanged; spaces remain the insert mode.
-- Turning line numbers off leaves glyph margin, folding, and playback decorations available (those are editor features from [spec 051](../../complete/051-editor-interactive-features/spec.md), not line-number chrome).
+- Turning line numbers off leaves glyph margin, folding, and playback decorations available (those are editor features from [spec 051](../051-editor-interactive-features/spec.md), not line-number chrome).
 - Font family is a fixed select of monospace stacks with a monospace fallback; unavailable OS fonts fall back gracefully.
 
 ## Requirements
@@ -120,7 +120,7 @@ None for specification. Implementation may choose exact CSS font stacks for each
 ## References
 
 - [Issue 248](https://github.com/kadraman/beatbax/issues/248)
-- [057 Settings panel](../../complete/057-settings-panel/spec.md)
-- [024 Granular CodeLens settings](../../complete/024-granular-codelens-settings/spec.md)
-- [051 Editor interactive features](../../complete/051-editor-interactive-features/spec.md)
-- [076 Desktop-first client split](../../complete/076-desktop-first-client-split/spec.md)
+- [057 Settings panel](../057-settings-panel/spec.md)
+- [024 Granular CodeLens settings](../024-granular-codelens-settings/spec.md)
+- [051 Editor interactive features](../051-editor-interactive-features/spec.md)
+- [076 Desktop-first client split](../076-desktop-first-client-split/spec.md)

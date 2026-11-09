@@ -5,7 +5,6 @@ Assign the next feature id as **111** (one past the highest id below). Process: 
 ## Active (`specs/features/`)
 
 - **110** `gameboy-pulse-portamento` (one pulse voice across contiguous `port` notes; no per-step fade; re-attack when the chain ends) — in-progress — engine — issue: https://github.com/kadraman/beatbax/issues/246 — [specs/features/110-gameboy-pulse-portamento/](specs/features/110-gameboy-pulse-portamento/)
-- **108** `desktop-editor-view` (Desktop Settings → Editor Monaco view chrome; unified font size 8–32 with Zoom; web-lite unchanged) — in-progress — desktop — issue: https://github.com/kadraman/beatbax/issues/248 — [specs/features/108-desktop-editor-view/](specs/features/108-desktop-editor-view/)
 - **107** `web-lite-pattern-grid-zoom` (web-lite Pattern Grid Auto / Fit / zoom / horizontal scroll; reuse app-core helpers from 100) — planned — web — issue: https://github.com/kadraman/beatbax/issues/245 — [specs/features/107-web-lite-pattern-grid-zoom/](specs/features/107-web-lite-pattern-grid-zoom/)
 - **106** `cli-standalone-executable` (no-Node cross-platform CLI executables; stable assets on `desktop-v*`; rolling `cli-dev`) — planned — cli — issue: https://github.com/kadraman/beatbax/issues/244 — [specs/features/106-cli-standalone-executable/](specs/features/106-cli-standalone-executable/)
 - **105** `tracker-pattern-editor` (Desktop tracker for one `pat` + Pattern Grid arrangement grips; flatten-on-edit; `.bax` text remains source of truth) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/239 — [specs/features/105-tracker-pattern-editor/](specs/features/105-tracker-pattern-editor/)
@@ -35,6 +34,7 @@ Assign the next feature id as **111** (one past the highest id below). Process: 
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
 
+- **108** `desktop-editor-view` (Desktop Settings → Editor Monaco view chrome; unified font size 8–32 with Zoom; web-lite unchanged) — complete (shipped in #254) — desktop — issue: https://github.com/kadraman/beatbax/issues/248 — [specs/complete/108-desktop-editor-view/](specs/complete/108-desktop-editor-view/)
 - **109** `nes-dmc-sample-kit` (expand built-in `@nes/` DMC library; license-clean percussion + voice/bass/orch; retarget DMC demo songs) — complete (shipped in #249) — engine — issue: _none_ — [specs/complete/109-nes-dmc-sample-kit/](specs/complete/109-nes-dmc-sample-kit/)
 - **008** `song-composition-abstractions` (Phase 1–2 + Beginner Mode; Phase 3 `include` / Phase 4 preprocessor deferred) — complete — language — issue: https://github.com/kadraman/beatbax/issues/125 — [specs/complete/008-song-composition-abstractions/](specs/complete/008-song-composition-abstractions/)
 - **014** `pattern-grid-seek-and-loop` — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/190 — [specs/complete/014-pattern-grid-seek-and-loop/](specs/complete/014-pattern-grid-seek-and-loop/)
