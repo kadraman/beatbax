@@ -3043,11 +3043,203 @@
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.04),   /* top highlight */
     0 3px 6px rgba(0,0,0,0.45);
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Hide grid entirely when no song has been parsed */
 .bb-pgrid[data-empty] { display: none; }
+
+/* Sticky M/S + Pos chrome beside one shared horizontal scroller (spec 107). */
+.bb-pgrid__body {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bb-pgrid__gutter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.bb-pgrid__gutter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 16px;
+}
+
+.bb-pgrid__gutter-row--ruler {
+  height: 12px;
+}
+
+.bb-pgrid__scroll-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bb-pgrid__scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-width: 0;
+}
+
+.bb-pgrid__content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bb-pgrid__nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 2px;
+  line-height: 1;
+}
+
+.bb-pgrid__nav-readout {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 58%;
+  overflow: hidden;
+}
+
+.bb-pgrid__nav-readout[hidden] { display: none; }
+
+.bb-pgrid__nav-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  height: 14px;
+  padding: 0 6px 0 5px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.28);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.bb-pgrid__nav-chip-label {
+  flex-shrink: 0;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.bb-pgrid__nav-chip-value,
+.bb-pgrid__nav-chip-time {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.bb-pgrid__nav-chip-time { color: rgba(255, 255, 255, 0.55); }
+
+.bb-pgrid__nav-chip-sep {
+  flex-shrink: 0;
+  width: 1px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.bb-pgrid__nav-chip--position {
+  border-color: rgba(120, 200, 255, 0.28);
+  background: rgba(40, 90, 130, 0.28);
+}
+.bb-pgrid__nav-chip--position .bb-pgrid__nav-chip-label { color: rgba(150, 210, 255, 0.7); }
+.bb-pgrid__nav-chip--position .bb-pgrid__nav-chip-value { color: rgba(190, 230, 255, 0.95); }
+
+.bb-pgrid__nav-chip--loop {
+  border-color: rgba(90, 200, 120, 0.28);
+  background: rgba(30, 90, 50, 0.28);
+}
+.bb-pgrid__nav-chip--loop .bb-pgrid__nav-chip-label { color: rgba(140, 220, 160, 0.7); }
+.bb-pgrid__nav-chip--loop .bb-pgrid__nav-chip-value { color: rgba(180, 235, 195, 0.95); }
+
+.bb-pgrid__nav-chip--inactive {
+  opacity: 0.55;
+  filter: saturate(0.65);
+}
+
+.bb-pgrid__nav-spacer {
+  flex: 1;
+  min-width: 0;
+  height: 8px;
+}
+
+.bb-pgrid__zoom-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.bb-pgrid__btn.bb-pgrid__btn--zoom {
+  position: relative;
+  width: auto;
+  min-width: 18px;
+  height: 14px;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Same hover copy as Desktop. A painted tip is required because the grid's
+   overflow would otherwise swallow the native title, and macOS often delays it. */
+.bb-pgrid__btn.bb-pgrid__btn--zoom[title]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.bb-pgrid__btn.bb-pgrid__btn--zoom[title]:hover::after,
+.bb-pgrid__btn.bb-pgrid__btn--zoom[title]:focus-visible::after {
+  content: attr(title);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  width: max-content;
+  max-width: 280px;
+  padding: 5px 7px;
+  border-radius: 3px;
+  background: #1c1e22;
+  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  white-space: pre-line;
+  pointer-events: none;
+}
+
+.bb-pgrid__btn.bb-pgrid__btn--zoom.bb-pgrid__btn--active {
+  background: rgba(120, 200, 255, 0.22);
+  color: rgba(190, 230, 255, 0.95);
+  border-color: rgba(120, 200, 255, 0.45);
+}
 
 .bb-pgrid__row {
   display: flex;
@@ -3385,6 +3577,38 @@
 [data-theme=light] .bb-pgrid__btn:hover { background: rgba(0,0,0,0.12); color: rgba(0,0,0,0.8); }
 [data-theme=light] .bb-pgrid__btn--mute.bb-pgrid__btn--active { background: rgba(200,40,40,0.20); color: #c02828; border-color: rgba(200,40,40,0.4); }
 [data-theme=light] .bb-pgrid__btn--solo.bb-pgrid__btn--active { background: rgba(180,140,20,0.20); color: #8a6a00; border-color: rgba(180,140,20,0.4); }
+[data-theme=light] .bb-pgrid__btn.bb-pgrid__btn--zoom.bb-pgrid__btn--active {
+  background: rgba(20, 110, 200, 0.16);
+  color: rgba(10, 70, 140, 0.95);
+  border-color: rgba(20, 110, 200, 0.45);
+}
+[data-theme=light] .bb-pgrid__nav-chip {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.05);
+}
+[data-theme=light] .bb-pgrid__nav-chip-label { color: rgba(0, 0, 0, 0.4); }
+[data-theme=light] .bb-pgrid__nav-chip-value { color: rgba(0, 0, 0, 0.78); }
+[data-theme=light] .bb-pgrid__nav-chip-time { color: rgba(0, 0, 0, 0.5); }
+[data-theme=light] .bb-pgrid__nav-chip-sep { background: rgba(0, 0, 0, 0.12); }
+[data-theme=light] .bb-pgrid__nav-chip--position {
+  border-color: rgba(20, 110, 180, 0.3);
+  background: rgba(20, 110, 180, 0.08);
+}
+[data-theme=light] .bb-pgrid__nav-chip--position .bb-pgrid__nav-chip-label { color: rgba(20, 100, 170, 0.7); }
+[data-theme=light] .bb-pgrid__nav-chip--position .bb-pgrid__nav-chip-value { color: rgba(10, 80, 140, 0.95); }
+[data-theme=light] .bb-pgrid__nav-chip--loop {
+  border-color: rgba(30, 130, 60, 0.3);
+  background: rgba(30, 130, 60, 0.08);
+}
+[data-theme=light] .bb-pgrid__nav-chip--loop .bb-pgrid__nav-chip-label { color: rgba(20, 110, 50, 0.7); }
+[data-theme=light] .bb-pgrid__nav-chip--loop .bb-pgrid__nav-chip-value { color: rgba(15, 90, 40, 0.95); }
+[data-theme=light] .bb-pgrid__btn.bb-pgrid__btn--zoom[title]:hover::after,
+[data-theme=light] .bb-pgrid__btn.bb-pgrid__btn--zoom[title]:focus-visible::after {
+  background: #f4f1ea;
+  color: rgba(0, 0, 0, 0.88);
+  border-color: rgba(0, 0, 0, 0.16);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
 
 /* ── Light mode additions ─────────────────────────────────────────────────── */
 [data-theme=light] .bb-transport__btn--rewind { border-top-color: #1565c0; color: #0d2e5a; }

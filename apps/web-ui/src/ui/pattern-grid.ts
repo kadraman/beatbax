@@ -30,8 +30,17 @@ import {
   type TimelineDragKind,
 } from '@beatbax/app-core/playback/pattern-grid-timeline';
 import { collectStepBoundaries, type LoopRange } from '@beatbax/app-core/playback/playback-range';
+import {
+  contentWidth,
+  edgeAutoscrollDelta,
+  fitPxPerStep,
+  resolveAutoPxPerStep,
+  steppedPxPerStep,
+  zoomAboutAnchor,
+  DEFAULT_MIN_PX_PER_STEP,
+} from '@beatbax/app-core/playback/pattern-grid-zoom';
 import { channelStates, toggleChannelMuted, toggleChannelSoloed, isChannelAudible } from '@beatbax/app-core/stores/channel.store';
-import { playbackStatus } from '@beatbax/app-core/stores/playback.store';
+import { playbackBpm, playbackStatus } from '@beatbax/app-core/stores/playback.store';
 import {
   clearPlaybackLoopRange,
   getActivePlaybackLoopRange,
@@ -88,6 +97,19 @@ function stepPct(step: number, total: number): number {
 function stepLabel(step: number): string {
   return `step ${step + 1}`;
 }
+
+/** Match Desktop playback clock: 16th-note steps are `60 / bpm / 4` seconds. */
+function formatStepClock(step: number, bpm: number): string {
+  const sec = Math.max(0, step) * (60 / Math.max(1, bpm) / 4);
+  const mins = Math.floor(sec / 60);
+  const secs = Math.floor(sec % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+type ZoomMode = 'auto' | 'fit' | 'manual';
+
+/** Hide block labels once the on-screen chip is narrower than this (matches Desktop). */
+const COMPACT_LABEL_PX = 28;
 
 interface RowMeta {
   track: HTMLElement;
@@ -157,13 +179,40 @@ export class PatternGrid {
   private _globalCursorLayoutValid = false;
   /** Layout observers/listeners used to invalidate cached cursor geometry. */
   private _layoutObserver: ResizeObserver | null = null;
+  private _viewportObserver: ResizeObserver | null = null;
   private _onWindowResize = () => {
-    this._invalidateGlobalCursorLayout();
-    this._syncRangeDom();
-    if (this._globalCursor && this._globalCursor.style.display !== 'none') {
-      const paused = this._globalCursor.classList.contains('bb-pgrid__cursor--paused');
-      this._setGlobalCursorPosition(this._globalPct);
-      if (paused) this._globalCursor.classList.add('bb-pgrid__cursor--paused');
+    this._applyScale();
+  };
+  /** Zoom (spec 107). Session-only; reset on song load / new file via `resetZoom`. */
+  private _zoomMode: ZoomMode = 'auto';
+  private _manualPx = DEFAULT_MIN_PX_PER_STEP;
+  private _pxPerStep = DEFAULT_MIN_PX_PER_STEP;
+  private _pendingZoomReset = false;
+  private _scroller: HTMLElement | null = null;
+  private _content: HTMLElement | null = null;
+  private _zoomAutoBtn: HTMLButtonElement | null = null;
+  private _zoomFitBtn: HTMLButtonElement | null = null;
+  private _navReadout: HTMLElement | null = null;
+  private _patternBlocks: HTMLElement[] = [];
+  private _onWheel = (event: WheelEvent): void => {
+    const scroller = this._scroller;
+    if (!scroller) return;
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      const direction = event.deltaY < 0 ? 'in' : 'out';
+      this._zoomMode = 'manual';
+      this._manualPx = steppedPxPerStep(this._pxPerStep, direction);
+      this._applyScale(event.clientX);
+      return;
+    }
+    if (event.shiftKey) {
+      event.preventDefault();
+      scroller.scrollLeft += event.deltaY || event.deltaX;
+      return;
+    }
+    if (event.deltaX !== 0 && Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+      event.preventDefault();
+      scroller.scrollLeft += event.deltaX;
     }
   };
   /** Store subscriptions. */
@@ -192,19 +241,47 @@ export class PatternGrid {
       playbackStartStep.listen(onRangeChange),
       playbackLoopRange.listen(onRangeChange),
       playbackLoopEnabled.listen(onRangeChange),
+      playbackBpm.subscribe(() => {
+        if (this._rows.size === 0) return;
+        this._syncNavReadout();
+      }),
     );
 
     // Recompute global cursor anchoring only when layout may have changed.
     window.addEventListener('resize', this._onWindowResize);
   }
 
+  /**
+   * Drop session zoom back to Auto on the next `setSong`.
+   * Call when a different song is loaded or a new file is created (FR-009).
+   * Re-parses of the same buffer keep the current zoom.
+   */
+  resetZoom(): void {
+    this._pendingZoomReset = true;
+  }
+
   /** Rebuild the grid from a resolved SongModel (treated as `any` to avoid import deps). */
   setSong(song: any, ast?: any, fullSource = ''): void {
+    const preserveZoom = !this._pendingZoomReset;
+    const savedScroll = preserveZoom ? (this._scroller?.scrollLeft ?? 0) : 0;
+    if (!preserveZoom) {
+      this._zoomMode = 'auto';
+      this._manualPx = DEFAULT_MIN_PX_PER_STEP;
+    }
+    this._pendingZoomReset = false;
+
+    this._unbindWheel();
     this._teardownLayoutObserver();
     this.el.innerHTML = '';
     this._rows.clear();
+    this._patternBlocks = [];
     this._globalCursor = null;
     this._rowsWrap = null;
+    this._scroller = null;
+    this._content = null;
+    this._zoomAutoBtn = null;
+    this._zoomFitBtn = null;
+    this._navReadout = null;
     this._rulerControls = null;
     this._rulerTrack = null;
     this._loopRangeOverlay = null;
@@ -218,13 +295,24 @@ export class PatternGrid {
     const channels: any[] = song?.channels ?? [];
     if (channels.length === 0) {
       this.el.dataset['empty'] = 'true';
+      delete this.el.dataset['zoomMode'];
       return;
     }
     delete this.el.dataset['empty'];
 
+    const body = document.createElement('div');
+    body.className = 'bb-pgrid__body';
+    const gutter = document.createElement('div');
+    gutter.className = 'bb-pgrid__gutter';
+    const scrollCol = document.createElement('div');
+    scrollCol.className = 'bb-pgrid__scroll-col';
+    const scroller = document.createElement('div');
+    scroller.className = 'bb-pgrid__scroller';
     const rowsWrap = document.createElement('div');
-    rowsWrap.className = 'bb-pgrid__rows';
+    rowsWrap.className = 'bb-pgrid__content bb-pgrid__rows';
     this._rowsWrap = rowsWrap;
+    this._content = rowsWrap;
+    this._scroller = scroller;
 
     const loopRangeOverlay = document.createElement('div');
     loopRangeOverlay.className = 'bb-pgrid__loop-range';
@@ -272,21 +360,25 @@ export class PatternGrid {
       this._globalEventTotal,
     );
 
-    // ── Ruler row (`Pos`) ─────────────────────────────────────────────────────
-    const rulerRow = document.createElement('div');
-    rulerRow.className = 'bb-pgrid__row bb-pgrid__row--ruler';
-    rulerRow.setAttribute('role', 'group');
-    rulerRow.setAttribute('aria-label', 'Playback timeline');
+    // ── Ruler: sticky Pos chrome + scrolled track ────────────────────────────
+    const rulerGutter = document.createElement('div');
+    rulerGutter.className = 'bb-pgrid__gutter-row bb-pgrid__gutter-row--ruler bb-pgrid__row bb-pgrid__row--ruler';
+    rulerGutter.setAttribute('role', 'group');
+    rulerGutter.setAttribute('aria-label', 'Playback timeline');
 
     const rulerControls = document.createElement('div');
     rulerControls.className = 'bb-pgrid__controls bb-pgrid__controls--ruler';
     this._rulerControls = rulerControls;
-    rulerRow.appendChild(rulerControls);
+    rulerGutter.appendChild(rulerControls);
 
     const rulerDot = document.createElement('span');
     rulerDot.className = 'bb-pgrid__dot bb-pgrid__dot--spacer';
     rulerDot.setAttribute('aria-hidden', 'true');
-    rulerRow.appendChild(rulerDot);
+    rulerGutter.appendChild(rulerDot);
+    gutter.appendChild(rulerGutter);
+
+    const rulerRow = document.createElement('div');
+    rulerRow.className = 'bb-pgrid__row bb-pgrid__row--ruler';
 
     const rulerTrack = document.createElement('div');
     rulerTrack.className = 'bb-pgrid__track bb-pgrid__track--ruler';
@@ -309,11 +401,9 @@ export class PatternGrid {
       const color = getChannelColor(chip, channelId);
       const segs = rowInfo.segs;
 
-      // ── Row ──────────────────────────────────────────────────────────────
-      const row = document.createElement('div');
-      row.className = 'bb-pgrid__row';
-      row.setAttribute('role', 'group');
-      row.setAttribute('aria-label', `Channel ${channelId}`);
+      // ── Sticky label chrome (outside the scroller) ───────────────────────
+      const gutterRow = document.createElement('div');
+      gutterRow.className = 'bb-pgrid__gutter-row';
 
       // ── Mute / Solo controls ─────────────────────────────────────────────
       const muteBtn = document.createElement('button');
@@ -343,7 +433,7 @@ export class PatternGrid {
       const controls = document.createElement('div');
       controls.className = 'bb-pgrid__controls';
       controls.append(muteBtn, soloBtn);
-      row.appendChild(controls);
+      gutterRow.appendChild(controls);
 
       // Coloured channel dot (decorative)
       const dot = document.createElement('span');
@@ -351,7 +441,13 @@ export class PatternGrid {
       dot.setAttribute('aria-hidden', 'true');
       dot.style.background = color;
       dot.style.boxShadow = `0 0 5px ${hexToRgba(color, 0.5)}`;
-      row.appendChild(dot);
+      gutterRow.appendChild(dot);
+      gutter.appendChild(gutterRow);
+
+      const row = document.createElement('div');
+      row.className = 'bb-pgrid__row';
+      row.setAttribute('role', 'group');
+      row.setAttribute('aria-label', `Channel ${channelId}`);
 
       // Track strip (blocks + cursor)
       const track = document.createElement('div');
@@ -368,7 +464,9 @@ export class PatternGrid {
         const startStep = seg.startStep;
         const endStep = seg.endStep;
         if (displayUnits <= 1) block.classList.add('bb-pgrid__block--compact');
+        block.dataset['units'] = String(displayUnits);
         block.style.flex = `0 0 ${(displayUnits / Math.max(1, this._globalEventTotal)) * 100}%`;
+        this._patternBlocks.push(block);
         let tone = patternToneByName.get(seg.patName);
         if (tone === undefined) {
           tone = toneLevels[hashPatternName(seg.patName) % toneLevels.length];
@@ -440,12 +538,29 @@ export class PatternGrid {
       this._rows.set(channelId, { track, cursor, muteBtn, soloBtn });
     }
 
-    this.el.appendChild(rowsWrap);
+    scroller.appendChild(rowsWrap);
+    scrollCol.appendChild(scroller);
+    body.append(gutter, scrollCol);
+
+    const nav = document.createElement('div');
+    nav.className = 'bb-pgrid__nav';
+    const readout = document.createElement('div');
+    readout.className = 'bb-pgrid__nav-readout';
+    readout.setAttribute('aria-live', 'polite');
+    this._navReadout = readout;
+    const spacer = document.createElement('div');
+    spacer.className = 'bb-pgrid__nav-spacer';
+    spacer.setAttribute('aria-hidden', 'true');
+    nav.append(readout, spacer, this._buildZoomActions());
+
+    this.el.append(body, nav);
+    this._bindWheel();
     this._setupLayoutObserver();
 
-    // Apply current mute/solo state and timeline range state
+    // Apply current mute/solo state, zoom scale, and timeline range state
     this._syncMuteSolo();
-    this._syncRangeDom();
+    this._applyScale();
+    if (preserveZoom && this._scroller) this._scroller.scrollLeft = savedScroll;
     if (playbackStatus.get() === 'stopped') {
       this._showIdlePlayhead();
     }
@@ -504,6 +619,7 @@ export class PatternGrid {
   }
 
   dispose(): void {
+    this._unbindWheel();
     this._teardownLayoutObserver();
     window.removeEventListener('resize', this._onWindowResize);
     for (const unsub of this._unsubs) unsub();
@@ -555,6 +671,11 @@ export class PatternGrid {
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (!drag.moved && Math.abs(event.clientX - drag.originX) < 4) return;
     drag.moved = true;
+    const scroller = this._scroller;
+    if (scroller) {
+      const delta = edgeAutoscrollDelta(event.clientX, scroller.getBoundingClientRect());
+      if (delta !== 0) scroller.scrollLeft += delta;
+    }
     const snap = event.altKey ? 'step' as const : 'pattern' as const;
     const result = resolveTimelineGesture(
       drag.kind,
@@ -749,6 +870,79 @@ export class PatternGrid {
     } else {
       startOverlay.style.display = 'none';
     }
+
+    this._syncNavReadout();
+  }
+
+  /** Position and loop chips on the left of the zoom bar (same readout as Desktop). */
+  private _syncNavReadout(): void {
+    const host = this._navReadout;
+    if (!host) return;
+
+    const pendingStart = playbackStartStep.get();
+    const loopRange = playbackLoopRange.get();
+    const loopEnabled = playbackLoopEnabled.get();
+    const dragPreview = this._dragPreview;
+    const draggingLoop = !!dragPreview && 'loop' in dragPreview;
+    const shownLoop = draggingLoop ? dragPreview.loop ?? null : loopRange;
+    const shownLoopInactive = !!shownLoop && !loopEnabled && !draggingLoop;
+    const shownStart = dragPreview && 'start' in dragPreview ? dragPreview.start ?? null : pendingStart;
+    const posStep = shownStart !== null && shownStart > 0 ? shownStart : 0;
+    const bpm = playbackBpm.get();
+
+    host.replaceChildren();
+    if (posStep > 0) {
+      host.appendChild(this._navChip(
+        'position',
+        'Playback start',
+        'Position',
+        String(posStep),
+        formatStepClock(posStep, bpm),
+      ));
+    }
+
+    if (shownLoop && shownLoop.endStep > shownLoop.startStep) {
+      const loopStart = shownLoop.startStep;
+      const loopEnd = Math.max(loopStart, shownLoop.endStep);
+      const loopEndDisplay = Math.max(loopStart, loopEnd - 1);
+      const chip = this._navChip(
+        'loop',
+        shownLoopInactive ? 'Loop range (off)' : 'Loop range',
+        'Loop',
+        `${loopStart}–${loopEndDisplay}`,
+        `${formatStepClock(loopStart, bpm)}–${formatStepClock(loopEnd, bpm)}`,
+      );
+      if (shownLoopInactive) chip.classList.add('bb-pgrid__nav-chip--inactive');
+      host.appendChild(chip);
+    }
+
+    host.hidden = host.childElementCount === 0;
+  }
+
+  private _navChip(
+    kind: 'position' | 'loop',
+    title: string,
+    label: string,
+    value: string,
+    time: string,
+  ): HTMLElement {
+    const chip = document.createElement('div');
+    chip.className = `bb-pgrid__nav-chip bb-pgrid__nav-chip--${kind}`;
+    chip.title = title;
+    const labelEl = document.createElement('span');
+    labelEl.className = 'bb-pgrid__nav-chip-label';
+    labelEl.textContent = label;
+    const valueEl = document.createElement('span');
+    valueEl.className = 'bb-pgrid__nav-chip-value';
+    valueEl.textContent = value;
+    const sep = document.createElement('span');
+    sep.className = 'bb-pgrid__nav-chip-sep';
+    sep.setAttribute('aria-hidden', 'true');
+    const timeEl = document.createElement('span');
+    timeEl.className = 'bb-pgrid__nav-chip-time';
+    timeEl.textContent = time;
+    chip.append(labelEl, valueEl, sep, timeEl);
+    return chip;
   }
 
   private _setGlobalCursorPosition(pct: number): void {
@@ -791,10 +985,146 @@ export class PatternGrid {
     return true;
   }
 
+  private _bindWheel(): void {
+    this._scroller?.addEventListener('wheel', this._onWheel, { passive: false });
+  }
+
+  private _unbindWheel(): void {
+    this._scroller?.removeEventListener('wheel', this._onWheel);
+  }
+
+  private _buildZoomActions(): HTMLElement {
+    const bar = document.createElement('div');
+    bar.className = 'bb-pgrid__zoom-actions';
+    bar.setAttribute('role', 'toolbar');
+    bar.setAttribute('aria-label', 'Pattern grid zoom');
+
+    const add = (
+      label: string,
+      title: string,
+      text: string,
+      onClick: () => void,
+    ): HTMLButtonElement => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bb-pgrid__btn bb-pgrid__btn--zoom';
+      btn.setAttribute('aria-label', label);
+      btn.title = title;
+      btn.textContent = text;
+      btn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onClick();
+      });
+      bar.appendChild(btn);
+      return btn;
+    };
+
+    add('Zoom out', 'Zoom out', '−', () => {
+      this._zoomMode = 'manual';
+      this._manualPx = steppedPxPerStep(this._pxPerStep, 'out');
+      this._applyScale();
+    });
+    this._zoomAutoBtn = add(
+      'Auto zoom — readable scale from panel width; scrolls when the song is longer',
+      'Auto — keep a readable block size based on panel width.\nLonger songs scroll horizontally instead of shrinking past a readable minimum.',
+      'Auto',
+      () => {
+        this._zoomMode = 'auto';
+        this._applyScale();
+      },
+    );
+    this._zoomFitBtn = add(
+      'Zoom to fit — shrink the whole song into the panel width',
+      'Fit — show the whole song in the panel width.\nBlocks may shrink below the readable minimum so nothing scrolls off-screen.',
+      'Fit',
+      () => {
+        this._zoomMode = 'fit';
+        this._applyScale();
+      },
+    );
+    add('Zoom in', 'Zoom in', '+', () => {
+      this._zoomMode = 'manual';
+      this._manualPx = steppedPxPerStep(this._pxPerStep, 'in');
+      this._applyScale();
+    });
+    return bar;
+  }
+
+  private _syncZoomChrome(): void {
+    this.el.dataset['zoomMode'] = this._zoomMode;
+    this._zoomAutoBtn?.classList.toggle('bb-pgrid__btn--active', this._zoomMode === 'auto');
+    this._zoomAutoBtn?.setAttribute('aria-pressed', String(this._zoomMode === 'auto'));
+    this._zoomFitBtn?.classList.toggle('bb-pgrid__btn--active', this._zoomMode === 'fit');
+    this._zoomFitBtn?.setAttribute('aria-pressed', String(this._zoomMode === 'fit'));
+  }
+
+  /** Apply Auto / Fit / manual scale to the shared track strip. */
+  private _applyScale(anchorClientX?: number): void {
+    const scroller = this._scroller;
+    const content = this._content;
+    if (!scroller || !content || this._rows.size === 0) return;
+
+    const viewport = scroller.clientWidth;
+    const total = this._globalEventTotal;
+    const oldPx = this._pxPerStep;
+    let px = this._manualPx;
+    if (viewport <= 0 || total <= 0) {
+      px = this._zoomMode === 'manual' ? this._manualPx : DEFAULT_MIN_PX_PER_STEP;
+    } else if (this._zoomMode === 'fit') {
+      px = fitPxPerStep(viewport, total);
+    } else if (this._zoomMode === 'auto') {
+      px = resolveAutoPxPerStep(viewport, total);
+    }
+    this._pxPerStep = px;
+
+    let nextScroll: number | null = null;
+    if (anchorClientX !== undefined && oldPx > 0 && this._rulerTrack) {
+      const anchorStep = stepFromClientX(
+        anchorClientX,
+        this._rulerTrack.getBoundingClientRect(),
+        total,
+      );
+      nextScroll = zoomAboutAnchor({
+        oldPxPerStep: oldPx,
+        newPxPerStep: px,
+        anchorStep,
+        scrollLeft: scroller.scrollLeft,
+      });
+    }
+
+    const width = contentWidth(viewport, total, px);
+    content.style.width = `${width}px`;
+    this.el.style.setProperty('--bb-pgrid-px-per-step', `${px}px`);
+    for (const block of this._patternBlocks) {
+      const units = Number(block.dataset['units'] ?? '1');
+      block.classList.toggle('bb-pgrid__block--compact', units <= 1 || units * px < COMPACT_LABEL_PX);
+    }
+    const maxScroll = Math.max(0, width - Math.max(0, viewport));
+    if (nextScroll !== null) {
+      scroller.scrollLeft = Math.min(maxScroll, Math.max(0, nextScroll));
+    } else if (scroller.scrollLeft > maxScroll) {
+      scroller.scrollLeft = maxScroll;
+    }
+
+    this._syncZoomChrome();
+    this._invalidateGlobalCursorLayout();
+    this._syncRangeDom();
+    if (this._globalCursor && this._globalCursor.style.display !== 'none') {
+      const paused = this._globalCursor.classList.contains('bb-pgrid__cursor--paused');
+      this._setGlobalCursorPosition(this._globalPct);
+      if (paused) this._globalCursor.classList.add('bb-pgrid__cursor--paused');
+    }
+  }
+
   private _setupLayoutObserver(): void {
     this._teardownLayoutObserver();
     const rowsWrap = this._rowsWrap;
     const firstRow = this._rows.values().next().value as RowMeta | undefined;
+    if (this._scroller && typeof ResizeObserver !== 'undefined') {
+      this._viewportObserver = new ResizeObserver(() => this._applyScale());
+      this._viewportObserver.observe(this._scroller);
+    }
     if (!rowsWrap || !firstRow || typeof ResizeObserver === 'undefined') return;
 
     this._layoutObserver = new ResizeObserver(() => {
@@ -813,6 +1143,8 @@ export class PatternGrid {
   private _teardownLayoutObserver(): void {
     this._layoutObserver?.disconnect();
     this._layoutObserver = null;
+    this._viewportObserver?.disconnect();
+    this._viewportObserver = null;
   }
 
   private _syncMuteSolo(): void {
