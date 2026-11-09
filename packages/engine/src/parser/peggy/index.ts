@@ -496,6 +496,38 @@ const isChannelSeqPatBoundary = (tokens: string[], index: number): boolean => {
   return false;
 };
 
+/**
+ * Channel RHS is split on whitespace, so `lead_seq * 3` and `lead_seq* 3`
+ * arrive as separate tokens. Glue a repeat suffix back onto the name it
+ * modifies. `verse*2` beside another name stays its own token.
+ */
+function groupChannelRefTokens(tokens: string[]): string[] {
+  const flat = tokens.flatMap((token) => token.split(',')).map((token) => token.trim()).filter(Boolean);
+  const items: string[] = [];
+  for (let i = 0; i < flat.length; i++) {
+    const token = flat[i];
+    const next = flat[i + 1];
+    const after = flat[i + 2];
+    if (next === '*' && after && /^\d+$/.test(after)) {
+      items.push(`${token} * ${after}`);
+      i += 2;
+      continue;
+    }
+    if (next && /^\*\d+$/.test(next)) {
+      items.push(`${token}${next}`);
+      i += 1;
+      continue;
+    }
+    if (/\*$/.test(token) && next && /^\d+$/.test(next)) {
+      items.push(`${token}${next}`);
+      i += 1;
+      continue;
+    }
+    items.push(token);
+  }
+  return items;
+}
+
 const parseChannelRhs = (
   id: number,
   rhs: string,
@@ -537,7 +569,7 @@ const parseChannelRhs = (
       const rest = restTokens.join(' ');
       let patSpec = (rest.startsWith('"') || rest.startsWith("'")) ? rest.replace(/^['"]|['"]$/g, '') : rest;
       ch.pat = patSpec.trim();
-      ch.seqSpecTokens = restTokens;
+      ch.seqSpecTokens = groupChannelRefTokens(restTokens);
       i += restTokens.length;
     } else if (t === 'seq' && tokens[i + 1]) {
       const restTokens: string[] = [];
@@ -548,7 +580,7 @@ const parseChannelRhs = (
       const rest = restTokens.join(' ');
       let seqSpec = (rest.startsWith('"') || rest.startsWith("'")) ? rest.replace(/^['"]|['"]$/g, '') : rest;
       ch.pat = seqSpec.trim();
-      ch.seqSpecTokens = restTokens;
+      ch.seqSpecTokens = groupChannelRefTokens(restTokens);
       i += restTokens.length;
     } else if (t.startsWith('bpm=')) {
       const v = t.slice(4);

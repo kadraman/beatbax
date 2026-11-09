@@ -63,6 +63,7 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
     seqName: request.seqName,
     patName: request.patName,
     channelItemIndex: request.channelItemIndex,
+    repeatIndex: request.repeatIndex,
   });
 
   const toRequest = (anchor: ArrangementSliceAnchor): ArrangementSlicePlayRequest => ({
@@ -72,6 +73,7 @@ export function createSectionFocusController(opts: SectionFocusControllerOptions
     seqName: anchor.seqName,
     patName: anchor.patName,
     channelItemIndex: anchor.channelItemIndex,
+    repeatIndex: anchor.repeatIndex,
   });
 
   const applyFocusUi = (info: SectionFocusInfo): void => {
