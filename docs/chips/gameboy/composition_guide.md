@@ -76,6 +76,8 @@ A 50% duty square wave has harmonic content at odd multiples of the fundamental 
 
 **The technique:** Writing to the frequency registers at a rate faster than the note duration to slide the period value incrementally between target pitches. This is 100% software-driven — the hardware provides no portamento — and requires precise timing to achieve the right slide speed and character.
 
+In BeatBax playback, contiguous `port` notes on a pulse channel share one voice: the glide does not fade out or restart the envelope at each step, and the run stays at the instrument's starting volume instead of dropping to a decayed tail. The run starts on the first `port` note, so a note just before it does not hand its volume to the slide. A note without `port` attacks again. Speed is unchanged (`port:1` through `port:255`; higher is faster).
+
 **Variants:**
 
 | Style | Method | Character |

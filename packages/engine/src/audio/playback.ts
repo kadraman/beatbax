@@ -3,7 +3,14 @@
  */
 
 type AST = any;
-import { playPulse as playPulseImpl, parseEnvelope as pulseParseEnvelope } from '../chips/gameboy/pulse.js';
+import { playPulse as playPulseImpl, parseEnvelope as pulseParseEnvelope, clearHeldPulseVoices } from '../chips/gameboy/pulse.js';
+import {
+  contiguousPulsePortChainEnd,
+  noteHasPort,
+  planPulsePortamentoLink,
+  pulseUsesSharedPortamentoVoice,
+  type PulsePortamentoLink,
+} from '../chips/gameboy/pulsePortamento.js';
 import { playWavetable as playWavetableImpl, parseWaveTable } from '../chips/gameboy/wave.js';
 import { playNoise as playNoiseImpl } from '../chips/gameboy/noise.js';
 import { noteNameToMidi, midiToFreq } from '../chips/gameboy/apu.js';
@@ -141,8 +148,8 @@ export async function createAudioContext(opts: AudioContextOptions = {}): Promis
   throw new Error(`No compatible AudioContext found for backend: ${backend}`);
 }
 
-function playPulse(ctx: any, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
-  return playPulseImpl(ctx, freq, duty, start, dur, inst, scheduler, destination);
+function playPulse(ctx: any, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode, link?: PulsePortamentoLink) {
+  return playPulseImpl(ctx, freq, duty, start, dur, inst, scheduler, destination, link);
 }
 
 function playWavetable(ctx: any, freq: number, table: number[], start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
@@ -160,6 +167,8 @@ export class Player {
   private masterGain: GainNode | null = null;
   private masterLimiter: DynamicsCompressorNode | null = null;
   private activeNodes: Array<{ node: any; chId: number; endTime?: number }> = [];
+  /** Absolute time a pulse portamento voice stays held, keyed by channel. */
+  private _pulsePortHoldUntil = new Map<number, number>();
   public muted = new Set<number>();
   public solo: number | null = null;
   public onSchedule?: (args: { chId: number; inst: any; token: string; time: number; dur: number; eventIndex?: number; totalEvents?: number }) => void;
@@ -493,6 +502,7 @@ export class Player {
     }
 
     let globalDurationSec = 0;
+    this._pulsePortHoldUntil.clear();
 
     for (const ch of ast.channels || []) {
       const instsMap = instsRootClone;
@@ -536,12 +546,12 @@ export class Player {
                 ? (token.token || token.instrument)
                 : token.defaultNote;
               log.debug(`About to scheduleToken (named) for ch${ch.id}, token:`, tokenToPlay);
-              this.scheduleToken(ch.id, instProps, instsMap, tokenToPlay, t, dur, tickSeconds);
+              this.scheduleToken(ch.id, instProps, instsMap, tokenToPlay, t, dur, tickSeconds, this._planPulsePortLink(ch.id, instProps, tokenToPlay, t, dur, tokens, i, startTime, tickSeconds));
             } else if (token.type === 'note') {
               const instProps = token.instProps || (tempRemaining > 0 && tempInst ? tempInst : currentInst);
               // Pass the full token object so scheduleToken can honour inline pan/effects
               log.debug(`About to scheduleToken (note) for ch${ch.id}, token:`, token);
-              this.scheduleToken(ch.id, instProps, instsMap, token, t, dur, tickSeconds);
+              this.scheduleToken(ch.id, instProps, instsMap, token, t, dur, tickSeconds, this._planPulsePortLink(ch.id, instProps, token, t, dur, tokens, i, startTime, tickSeconds));
               if (tempRemaining > 0) {
                 tempRemaining -= 1;
                 if (tempRemaining <= 0) { tempInst = null; tempRemaining = 0; }
@@ -579,7 +589,7 @@ export class Player {
         }
         const dur = tickSeconds * (1 + sustainCount);
 
-        this.scheduleToken(ch.id, useInst, instsMap, token, t, dur, tickSeconds);
+        this.scheduleToken(ch.id, useInst, instsMap, token, t, dur, tickSeconds, this._planPulsePortLink(ch.id, useInst, token, t, dur, tokens, i, startTime, tickSeconds));
         lastEndTimeForThisChannel = Math.max(lastEndTimeForThisChannel, t + dur);
 
         if (tempRemaining > 0 && token !== '.') {
@@ -655,7 +665,36 @@ export class Player {
     }
   }
 
-  private scheduleToken(chId: number, inst: any, instsMap: Record<string, any>, token: any, time: number, dur: number, tickSeconds?: number) {
+  private _planPulsePortLink(
+    chId: number,
+    inst: any,
+    token: any,
+    time: number,
+    dur: number,
+    tokens: readonly any[],
+    index: number,
+    originTime: number,
+    tickSeconds: number,
+  ): PulsePortamentoLink | undefined {
+    const eligible = !!(inst && inst.type && String(inst.type).toLowerCase().includes('pulse') && pulseUsesSharedPortamentoVoice(inst));
+    const chainEnd = eligible
+      ? contiguousPulsePortChainEnd({ tokens, index, originTime, tickSeconds, noteTime: time, noteDur: dur })
+      : time + dur;
+    const planned = planPulsePortamentoLink({
+      eligible,
+      hasPort: noteHasPort(token),
+      holdUntil: this._pulsePortHoldUntil.get(chId) ?? null,
+      time,
+      dur,
+      chainEnd,
+      channelId: chId,
+    });
+    if (planned.nextHoldUntil === null) this._pulsePortHoldUntil.delete(chId);
+    else this._pulsePortHoldUntil.set(chId, planned.nextHoldUntil);
+    return planned.link;
+  }
+
+  private scheduleToken(chId: number, inst: any, instsMap: Record<string, any>, token: any, time: number, dur: number, tickSeconds?: number, portLink?: PulsePortamentoLink) {
     if (token === '.') return;
 
     // Track event position (increment happens here during scheduling)
@@ -852,7 +891,7 @@ export class Player {
               return;
             }
             if (this._debugLog) log.debug(`Playing ch${chId} pulse at ${time.toFixed(2)}s`);
-            const nodes = playPulse(this.ctx, freq, duty, time, dur, capturedInst, this.scheduler, this._getChannelDest(chId));
+            const nodes = playPulse(this.ctx, freq, duty, time, dur, capturedInst, this.scheduler, this._getChannelDest(chId), portLink);
             const prevFreq = this._lastNoteFreqByChannel.get(chId);
             if (nodes[0] && Number.isFinite(prevFreq) && (prevFreq as number) > 0) {
               (nodes[0] as any)._prevFreq = prevFreq;
@@ -864,7 +903,8 @@ export class Player {
             this.tryApplyPan(this.ctx, nodes, panVal, this._getChannelDest(chId));
             this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, freq, capturedInst, chId, token, tickSeconds, panVal);
-            const endTime1 = time + dur + 0.1;
+            const voiceDur = portLink ? Math.max(dur, portLink.voiceStopAt - time) : dur;
+            const endTime1 = time + voiceDur + 0.1;
             for (const n of nodes) this.activeNodes.push({ node: n, chId, endTime: endTime1 });
           });
         }
@@ -1648,6 +1688,8 @@ export class Player {
 
     // Clear effect state (e.g., portamento frequency tracking)
     clearEffectState();
+    clearHeldPulseVoices();
+    this._pulsePortHoldUntil.clear();
     this._lastNoteFreqByChannel.clear();
 
     // Tear down per-channel analysers and buses

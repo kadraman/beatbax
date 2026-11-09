@@ -35,6 +35,6 @@ seq main_seq  = no_effect_pat legato_slide
 
 ## channels
 channel 1 => inst lead1 seq main_seq*2
-channel 3 => inst wave1 seq main_seq:oct(-2)*2
+channel 3 => inst wave1 seq main_seq:oct(-2) main_seq:oct(-2)
 
 play

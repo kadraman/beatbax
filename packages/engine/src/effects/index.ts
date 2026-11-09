@@ -241,7 +241,13 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
     // it here. Instead we set flags on the gain node that playPulse's callback
     // will read and honour, replacing the normal re-attack curve with a smooth
     // gain continuation from where the previous note's envelope left off.
+    // A note that joined an existing oscillator must not replace those flags:
+    // the opening note already owns the envelope, and later steps only glide pitch.
     const gainNode = nodes.length > 1 ? nodes[1] : null;
+    // Joined steps keep the opening port note's envelope. The opening port note
+    // itself attacks normally; a tracked gain from an earlier note must not
+    // replace that attack.
+    if (gainNode && ((gainNode as any).__portamento_voice_joined__ || (gainNode as any).__portamento_voice_attack__)) return;
     if (gainNode && gainNode.gain && inst) {
       const env = parseEnvelope(inst.env);
       const initial15 = env?.mode === 'gb' ? (env.initial ?? 15) : 15;
