@@ -2,7 +2,7 @@
 title: "Web-lite Pattern Grid zoom and scroll"
 id: 107
 slug: "web-lite-pattern-grid-zoom"
-status: "in-progress"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-11-06"

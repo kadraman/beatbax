@@ -4,7 +4,6 @@ Assign the next feature id as **111** (one past the highest id below). Process: 
 
 ## Active (`specs/features/`)
 
-- **107** `web-lite-pattern-grid-zoom` (web-lite Pattern Grid Auto / Fit / zoom / horizontal scroll; reuse app-core helpers from 100) — in-progress — web — issue: https://github.com/kadraman/beatbax/issues/245 — [specs/features/107-web-lite-pattern-grid-zoom/](specs/features/107-web-lite-pattern-grid-zoom/)
 - **106** `cli-standalone-executable` (no-Node cross-platform CLI executables; stable assets on `desktop-v*`; rolling `cli-dev`) — planned — cli — issue: https://github.com/kadraman/beatbax/issues/244 — [specs/features/106-cli-standalone-executable/](specs/features/106-cli-standalone-executable/)
 - **105** `tracker-pattern-editor` (Desktop tracker for one `pat` + Pattern Grid arrangement grips; flatten-on-edit; `.bax` text remains source of truth) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/239 — [specs/features/105-tracker-pattern-editor/](specs/features/105-tracker-pattern-editor/)
 - **001** `hot-reload` — specified — engine — issue: https://github.com/kadraman/beatbax/issues/6 — [specs/features/001-hot-reload/](specs/features/001-hot-reload/)
@@ -32,6 +31,7 @@ Assign the next feature id as **111** (one past the highest id below). Process: 
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
 
+- **107** `web-lite-pattern-grid-zoom` (web-lite Pattern Grid Auto / Fit / zoom / horizontal scroll; reuse app-core helpers from 100) — complete (shipped in #261) — web — issue: https://github.com/kadraman/beatbax/issues/245 — [specs/complete/107-web-lite-pattern-grid-zoom/](specs/complete/107-web-lite-pattern-grid-zoom/)
 - **110** `gameboy-pulse-portamento` (one pulse voice across contiguous `port` notes; no per-step fade; re-attack when the chain ends) — complete (shipped in #253) — engine — issue: https://github.com/kadraman/beatbax/issues/246 — [specs/complete/110-gameboy-pulse-portamento/](specs/complete/110-gameboy-pulse-portamento/)
 - **097** `web-lite-pattern-grid` (Pattern Grid back in web-lite, shown by default, with spec 014 ruler seek and Loop-gated loop range; shared timeline logic moves to app-core) — complete (browser QA signed off 2026-11-09) — web — issue: https://github.com/kadraman/beatbax/issues/227 — [specs/complete/097-web-lite-pattern-grid/](specs/complete/097-web-lite-pattern-grid/)
 - **108** `desktop-editor-view` (Desktop Settings → Editor Monaco view chrome; unified font size 8–32 with Zoom; web-lite unchanged) — complete (shipped in #254) — desktop — issue: https://github.com/kadraman/beatbax/issues/248 — [specs/complete/108-desktop-editor-view/](specs/complete/108-desktop-editor-view/)
