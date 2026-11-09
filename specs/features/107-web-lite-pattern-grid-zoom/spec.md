@@ -2,11 +2,11 @@
 title: "Web-lite Pattern Grid zoom and scroll"
 id: 107
 slug: "web-lite-pattern-grid-zoom"
-status: "planned"
+status: "in-progress"
 authors:
   - "kadraman"
 created: "2026-11-06"
-updated: "2026-11-06"
+updated: "2026-11-09"
 issue: "https://github.com/kadraman/beatbax/issues/245"
 area: "web"
 related:
@@ -95,6 +95,8 @@ Web-lite’s Pattern Grid gains the same **zoom** and **horizontal scroll** beha
 - **FR-009**: Zoom state MUST be session-only and MUST reset to Auto when a different song is loaded or a new file is created.
 - **FR-010**: Web-lite MUST remain React-free; this feature MUST NOT pull `react` / `react-dom` or the desktop Pattern Grid component into the web bundle.
 - **FR-011**: Desktop Pattern Grid zoom behaviour MUST remain unchanged by this feature.
+- **FR-012**: Zoom out, Auto, Fit, and Zoom in MUST expose the same hover text as Desktop (short labels for in/out; Auto and Fit explain readable scale versus fitting the whole song).
+- **FR-013**: When a playback start or loop range is set, the bar under the grid MUST show the same left-side Position and Loop readout as Desktop (step numbers and clock), including a dimmed Loop chip while Loop is off.
 
 ### Non-goals
 

@@ -222,7 +222,7 @@ seq arp_line = arp_source:arp(4,7)` },
     content: [
       {
         kind: 'text',
-        text: 'When the Pattern Grid panel is enabled (desktop), it shows arrangement sections and per-channel patterns. Toggle the panel with Ctrl+Shift+G on desktop.',
+        text: 'When the Pattern Grid panel is enabled (desktop), it shows arrangement sections and per-channel patterns. Toggle the panel with Ctrl+Shift+G on desktop. On web-lite the grid is shown by default. Auto zoom keeps long songs readable and scrolls sideways; Zoom out, Auto, Fit, and Zoom in sit under the grid. Ctrl or Cmd plus the wheel zooms toward the pointer, and Shift plus the wheel pans.',
       },
       {
         kind: 'text',

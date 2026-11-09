@@ -857,6 +857,7 @@ eventBus.on('playback:resumed',  () => { try { patternGrid?.resumePositions(); }
 // Also clear the BPM override and playback range state so the new song starts clean.
 eventBus.on('song:loaded', () => {
   _slicePlaybackActive = false;
+  patternGrid?.resetZoom();
   clearPlaybackRange();
   lastSongContext = null;
   _loopUserOverride = false;
