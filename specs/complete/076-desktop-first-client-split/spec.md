@@ -265,7 +265,7 @@ During implementation the web-lite scope was refined:
 | "Get the Desktop App" header CTA | **Text logo + social icons** (GitHub; X / itch.io optional) |
 | Save = localStorage only | **Save** also triggers `.bax` download via `download-helper` |
 | Minimal settings (theme + word wrap) | **Settings modal disabled** (`settingsPanel: false`); theme via toolbar / **Alt+Shift+L**, word wrap via toolbar |
-| Remove Pattern Grid from web-lite | **Pattern Grid restored to web-lite** (shown by default with spec 014 timeline seek and loop) in [spec 097](../../features/097-web-lite-pattern-grid/spec.md) |
+| Remove Pattern Grid from web-lite | **Pattern Grid restored to web-lite** (shown by default with spec 014 timeline seek and loop) in [spec 097](../097-web-lite-pattern-grid/spec.md) |
 
 These are reflected in `packages/app-core/src/client-profile.ts` and `apps/web-ui/src/app/web-lite-header.ts`.
 

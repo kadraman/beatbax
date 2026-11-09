@@ -56,7 +56,7 @@ Migrated multi-section full arrangements to `section`/`form`. NES root songs use
 
 - [x] T080 Authored section labels in `listArrangementSections`; `detectArrangementLayout` recognizes multi-section 008 songs as `structured`
 - [x] T081 Refresh `specs/features/015-song-timing-pattern-grid-inspector/plan.md` → `planned`
-- [x] T082 Implement `097-web-lite-pattern-grid` (seek/loop in web-lite; manual QA T901 pending before complete/)
+- [x] T082 Implement `097-web-lite-pattern-grid` (seek/loop in web-lite; browser QA signed off and moved to `specs/complete/`)
 
 ## Polish
 

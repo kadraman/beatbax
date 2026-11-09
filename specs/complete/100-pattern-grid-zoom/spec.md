@@ -11,7 +11,7 @@ issue: "https://github.com/kadraman/beatbax/issues/232"
 area: "desktop"
 related:
   - "specs/complete/014-pattern-grid-seek-and-loop/spec.md"
-  - "specs/features/097-web-lite-pattern-grid/spec.md"
+  - "specs/complete/097-web-lite-pattern-grid/spec.md"
   - "specs/features/015-song-timing-pattern-grid-inspector/spec.md"
 ---
 

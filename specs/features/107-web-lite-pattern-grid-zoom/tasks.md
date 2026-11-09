@@ -42,6 +42,6 @@
 
 ## Polish
 
-- [ ] T900 [P] Update the Future section in `specs/features/097-web-lite-pattern-grid/spec.md` to point at this feature as the zoom follow-up (if not already).
+- [x] T900 [P] Update the Future section in `specs/complete/097-web-lite-pattern-grid/spec.md` to point at this feature as the zoom follow-up (if not already).
 - [ ] T901 [P] Brief user-facing Pattern Grid zoom note for web-lite under `docs/` if a Pattern Grid / web-lite doc exists.
 - [ ] T902 Move this folder to `specs/complete/107-web-lite-pattern-grid-zoom/` and update `specs/STATUS.md` when shipped.

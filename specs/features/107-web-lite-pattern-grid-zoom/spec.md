@@ -11,7 +11,7 @@ issue: "https://github.com/kadraman/beatbax/issues/245"
 area: "web"
 related:
   - "specs/complete/100-pattern-grid-zoom/spec.md"
-  - "specs/features/097-web-lite-pattern-grid/spec.md"
+  - "specs/complete/097-web-lite-pattern-grid/spec.md"
   - "specs/complete/014-pattern-grid-seek-and-loop/spec.md"
   - "https://github.com/kadraman/beatbax/issues/232"
   - "https://github.com/kadraman/beatbax/issues/227"
@@ -21,7 +21,7 @@ related:
 
 ## Summary
 
-Web-lite’s Pattern Grid gains the same **zoom** and **horizontal scroll** behaviour that Desktop shipped in [spec 100](../../complete/100-pattern-grid-zoom/spec.md): Auto (readable minimum from track viewport width), Zoom in / out, Zoom to Fit, pan when content overflows, and Ctrl/Cmd+wheel zoom about the pointer. Seek, loop, and playhead behaviour from [spec 014](../../complete/014-pattern-grid-seek-and-loop/spec.md) / [spec 097](../097-web-lite-pattern-grid/spec.md) remain correct at every zoom. Pure scale helpers already live in `@beatbax/app-core` (`pattern-grid-zoom`); this feature wires them into the React-free web grid only. Desktop is unchanged. No language changes.
+Web-lite’s Pattern Grid gains the same **zoom** and **horizontal scroll** behaviour that Desktop shipped in [spec 100](../../complete/100-pattern-grid-zoom/spec.md): Auto (readable minimum from track viewport width), Zoom in / out, Zoom to Fit, pan when content overflows, and Ctrl/Cmd+wheel zoom about the pointer. Seek, loop, and playhead behaviour from [spec 014](../../complete/014-pattern-grid-seek-and-loop/spec.md) / [spec 097](../../complete/097-web-lite-pattern-grid/spec.md) remain correct at every zoom. Pure scale helpers already live in `@beatbax/app-core` (`pattern-grid-zoom`); this feature wires them into the React-free web grid only. Desktop is unchanged. No language changes.
 
 ## Problem
 
@@ -127,7 +127,7 @@ Web-lite’s Pattern Grid gains the same **zoom** and **horizontal scroll** beha
 ## References
 
 - [Spec 100 — Pattern Grid zoom and scroll](../../complete/100-pattern-grid-zoom/spec.md)
-- [Spec 097 — Web-lite Pattern Grid](../097-web-lite-pattern-grid/spec.md)
+- [Spec 097 — Web-lite Pattern Grid](../../complete/097-web-lite-pattern-grid/spec.md)
 - [Spec 014 — Pattern Grid seek and loop](../../complete/014-pattern-grid-seek-and-loop/spec.md)
 - `packages/app-core/src/playback/pattern-grid-zoom.ts`
 - `apps/web-ui/src/ui/pattern-grid.ts`
