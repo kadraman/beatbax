@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  EDITOR_FONT_FAMILY_CHOICES,
+  EDITOR_FONT_SIZE_MAX,
+  EDITOR_FONT_SIZE_MIN,
+  EDITOR_VIEW_DEFAULTS,
+} from '@beatbax/app-core/editor/editor-view-options';
 import { MidiStepEntryService } from '@beatbax/app-core/input/midi-step-entry';
 import {
   settingAutoSave,
@@ -11,6 +17,14 @@ import {
   settingCodeLensPatterns,
   settingCodeLensSequences,
   settingDefaultBpm,
+  settingEditorCursorStyle,
+  settingEditorFontFamily,
+  settingEditorIndentGuides,
+  settingEditorLineNumbers,
+  settingEditorMinimap,
+  settingEditorMouseWheelZoom,
+  settingEditorTabSize,
+  settingEditorWhitespace,
   settingFoldComments,
   settingFontSize,
   settingMidiAuditionNotes,
@@ -26,7 +40,29 @@ import {
   settingWordWrap,
 } from '@beatbax/app-core/stores/settings.store';
 import { useStoreValue } from '../../hooks/useStoreValue';
+import {
+  applyCommentsFoldPreference,
+  applyStoredEditorView,
+  scheduleCommentsFoldPreference,
+} from '../../lib/editor-view-prefs';
 import { NoteText, NumberField, SectionHeading, SelectField, TextField, ToggleRow } from './form';
+
+function openMonaco(): Parameters<typeof applyStoredEditorView>[0] {
+  return (window as any).__beatbax_editor?.editor;
+}
+
+function openToolbar(): Parameters<typeof scheduleCommentsFoldPreference>[1] {
+  return (window as any).__beatbax_toolbar;
+}
+
+function applyEditorView(): void {
+  applyStoredEditorView(openMonaco());
+}
+
+function applyFoldComments(folded: boolean): void {
+  if (folded) scheduleCommentsFoldPreference(openMonaco(), openToolbar());
+  else applyCommentsFoldPreference(openMonaco(), false, openToolbar());
+}
 
 interface MidiDevice {
   id: string;
@@ -57,6 +93,15 @@ export function EditorSettingsSection(): React.JSX.Element {
   const defaultBpm = useStoreValue(settingDefaultBpm);
   const songArtist = useStoreValue(settingSongArtist);
   const fontSize = useStoreValue(settingFontSize);
+  const fontFamily = useStoreValue(settingEditorFontFamily);
+  const tabSize = useStoreValue(settingEditorTabSize);
+  const minimap = useStoreValue(settingEditorMinimap);
+  const lineNumbers = useStoreValue(settingEditorLineNumbers);
+  const whitespace = useStoreValue(settingEditorWhitespace);
+  const indentGuides = useStoreValue(settingEditorIndentGuides);
+  const cursorStyle = useStoreValue(settingEditorCursorStyle);
+  const foldComments = useStoreValue(settingFoldComments);
+  const mouseWheelZoom = useStoreValue(settingEditorMouseWheelZoom);
   const midiEnabled = useStoreValue(settingMidiInputEnabled);
   const midiDevice = useStoreValue(settingMidiInputDevice);
   const midiStepLength = useStoreValue(settingMidiStepLength);
@@ -221,16 +266,112 @@ export function EditorSettingsSection(): React.JSX.Element {
         onChange={applyDefaultSongArtistDraft}
         value={songArtist}
       />
+      <SectionHeading>View</SectionHeading>
+      <SelectField
+        label="Font family"
+        onChange={(value) => {
+          settingEditorFontFamily.set(value as typeof fontFamily);
+          applyEditorView();
+        }}
+        options={EDITOR_FONT_FAMILY_CHOICES.map((choice) => ({ value: choice.id, label: choice.label }))}
+        value={fontFamily}
+      />
+      <NoteText>Default keeps Monaco's platform monospace. The other choices fall back to monospace when that font is not installed.</NoteText>
+      <SelectField
+        label="Tab size"
+        onChange={(value) => {
+          settingEditorTabSize.set(Number(value));
+          applyEditorView();
+        }}
+        options={[
+          { value: '2', label: '2' },
+          { value: '4', label: '4' },
+        ]}
+        value={String(tabSize)}
+      />
+      <NoteText>Changes how Tab inserts and how tab characters render. The buffer is not reformatted, and inserts stay spaces.</NoteText>
+      <ToggleRow
+        checked={minimap}
+        label="Minimap"
+        onChange={(value) => {
+          settingEditorMinimap.set(value);
+          applyEditorView();
+        }}
+      />
+      <SelectField
+        label="Line numbers"
+        onChange={(value) => {
+          settingEditorLineNumbers.set(value as typeof lineNumbers);
+          applyEditorView();
+        }}
+        options={[
+          { value: 'on', label: 'On' },
+          { value: 'off', label: 'Off' },
+        ]}
+        value={lineNumbers}
+      />
+      <SelectField
+        label="Whitespace"
+        onChange={(value) => {
+          settingEditorWhitespace.set(value as typeof whitespace);
+          applyEditorView();
+        }}
+        options={[
+          { value: 'selection', label: 'Selection' },
+          { value: 'all', label: 'All' },
+          { value: 'none', label: 'None' },
+        ]}
+        value={whitespace}
+      />
+      <ToggleRow
+        checked={indentGuides}
+        label="Indent guides"
+        onChange={(value) => {
+          settingEditorIndentGuides.set(value);
+          applyEditorView();
+        }}
+      />
+      <SelectField
+        label="Cursor"
+        onChange={(value) => {
+          settingEditorCursorStyle.set(value as typeof cursorStyle);
+          applyEditorView();
+        }}
+        options={[
+          { value: 'line', label: 'Line' },
+          { value: 'block', label: 'Block' },
+          { value: 'underline', label: 'Underline' },
+        ]}
+        value={cursorStyle}
+      />
+      <ToggleRow
+        checked={foldComments}
+        label="Fold comments"
+        onChange={(value) => {
+          settingFoldComments.set(value);
+          applyFoldComments(value);
+        }}
+      />
+      <NoteText>Same preference as the toolbar and View menu.</NoteText>
       <NumberField
         label="Font size"
-        max={24}
-        min={10}
+        max={EDITOR_FONT_SIZE_MAX}
+        min={EDITOR_FONT_SIZE_MIN}
         onChange={(value) => {
           settingFontSize.set(value);
-          (window as any).__beatbax_editor?.editor?.updateOptions?.({ fontSize: value });
+          applyEditorView();
         }}
         value={fontSize}
       />
+      <ToggleRow
+        checked={mouseWheelZoom}
+        label="Mouse-wheel zoom"
+        onChange={(value) => {
+          settingEditorMouseWheelZoom.set(value);
+          applyEditorView();
+        }}
+      />
+      <NoteText>Off by default. When on, hold Ctrl (Cmd on macOS) and scroll over the editor to change font size. The wheel alone still scrolls.</NoteText>
 
       <SectionHeading>MIDI Step Entry</SectionHeading>
       <ToggleRow
@@ -402,6 +543,14 @@ export function resetEditorDefaults(): void {
   settingFileReload.set('reloadIfUnmodified');
   settingWordWrap.set(false);
   settingFoldComments.set(false);
+  settingEditorFontFamily.set(EDITOR_VIEW_DEFAULTS.fontFamily);
+  settingEditorTabSize.set(EDITOR_VIEW_DEFAULTS.tabSize);
+  settingEditorMinimap.set(EDITOR_VIEW_DEFAULTS.minimap);
+  settingEditorLineNumbers.set(EDITOR_VIEW_DEFAULTS.lineNumbers);
+  settingEditorWhitespace.set(EDITOR_VIEW_DEFAULTS.whitespace);
+  settingEditorIndentGuides.set(EDITOR_VIEW_DEFAULTS.indentGuides);
+  settingEditorCursorStyle.set(EDITOR_VIEW_DEFAULTS.cursorStyle);
+  settingEditorMouseWheelZoom.set(EDITOR_VIEW_DEFAULTS.mouseWheelZoom);
   settingCodeLens.set(true);
   settingCodeLensPatterns.set(true);
   settingCodeLensSequences.set(true);
@@ -410,7 +559,13 @@ export function resetEditorDefaults(): void {
   settingBeatDecorations.set(true);
   settingDefaultBpm.set(128);
   settingSongArtist.set('');
-  settingFontSize.set(14);
+  settingFontSize.set(EDITOR_VIEW_DEFAULTS.fontSize);
+  const editor = openMonaco();
+  applyStoredEditorView(editor);
+  editor?.updateOptions?.({ wordWrap: 'off', codeLens: true });
+  openToolbar()?.setWrapActive?.(false);
+  applyFoldComments(false);
+  (window as any).__beatbax_toggleBeatDecorations?.(true);
   settingMidiInputEnabled.set(false);
   settingMidiInputDevice.set('');
   settingMidiStepLength.set('inherit');

@@ -7,6 +7,20 @@
  */
 
 import { atom } from 'nanostores';
+import {
+  EDITOR_FONT_SIZE_DEFAULT,
+  EDITOR_VIEW_DEFAULTS,
+  clampEditorFontSize,
+  normalizeEditorCursorStyle,
+  normalizeEditorFontFamily,
+  normalizeEditorLineNumbers,
+  normalizeEditorTabSize,
+  normalizeEditorWhitespace,
+  type EditorCursorStyle,
+  type EditorFontFamilyId,
+  type EditorLineNumbers,
+  type EditorWhitespace,
+} from '../editor/editor-view-options.js';
 import { storage, StorageKey } from '../utils/local-storage.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -36,6 +50,49 @@ function numberAtom(key: string, defaultVal: number) {
   const a = atom<number>(initial);
   let first = true;
   a.subscribe((v) => { if (first) { first = false; return; } storage.set(key, String(v)); });
+  return a;
+}
+
+function exactBoolAtom(key: string, defaultVal: boolean) {
+  const stored = storage.get(key);
+  const initial = stored === 'true' ? true : stored === 'false' ? false : defaultVal;
+  if (stored !== undefined && stored !== (initial ? 'true' : 'false')) {
+    storage.set(key, initial ? 'true' : 'false');
+  }
+  const a = atom<boolean>(initial);
+  let first = true;
+  a.subscribe((v) => { if (first) { first = false; return; } storage.set(key, v ? 'true' : 'false'); });
+  return a;
+}
+
+function choiceAtom<T extends string>(key: string, defaultVal: T, normalize: (value: unknown) => T) {
+  const stored = storage.get(key);
+  const initial = stored === undefined ? defaultVal : normalize(stored);
+  if (stored !== undefined && stored !== initial) storage.set(key, initial);
+  const a = atom<T>(initial);
+  let first = true;
+  a.subscribe((v) => {
+    if (first) { first = false; return; }
+    const next = normalize(v);
+    if (next !== v) { a.set(next); return; }
+    storage.set(key, next);
+  });
+  return a;
+}
+
+function clampedNumberAtom(key: string, defaultVal: number, clamp: (value: number) => number) {
+  const stored = storage.get(key);
+  const parsed = stored !== undefined ? Number(stored) : NaN;
+  const initial = clamp(Number.isFinite(parsed) ? parsed : defaultVal);
+  if (stored !== undefined && stored !== String(initial)) storage.set(key, String(initial));
+  const a = atom<number>(initial);
+  let first = true;
+  a.subscribe((v) => {
+    if (first) { first = false; return; }
+    const next = clamp(v);
+    if (next !== v) { a.set(next); return; }
+    storage.set(key, String(next));
+  });
   return a;
 }
 
@@ -92,7 +149,38 @@ export const settingCodeLensEffects     = boolAtom(StorageKey.CODELENS_EFFECTS, 
 export const settingBeatDecorations = boolAtom(StorageKey.BEAT_DECORATIONS,  true);
 export const settingDefaultBpm      = numberAtom(StorageKey.BPM,              128);
 export const settingSongArtist      = stringAtom<string>(StorageKey.SONG_ARTIST, '');
-export const settingFontSize        = numberAtom(StorageKey.FONT_SIZE,         14);
+export const settingFontSize        = clampedNumberAtom(StorageKey.FONT_SIZE, EDITOR_FONT_SIZE_DEFAULT, clampEditorFontSize);
+export const settingEditorFontFamily = choiceAtom<EditorFontFamilyId>(
+  StorageKey.FONT_FAMILY,
+  EDITOR_VIEW_DEFAULTS.fontFamily,
+  normalizeEditorFontFamily,
+);
+export const settingEditorTabSize = clampedNumberAtom(
+  StorageKey.TAB_SIZE,
+  EDITOR_VIEW_DEFAULTS.tabSize,
+  (value) => normalizeEditorTabSize(value),
+);
+export const settingEditorMinimap = exactBoolAtom(StorageKey.MINIMAP, EDITOR_VIEW_DEFAULTS.minimap);
+export const settingEditorLineNumbers = choiceAtom<EditorLineNumbers>(
+  StorageKey.LINE_NUMBERS,
+  EDITOR_VIEW_DEFAULTS.lineNumbers,
+  normalizeEditorLineNumbers,
+);
+export const settingEditorWhitespace = choiceAtom<EditorWhitespace>(
+  StorageKey.WHITESPACE,
+  EDITOR_VIEW_DEFAULTS.whitespace,
+  normalizeEditorWhitespace,
+);
+export const settingEditorIndentGuides = exactBoolAtom(StorageKey.INDENT_GUIDES, EDITOR_VIEW_DEFAULTS.indentGuides);
+export const settingEditorCursorStyle = choiceAtom<EditorCursorStyle>(
+  StorageKey.CURSOR_STYLE,
+  EDITOR_VIEW_DEFAULTS.cursorStyle,
+  normalizeEditorCursorStyle,
+);
+export const settingEditorMouseWheelZoom = exactBoolAtom(
+  StorageKey.MOUSE_WHEEL_ZOOM,
+  EDITOR_VIEW_DEFAULTS.mouseWheelZoom,
+);
 
 // ─── Playback ─────────────────────────────────────────────────────────────────
 
@@ -185,6 +273,14 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.BPM,
     StorageKey.SONG_ARTIST,
     StorageKey.FONT_SIZE,
+    StorageKey.FONT_FAMILY,
+    StorageKey.TAB_SIZE,
+    StorageKey.MINIMAP,
+    StorageKey.LINE_NUMBERS,
+    StorageKey.WHITESPACE,
+    StorageKey.INDENT_GUIDES,
+    StorageKey.CURSOR_STYLE,
+    StorageKey.MOUSE_WHEEL_ZOOM,
     StorageKey.MIDI_INPUT_ENABLED,
     StorageKey.MIDI_INPUT_DEVICE,
     StorageKey.MIDI_STEP_LENGTH,

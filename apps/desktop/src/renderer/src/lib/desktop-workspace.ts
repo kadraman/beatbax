@@ -54,7 +54,7 @@ import type { MenuBar } from '../components/shell/menu-bar';
 import { registerDesktopShortcuts } from './register-shortcuts';
 import { setupDesktopMonacoShortcuts } from './setup-desktop-monaco-shortcuts';
 import { setupFullIdeFeatures, type TransportDisplayState } from './full-ide-setup';
-import { createEditorViewPrefsHandlers, syncEditorViewPrefsToToolbar, scheduleCommentsFoldPreference } from './editor-view-prefs';
+import { createEditorViewPrefsHandlers, syncEditorViewPrefsToToolbar, scheduleCommentsFoldPreference, zoomEditorFont } from './editor-view-prefs';
 import { settingAutoSave, settingFoldComments, settingShowToolbar, settingShowTransportBar, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { blurChromeFocus, focusWorkspaceEditor, suppressChromeTabFocus } from './desktop-focus';
 import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
@@ -1300,18 +1300,14 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       case 'view:toggle-fold-all':
         viewPrefsHandlers?.onToggleFoldAll();
         break;
-      case 'view:zoom-in': {
-        const cur = (monacoInst()?.getOption(52) as number) || 14;
-        monacoInst()?.updateOptions({ fontSize: Math.min(cur + 2, 32) });
+      case 'view:zoom-in':
+        zoomEditorFont('in', monacoInst());
         break;
-      }
-      case 'view:zoom-out': {
-        const cur = (monacoInst()?.getOption(52) as number) || 14;
-        monacoInst()?.updateOptions({ fontSize: Math.max(cur - 2, 8) });
+      case 'view:zoom-out':
+        zoomEditorFont('out', monacoInst());
         break;
-      }
       case 'view:zoom-reset':
-        monacoInst()?.updateOptions({ fontSize: 14 });
+        zoomEditorFont('reset', monacoInst());
         break;
       case 'view:toggle-theme':
         themeManager.toggle();

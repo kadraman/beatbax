@@ -3,7 +3,7 @@ import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import type { EditorViewPrefsHandlers } from './editor-view-prefs';
-import { scheduleCommentsFoldPreference } from './editor-view-prefs';
+import { scheduleCommentsFoldPreference, zoomEditorFont } from './editor-view-prefs';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { settingAutoSave, settingFoldComments, settingShowToolbar, settingShowTransportBar, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
@@ -124,15 +124,9 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
     onSelectAll: () => monacoInst()?.trigger('menu', 'editor.action.selectAll', null),
     onFind: () => monacoInst()?.trigger('menu', 'actions.find', null),
     onReplace: () => monacoInst()?.trigger('menu', 'editor.action.startFindReplaceAction', null),
-    onZoomIn: () => {
-      const cur = (monacoInst()?.getOption(52) as number) || 14;
-      monacoInst()?.updateOptions({ fontSize: Math.min(cur + 2, 32) });
-    },
-    onZoomOut: () => {
-      const cur = (monacoInst()?.getOption(52) as number) || 14;
-      monacoInst()?.updateOptions({ fontSize: Math.max(cur - 2, 8) });
-    },
-    onZoomReset: () => monacoInst()?.updateOptions({ fontSize: 14 }),
+    onZoomIn: () => zoomEditorFont('in', monacoInst()),
+    onZoomOut: () => zoomEditorFont('out', monacoInst()),
+    onZoomReset: () => zoomEditorFont('reset', monacoInst()),
     onToggleTheme: () => themeManager.toggle(),
     onToggleWrapText: () => viewPrefsHandlers.onToggleWrapText(),
     onToggleFoldAll: () => viewPrefsHandlers.onToggleFoldAll(),

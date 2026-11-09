@@ -58,8 +58,24 @@ export const StorageKey = {
   CODELENS_EFFECTS: 'editor.codelens.effects',
   /** Beat decorations enabled (boolean). */
   BEAT_DECORATIONS: 'editor.beatDecorations',
-  /** Editor font size (number). */
+  /** Editor font size (number, 8–32). */
   FONT_SIZE: 'editor.fontSize',
+  /** Editor font family id ('default' | 'consolas' | 'cascadia-mono' | 'courier-new' | 'ui-monospace'). */
+  FONT_FAMILY: 'editor.fontFamily',
+  /** Editor tab size (2 | 4). */
+  TAB_SIZE: 'editor.tabSize',
+  /** Editor minimap enabled (boolean). */
+  MINIMAP: 'editor.minimap',
+  /** Editor line numbers ('on' | 'off'). */
+  LINE_NUMBERS: 'editor.lineNumbers',
+  /** Editor whitespace rendering ('selection' | 'all' | 'none'). */
+  WHITESPACE: 'editor.whitespace',
+  /** Editor indent guides enabled (boolean). */
+  INDENT_GUIDES: 'editor.indentGuides',
+  /** Editor cursor style ('line' | 'block' | 'underline'). */
+  CURSOR_STYLE: 'editor.cursorStyle',
+  /** Modifier + mouse-wheel font zoom (boolean). */
+  MOUSE_WHEEL_ZOOM: 'editor.mouseWheelZoom',
   /** Selected audio backend ('webaudio' | 'offline' | etc.). */
   AUDIO_BACKEND: 'audio.backend',
   /** Audio sample rate (44100 | 48000 | 96000). */

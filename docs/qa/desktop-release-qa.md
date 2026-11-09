@@ -62,6 +62,7 @@ Confirm these remain covered (or note gaps):
 | Session restore (`LAST_DOCUMENT_PATH`) | | |
 | File → Open Recent | | |
 | IDE panels: Settings, Copilot, Help, Output/Problems | | Native React desktop shell |
+| Settings → Editor → View (spec 108) | | Font family, tab size, minimap, line numbers, whitespace, indent guides, cursor, fold comments, font size 8–32. Change one, reload, then Reset section. View → Zoom In/Out/Reset stays on that size. Mouse-wheel zoom is off unless enabled; then Ctrl/Cmd + wheel changes it and plain scroll does not |
 | IDE panels: channel mixer, song visualizer, pattern grid | | |
 | Autosave toggle / debounce and save-state feedback | | |
 | External `.bax` reload (edit in another editor, BeatBax picks it up) | | Settings → Editor: When the open file changes on disk |
