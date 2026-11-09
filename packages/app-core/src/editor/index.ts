@@ -4,6 +4,36 @@
 
 export { createEditor, configureMonaco, currentBeatBaxEditorTheme } from './monaco-setup.js';
 export type { EditorOptions, BeatBaxEditor } from './monaco-setup.js';
+export {
+  EDITOR_FONT_FAMILY_CHOICES,
+  EDITOR_FONT_FAMILY_IDS,
+  EDITOR_FONT_SIZE_DEFAULT,
+  EDITOR_FONT_SIZE_MAX,
+  EDITOR_FONT_SIZE_MIN,
+  EDITOR_FONT_SIZE_STEP,
+  EDITOR_VIEW_DEFAULTS,
+  clampEditorFontSize,
+  editorFontFamilyStack,
+  editorViewMonacoOptions,
+  editorWheelZoomModifierActive,
+  normalizeEditorCursorStyle,
+  normalizeEditorFontFamily,
+  normalizeEditorLineNumbers,
+  normalizeEditorTabSize,
+  normalizeEditorWhitespace,
+  platformMonacoFontFamily,
+  stepEditorFontSize,
+} from './editor-view-options.js';
+export type {
+  EditorCursorStyle,
+  EditorFontFamilyId,
+  EditorLineNumbers,
+  EditorTabSize,
+  EditorViewMonacoOptions,
+  EditorViewPreferences,
+  EditorWhitespace,
+  WheelModifierKeys,
+} from './editor-view-options.js';
 
 export {
   HIDDEN_MONACO_ACTION_IDS,

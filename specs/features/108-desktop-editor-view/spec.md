@@ -2,11 +2,11 @@
 title: "Desktop Monaco editor view settings"
 id: 108
 slug: "desktop-editor-view"
-status: "specified"
+status: "in-progress"
 authors:
   - "kadraman"
 created: "2026-11-06"
-updated: "2026-11-06"
+updated: "2026-11-09"
 issue: "https://github.com/kadraman/beatbax/issues/248"
 area: "desktop"
 related:

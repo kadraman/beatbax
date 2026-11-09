@@ -34,7 +34,7 @@ The desktop renderer owns the desktop-full shell and React panel implementations
 - **Three-pane layout** — resizable editor, Problems/Output tabs, Visualizer/Help tabs
 - **Song Visualizer**, **Channel Mixer**, **Pattern Grid** (feature-flag gated)
 - **Help panel** — full syntax reference with click-to-insert
-- **Settings modal** — Ctrl+,
+- **Settings modal** — Ctrl+,. Editor → View sets Monaco font family, tab size, minimap, line numbers, whitespace, indent guides, cursor, fold comments, font size (8–32), and optional Ctrl/Cmd + wheel zoom. View → Zoom uses that same font size.
 - **Export** — JSON/MIDI/UGE/WAV via native menu and toolbar
 - **Status bar** — cursor position, parse status, chip/BPM, panels menu, diagnostics counts
 - **AI Copilot** — right-tab panel (enable in Settings → Features → AI Assistant). Local **Ollama** setup: [copilot-local-ollama.md](../../docs/features/complete/copilot-local-ollama.md)

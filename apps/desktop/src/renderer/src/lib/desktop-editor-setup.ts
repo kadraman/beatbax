@@ -19,7 +19,10 @@ import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { StatusBar } from '../components/shell/status-bar';
 import type { BottomTabsController } from '../components/shell/tabs';
 import {
+  applyStoredEditorView,
   applyStoredWordWrap,
+  bindEditorFontSizePreference,
+  bindEditorMouseWheelZoom,
   scheduleCommentsFoldPreference,
   syncEditorViewPrefsToToolbar,
 } from './editor-view-prefs';
@@ -91,14 +94,12 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
 
   monacoEditor.updateOptions({ foldingStrategy: 'auto' });
 
+  applyStoredEditorView(monacoEditor);
   applyStoredWordWrap(monacoEditor);
   syncEditorViewPrefsToToolbar(toolbar ?? null);
   scheduleCommentsFoldPreference(monacoEditor, toolbar ?? null);
-
-  const storedFontSize = parseInt(storage.get(StorageKey.FONT_SIZE, '14') ?? '14', 10);
-  monacoEditor.updateOptions({
-    fontSize: Number.isNaN(storedFontSize) ? 14 : storedFontSize,
-  });
+  cleanups.push(bindEditorFontSizePreference(monacoEditor));
+  cleanups.push(bindEditorMouseWheelZoom(monacoEditor));
 
   const diagnosticsManager = createDiagnosticsManager(monacoEditor);
   cleanups.push(setupDiagnosticsIntegration(diagnosticsManager));
