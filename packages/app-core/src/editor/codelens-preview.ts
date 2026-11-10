@@ -405,6 +405,12 @@ export interface InstNotePreviewOptions {
   instPatch?: Record<string, unknown>;
 }
 
+/**
+ * A few milliseconds ahead of the audio clock. Full-song playback keeps the
+ * 100 ms arming lead; a preview key should not pay that on every note.
+ */
+const INST_NOTE_SCHEDULE_LEAD_SECONDS = 0.005;
+
 /** Steps at bpm 60 (≈1 s/step) while a key is held; release stops earlier. */
 const INST_NOTE_SUSTAIN_STEPS = 180;
 const INST_NOTE_ONESHOT_MS = 2000;
@@ -434,6 +440,9 @@ async function startInstNotePreview(
   onDone: () => void,
   options?: InstNotePreviewOptions,
   isCancelled?: () => boolean,
+  player?: Player,
+  /** False once a newer note owns `player`. Omitted means this call owns it. */
+  ownsPlayer?: () => boolean,
 ): Promise<PreviewState | null> {
   const sustain = options?.sustain === true;
   const mode = options?.mode === 'hit' ? 'hit' : 'note';
@@ -485,16 +494,21 @@ async function startInstNotePreview(
 
   if (isCancelled?.()) return null;
 
-  let player: Player;
+  const previewPlayer = player ?? new Player(_sharedCtx ?? undefined);
   try {
-    player = new Player(_sharedCtx ?? undefined);
-    await player.playAST(songModel as any);
+    await previewPlayer.playAST(songModel as any, {
+      scheduleLeadSeconds: INST_NOTE_SCHEDULE_LEAD_SECONDS,
+    });
   } catch {
     return null;
   }
 
   if (isCancelled?.()) {
-    try { player.stop(); } catch (_e) { /* ignore */ }
+    // A private player is always this call's. A shared player may already be
+    // playing a newer key, and stopping it would cut that note off.
+    if (ownsPlayer?.() !== false) {
+      try { previewPlayer.stop(); } catch (_e) { /* ignore */ }
+    }
     return null;
   }
 
@@ -506,16 +520,16 @@ async function startInstNotePreview(
       ? hitTiming.stopAfterMs
       : INST_NOTE_ONESHOT_MS;
   const stopTimer = window.setTimeout(() => {
-    try { player.stop(); } catch (_e) { /* ignore */ }
+    try { previewPlayer.stop(); } catch (_e) { /* ignore */ }
     onDone();
   }, stopAfterMs);
 
-  player.onComplete = () => {
+  previewPlayer.onComplete = () => {
     clearTimeout(stopTimer);
     onDone();
   };
 
-  return { player, key: previewKey, stopTimer };
+  return { player: previewPlayer, key: previewKey, stopTimer };
 }
 
 // ---------------------------------------------------------------------------
@@ -884,6 +898,11 @@ export function setupCodeLensPreview(
 
   let hasValidParse = false;
   let previewState: PreviewState | null = null;
+  /** One player for keyboard / MIDI / CodeLens instrument notes. */
+  let instAuditionPlayer: Player | null = null;
+  /** Bumped when a newer instrument note takes the shared player. */
+  let instAuditionEpoch = 0;
+  let previewAstCache: { source: string; tolerateErrors: boolean; ast: any } | null = null;
   /** Bumped by {@link stopPreview} so in-flight starts cannot assign a player after release. */
   let previewGeneration = 0;
 
@@ -944,8 +963,27 @@ export function setupCodeLensPreview(
     eventBus.emit('preview:error', { message });
   }
 
+  function getInstAuditionPlayer(): Player {
+    if (!instAuditionPlayer) instAuditionPlayer = new Player(_sharedCtx ?? undefined);
+    return instAuditionPlayer;
+  }
+
   async function astForPreview(tolerateErrors = false): Promise<any | null> {
-    return parseAndResolveForPreview(getSource(), eventBus, { tolerateErrors });
+    const source = getSource();
+    if (
+      previewAstCache
+      && previewAstCache.source === source
+      && previewAstCache.tolerateErrors === tolerateErrors
+    ) {
+      return previewAstCache.ast;
+    }
+    const ast = await parseAndResolveForPreview(source, eventBus, { tolerateErrors });
+    if (ast && getSource() === source) {
+      previewAstCache = { source, tolerateErrors, ast };
+    } else if (getSource() === source) {
+      previewAstCache = null;
+    }
+    return ast;
   }
 
   // ── Wire module-level command bridges to this instance ──────────────────
@@ -969,6 +1007,7 @@ export function setupCodeLensPreview(
   _instNotePreviewTrigger = async (instName: string, note: string, options?: InstNotePreviewOptions) => {
     ensureAudioCtxReady(); // synchronous — must stay before any await
     const generation = beginPreview(); // always stop current note and restart (allows re-clicking same note)
+    const auditionEpoch = ++instAuditionEpoch;
     const isCancelled = () => !previewIsCurrent(generation);
     const rawAst = await astForPreview();
     if (isCancelled() || !rawAst) return;
@@ -1003,7 +1042,7 @@ export function setupCodeLensPreview(
     const state = await startInstNotePreview(instName, note, rawAst, () => {
       previewState = null;
       notifyChange();
-    }, options, isCancelled);
+    }, options, isCancelled, getInstAuditionPlayer(), () => auditionEpoch === instAuditionEpoch);
     assignPreviewIfCurrent(
       generation,
       state,
@@ -1014,6 +1053,7 @@ export function setupCodeLensPreview(
   _stepEntryAuditionTrigger = async (lineText: string, note: string) => {
     ensureAudioCtxReady(); // synchronous — must stay before any await
     const generation = beginPreview();
+    const auditionEpoch = ++instAuditionEpoch;
     const isCancelled = () => !previewIsCurrent(generation);
 
     const rawAst = await astForPreview(true);
@@ -1037,7 +1077,7 @@ export function setupCodeLensPreview(
     const state = await startInstNotePreview(instName, note, rawAst, () => {
       previewState = null;
       notifyChange();
-    }, undefined, isCancelled);
+    }, undefined, isCancelled, getInstAuditionPlayer(), () => auditionEpoch === instAuditionEpoch);
     assignPreviewIfCurrent(
       generation,
       state,

@@ -102,6 +102,9 @@ export interface AudioContextOptions {
   backend?: 'auto' | 'browser' | 'node-webaudio';
 }
 
+/** Full-song arming lead. The scheduler tick looks 100 ms ahead. */
+const DEFAULT_SCHEDULE_LEAD_SECONDS = 0.1;
+
 export interface PlayASTOptions {
   /**
    * Exact length of one pass in steps (sixteenth-note ticks at the song bpm).
@@ -109,6 +112,18 @@ export interface PlayASTOptions {
    * so trailing rests are kept. Applies to repeat and completion timing.
    */
   lengthSteps?: number;
+  /**
+   * Seconds after `AudioContext.currentTime` before the first step.
+   * Omitted means {@link DEFAULT_SCHEDULE_LEAD_SECONDS}. Instrument audition
+   * passes a few milliseconds so a key is not a tenth of a second late.
+   */
+  scheduleLeadSeconds?: number;
+}
+
+function scheduleLeadSeconds(options: PlayASTOptions): number {
+  const lead = options.scheduleLeadSeconds;
+  if (typeof lead === 'number' && Number.isFinite(lead) && lead >= 0) return lead;
+  return DEFAULT_SCHEDULE_LEAD_SECONDS;
 }
 
 export async function createAudioContext(opts: AudioContextOptions = {}): Promise<any> {
@@ -413,9 +428,10 @@ export class Player {
       });
     }
 
-    // Schedule all channels starting 100ms from now on the audio clock
-    // (computed after preload so the timestamp is current)
-    const loopStart = this.ctx.currentTime + 0.1;
+    // Song playback arms 100 ms ahead of the scheduler tick. Audition passes a
+    // few milliseconds so the note is not late by that full arming lead.
+    // Computed after preload so the timestamp is current.
+    const loopStart = this.ctx.currentTime + scheduleLeadSeconds(options);
     const globalDurationSec = this._scheduleAllChannels(ast, loopStart);
     this._loopEndTime = loopStart + globalDurationSec;
 
