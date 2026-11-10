@@ -9356,6 +9356,20 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   cursor: default;
   filter: none;
 }
+.bb-inst-editor__toolbar-btn.is-active {
+  border-color: #3a8f3e;
+  background: #243828;
+  color: #b6f0b8;
+}
+/* Keep the slot so neighbouring icons do not jump when Live edit turns off. */
+.bb-inst-editor__toolbar-btn.is-slot-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+.bb-inst-editor__toolbar-btn.is-dirty:not(:disabled) {
+  border-color: #c4a035;
+  color: #f3d48a;
+}
 .bb-inst-editor__dialog-backdrop {
   z-index: 9200;
   box-sizing: border-box;
@@ -9611,6 +9625,15 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 [data-theme="light"] .bb-inst-editor__toolbar-btn:disabled,
 [data-theme="light"] .bb-inst-editor__toolbar-btn[aria-disabled="true"] {
   opacity: 0.4;
+}
+[data-theme="light"] .bb-inst-editor__toolbar-btn.is-active {
+  border-color: #2f7d34;
+  background: #d9f2dc;
+  color: #1d5c28;
+}
+[data-theme="light"] .bb-inst-editor__toolbar-btn.is-dirty:not(:disabled) {
+  border-color: #a67c12;
+  color: #7a5b08;
 }
 [data-theme="light"] .bb-inst-editor__dialog {
   background: #f8f8f8;
