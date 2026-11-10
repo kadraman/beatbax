@@ -5,6 +5,7 @@
 import {
   buildArrangementSliceSource,
   findArrangementSliceAnchorByName,
+  findArrangementSliceAnchorBySeqName,
   findArrangementSliceAnchorAtCursor,
   findArrangementSliceAnchorBySectionIdentity,
   normalizeSectionHeadword,
@@ -889,6 +890,23 @@ play`;
     expect(next?.repeatIndex).toBe(1);
     expect(next?.startStep).toBe(16);
     expect(next?.endStep).toBe(32);
+  });
+
+  it('findArrangementSliceAnchorBySeqName selects pass 0 when repeatIndex is 0', () => {
+    const { song, ast } = starRepeatSongAst();
+    const first = findArrangementSliceAnchorBySeqName(
+      STAR_REPEAT_SHAPED, song, ast, 'lead_seq', 0, 0,
+    );
+    expect(first?.startStep).toBe(0);
+    expect(first?.endStep).toBe(16);
+    expect(first?.repeatIndex).toBe(0);
+
+    const second = findArrangementSliceAnchorBySeqName(
+      STAR_REPEAT_SHAPED, song, ast, 'lead_seq', 0, 1,
+    );
+    expect(second?.startStep).toBe(16);
+    expect(second?.endStep).toBe(32);
+    expect(second?.repeatIndex).toBe(1);
   });
 });
 

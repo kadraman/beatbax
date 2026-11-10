@@ -555,7 +555,7 @@ function spanForChannelItem(
 ): { startStep: number; endStep: number } | null {
   const matching = segments.filter((s) =>
     s.channelItemIndex === channelItemIndex
-    && (repeatIndex == null || s.repeatIndex === repeatIndex),
+    && (repeatIndex == null || (s.repeatIndex ?? 0) === repeatIndex),
   );
   if (matching.length === 0) return null;
   return {
@@ -1266,7 +1266,7 @@ export function findArrangementSliceAnchorBySeqName(
     for (const seg of row.segments) {
       if (seg.seqName !== seqName) continue;
       if (channelItemIndex != null && seg.channelItemIndex !== channelItemIndex) continue;
-      if (repeatIndex != null && seg.repeatIndex !== repeatIndex) continue;
+      if (repeatIndex != null && (seg.repeatIndex ?? 0) !== repeatIndex) continue;
       const span = seg.channelItemIndex != null
         ? spanForChannelItem(row.segments, seg.channelItemIndex, repeatIndex ?? seg.repeatIndex)
         : { startStep: seg.startStep, endStep: seg.endStep };
