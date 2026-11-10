@@ -81,6 +81,8 @@ export {
 } from './help-snippet-highlight.js';
 export type { HelpSnippetSpan } from './help-snippet-highlight.js';
 export { applyUndoableReplace, minimalTextEdit } from './undoable-replace.js';
+export { shouldArmTransportLive } from './editor-change-origin.js';
+export type { EditorChangeOrigin } from './editor-change-origin.js';
 
 export {
   fieldApplies,
