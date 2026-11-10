@@ -500,6 +500,47 @@ describe('CodeLens Preview provider', () => {
       playAST.mockRestore();
     });
 
+    it('reuses the resolved song and player, and arms the note a few milliseconds ahead', async () => {
+      const players: object[] = [];
+      const playAST = jest.spyOn(Player.prototype, 'playAST').mockImplementation(function (this: object) {
+        players.push(this);
+        return Promise.resolve() as any;
+      });
+      mockParse.mockReturnValue(resolvedLeadAst);
+      mockResolveImports.mockImplementation(async (ast: any) => ast);
+
+      setupCodeLensPreview(mockEditor, eventBus as any, () => 'inst lead type=pulse1');
+      triggerInstNotePreview('lead', 'C4', { sustain: true });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      triggerInstNotePreview('lead', 'D4', { sustain: true });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(mockParse).toHaveBeenCalledTimes(1);
+      expect(players).toHaveLength(2);
+      expect(players[0]).toBe(players[1]);
+      const lead = playAST.mock.calls[0]?.[1] as { scheduleLeadSeconds?: number } | undefined;
+      expect(lead?.scheduleLeadSeconds).toBeLessThan(0.02);
+      expect(lead?.scheduleLeadSeconds).toBeGreaterThanOrEqual(0);
+      playAST.mockRestore();
+    });
+
+    it('parses again after the editor source changes', async () => {
+      const playAST = jest.spyOn(Player.prototype, 'playAST').mockResolvedValue(undefined as any);
+      mockParse.mockReturnValue(resolvedLeadAst);
+      mockResolveImports.mockImplementation(async (ast: any) => ast);
+      let source = 'inst lead type=pulse1';
+
+      setupCodeLensPreview(mockEditor, eventBus as any, () => source);
+      triggerInstNotePreview('lead', 'C4', { sustain: true });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      source = 'inst lead type=pulse1 duty=50';
+      triggerInstNotePreview('lead', 'D4', { sustain: true });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(mockParse).toHaveBeenCalledTimes(2);
+      playAST.mockRestore();
+    });
+
     it('stops a player created after release during playAST', async () => {
       const stop = jest.spyOn(Player.prototype, 'stop');
       let finishPlay!: () => void;

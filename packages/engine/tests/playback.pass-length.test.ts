@@ -68,6 +68,36 @@ describe('Player pass length', () => {
     expect(player._completionTimeoutMs).toBe(600);
   });
 
+  test('song playback arms the first note 100 ms ahead', async () => {
+    const times: number[] = [];
+    (Player.prototype as any).scheduleToken.mockImplementation((
+      _id: unknown,
+      _inst: unknown,
+      _map: unknown,
+      _token: unknown,
+      t: number,
+    ) => {
+      times.push(t);
+    });
+    await player.playAST(songWithTrailingRests(false));
+    expect(times[0]).toBeCloseTo(0.1, 6);
+  });
+
+  test('scheduleLeadSeconds places the first note that far ahead', async () => {
+    const times: number[] = [];
+    (Player.prototype as any).scheduleToken.mockImplementation((
+      _id: unknown,
+      _inst: unknown,
+      _map: unknown,
+      _token: unknown,
+      t: number,
+    ) => {
+      times.push(t);
+    });
+    await player.playAST(songWithTrailingRests(false), { scheduleLeadSeconds: 0.005 });
+    expect(times[0]).toBeCloseTo(0.005, 6);
+  });
+
   test('stop clears the fixed length for the next pass', async () => {
     await player.playAST(songWithTrailingRests(true), { lengthSteps: 4 });
     player.stop();

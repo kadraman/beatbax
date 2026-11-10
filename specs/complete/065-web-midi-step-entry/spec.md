@@ -7,7 +7,7 @@ authors:
   - "kadraman"
   - "GitHub Copilot"
 created: "2026-04-27"
-updated: "2026-09-03"
+updated: "2026-11-10"
 issue: "https://github.com/kadraman/beatbax/issues/100"
 area: "web"
 ---
@@ -249,6 +249,7 @@ When MIDI step entry cannot proceed, the UI should show a clear warning in the o
 
 - Browser does not support Web MIDI
 - User denied MIDI permission
+- Web MIDI access timed out. Chromium can leave the first `requestMIDIAccess` pending. That attempt is abandoned and one new request is made; a late result from the abandoned request does not replace the newer grant. Further timeouts are reported once, not on every Refresh.
 - No MIDI device selected
 - Current cursor is outside a pattern body
 - Current selection does not align with replaceable note tokens

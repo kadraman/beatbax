@@ -142,9 +142,8 @@ export class MidiStepEntryController {
     };
 
     // Wait out any in-flight attempt, including forced Refresh. The service
-    // times out the wrapper after 5s, but the underlying requestMIDIAccess()
-    // may still be pending. Starting a second browser request lets a late
-    // grant from the first overwrite a newer midiAccess and rebind listeners.
+    // retries a timed-out requestMIDIAccess itself; joining that attempt
+    // avoids a second browser request from this controller.
     if (this._accessRequest) {
       await this._accessRequest;
       if (this._accessGranted || adoptExistingAccess()) return null;

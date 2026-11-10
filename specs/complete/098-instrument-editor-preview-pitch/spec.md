@@ -6,11 +6,12 @@ status: "complete"
 authors:
   - "kadraman"
 created: "2026-10-22"
-updated: "2026-11-01"
+updated: "2026-11-10"
 issue: "https://github.com/kadraman/beatbax/issues/229"
 area: "desktop"
 related:
   - "specs/complete/021-instrument-editor-panel/spec.md"
+  - "https://github.com/kadraman/beatbax/issues/256"
   - "specs/complete/028-instrument-note-mapping-spec/spec.md"
   - "specs/complete/058-nes-apu-chip-plugin/spec.md"
   - "specs/complete/081-gameboy-noise-uge-playback-parity/spec.md"
@@ -91,6 +92,18 @@ The Instrument Editor preview bar chooses starting octave and control layout fro
 2. **Given** such an instrument, **When** Trigger is pressed, **Then** named-hit preview uses the instrument’s props (including `note=` for the tone click layer).
 3. **Given** `tone_mix` is cleared / set false, **When** the instrument is otherwise melodic, **Then** the chromatic keyboard returns.
 
+### User Story 6 — Audition keeps up with the keyboard (Priority: P1)
+
+**Why this priority**: A short phrase is unplayable when every key waits on a full re-parse and the song-playback arming delay.
+
+**Independent test**: Play a short run of preview keys or MIDI notes on one instrument without editing the song. Each note starts with the key. Play the song from the transport and the first step is still armed 100 ms ahead.
+
+**Acceptance scenarios**:
+
+1. **Given** an unchanged editor buffer, **When** the user plays several preview keys or MIDI notes, **Then** each note is scheduled a few milliseconds ahead of the audio clock and the song is not parsed again for every key.
+2. **Given** full-song Play, **When** playback starts, **Then** the first step is still armed 100 ms ahead.
+3. **Given** note-off after the preview note has started, **Then** the note ends.
+
 ### Edge cases
 
 - Unknown / missing type in schema: treat as melodic octave 4.
@@ -112,12 +125,14 @@ The Instrument Editor preview bar chooses starting octave and control layout fro
 - **FR-006**: `ChipPlugin` MAY expose `bundledSampleMeta` parallel to `bundledSamples`; NES MUST publish designed rate 15 for kit samples and `baseNote: C2` for `bass_c2`.
 - **FR-007**: CodeLens MUST follow `previewMode` (Hit/Sample vs melodic note list).
 - **FR-008**: No change to song playback semantics for pattern notes on noise/DMC channels.
+- **FR-009**: Keyboard and MIDI instrument audition MUST start a few milliseconds ahead of the audio clock and MUST reuse the last resolved song while the editor buffer is unchanged. Full-song playback MUST keep its 100 ms arming lead. Plugin-chip output buffering is unchanged.
 
 ### Non-goals
 
 - Hiding or gating `note=` / `pitch_env` fields by type.
 - Inferring octave from instrument names.
 - Language syntax changes.
+- Replacing the plugin-chip ScriptProcessor buffer (that latency remains on NES, SMS, and Spectrum audition).
 
 ## Success criteria
 
