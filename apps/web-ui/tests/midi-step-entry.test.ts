@@ -487,23 +487,25 @@ describe('MidiStepEntryService requestAccess coalescing', () => {
     expect(service.listDevices().map((d) => d.id)).toEqual(['shared-1']);
   });
 
-  it('reuses the in-flight requestMIDIAccess after a timeout instead of starting a second request', async () => {
-    const deferred = createDeferred<ReturnType<typeof mockMidiAccess>>();
-    requestMIDIAccess.mockReturnValue(deferred.promise);
+  it('retries requestMIDIAccess once after a timeout and ignores the abandoned grant', async () => {
+    const firstDeferred = createDeferred<ReturnType<typeof mockMidiAccess>>();
+    const retryDeferred = createDeferred<ReturnType<typeof mockMidiAccess>>();
+    requestMIDIAccess
+      .mockReturnValueOnce(firstDeferred.promise)
+      .mockReturnValueOnce(retryDeferred.promise);
 
-    const first = service.requestAccess();
+    const pending = service.requestAccess();
     await jest.advanceTimersByTimeAsync(MIDI_ACCESS_TIMEOUT_MS);
-    await expect(first).resolves.toMatch(/timed out/);
-    expect(requestMIDIAccess).toHaveBeenCalledTimes(1);
+    expect(requestMIDIAccess).toHaveBeenCalledTimes(2);
 
-    const second = service.requestAccess();
-    expect(requestMIDIAccess).toHaveBeenCalledTimes(1);
-
-    deferred.resolve(mockMidiAccess('late-1'));
+    firstDeferred.resolve(mockMidiAccess('stale'));
     await jest.advanceTimersByTimeAsync(0);
-    await expect(second).resolves.toBeNull();
-    expect(service.hasMidiAccess()).toBe(true);
-    expect(service.listDevices().map((d) => d.id)).toEqual(['late-1']);
+    expect(service.hasMidiAccess()).toBe(false);
+
+    retryDeferred.resolve(mockMidiAccess('fresh'));
+    await jest.advanceTimersByTimeAsync(0);
+    await expect(pending).resolves.toBeNull();
+    expect(service.listDevices().map((d) => d.id)).toEqual(['fresh']);
   });
 
   it('rejects an in-flight waiter when the request is retired by dispose', async () => {
@@ -520,22 +522,24 @@ describe('MidiStepEntryService requestAccess coalescing', () => {
 
   it('ignores a late grant from a retired request after dispose', async () => {
     const firstDeferred = createDeferred<ReturnType<typeof mockMidiAccess>>();
-    requestMIDIAccess.mockReturnValueOnce(firstDeferred.promise);
+    const retryDeferred = createDeferred<ReturnType<typeof mockMidiAccess>>();
+    requestMIDIAccess
+      .mockReturnValueOnce(firstDeferred.promise)
+      .mockReturnValueOnce(retryDeferred.promise);
 
     const first = service.requestAccess();
     await jest.advanceTimersByTimeAsync(MIDI_ACCESS_TIMEOUT_MS);
-    await expect(first).resolves.toMatch(/timed out/);
-
     service.dispose();
+
+    firstDeferred.resolve(mockMidiAccess('stale'));
+    retryDeferred.resolve(mockMidiAccess('also-stale'));
+    await jest.advanceTimersByTimeAsync(0);
+    await expect(first).resolves.toMatch(/superseded/);
+    expect(service.hasMidiAccess()).toBe(false);
 
     const secondDeferred = createDeferred<ReturnType<typeof mockMidiAccess>>();
     requestMIDIAccess.mockReturnValueOnce(secondDeferred.promise);
     const second = service.requestAccess();
-
-    firstDeferred.resolve(mockMidiAccess('stale'));
-    await jest.advanceTimersByTimeAsync(0);
-    expect(service.hasMidiAccess()).toBe(false);
-
     secondDeferred.resolve(mockMidiAccess('fresh'));
     await jest.advanceTimersByTimeAsync(0);
     await expect(second).resolves.toBeNull();

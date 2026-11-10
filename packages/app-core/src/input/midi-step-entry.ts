@@ -412,19 +412,34 @@ export class MidiStepEntryService {
    * Returns a diagnostic string on failure (permission denied, not supported,
    * etc.) or null on success. The caller should surface any returned string
    * as a visible warning.
+   *
+   * A grant that does not settle is not reused. Chromium can leave the first
+   * `requestMIDIAccess` pending (no user activation, or a permission request
+   * that never completes). Every Refresh used to wait on that same promise and
+   * log another timeout. One follow-up call is started after the wait; a late
+   * result from the abandoned call cannot replace a newer grant.
    */
   async requestAccess(): Promise<string | null> {
     if (!MidiStepEntryService.isSupported()) {
       return 'Web MIDI is not supported in this browser. Try Chrome or Edge.';
     }
-    // Reuse an existing grant. Calling requestMIDIAccess again (esp. on Windows)
-    // can hang, time out, then replace midiAccess and orphan the attached input.
+    if (this.midiAccess) {
+      return null;
+    }
+    const first = await this._requestAccessOnce(false);
+    if (this.midiAccess || !first || !first.includes('timed out')) {
+      return first;
+    }
+    return this._requestAccessOnce(true);
+  }
+
+  private async _requestAccessOnce(logTimeout: boolean): Promise<string | null> {
+    // Reuse an existing grant. A second browser request must not replace it.
     if (this.midiAccess) {
       return null;
     }
     try {
       const { accessPromise, epoch } = this._beginAccessRequest();
-      // Chromium/Electron can leave this pending forever (esp. Windows MIDI backends).
       // Bound the wait so Settings/refresh UI cannot stick on "Refreshing…".
       const access = await this._awaitAccess(accessPromise, epoch);
       if (this._accessEpoch !== epoch) {
@@ -435,14 +450,16 @@ export class MidiStepEntryService {
       return null;
     } catch (err: any) {
       const msg = err?.message ?? String(err);
-      log.warn('MIDI access denied:', msg);
-      // Late grant may still arrive; avoid the misleading "permission denied" label for timeouts.
-      if (String(msg).includes('timed out')) {
-        return `MIDI access timed out after 5s (will keep trying in the background)`;
-      }
       if (String(msg).includes('superseded')) {
         return 'MIDI access request was superseded.';
       }
+      if (String(msg).includes('timed out')) {
+        if (logTimeout) {
+          log.warn('MIDI access denied:', msg);
+        }
+        return `MIDI access timed out after ${MIDI_ACCESS_TIMEOUT_MS / 1000}s`;
+      }
+      log.warn('MIDI access denied:', msg);
       return `MIDI permission denied: ${msg}`;
     }
   }
@@ -529,9 +546,8 @@ export class MidiStepEntryService {
 
   /**
    * Start or reuse the current browser MIDI permission request.
-   * A timed-out wrapper must not call `requestMIDIAccess` again while the
-   * first promise is still pending — a late first grant would overwrite a
-   * newer `midiAccess` and rebind listeners.
+   * The epoch is bumped only when a new browser request starts, so a late
+   * grant from an abandoned call cannot replace the newer `midiAccess`.
    */
   private _beginAccessRequest(): { accessPromise: Promise<MidiAccess>; epoch: number } {
     if (!this._pendingAccess) {
@@ -553,6 +569,12 @@ export class MidiStepEntryService {
       const timer = setTimeout(() => {
         if (settled) return;
         settled = true;
+        // Drop the stuck browser promise so the next attempt can call
+        // requestMIDIAccess again. A late grant still adopts until that
+        // next attempt bumps the epoch.
+        if (this._pendingAccess === accessPromise) {
+          this._pendingAccess = null;
+        }
         reject(new Error(`MIDI access timed out after ${MIDI_ACCESS_TIMEOUT_MS / 1000}s`));
       }, MIDI_ACCESS_TIMEOUT_MS);
       accessPromise.then(
