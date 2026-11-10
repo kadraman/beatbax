@@ -7,6 +7,7 @@ import * as monaco from 'monaco-editor';
 import { eventBus } from '../utils/event-bus.js';
 import { editorContent, editorDirty } from '../stores/editor.store.js';
 import { activeTheme } from '../stores/theme.store.js';
+import { consumeEditorChangeOrigin, noteEditorModelChange } from './editor-change-origin.js';
 import { hideIrrelevantMonacoActions } from './hide-monaco-actions.js';
 
 /** Monaco theme that matches the active BeatBax UI theme. */
@@ -127,9 +128,10 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
 
   const emitChange = (): void => {
     const val = editor.getValue();
+    const origin = consumeEditorChangeOrigin();
     editorContent.set(val);
     editorDirty.set(true);
-    eventBus.emit('editor:changed', { content: val });
+    eventBus.emit('editor:changed', { content: val, origin });
   };
 
   const scheduleChangeEmit = (): void => {
@@ -147,7 +149,10 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
   };
 
   if (emitChangedEvents) {
-    editor.onDidChangeModelContent(() => scheduleChangeEmit());
+    editor.onDidChangeModelContent(() => {
+      noteEditorModelChange();
+      scheduleChangeEmit();
+    });
   }
 
   // Handle window resize
