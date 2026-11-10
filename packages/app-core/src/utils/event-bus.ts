@@ -21,7 +21,7 @@ export type PlaybackErrorKind = 'source' | 'runtime';
 // Event type definitions
 export interface BeatBaxEvents {
   // Editor events
-  'editor:changed': { content: string; origin?: 'instrument-editor' | 'user' };
+  'editor:changed': { content: string };
   'editor:saved': { filename: string; auto?: boolean };
 
   // Parse events

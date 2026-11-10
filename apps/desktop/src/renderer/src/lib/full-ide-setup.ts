@@ -2,7 +2,7 @@
  * Desktop-full IDE wiring: debug overlay, transport extras, and MIDI step entry.
  */
 
-import { shouldArmTransportLive, type BeatBaxEditor } from '@beatbax/app-core/editor';
+import type { BeatBaxEditor } from '@beatbax/app-core/editor';
 import { triggerEffectPreview, triggerInstNotePreview, triggerStepEntryAudition, stopInstPreview } from '@beatbax/app-core/editor/codelens-preview';
 import type { TransportControls } from '@beatbax/app-core/playback/transport-controls';
 import type { PlaybackManager } from '@beatbax/app-core/playback/playback-manager';
@@ -385,7 +385,7 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
       playbackManager.setBpmOverride(null);
       clearBpmOverrideDecoration();
     }),
-    eventBus.on('editor:changed', ({ content, origin }) => {
+    eventBus.on('editor:changed', ({ content }) => {
       if (suppressLoadedEditorChangeContent !== null) {
         if (content === suppressLoadedEditorChangeContent) {
           suppressLoadedEditorChangeContent = null;
@@ -397,9 +397,7 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
       clearTimeout(win.__bb_parseTimer as ReturnType<typeof setTimeout> | undefined);
       win.__bb_parseTimer = setTimeout(() => runParse(getSource()), 600);
 
-      // Instrument Editor writes still parse. They must not arm Live, and they
-      // must not cancel a timer a Monaco edit already armed (#258).
-      if (!shouldArmTransportLive({ liveMode, hasParseErrors, origin })) return;
+      if (!liveMode || hasParseErrors) return;
       clearTimeout(win.__bb_liveTimer as ReturnType<typeof setTimeout> | undefined);
       win.__bb_liveTimer = setTimeout(() => {
         if (tryPlayFocused?.()) return;

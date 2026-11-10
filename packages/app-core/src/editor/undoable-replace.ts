@@ -7,11 +7,6 @@
  */
 
 import type * as monaco from 'monaco-editor';
-import {
-  beginInstrumentEditorEdit,
-  endInstrumentEditorEdit,
-  INSTRUMENT_EDITOR_EDIT_SOURCE,
-} from './editor-change-origin.js';
 
 /** Inclusive start / exclusive end offsets into `previous`; `text` replaces that span. */
 export function minimalTextEdit(
@@ -60,21 +55,15 @@ export function applyUndoableReplace(
 
   const start = model.getPositionAt(edit.start);
   const end = model.getPositionAt(edit.end);
-  const fromInstrumentEditor = source === INSTRUMENT_EDITOR_EDIT_SOURCE;
-  if (fromInstrumentEditor) beginInstrumentEditorEdit();
-  try {
-    editor.executeEdits(source, [{
-      range: {
-        startLineNumber: start.lineNumber,
-        startColumn: start.column,
-        endLineNumber: end.lineNumber,
-        endColumn: end.column,
-      },
-      text: edit.text,
-      forceMoveMarkers: true,
-    }]);
-    return true;
-  } finally {
-    if (fromInstrumentEditor) endInstrumentEditorEdit();
-  }
+  editor.executeEdits(source, [{
+    range: {
+      startLineNumber: start.lineNumber,
+      startColumn: start.column,
+      endLineNumber: end.lineNumber,
+      endColumn: end.column,
+    },
+    text: edit.text,
+    forceMoveMarkers: true,
+  }]);
+  return true;
 }

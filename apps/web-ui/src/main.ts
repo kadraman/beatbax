@@ -43,7 +43,7 @@ import {
 } from '@beatbax/engine/util/logger';
 import { parse } from '@beatbax/engine/parser';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
-import { createEditor, currentBeatBaxEditorTheme, registerBeatBaxLanguage, configureMonaco, registerNoteEditCommands, setupBeatDecorations, insertHelpSnippetBlock, shouldArmTransportLive } from '@beatbax/app-core/editor';
+import { createEditor, currentBeatBaxEditorTheme, registerBeatBaxLanguage, configureMonaco, registerNoteEditCommands, setupBeatDecorations, insertHelpSnippetBlock } from '@beatbax/app-core/editor';
 import {
   createDiagnosticsManager,
   setupDiagnosticsIntegration,
@@ -1206,14 +1206,13 @@ eventBus.on('master-volume:changed', ({ volumePct, source }) => {
 // React to content changes via the EditorState-emitted event.
 // (BeatBaxEditor wrapper has no onDidChangeModelContent; EditorState is the
 // sole emitter of 'editor:changed'.)
-eventBus.on('editor:changed', ({ origin }) => {
+eventBus.on('editor:changed', () => {
   // Always run a debounced parse so squiggles and Problems panel stay live.
   clearTimeout((window as any).__bb_parseTimer);
   (window as any).__bb_parseTimer = setTimeout(() => emitParse(getSource()), 600);
 
-  // Instrument Editor writes still parse. They must not arm Live, and they
-  // must not cancel a timer a Monaco edit already armed (#258).
-  if (!shouldArmTransportLive({ liveMode, hasParseErrors, origin })) return;
+  // Additionally trigger live playback when Live mode is on and song is valid.
+  if (!liveMode || hasParseErrors) return;
   clearTimeout((window as any).__bb_liveTimer);
   (window as any).__bb_liveTimer = setTimeout(() => {
     if (tryPlayOverride()) return;
