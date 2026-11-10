@@ -162,7 +162,7 @@ Section focus and the Pattern Grid section lane work best when a song's **top-le
 | **Phased** | [`shadow_temple.bax`](../../../songs/nes/shadow_temple.bax) | Slice play and column highlight work per phase (`intro` / `main` / `bridge` on each `channel` line). Editor grouping is weaker when seq defs are channel-grouped instead of under section headers |
 | **Monolithic** | [`battle_fanfare.bax`](../../../songs/nes/battle_fanfare.bax) | One seq per channel spanning the whole song — section focus selects the **entire** timeline. Pat-block navigation and cursor-aware F6 on individual pats still work |
 
-**Slice window rule:** focus expands to the **containing top-level channel seq item** (`channelItemIndex`), not arbitrary pat runs inside a long `seq`. Repeated pattern names on the timeline (e.g. `mel_a1` in Theme A and Reprise) are distinct positions; F6 uses cursor context to pick the right occurrence.
+**Slice window rule:** focus expands to the **containing top-level channel seq item** (`channelItemIndex`), not arbitrary pat runs inside a long `seq`. A top-level `name*N` is N sections, one per pass, the same as writing the name N times. Spaces around `*` (`name * N`) are the same repeat. Each pass focuses and plays on its own. Repeated pattern names on the timeline (e.g. `mel_a1` in Theme A and Reprise) are distinct positions; F6 uses cursor context to pick the right occurrence.
 
 **Editor hints:** after parse, info diagnostics on the first `channel` line suggest improvements for phased or monolithic layouts (see `detectArrangementLayout` in app-core). **Arrange: Restructure Phased Sections into Headers** (command palette) can rewrite channel-grouped phased seq defs into `# --- Section N ---` blocks — opt-in, edits the open buffer only.
 

@@ -27,6 +27,11 @@ export interface ArrangementSliceAnchor {
   patName: string;
   /** 0-based index of the top-level channel seq/pat item (e.g. second `lead_seq`). */
   channelItemIndex?: number | null;
+  /**
+   * Which pass of a top-level `name*N` this anchor is.
+   * Omitted when the anchor covers every pass of that item.
+   */
+  repeatIndex?: number | null;
 }
 
 export interface ArrangementSliceOptions {
@@ -54,6 +59,10 @@ export interface SectionFocusIdentity {
   headword?: string | null;
   /** Primary seq on the focused channel, when known. */
   seqName?: string | null;
+  /** Top-level channel item, when the focused pass must survive a rebind. */
+  channelItemIndex?: number | null;
+  /** Pass of a top-level `name*N`, when focus is one pass rather than the whole item. */
+  repeatIndex?: number | null;
 }
 
 /** UI/editor metadata for an arrangement section focus (Pattern Grid + Monaco). */
@@ -73,6 +82,8 @@ export interface SectionFocusInfo {
   primarySeqName: string | null;
   /** Top-level channel seq/pat item for this section (0-based), when known. */
   channelItemIndex?: number | null;
+  /** Pass of a top-level `name*N` (0-based). Omitted when focus covers every pass. */
+  repeatIndex?: number | null;
 }
 
 interface SliceChannelPick {
@@ -89,6 +100,8 @@ export interface TimedSegment {
   seqName: string | null;
   /** Top-level channel item index (`seq a a` → 0, 1). Null when unknown (event path). */
   channelItemIndex: number | null;
+  /** Pass within a top-level `name*N` (0 when the token is not repeated). */
+  repeatIndex: number;
   startStep: number;
   endStep: number;
 }
@@ -97,6 +110,8 @@ interface SliceSegment {
   patName: string;
   seqName: string | null;
   channelItemIndex: number | null;
+  /** Pass within a top-level `name*N` (0 when the token is not repeated). */
+  repeatIndex: number;
   count: number;
 }
 
@@ -176,7 +191,7 @@ function buildSegmentsFromEvents(events: any[]): SliceSegment[] {
     const pat: string = ev.sourcePattern ?? prevPat;
     const seq: string | null = ev.sourceSequence ?? prevSeq;
     if (!cur || pat !== cur.patName || seq !== cur.seqName) {
-      cur = { patName: pat, seqName: seq, channelItemIndex: null, count: 1 };
+      cur = { patName: pat, seqName: seq, channelItemIndex: null, repeatIndex: 0, count: 1 };
       segs.push(cur);
     } else {
       cur.count++;
@@ -213,16 +228,49 @@ function stampSegmentChannelItemIndexes(
   });
 }
 
+/**
+ * Channel lines are split on whitespace before repeat parsing, so
+ * `lead_seq * 3` arrives as `lead_seq`, `*`, `3`. Glue a repeat suffix
+ * back onto the name it modifies. A glued `chorus*2` beside another name
+ * stays its own item.
+ */
+function groupChannelSeqTokens(tokens: string[]): string[] {
+  const flat = tokens.flatMap((token) => token.split(',')).map((token) => token.trim()).filter(Boolean);
+  const items: string[] = [];
+  for (let i = 0; i < flat.length; i++) {
+    const token = flat[i];
+    const next = flat[i + 1];
+    const after = flat[i + 2];
+    if (next === '*' && after && /^\d+$/.test(after)) {
+      items.push(`${token} * ${after}`);
+      i += 2;
+      continue;
+    }
+    if (next && /^\*\d+$/.test(next)) {
+      items.push(`${token}${next}`);
+      i += 1;
+      continue;
+    }
+    if (/\*$/.test(token) && next && /^\d+$/.test(next)) {
+      items.push(`${token}${next}`);
+      i += 1;
+      continue;
+    }
+    items.push(token);
+  }
+  return items;
+}
+
 function getAstChannelSpecTokens(astChannel: any): string[] {
   const seqSpec: string[] | undefined = astChannel?.seqSpecTokens;
   if (Array.isArray(seqSpec) && seqSpec.length > 0) {
-    return seqSpec.map((s) => String(s)).map((s) => s.trim()).filter(Boolean);
+    return groupChannelSeqTokens(seqSpec.map((s) => String(s)).map((s) => s.trim()).filter(Boolean));
   }
   if (typeof astChannel?.seq === 'string' && astChannel.seq.trim()) {
-    return astChannel.seq.split(/\s*,\s*|\s+/).map((s: string) => s.trim()).filter(Boolean);
+    return groupChannelSeqTokens(astChannel.seq.split(/\s+/));
   }
   if (typeof astChannel?.pat === 'string' && astChannel.pat.trim()) {
-    return astChannel.pat.split(/\s*,\s*|\s+/).map((s: string) => s.trim()).filter(Boolean);
+    return groupChannelSeqTokens(astChannel.pat.split(/\s+/));
   }
   return [];
 }
@@ -338,6 +386,7 @@ function expandRefToPatternSegments(
   pats: Record<string, string[]>,
   patternDurations: Record<string, number>,
   channelItemIndex: number | null,
+  repeatIndex: number,
   rootSeqName: string | null,
   out: SliceSegment[],
   visiting: Set<string>,
@@ -361,7 +410,7 @@ function expandRefToPatternSegments(
           : 1;
         for (let ir = 0; ir < itemRepeat; ir++) {
           expandRefToPatternSegments(
-            inner, astSeqs, pats, patternDurations, channelItemIndex, rootSeqName ?? baseName, out, visiting,
+            inner, astSeqs, pats, patternDurations, channelItemIndex, repeatIndex, rootSeqName ?? baseName, out, visiting,
           );
         }
       }
@@ -373,7 +422,7 @@ function expandRefToPatternSegments(
   const patName = tokenToPatternName(base);
   const units = countExpandedRefSteps(refToken, astSeqs, pats, patternDurations);
   for (let r = 0; r < repeat; r++) {
-    out.push({ patName, seqName: rootSeqName, channelItemIndex, count: units });
+    out.push({ patName, seqName: rootSeqName, channelItemIndex, repeatIndex, count: units });
   }
 }
 
@@ -390,18 +439,22 @@ function buildSegmentsFromAstChannel(
   const astSeqs: Record<string, any> = ast?.seqs ?? {};
   for (let itemIndex = 0; itemIndex < tokens.length; itemIndex++) {
     const token = tokens[itemIndex];
+    const { base, repeat } = parseRepeatSpec(token);
     const refName = tokenToPatternName(token);
     const rootSeqName = Array.isArray(astSeqs[refName]) ? refName : null;
-    expandRefToPatternSegments(
-      token,
-      astSeqs,
-      pats,
-      patternDurations,
-      itemIndex,
-      rootSeqName,
-      segs,
-      new Set<string>(),
-    );
+    for (let pass = 0; pass < repeat; pass++) {
+      expandRefToPatternSegments(
+        base,
+        astSeqs,
+        pats,
+        patternDurations,
+        itemIndex,
+        pass,
+        rootSeqName,
+        segs,
+        new Set<string>(),
+      );
+    }
   }
   return segs;
 }
@@ -475,6 +528,7 @@ export function buildChannelTimelines(
         patName: seg.patName,
         seqName: seg.seqName,
         channelItemIndex: seg.channelItemIndex,
+        repeatIndex: seg.repeatIndex,
         startStep,
         endStep,
       };
@@ -497,13 +551,30 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): b
 function spanForChannelItem(
   segments: TimedSegment[],
   channelItemIndex: number,
+  repeatIndex?: number | null,
 ): { startStep: number; endStep: number } | null {
-  const matching = segments.filter((s) => s.channelItemIndex === channelItemIndex);
+  const matching = segments.filter((s) =>
+    s.channelItemIndex === channelItemIndex
+    && (repeatIndex == null || (s.repeatIndex ?? 0) === repeatIndex),
+  );
   if (matching.length === 0) return null;
   return {
     startStep: matching[0].startStep,
     endStep: matching[matching.length - 1].endStep,
   };
+}
+
+function repeatCountForChannelItem(segments: TimedSegment[], channelItemIndex: number): number {
+  const passes = new Set(
+    segments
+      .filter((s) => s.channelItemIndex === channelItemIndex)
+      .map((s) => s.repeatIndex),
+  );
+  return Math.max(1, passes.size);
+}
+
+function seqRefForPasses(seqName: string, passes: number): string {
+  return passes > 1 ? `${seqName}*${passes}` : seqName;
 }
 
 /**
@@ -520,7 +591,7 @@ export function resolveSliceWindow(
   }
 
   if (anchor.channelItemIndex != null) {
-    const span = spanForChannelItem(row.segments, anchor.channelItemIndex);
+    const span = spanForChannelItem(row.segments, anchor.channelItemIndex, anchor.repeatIndex);
     if (span) return span;
   }
 
@@ -536,7 +607,7 @@ export function resolveSliceWindow(
   }
 
   if (hit.channelItemIndex != null) {
-    const span = spanForChannelItem(row.segments, hit.channelItemIndex);
+    const span = spanForChannelItem(row.segments, hit.channelItemIndex, hit.repeatIndex);
     if (span) return span;
   }
 
@@ -555,15 +626,10 @@ export function resolveSliceWindow(
 function contiguousChannelItemSpan(
   segments: TimedSegment[],
   channelItemIndex: number,
-  pointStep: number,
+  _pointStep: number,
+  repeatIndex?: number | null,
 ): { startStep: number; endStep: number } | null {
-  const hit = segments.find(
-    (s) => s.channelItemIndex === channelItemIndex
-      && s.startStep <= pointStep
-      && pointStep < s.endStep,
-  );
-  if (!hit) return spanForChannelItem(segments, channelItemIndex);
-  return spanForChannelItem(segments, channelItemIndex);
+  return spanForChannelItem(segments, channelItemIndex, repeatIndex);
 }
 
 function contiguousSeqSpan(
@@ -576,7 +642,7 @@ function contiguousSeqSpan(
   );
   if (!hit) return null;
   if (hit.channelItemIndex != null) {
-    return spanForChannelItem(segments, hit.channelItemIndex);
+    return spanForChannelItem(segments, hit.channelItemIndex, hit.repeatIndex);
   }
   let startIdx = segments.indexOf(hit);
   let endIdx = startIdx;
@@ -598,15 +664,19 @@ function pickChannelRef(
   const tryExactChannelItem = (
     channelItemIndex: number,
     seqName: string,
+    repeatIndex?: number | null,
   ): { kind: 'seq'; refs: string[]; misaligned: false } | null => {
-    const span = contiguousChannelItemSpan(segments, channelItemIndex, window.startStep)
-      ?? spanForChannelItem(segments, channelItemIndex);
+    const span = contiguousChannelItemSpan(segments, channelItemIndex, window.startStep, repeatIndex)
+      ?? spanForChannelItem(segments, channelItemIndex, repeatIndex);
     if (
       span
       && span.startStep === window.startStep
       && span.endStep === window.endStep
     ) {
-      return { kind: 'seq', refs: [seqName], misaligned: false };
+      const passes = repeatIndex == null
+        ? repeatCountForChannelItem(segments, channelItemIndex)
+        : 1;
+      return { kind: 'seq', refs: [seqRefForPasses(seqName, passes)], misaligned: false };
     }
     return null;
   };
@@ -630,7 +700,7 @@ function pickChannelRef(
   // Synthetic channels restart at t=0, so a longer seq would replay intro/tail.
   const atMid = overlapping.find((s) => s.startStep <= mid && mid < s.endStep);
   if (atMid?.seqName && atMid.channelItemIndex != null) {
-    const picked = tryExactChannelItem(atMid.channelItemIndex, atMid.seqName);
+    const picked = tryExactChannelItem(atMid.channelItemIndex, atMid.seqName, atMid.repeatIndex);
     if (picked) return picked;
   }
   if (atMid?.seqName) {
@@ -745,7 +815,7 @@ function inferChannelItemIndexFromSource(
   for (const line of fullSource.split('\n')) {
     const match = line.match(channelRe);
     if (!match) continue;
-    const tokens = match[1].trim().split(/\s+/).filter(Boolean);
+    const tokens = groupChannelSeqTokens(match[1].trim().split(/\s+/));
     for (let i = 0; i < tokens.length; i++) {
       if (tokenToPatternName(tokens[i]) === seqName) return i;
     }
@@ -802,7 +872,7 @@ export function collectPhaseSeqNamesFromSource(
   for (const line of fullSource.split('\n')) {
     const match = line.match(/^\s*channel\s+\d+\s*=>\s*inst\s+\S+\s+seq\s+(.+)/i);
     if (!match) continue;
-    const tokens = match[1].trim().split(/\s+/).filter(Boolean);
+    const tokens = groupChannelSeqTokens(match[1].trim().split(/\s+/));
     if (phaseIndex >= tokens.length) continue;
     const name = tokenToPatternName(tokens[phaseIndex]);
     if (name) names.push(name);
@@ -820,7 +890,7 @@ function collectPhaseSeqChannelsFromSource(
     const match = line.match(/^\s*channel\s+(\d+)\s*=>\s*inst\s+(\S+)\s+seq\s+(.+)/i);
     if (!match) continue;
     const channelId = Number(match[1]);
-    const tokens = match[3].trim().split(/\s+/).filter(Boolean);
+    const tokens = groupChannelSeqTokens(match[3].trim().split(/\s+/));
     if (phaseIndex >= tokens.length) continue;
     const seqName = tokenToPatternName(tokens[phaseIndex]);
     if (!seqName) continue;
@@ -846,6 +916,8 @@ export function deriveSectionFocusIdentity(info: SectionFocusInfo): SectionFocus
   return {
     headword: info.sectionHeadword ?? null,
     seqName: info.primarySeqName,
+    channelItemIndex: info.channelItemIndex,
+    repeatIndex: info.repeatIndex,
   };
 }
 
@@ -1107,16 +1179,24 @@ export function resolveSectionFocus(
     seqDefinitionLines,
     primarySeqName,
     channelItemIndex,
+    repeatIndex: anchor.repeatIndex,
   };
 }
 
 /** Whether a timed grid segment belongs to the active section focus. */
 export function segmentMatchesSectionFocus(
-  seg: { channelItemIndex: number | null; startStep: number; endStep: number },
-  focus: Pick<SectionFocusInfo, 'channelItemIndex' | 'window'>,
+  seg: {
+    channelItemIndex: number | null;
+    repeatIndex?: number | null;
+    startStep: number;
+    endStep: number;
+  },
+  focus: Pick<SectionFocusInfo, 'channelItemIndex' | 'repeatIndex' | 'window'>,
 ): boolean {
   if (focus.channelItemIndex != null) {
-    return seg.channelItemIndex === focus.channelItemIndex;
+    if (seg.channelItemIndex !== focus.channelItemIndex) return false;
+    if (focus.repeatIndex == null) return true;
+    return (seg.repeatIndex ?? 0) === focus.repeatIndex;
   }
   return seg.startStep < focus.window.endStep && focus.window.startStep < seg.endStep;
 }
@@ -1179,14 +1259,16 @@ export function findArrangementSliceAnchorBySeqName(
   ast: any | undefined,
   seqName: string,
   channelItemIndex?: number | null,
+  repeatIndex?: number | null,
 ): ArrangementSliceAnchor | null {
   const timelines = buildChannelTimelines(fullSource, song, ast);
   for (const row of timelines) {
     for (const seg of row.segments) {
       if (seg.seqName !== seqName) continue;
       if (channelItemIndex != null && seg.channelItemIndex !== channelItemIndex) continue;
+      if (repeatIndex != null && (seg.repeatIndex ?? 0) !== repeatIndex) continue;
       const span = seg.channelItemIndex != null
-        ? spanForChannelItem(row.segments, seg.channelItemIndex)
+        ? spanForChannelItem(row.segments, seg.channelItemIndex, repeatIndex ?? seg.repeatIndex)
         : { startStep: seg.startStep, endStep: seg.endStep };
       if (!span) continue;
       return {
@@ -1196,6 +1278,7 @@ export function findArrangementSliceAnchorBySeqName(
         seqName,
         patName: seg.patName,
         channelItemIndex: seg.channelItemIndex,
+        repeatIndex: repeatIndex ?? seg.repeatIndex,
       };
     }
   }
@@ -1240,11 +1323,11 @@ function seqNameNearCursorLine(lines: string[], lineNumber: number): string | nu
 function channelSpecTokensFromLine(line: string): string[] | null {
   const seqMatch = line.match(/^\s*channel\s+\d+\s*=>\s*inst\s+\S+\s+seq\s+(.+)$/i);
   if (seqMatch) {
-    return seqMatch[1].split(/\s+/).map((s) => s.trim()).filter(Boolean);
+    return groupChannelSeqTokens(seqMatch[1].split(/\s+/));
   }
   const patMatch = line.match(/^\s*channel\s+\d+\s*=>\s*inst\s+\S+\s+pat\s+(.+)$/i);
   if (patMatch) {
-    return patMatch[1].split(/\s+/).map((s) => s.trim()).filter(Boolean);
+    return groupChannelSeqTokens(patMatch[1].split(/\s+/));
   }
   return null;
 }
@@ -1463,6 +1546,7 @@ export function findArrangementSliceAnchorBySectionIdentity(
       const comment = findSectionCommentAbove(fullSource, blockStart);
       if (!comment) continue;
       if (normalizeSectionHeadword(comment.label) !== headword) continue;
+      if ((identity.repeatIndex ?? 0) > 0 && section.repeatIndex !== identity.repeatIndex) continue;
       return {
         channelId: section.channelId,
         startStep: section.startStep,
@@ -1470,12 +1554,20 @@ export function findArrangementSliceAnchorBySectionIdentity(
         seqName: section.seqName,
         patName: section.patName,
         channelItemIndex: section.channelItemIndex,
+        repeatIndex: section.repeatIndex,
       };
     }
   }
 
   if (seqName) {
-    return findArrangementSliceAnchorBySeqName(fullSource, song, ast, seqName);
+    return findArrangementSliceAnchorBySeqName(
+      fullSource,
+      song,
+      ast,
+      seqName,
+      identity.channelItemIndex,
+      identity.repeatIndex,
+    );
   }
 
   return null;
@@ -1490,19 +1582,24 @@ export interface ArrangementSectionBlock {
   startStep: number;
   endStep: number;
   channelItemIndex: number | null;
+  /** Pass of a top-level `name*N` (0 when the token is not repeated). */
+  repeatIndex: number;
 }
 
 export function sectionGroupKey(seg: {
   seqName: string | null;
   patName: string;
   channelItemIndex: number | null;
+  repeatIndex?: number | null;
 }): string {
+  const repeatSuffix = (seg.repeatIndex ?? 0) > 0 ? `:r${seg.repeatIndex}` : '';
   if (seg.channelItemIndex != null) {
     return seg.seqName
-      ? `seq:${seg.seqName}:${seg.channelItemIndex}`
-      : `pat:${seg.patName}:${seg.channelItemIndex}`;
+      ? `seq:${seg.seqName}:${seg.channelItemIndex}${repeatSuffix}`
+      : `pat:${seg.patName}:${seg.channelItemIndex}${repeatSuffix}`;
   }
-  return seg.seqName ? `seq:${seg.seqName}` : `pat:${seg.patName}`;
+  const base = seg.seqName ? `seq:${seg.seqName}` : `pat:${seg.patName}`;
+  return `${base}${repeatSuffix}`;
 }
 
 /** Stable per-occurrence id (React keys, section lists). Includes timeline position. */
@@ -1545,6 +1642,7 @@ export function listArrangementSections(
       startStep: seg.startStep,
       endStep: seg.endStep,
       channelItemIndex: seg.channelItemIndex,
+      repeatIndex: seg.repeatIndex,
     };
   }
 
@@ -1584,6 +1682,7 @@ export function findAdjacentSectionAnchor(
     seqName: block.seqName,
     patName: block.patName,
     channelItemIndex: block.channelItemIndex,
+    repeatIndex: block.repeatIndex,
   };
 }
 

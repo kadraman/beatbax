@@ -73,6 +73,31 @@ describe('parser: channel with multiple patterns after pat keyword', () => {
     expect((ast.channels[0] as any).seqSpecTokens).toEqual(['p1', 'p2', 'p3']);
   });
 
+  test('spaced channel repeats are one reference, not a name called *', () => {
+    const forms = [
+      'lead_seq * 3',
+      'lead_seq *3',
+      'lead_seq* 3',
+      'lead_seq*3',
+    ];
+    for (const spec of forms) {
+      const src = `
+        inst lead type=pulse1 duty=50 env=gb:12,down,1
+        pat melody = C4 E4 G4 C5
+        seq lead_seq = melody
+        channel 1 => inst lead seq ${spec}
+      `;
+      const ast = parse(src);
+      const errors = (ast.diagnostics ?? []).filter((d) => d.level === 'error').map((d) => d.message);
+      expect(errors).toEqual([]);
+      const tokens = (ast.channels[0] as { seqSpecTokens?: string[] }).seqSpecTokens ?? [];
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0].replace(/\s+/g, '')).toBe('lead_seq*3');
+      const song = resolveSong(ast);
+      expect(song.channels[0].events).toHaveLength(12);
+    }
+  });
+
   test('multiple patterns with repetition syntax', () => {
     const src = `
       inst lead type=pulse1 duty=50 env=gb:12,down,1

@@ -70,6 +70,7 @@ interface Segment {
   patName: string;
   seqName: string | null;
   channelItemIndex: number | null;
+  repeatIndex: number;
   count: number;
 }
 
@@ -88,6 +89,8 @@ export interface ArrangementSlicePlayRequest {
   patName: string;
   /** 0-based top-level channel seq/pat item (e.g. second `lead_seq`). */
   channelItemIndex?: number | null;
+  /** Pass of a top-level `name*N` (0-based). Omit to cover every pass of that item. */
+  repeatIndex?: number | null;
   loop?: boolean;
   /** When false, enter focus without starting playback (use transport Play). */
   autoPlay?: boolean;
@@ -210,6 +213,7 @@ function buildRows(song: any, ast?: any, source = ''): {
       patName: s.patName,
       seqName: s.seqName,
       channelItemIndex: s.channelItemIndex,
+      repeatIndex: s.repeatIndex,
       count: Math.max(1, s.endStep - s.startStep),
     }));
     const displayTotal = Math.max(1, segs.reduce((acc, seg) => acc + seg.count, 0));
@@ -984,10 +988,16 @@ function DesktopPatternGrid({
                           seqName: block.seqName,
                           patName: block.patName,
                           channelItemIndex: block.channelItemIndex,
+                          repeatIndex: block.repeatIndex,
                         };
                         const inSlice = sectionFocus
                           ? segmentMatchesSectionFocus(
-                            { channelItemIndex: block.channelItemIndex, startStep: block.startStep, endStep: block.endStep },
+                            {
+                              channelItemIndex: block.channelItemIndex,
+                              repeatIndex: block.repeatIndex,
+                              startStep: block.startStep,
+                              endStep: block.endStep,
+                            },
                             sectionFocus,
                           )
                           : !!sliceWindow
@@ -1069,7 +1079,7 @@ function DesktopPatternGrid({
                           const chipLabel = abbreviatePatternName(seg.patName);
                           const inSlice = sectionFocus
                             ? segmentMatchesSectionFocus(
-                              { channelItemIndex: seg.channelItemIndex, startStep, endStep },
+                              { channelItemIndex: seg.channelItemIndex, repeatIndex: seg.repeatIndex, startStep, endStep },
                               sectionFocus,
                             )
                             : !!sliceWindow
