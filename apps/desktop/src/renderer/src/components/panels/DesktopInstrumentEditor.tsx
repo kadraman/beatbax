@@ -650,12 +650,13 @@ function DesktopInstrumentEditor({
     commitToSource(draftRef.current);
   }, [commitToSource]);
 
-  const setLiveEdit = useCallback((next: boolean) => {
+  const setLiveEdit = useCallback((next: boolean): boolean => {
     if (next && isInstrumentDraftDirty(baselineRef.current, draftRef.current)) {
-      if (!commitToSource(draftRef.current)) return;
+      if (!commitToSource(draftRef.current)) return false;
     }
     setLiveEditState(next);
     storage.setJSON(StorageKey.INSTRUMENT_EDITOR_LIVE_EDIT, next);
+    return true;
   }, [commitToSource]);
 
   const withDirtyGuard = useCallback((action: () => void) => {
@@ -1152,7 +1153,8 @@ function DesktopInstrumentEditor({
     onBlur: () => setToolbarHint(null),
   });
 
-  const liveEditHint = 'Live edit';
+  const liveEditHintFor = (on: boolean) => (on ? 'Live edit mode - on' : 'Live edit mode - off');
+  const liveEditHint = liveEditHintFor(liveEdit);
   const applyHint = dirty
     ? 'Write panel draft to the .bax instrument line'
     : 'No panel changes to write';
@@ -1225,7 +1227,11 @@ function DesktopInstrumentEditor({
           aria-label="Live edit"
           aria-pressed={liveEdit}
           {...toolbarHintProps(liveEditHint)}
-          onClick={() => setLiveEdit(!liveEdit)}
+          onClick={() => {
+            const next = !liveEdit;
+            if (!setLiveEdit(next)) return;
+            setToolbarHint(liveEditHintFor(next));
+          }}
           dangerouslySetInnerHTML={{ __html: icon('bolt', 'w-3.5 h-3.5') }}
         />
         {/* Always mount Apply/Revert so Live toggle does not shift icon positions. */}

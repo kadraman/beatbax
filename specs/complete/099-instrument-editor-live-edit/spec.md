@@ -6,18 +6,19 @@ status: "complete"
 authors:
   - "kadraman"
 created: "2026-10-22"
-updated: "2026-11-01"
+updated: "2026-11-10"
 issue: "https://github.com/kadraman/beatbax/issues/230"
 area: "desktop"
 related:
   - "specs/complete/021-instrument-editor-panel/spec.md"
+  - "https://github.com/kadraman/beatbax/issues/258"
 ---
 
 # Feature Specification: Instrument editor Live edit vs Apply
 
 ## Summary
 
-The Instrument Editor gains a **Live edit** toggle (default on, matching [021](../../complete/021-instrument-editor-panel/spec.md) writeback). When Live is off, field and macro edits stay in a panel draft for audition; **Apply** writes the `inst` line and **Revert** reloads from source. Dirty navigation prompts Apply / Discard / Cancel.
+The Instrument Editor gains a **Live edit** toggle (default on, matching [021](../../complete/021-instrument-editor-panel/spec.md) writeback). When Live is off, field and macro edits stay in a panel draft for audition; **Apply** writes the `inst` line and **Revert** reloads from source. Dirty navigation prompts Apply / Discard / Cancel. Instrument Editor buffer writes do not arm transport Live playback ([#258](https://github.com/kadraman/beatbax/issues/258)).
 
 ## Problem
 
@@ -71,12 +72,25 @@ Every valid panel edit rewrites the `.bax` `inst` line immediately. Auditioning 
 
 1. **Given** the user toggles Live edit, **When** the app restarts, **Then** the last Live edit preference is restored (default true when unset).
 
+### User Story 5 — Instrument writes do not start transport Live (Priority: P1)
+
+**Why this priority**: Transport Live and Instrument Editor Live edit are different controls. An `inst` write must not start the song.
+
+**Independent test**: With transport Live on and playback stopped, change a field while panel Live edit is on. After the transport debounce the song is still stopped. A pattern edit in the code editor still starts playback.
+
+**Acceptance scenarios**:
+
+1. **Given** transport Live is on and playback is stopped, **When** the Instrument Editor writes source (Live edit, Apply, or New / Rename / Delete / Duplicate / preset), **Then** parse and diagnostics run and playback does not start.
+2. **Given** transport Live is on, **When** the user edits the song in the code editor, **Then** transport Live still arms playback.
+3. **Given** transport Live is on, **When** an Instrument Editor write occurs, **Then** the Live control stays in the state the user set.
+
 ### Edge cases
 
 - Imported read-only instruments: no writeback (as today); Live/Apply do not enable writing imported lines.
 - Enabling Live while dirty: if draft is valid, Apply then enable Live; if invalid, keep Live off and show errors.
 - External source change (`parse:success`) while Live off and dirty: do not clobber the draft.
-- Structural ops (New / Delete / Rename / Duplicate) still write source when confirmed; they are not draft-only tweaks.
+- Structural ops (New / Delete / Rename / Duplicate) still write source when confirmed; they are not draft-only tweaks. Those writes follow User Story 5: they do not arm transport Live.
+- A Monaco edit that already armed transport Live is left alone if an Instrument Editor write arrives before that timer fires.
 
 ## Requirements
 
@@ -89,6 +103,7 @@ Every valid panel edit rewrites the `.bax` `inst` line immediately. Auditioning 
 - **FR-005**: Dirty navigation MUST offer Apply / Discard / Cancel before leaving the current draft.
 - **FR-006**: Live edit preference MUST persist across sessions (default on).
 - **FR-007**: Write-valid-only remains: invalid drafts never write source.
+- **FR-008**: Instrument Editor buffer writes MUST NOT arm transport Live playback. Parse and diagnostics MUST still run. The transport Live toggle MUST stay as the user left it. Code-editor edits MUST still arm transport Live when it is on.
 
 ### Non-goals
 
