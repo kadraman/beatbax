@@ -9384,25 +9384,33 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-inst-editor__preview-bar {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
   min-width: 0;
 }
-.bb-inst-editor__preview-label {
-  flex: 0 0 auto;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #888;
+.bb-inst-editor__preview-lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin-right: auto;
+}
+.bb-inst-editor__preview-lead .bb-inst-editor__keys-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bb-inst-editor__preview-lead .bb-inst-editor__octave {
+  flex-shrink: 0;
 }
 .bb-inst-editor__preview .bb-inst-editor__midi-bar {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
 }
 [data-theme="light"] .bb-inst-editor__preview {
   background: #ececec;
   border-top-color: #ccc;
 }
-[data-theme="light"] .bb-inst-editor__preview-label { color: #555; }
 .bb-inst-editor__section { display: none; flex-direction: column; gap: 12px; }
 .bb-inst-editor__section.is-active { display: flex; }
 .bb-inst-editor__chrome {
@@ -9513,34 +9521,54 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 1px solid #444;
   border-radius: 3px;
   background: #333;
   color: #bbb;
   cursor: pointer;
+  user-select: none;
+  -webkit-app-region: no-drag;
+  transition: background 0.08s, border-color 0.08s, color 0.08s, transform 0.08s;
 }
 .bb-inst-editor__toolbar-btn svg {
   display: block;
   width: 14px;
   height: 14px;
+  pointer-events: none;
 }
 .bb-inst-editor__toolbar-btn:hover:not(:disabled):not([aria-disabled="true"]) {
-  filter: brightness(1.3);
-  color: #eee;
+  background: #454545;
+  border-color: #777;
+  color: #fff;
+}
+.bb-inst-editor__toolbar-btn:active:not(:disabled):not([aria-disabled="true"]) {
+  background: #222;
+  border-color: #111;
+  color: #fff;
+  transform: translateY(1px);
 }
 .bb-inst-editor__toolbar-btn:disabled,
 .bb-inst-editor__toolbar-btn[aria-disabled="true"] {
   opacity: 0.35;
   cursor: default;
-  filter: none;
 }
 .bb-inst-editor__toolbar-btn.is-active {
   border-color: #3a8f3e;
   background: #243828;
   color: #b6f0b8;
+}
+.bb-inst-editor__toolbar-btn.is-active:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: #2e4a34;
+  border-color: #4caf50;
+  color: #d8ffe0;
+}
+.bb-inst-editor__toolbar-btn.is-active:active:not(:disabled):not([aria-disabled="true"]) {
+  background: #1a2e1e;
+  border-color: #2d6b32;
+  color: #d8ffe0;
 }
 /* Keep the slot so neighbouring icons do not jump when Live edit turns off. */
 .bb-inst-editor__toolbar-btn.is-slot-hidden {
@@ -9550,6 +9578,16 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-inst-editor__toolbar-btn.is-dirty:not(:disabled) {
   border-color: #c4a035;
   color: #f3d48a;
+}
+.bb-inst-editor__toolbar-btn.is-dirty:hover:not(:disabled) {
+  background: #454545;
+  border-color: #e0bc55;
+  color: #ffe7a8;
+}
+.bb-inst-editor__toolbar-btn.is-dirty:active:not(:disabled) {
+  background: #222;
+  border-color: #a68420;
+  color: #ffe7a8;
 }
 .bb-inst-editor__dialog-backdrop {
   z-index: 9200;
@@ -9873,6 +9911,16 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   border-color: #bbb;
   color: #444;
 }
+[data-theme="light"] .bb-inst-editor__toolbar-btn:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: #f4f4f4;
+  border-color: #888;
+  color: #111;
+}
+[data-theme="light"] .bb-inst-editor__toolbar-btn:active:not(:disabled):not([aria-disabled="true"]) {
+  background: #d0d0d0;
+  border-color: #888;
+  color: #111;
+}
 [data-theme="light"] .bb-inst-editor__toolbar-btn:disabled,
 [data-theme="light"] .bb-inst-editor__toolbar-btn[aria-disabled="true"] {
   opacity: 0.4;
@@ -9882,9 +9930,29 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   background: #d9f2dc;
   color: #1d5c28;
 }
+[data-theme="light"] .bb-inst-editor__toolbar-btn.is-active:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: #c6ebcb;
+  border-color: #2f7d34;
+  color: #14401c;
+}
+[data-theme="light"] .bb-inst-editor__toolbar-btn.is-active:active:not(:disabled):not([aria-disabled="true"]) {
+  background: #b5e0bb;
+  border-color: #24662a;
+  color: #14401c;
+}
 [data-theme="light"] .bb-inst-editor__toolbar-btn.is-dirty:not(:disabled) {
   border-color: #a67c12;
   color: #7a5b08;
+}
+[data-theme="light"] .bb-inst-editor__toolbar-btn.is-dirty:hover:not(:disabled) {
+  background: #f4f4f4;
+  border-color: #a67c12;
+  color: #5c4406;
+}
+[data-theme="light"] .bb-inst-editor__toolbar-btn.is-dirty:active:not(:disabled) {
+  background: #d0d0d0;
+  border-color: #8a680e;
+  color: #5c4406;
 }
 [data-theme="light"] .bb-inst-editor__dialog {
   background: #f8f8f8;
@@ -10255,21 +10323,23 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   border-radius: 3px;
 }
 .bb-inst-editor__keys { display: flex; flex-direction: column; gap: 6px; }
-.bb-inst-editor__oneshot {
+.bb-inst-editor__pads {
   display: flex;
-  flex-direction: column;
   align-items: stretch;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
+  height: 88px;
 }
 .bb-inst-editor__trigger {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  align-self: flex-start;
-  min-width: 9.5rem;
-  min-height: 40px;
-  padding: 8px 18px;
+  gap: 2px;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  padding: 8px 10px;
   border: 1px solid #555;
   border-radius: 4px;
   background: #2d2d2d;
@@ -10280,6 +10350,35 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   cursor: pointer;
   user-select: none;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.bb-inst-editor__pads--solo .bb-inst-editor__trigger {
+  flex: 1 1 auto;
+}
+.bb-inst-editor__pad-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.bb-inst-editor__pad-sub {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: #aaa;
+  line-height: 1.2;
+}
+.bb-inst-editor__pad-meta {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #888;
+  line-height: 1.3;
+  text-align: center;
+}
+.bb-inst-editor__trigger.is-active .bb-inst-editor__pad-sub,
+.bb-inst-editor__trigger.is-active .bb-inst-editor__pad-meta {
+  color: #065f46;
 }
 .bb-inst-editor__trigger:hover {
   background: #3a3a3a;
@@ -10295,32 +10394,33 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   border-color: #34d399;
   color: #064e3b;
 }
-.bb-inst-editor__sample-meta {
-  margin: 0;
-}
-.bb-inst-editor__uge-strip {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
 .bb-inst-editor__uge-keys {
   display: flex;
-  flex-wrap: wrap;
+  flex: 7 1 0;
   gap: 4px;
   min-width: 0;
+  height: 100%;
 }
 .bb-inst-editor__uge-key {
-  min-width: 2.6rem;
-  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  padding: 6px 4px;
   border: 1px solid #555;
-  border-radius: 3px;
+  border-radius: 4px;
   background: #2d2d2d;
   color: #ccc;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   user-select: none;
+}
+.bb-inst-editor__uge-key.is-current {
+  box-shadow: inset 0 -3px 0 #569cd6;
 }
 .bb-inst-editor__uge-key:hover {
   background: #3a3a3a;
@@ -10352,9 +10452,10 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   margin: 0;
 }
 .bb-inst-editor__midi-device {
-  flex: 1 1 8rem;
-  min-width: 0;
-  max-width: 100%;
+  flex: 0 1 14rem;
+  width: 14rem;
+  min-width: 8rem;
+  max-width: 16rem;
 }
 .bb-inst-editor__midi-refresh {
   flex-shrink: 0;
@@ -10362,25 +10463,14 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   font-size: 11px;
 }
 .bb-inst-editor__midi-status {
-  flex: 1 1 100%;
+  flex: 0 1 auto;
+  max-width: 11rem;
   font-size: 11px;
   color: #888;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-@media (min-width: 360px) {
-  .bb-inst-editor__midi-status {
-    flex: 1 1 auto;
-  }
-}
-.bb-inst-editor__keys-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
 }
 .bb-inst-editor__keys-label { margin: 0; min-width: 0; }
 .bb-inst-editor__octave {
@@ -10504,6 +10594,12 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   background: #6ee7b7;
   border-color: #34d399;
   color: #064e3b;
+}
+[data-theme="light"] .bb-inst-editor__pad-sub { color: #555; }
+[data-theme="light"] .bb-inst-editor__pad-meta { color: #666; }
+[data-theme="light"] .bb-inst-editor__trigger.is-active .bb-inst-editor__pad-sub,
+[data-theme="light"] .bb-inst-editor__trigger.is-active .bb-inst-editor__pad-meta {
+  color: #065f46;
 }
 [data-theme="light"] .bb-inst-editor__uge-key {
   background: #fff;

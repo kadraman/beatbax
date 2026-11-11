@@ -351,41 +351,26 @@ function instrumentOptionLabel(name: string, type: string, imported: boolean): s
   return suffix ? `${name} (${suffix})` : name;
 }
 
-type ToolbarHint = { text: string; anchor: HTMLElement };
+/** Position the hint without a React render so a hover or press does not rebuild the editor. */
+function placeToolbarTip(tip: HTMLDivElement, text: string, anchor: HTMLElement): void {
+  tip.textContent = text;
+  tip.style.visibility = 'hidden';
+  const button = anchor.getBoundingClientRect();
+  const tipBox = tip.getBoundingClientRect();
+  let left = button.left + (button.width - tipBox.width) / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tipBox.width - 8));
+  let top = button.bottom + 6;
+  if (top + tipBox.height > window.innerHeight - 8) {
+    top = Math.max(8, button.top - tipBox.height - 6);
+  }
+  tip.style.left = `${left}px`;
+  tip.style.top = `${top}px`;
+  tip.style.visibility = 'visible';
+}
 
-function ToolbarTip({ text, anchor }: ToolbarHint): React.JSX.Element {
-  const tipRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-
-  useLayoutEffect(() => {
-    const tip = tipRef.current;
-    if (!tip) return;
-    const button = anchor.getBoundingClientRect();
-    const tipBox = tip.getBoundingClientRect();
-    let left = button.left + (button.width - tipBox.width) / 2;
-    left = Math.max(8, Math.min(left, window.innerWidth - tipBox.width - 8));
-    let top = button.bottom + 6;
-    if (top + tipBox.height > window.innerHeight - 8) {
-      top = Math.max(8, button.top - tipBox.height - 6);
-    }
-    setPos({ left, top });
-  }, [anchor, text]);
-
-  return createPortal(
-    <div
-      ref={tipRef}
-      className="bb-inst-editor__toolbar-tip"
-      role="tooltip"
-      style={{
-        left: pos?.left ?? 0,
-        top: pos?.top ?? 0,
-        visibility: pos ? 'visible' : 'hidden',
-      }}
-    >
-      {text}
-    </div>,
-    document.body,
-  );
+function hideToolbarTip(tip: HTMLDivElement | null): void {
+  if (!tip) return;
+  tip.style.visibility = 'hidden';
 }
 
 const BUILTIN_SECTION_IDS = new Set<string>(BUILTIN_INSTRUMENT_SECTION_IDS);
@@ -431,8 +416,23 @@ function DesktopInstrumentEditor({
   const [renameBounds, setRenameBounds] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [dirtyNavOpen, setDirtyNavOpen] = useState(false);
   const [dialogBounds, setDialogBounds] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
-  const [toolbarHint, setToolbarHint] = useState<ToolbarHint | null>(null);
+  const toolbarTipRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const tip = document.createElement('div');
+    tip.className = 'bb-inst-editor__toolbar-tip';
+    tip.setAttribute('role', 'tooltip');
+    tip.style.visibility = 'hidden';
+    document.body.appendChild(tip);
+    toolbarTipRef.current = tip;
+    return () => {
+      tip.remove();
+      toolbarTipRef.current = null;
+    };
+  }, []);
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) hideToolbarTip(toolbarTipRef.current);
+  }, [open]);
   const [activeSection, setActiveSection] = useState('templates');
   const lastPreviewNote = useRef('C4');
   const selectedRef = useRef<string | null>(null);
@@ -782,6 +782,7 @@ function DesktopInstrumentEditor({
   const instType = String(draft.type ?? schema.types[0]?.id ?? '');
   const isDmcType = instType.toLowerCase() === 'dmc';
   const previewMode = resolvePreviewMode(instType, chip, schema, draft);
+  const currentUge = typeof draft.uge_note === 'string' ? draft.uge_note.trim() : '';
   const dmcSampleMeta = previewMode === 'oneshot' && isDmcType
     ? resolveBundledSampleMeta(chip, draft.dmc_sample)
     : null;
@@ -1286,13 +1287,15 @@ function DesktopInstrumentEditor({
   const siblingPeriod = Number(formatInstrumentFieldValue('env_period', draft.env_period));
 
   const showToolbarHint = (hint: string, anchor: HTMLElement) => {
-    setToolbarHint({ text: hint, anchor });
+    const tip = toolbarTipRef.current;
+    if (!tip) return;
+    placeToolbarTip(tip, hint, anchor);
   };
   const toolbarHintProps = (hint: string) => ({
     onMouseEnter: (event: React.MouseEvent<HTMLButtonElement>) => showToolbarHint(hint, event.currentTarget),
-    onMouseLeave: () => setToolbarHint(null),
+    onMouseLeave: () => hideToolbarTip(toolbarTipRef.current),
     onFocus: (event: React.FocusEvent<HTMLButtonElement>) => showToolbarHint(hint, event.currentTarget),
-    onBlur: () => setToolbarHint(null),
+    onBlur: () => hideToolbarTip(toolbarTipRef.current),
   });
 
   const liveEditHintFor = (on: boolean) => (on ? 'Live edit mode - on' : 'Live edit mode - off');
@@ -1404,10 +1407,10 @@ function DesktopInstrumentEditor({
           aria-label="Live edit"
           aria-pressed={liveEdit}
           {...toolbarHintProps(liveEditHint)}
-          onClick={() => {
+          onClick={(event) => {
             const next = !liveEdit;
             if (!setLiveEdit(next)) return;
-            setToolbarHint((cur) => (cur ? { ...cur, text: liveEditHintFor(next) } : cur));
+            showToolbarHint(liveEditHintFor(next), event.currentTarget);
           }}
           dangerouslySetInnerHTML={{ __html: icon('bolt', 'w-3.5 h-3.5') }}
         />
@@ -1493,7 +1496,6 @@ function DesktopInstrumentEditor({
       </div>
       </div>
       </div>
-      {toolbarHint ? <ToolbarTip text={toolbarHint.text} anchor={toolbarHint.anchor} /> : null}
       {renameOpen && selected && renameBounds
         ? createPortal(
           <div
@@ -1874,31 +1876,38 @@ function DesktopInstrumentEditor({
       {selected ? (
         <div className="bb-inst-editor__preview" aria-label="Preview">
           <div className="bb-inst-editor__preview-bar">
-            <span className="bb-inst-editor__preview-label">Preview</span>
+            {previewMode === 'melodic' ? (
+              <div className="bb-inst-editor__preview-lead">
+                <span className="bb-settings-note bb-inst-editor__keys-label">A–J play the marked octave · Z/X shift</span>
+                <OctaveStepper octave={pianoOctave} onChange={setPianoOctave} />
+              </div>
+            ) : null}
+            {previewMode === 'uge_note' ? (
+              <div className="bb-inst-editor__preview-lead">
+                <span className="bb-settings-note bb-inst-editor__keys-label">UGE / noise clock (audition only)</span>
+              </div>
+            ) : null}
             <MidiPreviewStrip />
           </div>
           {previewMode === 'melodic' ? (
             <MiniKeyboard
               activeNote={activeNote}
               octave={pianoOctave}
-              onOctaveChange={setPianoOctave}
               onDown={(note) => playNote(note, { sustain: true })}
               onUp={releaseNote}
             />
           ) : null}
           {previewMode === 'oneshot' || previewMode === 'uge_note' ? (
-            <div className="bb-inst-editor__oneshot">
+            <div className={`bb-inst-editor__pads${previewMode === 'oneshot' ? ' bb-inst-editor__pads--solo' : ''}`}>
               <button
                 type="button"
-                className={`bb-inst-editor__trigger${activeNote === 'hit' || activeNote?.startsWith('C-') ? ' is-active' : ''}`}
+                className={`bb-inst-editor__trigger${activeNote === 'hit' ? ' is-active' : ''}`}
                 title={isDmcType ? 'Trigger sample (A / Space) — plays to end' : 'Trigger hit (A / Space) — plays to end'}
                 onPointerDown={() => {
                   if (previewMode === 'uge_note') {
                     playHit('hit', {
                       sustain: false,
-                      instPatch: typeof draft.uge_note === 'string' && draft.uge_note.trim()
-                        ? undefined
-                        : { uge_note: 'C-6' },
+                      instPatch: currentUge ? undefined : { uge_note: 'C-6' },
                     });
                   } else {
                     playHit('hit', { sustain: false });
@@ -1907,24 +1916,28 @@ function DesktopInstrumentEditor({
                 onPointerUp={releaseHoldPreview}
                 onPointerLeave={releaseHoldPreview}
               >
-                {isDmcType ? 'Trigger sample' : 'Trigger'}
+                <span className="bb-inst-editor__pad-title">{isDmcType ? 'Trigger sample' : 'Trigger'}</span>
+                <span className="bb-inst-editor__pad-sub">
+                  {previewMode === 'uge_note' ? (currentUge || 'C-6') : 'A / Space'}
+                </span>
+                {dmcSampleMeta ? (
+                  <span className="bb-inst-editor__pad-meta">
+                    Designed
+                    {dmcSampleMeta.designedRate != null ? ` rate ${dmcSampleMeta.designedRate}` : ''}
+                    {dmcSampleMeta.baseNote ? ` · ${dmcSampleMeta.baseNote}` : ''}
+                    {' '}(guidance only)
+                  </span>
+                ) : null}
               </button>
-              {dmcSampleMeta ? (
-                <div className="bb-settings-note bb-inst-editor__sample-meta" aria-live="polite">
-                  Designed
-                  {dmcSampleMeta.designedRate != null ? ` rate ${dmcSampleMeta.designedRate}` : ''}
-                  {dmcSampleMeta.baseNote ? ` · ${dmcSampleMeta.baseNote}` : ''}
-                  {' '}(guidance only)
-                </div>
+              {previewMode === 'uge_note' ? (
+                <UgeNoteStrip
+                  activeNote={activeNote}
+                  marked={currentUge}
+                  onDown={(uge) => playHit(uge, { sustain: false, instPatch: { uge_note: uge } })}
+                  onUp={() => setActiveNote(null)}
+                />
               ) : null}
             </div>
-          ) : null}
-          {previewMode === 'uge_note' ? (
-            <UgeNoteStrip
-              activeNote={activeNote}
-              onDown={(uge) => playHit(uge, { sustain: false, instPatch: { uge_note: uge } })}
-              onUp={() => setActiveNote(null)}
-            />
           ) : null}
         </div>
       ) : null}
@@ -3159,7 +3172,7 @@ function MidiPreviewStrip(): React.JSX.Element {
 
   return (
     <div className="bb-inst-editor__midi-bar" role="group" aria-label="MIDI input">
-      <label className="bb-inst-editor__midi-enable">
+      <label className="bb-inst-editor__midi-enable" title="MIDI plays any key">
         <input
           type="checkbox"
           checked={midiEnabled && supported}
@@ -3216,32 +3229,71 @@ function MidiPreviewStrip(): React.JSX.Element {
 
 function UgeNoteStrip({
   activeNote,
+  marked,
   onDown,
   onUp,
 }: {
   activeNote: string | null;
+  marked: string;
   onDown: (ugeNote: string) => void;
   onUp: () => void;
 }): React.JSX.Element {
   const notes = ugeNotePreviewStrip();
   return (
-    <div className="bb-inst-editor__uge-strip" role="group" aria-label="UGE noise clock">
-      <div className="bb-settings-note bb-inst-editor__keys-label">UGE / noise clock (audition only)</div>
-      <div className="bb-inst-editor__uge-keys">
-        {notes.map((uge) => (
-          <button
-            key={uge}
-            type="button"
-            className={`bb-inst-editor__uge-key${activeNote === uge ? ' is-active' : ''}`}
-            title={`${uge} (audition; does not write uge_note)`}
-            onPointerDown={() => onDown(uge)}
-            onPointerUp={onUp}
-            onPointerLeave={onUp}
-          >
-            {uge}
-          </button>
-        ))}
-      </div>
+    <div className="bb-inst-editor__uge-keys" role="group" aria-label="UGE noise clock">
+      {notes.map((uge) => (
+        <button
+          key={uge}
+          type="button"
+          className={`bb-inst-editor__uge-key${activeNote === uge ? ' is-active' : ''}${marked === uge ? ' is-current' : ''}`}
+          title={marked === uge
+            ? `${uge} — this instrument’s clock (audition; does not write uge_note)`
+            : `${uge} (audition; does not write uge_note)`}
+          onPointerDown={() => onDown(uge)}
+          onPointerUp={onUp}
+          onPointerLeave={onUp}
+        >
+          {uge}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function OctaveStepper({
+  octave,
+  onChange,
+}: {
+  octave: number;
+  onChange: (next: number) => void;
+}): React.JSX.Element {
+  const clampOctave = (next: number) =>
+    Math.max(PIANO_OCTAVE_MIN, Math.min(PIANO_OCTAVE_MAX, next));
+  return (
+    <div className="bb-inst-editor__octave" role="group" aria-label="Computer-key octave">
+      <button
+        type="button"
+        className="bb-inst-editor__octave-btn"
+        aria-label="Octave down"
+        title="Octave down (Z)"
+        disabled={octave <= PIANO_OCTAVE_MIN}
+        onClick={() => onChange(clampOctave(octave - 1))}
+      >
+        −
+      </button>
+      <span className="bb-inst-editor__octave-value" title="Computer keys Z / X">
+        Oct {octave}
+      </span>
+      <button
+        type="button"
+        className="bb-inst-editor__octave-btn"
+        aria-label="Octave up"
+        title="Octave up (X)"
+        disabled={octave >= PIANO_OCTAVE_MAX}
+        onClick={() => onChange(clampOctave(octave + 1))}
+      >
+        +
+      </button>
     </div>
   );
 }
@@ -3249,18 +3301,14 @@ function UgeNoteStrip({
 function MiniKeyboard({
   activeNote,
   octave,
-  onOctaveChange,
   onDown,
   onUp,
 }: {
   activeNote: string | null;
   octave: number;
-  onOctaveChange: (next: number) => void;
   onDown: (note: string) => void;
   onUp: () => void;
 }): React.JSX.Element {
-  const clampOctave = (next: number) =>
-    Math.max(PIANO_OCTAVE_MIN, Math.min(PIANO_OCTAVE_MAX, next));
   const pianoRef = useRef<HTMLDivElement>(null);
   const computerRef = useRef<HTMLDivElement>(null);
   const octaves: number[] = [];
@@ -3276,34 +3324,6 @@ function MiniKeyboard({
 
   return (
     <div className="bb-inst-editor__keys">
-      <div className="bb-inst-editor__keys-bar">
-        <div className="bb-settings-note bb-inst-editor__keys-label">A–J play the marked octave · Z/X shift · MIDI plays any key</div>
-        <div className="bb-inst-editor__octave" role="group" aria-label="Computer-key octave">
-          <button
-            type="button"
-            className="bb-inst-editor__octave-btn"
-            aria-label="Octave down"
-            title="Octave down (Z)"
-            disabled={octave <= PIANO_OCTAVE_MIN}
-            onClick={() => onOctaveChange(clampOctave(octave - 1))}
-          >
-            −
-          </button>
-          <span className="bb-inst-editor__octave-value" title="Computer keys Z / X">
-            Oct {octave}
-          </span>
-          <button
-            type="button"
-            className="bb-inst-editor__octave-btn"
-            aria-label="Octave up"
-            title="Octave up (X)"
-            disabled={octave >= PIANO_OCTAVE_MAX}
-            onClick={() => onOctaveChange(clampOctave(octave + 1))}
-          >
-            +
-          </button>
-        </div>
-      </div>
       <div className="bb-inst-editor__piano" aria-label="Preview keyboard" ref={pianoRef}>
         {octaves.map((oct) => {
           const isComputer = oct === octave;
