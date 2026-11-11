@@ -3,6 +3,8 @@ import {
   buildSubpatternHoverMarkdown,
   formatSubPatternRow,
   formatSubPatternSource,
+  parseSubPatternRow,
+  parseSubPatternRows,
 } from '../src/editor/subpat-format';
 
 describe('formatSubPatternRow', () => {
@@ -16,6 +18,32 @@ describe('formatSubPatternRow', () => {
   test('renders signed offsets with volume', () => {
     expect(formatSubPatternRow({ empty: false, offset: 0, vol: 10 })).toBe('+0 vol:10');
     expect(formatSubPatternRow({ empty: false, offset: -2, vol: 8 })).toBe('-2 vol:8');
+  });
+});
+
+describe('parseSubPatternRow', () => {
+  test('round-trips the authoring examples', () => {
+    for (const text of ['.', 'halt', '+0 vol:15', '-2 vol:12', 'jump:5', 'fx:1,1']) {
+      expect(formatSubPatternRow(parseSubPatternRow(text)!)).toBe(text);
+    }
+  });
+
+  test('parses a one-line table and hex fx', () => {
+    expect(parseSubPatternRows('. +0 vol:15 -2 vol:12 jump:5 halt')?.map(formatSubPatternRow)).toEqual([
+      '.',
+      '+0 vol:15',
+      '-2 vol:12 halt jump:5',
+    ]);
+    const fx = parseSubPatternRow('fx:0F,10');
+    expect(fx?.fx).toEqual({ code: 15, param: 10 });
+    expect(formatSubPatternRow(fx!)).toBe('fx:15,10');
+  });
+
+  test('rejects empty text, junk, and more than one row in a cell', () => {
+    expect(parseSubPatternRow('')).toBeNull();
+    expect(parseSubPatternRow('nope')).toBeNull();
+    expect(parseSubPatternRow('+0 -1')).toBeNull();
+    expect(parseSubPatternRow('vol:1 vol:2')).toBeNull();
   });
 });
 

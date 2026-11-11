@@ -371,6 +371,93 @@ export function formatInstrumentSampleRef(
  * so leaving Bundled clears the value; a bundled name is kept only when it is
  * a known sample for this chip.
  */
+export const BUILTIN_INSTRUMENT_SECTION_IDS = [
+  'templates',
+  'properties',
+  'hardware',
+  'waveform',
+  'macros',
+  'preview',
+  'subpattern',
+] as const;
+
+export type BuiltinInstrumentSectionId = (typeof BUILTIN_INSTRUMENT_SECTION_IDS)[number];
+
+const BUILTIN_INSTRUMENT_SECTION_LABELS: Record<BuiltinInstrumentSectionId, string> = {
+  templates: 'Templates',
+  properties: 'Properties',
+  hardware: 'Hardware',
+  waveform: 'Waveform',
+  macros: 'Macros',
+  preview: 'Preview',
+  subpattern: 'Subpattern',
+};
+
+export interface InstrumentEditorSection {
+  id: string;
+  label: string;
+}
+
+function constraintApplies(when: string | undefined, type: string | undefined): boolean {
+  if (!when) return true;
+  const match = when.match(/type=([A-Za-z0-9_|-]+)/);
+  if (!match) return true;
+  return match[1].split('|').some((part) => part.toLowerCase() === (type ?? '').toLowerCase());
+}
+
+/**
+ * Built-in Instrument Editor pages for one type, then any optional `nav` pages.
+ * Empty songs (no selected instrument) have no pages. Pages with nothing to show
+ * are omitted. Preview is not a page: the editor docks it under every page.
+ * Unset `nav` keeps Voice/Defaults, Hardware, and Macros grouping.
+ */
+export function listInstrumentEditorSections(args: {
+  schema: ChipInstrumentEditor;
+  type?: string;
+  hasInstrument: boolean;
+}): InstrumentEditorSection[] {
+  if (!args.hasInstrument) return [];
+  const { schema, type } = args;
+  const fields = schema.fields.filter((field) => fieldApplies(field.whenType, type));
+  const macros = schema.macros.filter((macro) => fieldApplies(macro.whenType, type));
+  const propertyFields = fields.filter((field) => (
+    !field.nav
+    && field.name !== 'subpat'
+    && field.widget !== 'envelope'
+    && field.widget !== 'sweep'
+    && field.name !== 'env_period'
+  ));
+  const hardware = fields.some((field) => (
+    !field.nav && (field.widget === 'envelope' || field.widget === 'sweep')
+  ));
+  const waveform = Boolean(schema.waveform && fieldApplies(schema.waveform.whenType, type));
+  const macroPage = macros.some((macro) => !macro.nav);
+  const subpattern = fields.some((field) => !field.nav && field.name === 'subpat');
+  const properties = propertyFields.length > 0
+    || (schema.constraints ?? []).some((note) => constraintApplies(note.when, type));
+
+  const sections: InstrumentEditorSection[] = [
+    { id: 'templates', label: BUILTIN_INSTRUMENT_SECTION_LABELS.templates },
+  ];
+  if (properties) sections.push({ id: 'properties', label: BUILTIN_INSTRUMENT_SECTION_LABELS.properties });
+  if (hardware) sections.push({ id: 'hardware', label: BUILTIN_INSTRUMENT_SECTION_LABELS.hardware });
+  if (waveform) sections.push({ id: 'waveform', label: BUILTIN_INSTRUMENT_SECTION_LABELS.waveform });
+  if (macroPage) sections.push({ id: 'macros', label: BUILTIN_INSTRUMENT_SECTION_LABELS.macros });
+  if (subpattern) sections.push({ id: 'subpattern', label: BUILTIN_INSTRUMENT_SECTION_LABELS.subpattern });
+
+  const seen = new Set<string>(BUILTIN_INSTRUMENT_SECTION_IDS);
+  const extra: InstrumentEditorSection[] = [];
+  const pushNav = (nav: string | undefined) => {
+    const id = nav?.trim();
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    extra.push({ id, label: id });
+  };
+  for (const field of fields) pushNav(field.nav);
+  for (const macro of macros) pushNav(macro.nav);
+  return sections.concat(extra);
+}
+
 export function sampleRemainderForSchemeChange(
   from: InstrumentSampleScheme,
   to: InstrumentSampleScheme,

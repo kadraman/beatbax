@@ -337,6 +337,11 @@ export interface ChipInstrumentFieldDef {
   whenType?: string | string[];
   hint?: string;
   /**
+   * Optional Instrument Editor page id (spec 103). Unset fields stay in the
+   * built-in Voice/Defaults, Hardware, or Subpattern grouping.
+   */
+  nav?: string;
+  /**
    * How composite `envelope` / `sweep` widgets persist on the `inst` line.
    * - `csv` (default): single packed prop (`env=12,down,1`, `sweep=7,down,3`) — Game Boy.
    * - `discrete`: sibling props (`env`+`env_period`, or `sweep_en`/`sweep_period`/`sweep_shift`/`sweep_dir`) — NES.
@@ -354,6 +359,11 @@ export interface ChipInstrumentMacroDef {
   whenType?: string | string[];
   kind?: 'hardware' | 'software';
   hint?: string;
+  /**
+   * Optional Instrument Editor page id (spec 103). Unset macros stay on the
+   * Macros page.
+   */
+  nav?: string;
 }
 
 export type ChipWaveformShape = 'sine' | 'square' | 'saw' | 'triangle';

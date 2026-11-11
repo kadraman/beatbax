@@ -29,46 +29,37 @@ describe('instrument editor preview keys', () => {
     expect(isInstrumentEditorTypingTarget(button)).toBe(false);
   });
 
-  it('handles preview keys when the Instruments tab is active and focus is not typing', () => {
-    const tab = document.createElement('div');
-    tab.className = 'bb-right-tab-content--active';
+  it('handles preview keys when the instrument modal is open and focus is not typing', () => {
     const panel = document.createElement('div');
-    tab.appendChild(panel);
-    document.body.appendChild(tab);
+    panel.dataset.bbInstEditorOpen = 'true';
+    document.body.appendChild(panel);
 
     expect(shouldHandleInstrumentPreviewKey(keyEvent('a', panel), panel)).toBe(true);
   });
 
   it('does not handle preview keys in Monaco or other text fields', () => {
-    const tab = document.createElement('div');
-    tab.className = 'bb-right-tab-content--active';
     const panel = document.createElement('div');
+    panel.dataset.bbInstEditorOpen = 'true';
     const textarea = document.createElement('textarea');
     textarea.className = 'inputarea';
-    tab.appendChild(panel);
-    document.body.appendChild(tab);
+    document.body.appendChild(panel);
     document.body.appendChild(textarea);
 
     expect(shouldHandleInstrumentPreviewKey(keyEvent('a', textarea), panel)).toBe(false);
   });
 
   it('does not handle preview keys while a modifier chord is held', () => {
-    const tab = document.createElement('div');
-    tab.className = 'bb-right-tab-content--active';
     const panel = document.createElement('div');
-    tab.appendChild(panel);
-    document.body.appendChild(tab);
+    panel.dataset.bbInstEditorOpen = 'true';
+    document.body.appendChild(panel);
 
     expect(shouldHandleInstrumentPreviewKey(keyEvent('a', panel, { metaKey: true }), panel)).toBe(false);
     expect(shouldHandleInstrumentPreviewKey(keyEvent('a', panel, { ctrlKey: true }), panel)).toBe(false);
   });
 
-  it('does not handle preview keys when the Instruments tab is hidden', () => {
-    const tab = document.createElement('div');
-    tab.className = 'bb-right-tab-content';
+  it('does not handle preview keys when the instrument modal is closed', () => {
     const panel = document.createElement('div');
-    tab.appendChild(panel);
-    document.body.appendChild(tab);
+    document.body.appendChild(panel);
 
     expect(shouldHandleInstrumentPreviewKey(keyEvent('a', panel), panel)).toBe(false);
   });

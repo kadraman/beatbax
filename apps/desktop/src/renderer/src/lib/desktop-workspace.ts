@@ -17,13 +17,13 @@ import {
   playbackLoopRange,
   setPlaybackStartStep,
 } from '@beatbax/app-core/stores/playback-range.store';
-import { settingDefaultBpm, settingSongArtist, settingShowSongVisualizer, settingShowChannelMixer, settingShowPatternGrid, settingShowInstrumentEditor } from '@beatbax/app-core/stores/settings.store';
+import { settingDefaultBpm, settingSongArtist, settingShowSongVisualizer, settingShowChannelMixer, settingShowPatternGrid } from '@beatbax/app-core/stores/settings.store';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { shouldShowLegacySongVisualizerTab } from '@beatbax/app-core/utils/song-visualizer-panel';
 import { shouldShowChannelMixer } from '@beatbax/app-core/utils/channel-mixer-panel';
 import { shouldShowPatternGrid } from '@beatbax/app-core/utils/pattern-grid-panel';
-import { isInstrumentEditorAllowed, shouldShowInstrumentEditor } from '@beatbax/app-core/utils/instrument-editor-panel';
+import { isInstrumentEditorAllowed } from '@beatbax/app-core/utils/instrument-editor-panel';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { buildBottomTabs, buildRightTabs } from '../components/shell/tabs';
 import {
@@ -248,22 +248,15 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     },
   });
 
-  const rightTabs = buildRightTabs(rightPane, layout, {
-    onActiveTabChange: (tab) => {
-      const midi = (window as any).__beatbax_midiStepEntry;
-      midi?.setInstrumentAuditionOnly?.(tab === 'instruments' && !midi.isArmed?.());
-      // Note-off handlers require Instruments to be active; stop here when leaving.
-      if (tab !== 'instruments') {
-        stopInstPreview();
-        eventBus.emit('instrument-editor:audition', { note: null });
-      }
-    },
-  });
+  const rightTabs = buildRightTabs(rightPane, layout);
+
+  /** Modal open state. Not restored from `ui.activeRightTab` (spec 103). */
+  const instrumentEditorOpen = { current: false };
 
   const syncInstrumentMidiAudition = (): void => {
     const midi = (window as any).__beatbax_midiStepEntry;
     midi?.setInstrumentAuditionOnly?.(
-      rightTabs.activeTab === 'instruments' && !midi.isArmed?.(),
+      instrumentEditorOpen.current && !midi.isArmed?.(),
     );
   };
 
@@ -289,7 +282,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         transportVisible: transportBar?.isVisible?.() ?? true,
         channelMixerVisible: channelMixerRef.current?.isVisible?.() ?? false,
         patternGridVisible: patternGridContainer.style.display !== 'none',
-        instrumentEditorVisible: (rightTabs.tabOpen.instruments ?? false) && layout.isRightPaneVisible(),
+        instrumentEditorVisible: instrumentEditorOpen.current,
         aiOpen: rightTabs.tabOpen.ai ?? false,
       };
     },
@@ -414,43 +407,46 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   helpContainer.style.cssText = 'flex:1 1 0;overflow:hidden;display:flex;flex-direction:column;';
   rightTabs.tabContents.help!.appendChild(helpContainer);
 
-  const instrumentsContainer = document.createElement('div');
-  instrumentsContainer.style.cssText = 'flex:1 1 0;overflow:hidden;display:flex;flex-direction:column;';
-  rightTabs.tabContents.instruments?.appendChild(instrumentsContainer);
-
   let instrumentEditor: DesktopInstrumentEditorHandle | null = null;
-  if (rightTabs.tabContents.instruments) {
-    instrumentEditor = createDesktopInstrumentEditor(instrumentsContainer, {
-      eventBus,
-      getSource: () => getEditor()?.getValue() ?? '',
-      applySource: (next) => {
-        const monacoEditor = getEditor()?.editor;
-        if (!monacoEditor) return;
-        applyUndoableReplace(monacoEditor, 'instrument-editor', next);
-      },
-      revealInst: (name, opts) => {
-        // Writeback is undoable executeEdits — refresh the highlight after the model updates.
-        queueMicrotask(() => {
-          instrumentEditorNav.sync(name, {
-            focus: opts?.focus === true,
-            reveal: opts?.reveal !== false && name != null,
-          });
+  instrumentEditor = createDesktopInstrumentEditor({
+    eventBus,
+    getSource: () => getEditor()?.getValue() ?? '',
+    applySource: (next) => {
+      const monacoEditor = getEditor()?.editor;
+      if (!monacoEditor) return;
+      applyUndoableReplace(monacoEditor, 'instrument-editor', next);
+    },
+    revealInst: (name, opts) => {
+      // Writeback is undoable executeEdits — refresh the highlight after the model updates.
+      queueMicrotask(() => {
+        instrumentEditorNav.sync(name, {
+          focus: opts?.focus === true,
+          reveal: opts?.reveal !== false && name != null,
         });
-      },
-      revealSubpat: (name) => {
-        if (!name) return;
-        queueMicrotask(() => {
-          instrumentEditorNav.syncSubpat(name, { focus: true, reveal: true });
-        });
-      },
-      previewNote: (instName, note, options) => triggerInstNotePreview(instName, note, {
-        sustain: true,
-        ...options,
-      }),
-      stopPreview: () => stopInstPreview(),
-      isMidiRecordArmed: () => (window as any).__beatbax_midiStepEntry?.isArmed?.() ?? false,
-    });
-  }
+      });
+    },
+    revealSubpat: (name) => {
+      if (!name) return;
+      queueMicrotask(() => {
+        instrumentEditorNav.syncSubpat(name, { focus: true, reveal: true });
+      });
+    },
+    previewNote: (instName, note, options) => triggerInstNotePreview(instName, note, {
+      sustain: true,
+      ...options,
+    }),
+    stopPreview: () => stopInstPreview(),
+    isMidiRecordArmed: () => (window as any).__beatbax_midiStepEntry?.isArmed?.() ?? false,
+    onOpenChange: (open) => {
+      instrumentEditorOpen.current = open;
+      menuBar?.seedPanelVisible({ 'instrument-editor': open });
+      syncInstrumentMidiAudition();
+      if (!open) {
+        stopInstPreview();
+        eventBus.emit('instrument-editor:audition', { note: null });
+      }
+    },
+  });
 
   const ks = new KeyboardShortcuts();
   const settingsModal = capabilities.settingsPanel
@@ -854,7 +850,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     transportDisplay,
     tryPlayFocused: () => tryPlayOverride(),
     getInstrumentMidiAudition: () => {
-      if (rightTabs.activeTab !== 'instruments') return null;
+      if (!instrumentEditorOpen.current) return null;
       return instrumentEditor?.getMidiAudition?.() ?? null;
     },
   });
@@ -1032,10 +1028,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       }
       if (panel === 'instrument-editor') {
         if (visible && !isInstrumentEditorAllowed(capabilities)) return;
-        if (visible) rightTabs.show('instruments');
-        else rightTabs.close('instruments');
-        settingShowInstrumentEditor.set(visible);
-        syncInstrumentMidiAudition();
+        if (visible) instrumentEditor?.show();
+        else instrumentEditor?.hide();
       }
       statusBar?.refreshPanelsMenu();
       requestMacMenuRefresh();
@@ -1049,9 +1043,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         settingShowPatternGrid.set(enabled);
         eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: enabled });
       }
-      if (flag === FeatureFlag.INSTRUMENT_EDITOR) {
-        settingShowInstrumentEditor.set(enabled);
-        eventBus.emit('panel:toggled', { panel: 'instrument-editor', visible: enabled });
+      if (flag === FeatureFlag.INSTRUMENT_EDITOR && !enabled) {
+        instrumentEditor?.hide();
       }
       if (flag === FeatureFlag.SONG_VISUALIZER) {
         settingShowSongVisualizer.set(enabled);
@@ -1081,6 +1074,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     channelMixer,
     copilot,
     getSectionFocusController: () => sectionFocusController,
+    isInstrumentEditorOpen: () => instrumentEditorOpen.current,
     onStatus: (message) => statusBar?.setStatus(message),
   });
   ks.mount();
@@ -1109,14 +1103,6 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     else rightTabs.close('channels');
     settingShowSongVisualizer.set(showLegacy);
   }
-  if (isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR) && shouldShowInstrumentEditor(capabilities)) {
-    rightTabs.ensureOpen('instruments');
-    if (restoredRightTab === 'instruments') rightTabs.show('instruments');
-    settingShowInstrumentEditor.set(true);
-  } else {
-    rightTabs.close('instruments');
-    settingShowInstrumentEditor.set(false);
-  }
   syncInstrumentMidiAudition();
   if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
     window.setTimeout(() => {
@@ -1128,7 +1114,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   menuBar?.seedPanelVisible({
     help: rightTabs.tabOpen.help,
     'song-visualizer': rightTabs.tabOpen.channels && isFeatureEnabled(FeatureFlag.SONG_VISUALIZER),
-    'instrument-editor': rightTabs.tabOpen.instruments && isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR),
+    'instrument-editor': false,
     'ai-assistant': copilot?.isVisible() ?? false,
   });
 
@@ -1186,6 +1172,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       onVerify: runVerify,
       getEditor,
       getSectionFocusController: () => sectionFocusController,
+      isInstrumentEditorOpen: () => instrumentEditorOpen.current,
       onStatus: (message) => statusBar?.setStatus(message),
     });
     editor.editor.onDidChangeCursorPosition(() => {

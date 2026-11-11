@@ -10,6 +10,7 @@ import {
   type ShortcutCommandId,
 } from '@beatbax/app-core/shortcuts';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
+import { isInstrumentEditorAllowed } from '@beatbax/app-core/utils/instrument-editor-panel';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import { icon } from '../../utils/icons';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
@@ -114,6 +115,13 @@ function DesktopToolbar({
     message: '',
     type: '',
   });
+  const [instrumentEditorOn, setInstrumentEditorOn] = useState(
+    () => isInstrumentEditorAllowed(getCurrentCapabilities()),
+  );
+  const [instrumentCatalog, setInstrumentCatalog] = useState<{
+    options: Array<{ name: string; label: string }>;
+    selected: string | null;
+  }>({ options: [], selected: null });
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
 
@@ -159,6 +167,18 @@ function DesktopToolbar({
       for (const cleanup of cleanups) cleanup();
     };
   }, [eventBus, setStatus]);
+
+  useEffect(() => {
+    return eventBus.on('feature-flag:changed', () => {
+      setInstrumentEditorOn(isInstrumentEditorAllowed(getCurrentCapabilities()));
+    });
+  }, [eventBus]);
+
+  useEffect(() => {
+    return eventBus.on('instrument-editor:catalog', (catalog) => {
+      setInstrumentCatalog(catalog);
+    });
+  }, [eventBus]);
 
   const caps = getCurrentCapabilities();
   const openFile = () => {
@@ -275,6 +295,43 @@ function DesktopToolbar({
       </div>
 
       <div className="bb-toolbar__group bb-toolbar__group--view bb-toolbar__group--right">
+        {instrumentEditorOn ? (
+          <div className="bb-toolbar__inst">
+            <select
+              aria-label="Instrument"
+              className="bb-toolbar__inst-select"
+              disabled={instrumentCatalog.options.length === 0}
+              id="tb-inst"
+              onChange={(event) => {
+                const name = event.target.value;
+                if (!name) return;
+                eventBus.emit('instrument-editor:select', { name });
+              }}
+              title="Reveal this instrument in the editor"
+              value={instrumentCatalog.selected ?? ''}
+            >
+              {instrumentCatalog.options.length === 0 ? <option value="">No instruments</option> : null}
+              {!instrumentCatalog.selected && instrumentCatalog.options.length > 0 ? <option value="">Select instrument</option> : null}
+              {instrumentCatalog.options.map((option) => (
+                <option key={option.name} value={option.name}>{option.label}</option>
+              ))}
+            </select>
+            <button
+              className="bb-toolbar__btn"
+              disabled={!instrumentCatalog.selected}
+              id="tb-inst-edit"
+              onClick={() => {
+                if (!instrumentCatalog.selected) return;
+                eventBus.emit('instrument-editor:open', { name: instrumentCatalog.selected });
+              }}
+              title="Edit instrument"
+              type="button"
+            >
+              <ToolbarIcon name="pencil" />
+              <span className="bb-toolbar__btn-label">Edit</span>
+            </button>
+          </div>
+        ) : null}
         <button className="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-theme" onClick={onToggleTheme} title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} type="button">
           <ToolbarIcon name={theme === 'dark' ? 'sun' : 'moon'} />
           <span className="bb-toolbar__btn-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>

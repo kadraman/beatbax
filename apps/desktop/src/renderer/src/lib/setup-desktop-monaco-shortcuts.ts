@@ -30,6 +30,7 @@ export interface SetupDesktopMonacoShortcutsOptions {
   onVerify: () => void;
   getEditor: () => BeatBaxEditor | null;
   getSectionFocusController?: () => SectionFocusController | null;
+  isInstrumentEditorOpen?: () => boolean;
   onStatus?: (message: string) => void;
 }
 
@@ -118,7 +119,7 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
     }, requiresCapability: 'patternGrid' },
     { commandId: 'view.toggleInstrumentEditor', handler: () => {
       if (!isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR)) return;
-      const vis = rightTabs.tabOpen.instruments && rightTabs.activeTab === 'instruments';
+      const vis = options.isInstrumentEditorOpen?.() ?? false;
       eventBus.emit('panel:toggled', { panel: 'instrument-editor', visible: !vis });
     }, requiresCapability: 'advancedEditor' },
   ], DESKTOP_CAPABILITIES);

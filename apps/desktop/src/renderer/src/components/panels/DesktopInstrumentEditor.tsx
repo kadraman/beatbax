@@ -37,7 +37,9 @@ import {
   findInstrumentTypeDef,
   formatInstrumentSampleRef,
   INSTRUMENT_SAMPLE_SCHEMES,
+  BUILTIN_INSTRUMENT_SECTION_IDS,
   listBundledSampleNames,
+  listInstrumentEditorSections,
   parseInstrumentSampleRef,
   resolveBundledSampleMeta,
   resolveInstrumentEditorSchema,
@@ -50,6 +52,7 @@ import {
 import type { InstNotePreviewOptions } from '@beatbax/app-core/editor/codelens-preview';
 import {
   collectLocalInstNames,
+  collectLocalSubpatNames,
   deleteInstLine,
   duplicateInstLine,
   findSubpatLineIndex,
@@ -58,8 +61,14 @@ import {
   isValidInstName,
   renameInstrumentInSource,
   replaceInstLine,
+  syncSubpatBlock,
   uniqueInstName,
 } from '@beatbax/app-core/editor/instrument-editor-writeback';
+import {
+  formatSubPatternRow,
+  parseSubPatternRow,
+  type SubPatternRowLike,
+} from '@beatbax/app-core/editor/subpat-format';
 import {
   instrumentDraftFingerprint,
   instrumentDraftPreviewPatch,
@@ -289,6 +298,7 @@ export interface DesktopInstrumentEditorHandle {
   getSelectedName: () => string | null;
   /** MIDI idle audition for the selected instrument (oneshot vs melodic). */
   getMidiAudition: () => InstrumentMidiAudition | null;
+  isOpen: () => boolean;
   setAst: (ast: any) => void;
   dispose: () => void;
 }
@@ -303,6 +313,8 @@ export interface DesktopInstrumentEditorOptions {
   previewNote: (instName: string, note: string, options?: InstNotePreviewOptions) => void;
   stopPreview: () => void;
   isMidiRecordArmed?: () => boolean;
+  /** Fired when the modal opens or closes. Not called on mount. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 const PIANO_SLOTS: Array<{
@@ -325,13 +337,6 @@ function pianoNote(degree: string, octave: number): string {
   return `${degree}${octave}`;
 }
 
-function octaveFromNoteName(note: string): number | null {
-  const m = /^[A-Ga-g][#b]?(-?\d+)$/.exec(note.trim());
-  if (!m) return null;
-  const oct = Number(m[1]);
-  return Number.isFinite(oct) ? oct : null;
-}
-
 function pianoBindings(octave: number): Array<{ key: string; note: string }> {
   const out: Array<{ key: string; note: string }> = [];
   for (const slot of PIANO_SLOTS) {
@@ -340,6 +345,50 @@ function pianoBindings(octave: number): Array<{ key: string; note: string }> {
   }
   return out;
 }
+
+function instrumentOptionLabel(name: string, type: string, imported: boolean): string {
+  const suffix = [type, imported ? 'imported' : ''].filter(Boolean).join(' · ');
+  return suffix ? `${name} (${suffix})` : name;
+}
+
+type ToolbarHint = { text: string; anchor: HTMLElement };
+
+function ToolbarTip({ text, anchor }: ToolbarHint): React.JSX.Element {
+  const tipRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const tip = tipRef.current;
+    if (!tip) return;
+    const button = anchor.getBoundingClientRect();
+    const tipBox = tip.getBoundingClientRect();
+    let left = button.left + (button.width - tipBox.width) / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tipBox.width - 8));
+    let top = button.bottom + 6;
+    if (top + tipBox.height > window.innerHeight - 8) {
+      top = Math.max(8, button.top - tipBox.height - 6);
+    }
+    setPos({ left, top });
+  }, [anchor, text]);
+
+  return createPortal(
+    <div
+      ref={tipRef}
+      className="bb-inst-editor__toolbar-tip"
+      role="tooltip"
+      style={{
+        left: pos?.left ?? 0,
+        top: pos?.top ?? 0,
+        visibility: pos ? 'visible' : 'hidden',
+      }}
+    >
+      {text}
+    </div>,
+    document.body,
+  );
+}
+
+const BUILTIN_SECTION_IDS = new Set<string>(BUILTIN_INSTRUMENT_SECTION_IDS);
 
 function cloneInst(node: InstrumentNode | undefined): InstrumentNode {
   return node ? JSON.parse(JSON.stringify(node)) : {};
@@ -363,7 +412,8 @@ function DesktopInstrumentEditor({
   revealSubpat,
   previewNote,
   stopPreview,
-}: Props): React.JSX.Element {
+  onOpenChange,
+}: Props): React.JSX.Element | null {
   const [ast, setAst] = useState<any>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<InstrumentNode>({});
@@ -381,12 +431,21 @@ function DesktopInstrumentEditor({
   const [renameBounds, setRenameBounds] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [dirtyNavOpen, setDirtyNavOpen] = useState(false);
   const [dialogBounds, setDialogBounds] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
-  const [toolbarHint, setToolbarHint] = useState<string | null>(null);
+  const [toolbarHint, setToolbarHint] = useState<ToolbarHint | null>(null);
+  const [open, setOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('templates');
   const lastPreviewNote = useRef('C4');
   const selectedRef = useRef<string | null>(null);
   const draftRef = useRef<InstrumentNode>({});
   const baselineRef = useRef<InstrumentNode>({});
   const liveEditRef = useRef(liveEdit);
+  const openRef = useRef(false);
+  const requestCloseRef = useRef<() => void>(() => {});
+  const setModalOpen = useCallback((next: boolean) => {
+    openRef.current = next;
+    setOpen(next);
+    onOpenChange?.(next);
+  }, [onOpenChange]);
   const dirtyRef = useRef(false);
   const pendingNavRef = useRef<(() => void) | null>(null);
   const chipRef = useRef('gameboy');
@@ -504,8 +563,12 @@ function DesktopInstrumentEditor({
   }, []);
 
   useImperativeHandle(panelRef, () => ({
-    show: () => {},
-    hide: () => {},
+    show: () => {
+      setModalOpen(true);
+      window.requestAnimationFrame(() => focusInstrumentEditorPanel(bodyRef.current));
+    },
+    hide: () => requestCloseRef.current(),
+    isOpen: () => openRef.current,
     selectInstrument: (name) => {
       if (dirtyRef.current) {
         pendingNavRef.current = () => loadInst(name, undefined, { reveal: false, focus: false });
@@ -553,7 +616,7 @@ function DesktopInstrumentEditor({
     dispose: () => {
       revealInst(null);
     },
-  }), [ast, loadInst, revealInst, syncSelectionFromAst]);
+  }), [ast, loadInst, revealInst, setModalOpen, syncSelectionFromAst]);
 
   useEffect(() => {
     return eventBus.on('parse:success', ({ ast: next, resolvedAst, ephemeral }) => {
@@ -567,6 +630,7 @@ function DesktopInstrumentEditor({
 
   useEffect(() => {
     return eventBus.on('instrument-editor:open', ({ name }) => {
+      setModalOpen(true);
       if (dirtyRef.current) {
         pendingNavRef.current = () => {
           loadInst(name, undefined, { reveal: true, focus: false });
@@ -578,17 +642,25 @@ function DesktopInstrumentEditor({
       loadInst(name, ast, { reveal: true, focus: false });
       restorePanelFocus();
     });
-  }, [ast, eventBus, loadInst, restorePanelFocus]);
+  }, [ast, eventBus, loadInst, restorePanelFocus, setModalOpen]);
+
+  useEffect(() => {
+    return eventBus.on('instrument-editor:select', ({ name }) => {
+      if (dirtyRef.current) {
+        setModalOpen(true);
+        pendingNavRef.current = () => loadInst(name, undefined, { reveal: true, focus: false });
+        setDirtyNavOpen(true);
+        return;
+      }
+      loadInst(name, ast, { reveal: true, focus: false });
+    });
+  }, [ast, eventBus, loadInst, setModalOpen]);
 
   useEffect(() => {
     return eventBus.on('instrument-editor:audition', ({ note }) => {
       if (!note) {
         setActiveNote(null);
         return;
-      }
-      const oct = octaveFromNoteName(note);
-      if (oct != null && oct >= PIANO_OCTAVE_MIN && oct <= PIANO_OCTAVE_MAX) {
-        setPianoOctave(oct);
       }
       setActiveNote(note);
       lastPreviewNote.current = note;
@@ -602,7 +674,15 @@ function DesktopInstrumentEditor({
       setErrors(issues);
       return false;
     }
-    const { next: source, ok } = replaceInstLine(getSource(), selected, next, fieldOrder);
+    const block = syncSubpatBlock(getSource(), next, selected);
+    if (!block.ok) {
+      setErrors([{
+        field: 'subpat',
+        message: block.error ?? `Could not write subpattern '${String(next.subpat ?? '')}'.`,
+      }]);
+      return false;
+    }
+    const { next: source, ok } = replaceInstLine(block.next, selected, next, fieldOrder);
     if (!ok) {
       // e.g. external edit removed the inst line — not a field validation failure.
       setErrors([{
@@ -667,6 +747,7 @@ function DesktopInstrumentEditor({
     pendingNavRef.current = action;
     setDirtyNavOpen(true);
   }, []);
+  requestCloseRef.current = () => withDirtyGuard(() => setModalOpen(false));
 
   const closeDirtyNav = useCallback(() => {
     pendingNavRef.current = null;
@@ -1139,17 +1220,78 @@ function DesktopInstrumentEditor({
     );
   };
 
-  const envelopeField = visibleFields.find((f) => f.widget === 'envelope');
-  const sweepField = visibleFields.find((f) => f.widget === 'sweep');
-  const voiceFields = visibleFields.filter((f) => !isHardwarePropField(f) && !isDefaultPropField(f));
-  const defaultFields = visibleFields.filter(isDefaultPropField);
+  const envelopeField = visibleFields.find((f) => f.widget === 'envelope' && !f.nav);
+  const sweepField = visibleFields.find((f) => f.widget === 'sweep' && !f.nav);
+  const paneFields = visibleFields.filter((f) => !f.nav && f.name !== 'subpat');
+  const voiceFields = paneFields.filter((f) => !isHardwarePropField(f) && !isDefaultPropField(f));
+  const defaultFields = paneFields.filter(isDefaultPropField);
+  const subpatName = typeof draft.subpat === 'string' ? draft.subpat.trim() : '';
+  const subpatRows = Array.isArray(draft.subpatRows) ? draft.subpatRows as SubPatternRowLike[] : [];
+  const subpatBlockInSource = Boolean(subpatName) && findSubpatLineIndex(getSource(), subpatName) >= 0;
+  const subpatAttachNames = [...collectLocalSubpatNames(getSource())]
+    .filter((name) => {
+      if (name === subpatName) return false;
+      const table = (ast?.subpatterns as Record<string, { rows?: unknown[] }> | undefined)?.[name];
+      return Array.isArray(table?.rows) && table.rows.length > 0;
+    })
+    .sort();
+  const subpatSharedWith = subpatName
+    ? Object.keys(ast?.insts ?? {}).filter((name) => (
+      name !== selected
+      && localNames.has(name)
+      && String(ast?.insts?.[name]?.subpat ?? '').trim() === subpatName
+    ))
+    : [];
+  const editorSections = useMemo(
+    () => listInstrumentEditorSections({
+      schema,
+      type: instType,
+      hasInstrument: Boolean(selected),
+    }),
+    [schema, instType, selected],
+  );
+  useEffect(() => {
+    if (!editorSections.some((section) => section.id === activeSection)) {
+      setActiveSection(editorSections[0]?.id ?? 'templates');
+    }
+  }, [activeSection, editorSections]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (renameOpen || dirtyNavOpen) return;
+      event.preventDefault();
+      event.stopPropagation();
+      requestCloseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [dirtyNavOpen, open, renameOpen]);
+  const catalogKey = `${selected ?? ''}|${pickerNames.map((name) => {
+    const type = String(ast?.insts?.[name]?.type ?? (name === selected ? draft.type : '') ?? '');
+    return `${name}:${instrumentOptionLabel(name, type, !localNames.has(name))}`;
+  }).join('|')}`;
+  useEffect(() => {
+    const options = pickerNames.map((name) => {
+      const type = String(ast?.insts?.[name]?.type ?? (name === selected ? draft.type : '') ?? '');
+      return {
+        name,
+        label: instrumentOptionLabel(name, type, !localNames.has(name)),
+      };
+    });
+    eventBus.emit('instrument-editor:catalog', { options, selected });
+    // catalogKey already snapshots names, labels, and selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogKey, eventBus]);
   const siblingPeriod = Number(formatInstrumentFieldValue('env_period', draft.env_period));
 
-  /** In-panel hint (no native OS title — those clip outside the right pane). */
+  const showToolbarHint = (hint: string, anchor: HTMLElement) => {
+    setToolbarHint({ text: hint, anchor });
+  };
   const toolbarHintProps = (hint: string) => ({
-    onMouseEnter: () => setToolbarHint(hint),
+    onMouseEnter: (event: React.MouseEvent<HTMLButtonElement>) => showToolbarHint(hint, event.currentTarget),
     onMouseLeave: () => setToolbarHint(null),
-    onFocus: () => setToolbarHint(hint),
+    onFocus: (event: React.FocusEvent<HTMLButtonElement>) => showToolbarHint(hint, event.currentTarget),
     onBlur: () => setToolbarHint(null),
   });
 
@@ -1162,12 +1304,44 @@ function DesktopInstrumentEditor({
     ? 'Discard panel edits and reload from the editor'
     : 'No panel changes to discard';
 
+  if (!open) return null;
+
+  const sectionClass = (id: string) => (
+    `bb-inst-editor__section${activeSection === id ? ' is-active' : ''}`
+  );
+
   return (
     <div
-      className={`bb-inst-editor${renameOpen || dirtyNavOpen ? ' is-dialog-open' : ''}${dirty ? ' is-draft-dirty' : ''}`}
+      className="bb-inst-editor-backdrop bb-inst-editor-backdrop--open"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) requestCloseRef.current();
+      }}
+    >
+    <div
+      aria-label="Instrument Editor"
+      aria-modal="true"
+      className="bb-inst-editor-modal"
+      data-bb-inst-editor-open="true"
       ref={bodyRef}
+      role="dialog"
       tabIndex={-1}
     >
+      <div className="bb-inst-editor-modal__header">
+        <span className="bb-inst-editor-modal__title">Instrument Editor</span>
+        <button
+          aria-label="Close"
+          className="bb-inst-editor-modal__close"
+          onClick={() => requestCloseRef.current()}
+          type="button"
+        >
+          ✕
+        </button>
+      </div>
+    <div
+      className={`bb-inst-editor${renameOpen || dirtyNavOpen ? ' is-dialog-open' : ''}${dirty ? ' is-draft-dirty' : ''}`}
+    >
+      <div className="bb-inst-editor__chrome">
+      <div className="bb-inst-editor__chrome-row">
       <div className="bb-inst-editor__toolbar" role="toolbar" aria-label="Instrument actions">
         <button
           type="button"
@@ -1206,7 +1380,10 @@ function DesktopInstrumentEditor({
           disabled={!selected}
           onClick={() => {
             if (!selected) return;
-            revealInst(selected, { focus: true, reveal: true });
+            withDirtyGuard(() => {
+              setModalOpen(false);
+              revealInst(selected, { focus: true, reveal: true });
+            });
           }}
           dangerouslySetInnerHTML={{ __html: icon('arrows-pointing-in', 'w-3.5 h-3.5') }}
         />
@@ -1230,7 +1407,7 @@ function DesktopInstrumentEditor({
           onClick={() => {
             const next = !liveEdit;
             if (!setLiveEdit(next)) return;
-            setToolbarHint(liveEditHintFor(next));
+            setToolbarHint((cur) => (cur ? { ...cur, text: liveEditHintFor(next) } : cur));
           }}
           dangerouslySetInnerHTML={{ __html: icon('bolt', 'w-3.5 h-3.5') }}
         />
@@ -1258,9 +1435,65 @@ function DesktopInstrumentEditor({
           dangerouslySetInnerHTML={{ __html: icon('arrow-uturn-left', 'w-3.5 h-3.5') }}
         />
       </div>
-      <div className="bb-inst-editor__toolbar-status" aria-live="polite">
-        {toolbarHint ?? '\u00a0'}
+      <div className="bb-inst-editor__identity">
+        <div className="bb-inst-editor__field">
+          <label className="bb-settings-label" htmlFor="bb-inst-picker">Instrument</label>
+          <select
+            id="bb-inst-picker"
+            className="bb-settings-select"
+            aria-label="Select instrument"
+            disabled={!pickerNames.length}
+            value={selected ?? ''}
+            onChange={(e) => {
+              const name = e.target.value;
+              if (!name) return;
+              const selectEl = e.currentTarget;
+              withDirtyGuard(() => {
+                loadInst(name, ast, { reveal: true, focus: false });
+                selectEl.blur();
+                restorePanelFocus();
+              });
+            }}
+          >
+            {!pickerNames.length ? <option value="">No instruments</option> : null}
+            {pickerNames.map((name) => {
+              const type = String(ast?.insts?.[name]?.type ?? (name === selected ? draft.type : '') ?? '');
+              return (
+                <option key={name} value={name}>
+                  {instrumentOptionLabel(name, type, !localNames.has(name))}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+        {selected ? (
+          <>
+            <div className="bb-inst-editor__field">
+              <span className="bb-settings-label">Name</span>
+              <input className="bb-settings-text" value={selected} disabled readOnly />
+            </div>
+            <div className="bb-inst-editor__field">
+              <label className="bb-settings-label" htmlFor="bb-inst-type">Type</label>
+              <select
+                id="bb-inst-type"
+                className="bb-settings-select"
+                disabled={!selectedLocal}
+                value={instType}
+                onChange={(e) => patch({ type: e.target.value })}
+              >
+                {schema.types.map((t) => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+          </>
+        ) : (
+          <p className="bb-settings-note bb-inst-editor__field--note">No instruments</p>
+        )}
       </div>
+      </div>
+      </div>
+      {toolbarHint ? <ToolbarTip text={toolbarHint.text} anchor={toolbarHint.anchor} /> : null}
       {renameOpen && selected && renameBounds
         ? createPortal(
           <div
@@ -1402,51 +1635,33 @@ function DesktopInstrumentEditor({
           document.body,
         )
         : null}
-      <div className="bb-inst-editor__body">
-        <div className="bb-inst-editor__picker bb-settings-row">
-          <label className="bb-settings-label" htmlFor="bb-inst-picker">Instrument</label>
-          <select
-            id="bb-inst-picker"
-            className="bb-settings-select bb-inst-editor__grow"
-            aria-label="Select instrument"
-            disabled={!pickerNames.length}
-            value={selected ?? ''}
-            onChange={(e) => {
-              const name = e.target.value;
-              if (!name) return;
-              const selectEl = e.currentTarget;
-              withDirtyGuard(() => {
-                loadInst(name, ast, { reveal: true, focus: false });
-                selectEl.blur();
-                restorePanelFocus();
-              });
-            }}
-          >
-            {!pickerNames.length ? <option value="">No instruments</option> : null}
-            {pickerNames.map((name) => {
-              const type = String(ast?.insts?.[name]?.type ?? (name === selected ? draft.type : '') ?? '');
-              const imported = !localNames.has(name);
-              const suffix = [type, imported ? 'imported' : ''].filter(Boolean).join(' · ');
-              return (
-                <option key={name} value={name}>
-                  {suffix ? `${name} (${suffix})` : name}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-
-        {selected && !selectedLocal ? (
-          <div className="bb-inst-editor__banner bb-settings-warning">
-            <span>Imported instruments are read-only.</span>
-            <button type="button" className="bb-settings-btn-secondary" onClick={copyImported}>
-              Copy into song
-            </button>
-          </div>
-        ) : null}
-
+      <div className="bb-inst-editor__layout">
+          <nav aria-label="Instrument sections" className="bb-inst-editor__nav">
+            {editorSections.map((section) => (
+              <button
+                aria-selected={activeSection === section.id}
+                className={`bb-settings-nav-btn${activeSection === section.id ? ' bb-settings-nav-btn--active' : ''}`}
+                key={section.id}
+                onClick={() => setActiveSection(section.id)}
+                type="button"
+              >
+                {section.label}
+              </button>
+            ))}
+          </nav>
+          <div className="bb-inst-editor__main">
+            {selected && !selectedLocal ? (
+              <div className="bb-inst-editor__banner bb-settings-warning">
+                <span>Imported instruments are read-only.</span>
+                <button type="button" className="bb-settings-btn-secondary" onClick={copyImported}>
+                  Copy into song
+                </button>
+              </div>
+            ) : null}
+          <div className="bb-inst-editor__pane">
         {selected ? (
-          <div className="bb-settings-section">
+          <>
+          <div className={sectionClass('templates')}>
             <SectionHeading>Templates</SectionHeading>
             <div className="bb-settings-row">
               <label className="bb-settings-label" htmlFor="bb-inst-template">Template</label>
@@ -1478,27 +1693,11 @@ function DesktopInstrumentEditor({
                 ))}
               </select>
             </div>
+          </div>
 
+          <div className={sectionClass('properties')}>
             <SectionHeading>Properties</SectionHeading>
-            <div className="bb-settings-row">
-              <span className="bb-settings-label">Name</span>
-              <input className="bb-settings-text bb-inst-editor__grow" value={selected} disabled readOnly />
-            </div>
-            <div className="bb-settings-row">
-              <label className="bb-settings-label" htmlFor="bb-inst-type">Type</label>
-              <select
-                id="bb-inst-type"
-                className="bb-settings-select bb-inst-editor__grow"
-                disabled={!selectedLocal}
-                value={instType}
-                onChange={(e) => patch({ type: e.target.value })}
-              >
-                {schema.types.map((t) => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </select>
-            </div>
-            <PropertiesFieldsTabs
+            <PropertiesFields
               voiceFields={voiceFields}
               defaultFields={defaultFields}
               renderVoiceField={renderVoiceField}
@@ -1513,7 +1712,9 @@ function DesktopInstrumentEditor({
             }).map((c) => (
               <NoteText key={c.id}>{c.message}</NoteText>
             ))}
+          </div>
 
+          <div className={sectionClass('hardware')}>
             <HardwareEnvSweepSection
               envelope={envelopeField}
               sweep={sweepField}
@@ -1560,7 +1761,9 @@ function DesktopInstrumentEditor({
               }}
               sweepPeriodMin={sweepField?.storage === 'discrete' ? 1 : 0}
             />
+          </div>
 
+          <div className={sectionClass('waveform')}>
             {waveDef ? (
               <WaveformCanvas
                 samples={waveSamples}
@@ -1573,7 +1776,9 @@ function DesktopInstrumentEditor({
                 }}
               />
             ) : null}
+          </div>
 
+          <div className={sectionClass('macros')}>
             <MacroSection
               draft={draft}
               disabled={!selectedLocal || subpatSet}
@@ -1585,14 +1790,14 @@ function DesktopInstrumentEditor({
                     : null
               }
               emptyMessage={
-                schema.macros.length > 0
-                && schema.macros.every((m) => !fieldApplies(m.whenType, instType))
+                schema.macros.some((m) => !m.nav)
+                && schema.macros.filter((m) => !m.nav).every((m) => !fieldApplies(m.whenType, instType))
                   ? `Macros are not available on ${
                     findInstrumentTypeDef(instType, chip, schema)?.label ?? instType
                   } channels`
                   : null
               }
-              macros={schema.macros.filter((m) => fieldApplies(m.whenType, instType))}
+              macros={schema.macros.filter((m) => !m.nav && fieldApplies(m.whenType, instType))}
               onChange={(name, text) => {
                 if (text === undefined) {
                   const next = { ...draft };
@@ -1603,6 +1808,7 @@ function DesktopInstrumentEditor({
                 patch({ [name]: text });
               }}
             />
+          </div>
 
             {errors.length ? (
               <ul className="bb-inst-editor__errors">
@@ -1610,60 +1816,120 @@ function DesktopInstrumentEditor({
               </ul>
             ) : null}
 
-            <SectionHeading>Preview</SectionHeading>
-            <MidiPreviewStrip />
-            {previewMode === 'melodic' ? (
-              <MiniKeyboard
-                activeNote={activeNote}
-                octave={pianoOctave}
-                onOctaveChange={setPianoOctave}
-                onDown={(note) => playNote(note, { sustain: true })}
-                onUp={releaseNote}
-              />
-            ) : null}
-            {previewMode === 'oneshot' || previewMode === 'uge_note' ? (
-              <div className="bb-inst-editor__oneshot">
-                <button
-                  type="button"
-                  className={`bb-inst-editor__trigger${activeNote === 'hit' || activeNote?.startsWith('C-') ? ' is-active' : ''}`}
-                  title={isDmcType ? 'Trigger sample (A / Space) — plays to end' : 'Trigger hit (A / Space) — plays to end'}
-                  onPointerDown={() => {
-                    if (previewMode === 'uge_note') {
-                      playHit('hit', {
-                        sustain: false,
-                        instPatch: typeof draft.uge_note === 'string' && draft.uge_note.trim()
-                          ? undefined
-                          : { uge_note: 'C-6' },
-                      });
-                    } else {
-                      playHit('hit', { sustain: false });
-                    }
-                  }}
-                  onPointerUp={releaseHoldPreview}
-                  onPointerLeave={releaseHoldPreview}
-                >
-                  {isDmcType ? 'Trigger sample' : 'Trigger'}
-                </button>
-                {dmcSampleMeta ? (
-                  <div className="bb-settings-note bb-inst-editor__sample-meta" aria-live="polite">
-                    Designed
-                    {dmcSampleMeta.designedRate != null ? ` rate ${dmcSampleMeta.designedRate}` : ''}
-                    {dmcSampleMeta.baseNote ? ` · ${dmcSampleMeta.baseNote}` : ''}
-                    {' '}(guidance only)
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {previewMode === 'uge_note' ? (
-              <UgeNoteStrip
-                activeNote={activeNote}
-                onDown={(uge) => playHit(uge, { sustain: false, instPatch: { uge_note: uge } })}
-                onUp={() => setActiveNote(null)}
-              />
-            ) : null}
+          <div className={sectionClass('subpattern')}>
+            <SubpatternSection
+              attachNames={subpatAttachNames}
+              blockInSource={subpatBlockInSource}
+              readOnly={!selectedLocal}
+              rows={subpatRows}
+              sharedWith={subpatSharedWith}
+              subpatName={subpatName}
+              writable={selectedLocal && chip === 'gameboy'}
+              onAttach={(name) => {
+                const table = (ast?.subpatterns as Record<string, { rows?: SubPatternRowLike[] }> | undefined)?.[name];
+                if (!table?.rows?.length) return;
+                patch({ subpat: name, subpatRows: cloneSubpatRows(table.rows) });
+              }}
+              onCreate={() => {
+                if (!selected) return;
+                const base = isValidInstName(selected) ? selected : 'sub';
+                const name = uniqueInstName(base, collectLocalSubpatNames(getSource()));
+                patch({ subpat: name, subpatRows: [{ empty: true }] });
+              }}
+              onDetach={() => {
+                const next = { ...draft };
+                delete next.subpat;
+                delete next.subpatRows;
+                writeDraft(next);
+              }}
+              onReveal={subpatName && revealSubpat ? () => revealSubpat(subpatName) : undefined}
+              onRows={(rows) => patch({ subpatRows: rows })}
+            />
           </div>
+          {editorSections.filter((section) => !BUILTIN_SECTION_IDS.has(section.id)).map((section) => (
+            <div className={sectionClass(section.id)} key={section.id}>
+              <SectionHeading>{section.label}</SectionHeading>
+              {visibleFields.filter((field) => field.nav === section.id).map((field) => renderVoiceField(field))}
+              <MacroSection
+                draft={draft}
+                disabled={!selectedLocal || subpatSet}
+                macros={schema.macros.filter((macro) => macro.nav === section.id && fieldApplies(macro.whenType, instType))}
+                onChange={(name, text) => {
+                  if (text === undefined) {
+                    const next = { ...draft };
+                    delete next[name];
+                    writeDraft(next);
+                    return;
+                  }
+                  patch({ [name]: text });
+                }}
+              />
+            </div>
+          ))}
+          </>
         ) : null}
+          </div>
+        </div>
       </div>
+      {selected ? (
+        <div className="bb-inst-editor__preview" aria-label="Preview">
+          <div className="bb-inst-editor__preview-bar">
+            <span className="bb-inst-editor__preview-label">Preview</span>
+            <MidiPreviewStrip />
+          </div>
+          {previewMode === 'melodic' ? (
+            <MiniKeyboard
+              activeNote={activeNote}
+              octave={pianoOctave}
+              onOctaveChange={setPianoOctave}
+              onDown={(note) => playNote(note, { sustain: true })}
+              onUp={releaseNote}
+            />
+          ) : null}
+          {previewMode === 'oneshot' || previewMode === 'uge_note' ? (
+            <div className="bb-inst-editor__oneshot">
+              <button
+                type="button"
+                className={`bb-inst-editor__trigger${activeNote === 'hit' || activeNote?.startsWith('C-') ? ' is-active' : ''}`}
+                title={isDmcType ? 'Trigger sample (A / Space) — plays to end' : 'Trigger hit (A / Space) — plays to end'}
+                onPointerDown={() => {
+                  if (previewMode === 'uge_note') {
+                    playHit('hit', {
+                      sustain: false,
+                      instPatch: typeof draft.uge_note === 'string' && draft.uge_note.trim()
+                        ? undefined
+                        : { uge_note: 'C-6' },
+                    });
+                  } else {
+                    playHit('hit', { sustain: false });
+                  }
+                }}
+                onPointerUp={releaseHoldPreview}
+                onPointerLeave={releaseHoldPreview}
+              >
+                {isDmcType ? 'Trigger sample' : 'Trigger'}
+              </button>
+              {dmcSampleMeta ? (
+                <div className="bb-settings-note bb-inst-editor__sample-meta" aria-live="polite">
+                  Designed
+                  {dmcSampleMeta.designedRate != null ? ` rate ${dmcSampleMeta.designedRate}` : ''}
+                  {dmcSampleMeta.baseNote ? ` · ${dmcSampleMeta.baseNote}` : ''}
+                  {' '}(guidance only)
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {previewMode === 'uge_note' ? (
+            <UgeNoteStrip
+              activeNote={activeNote}
+              onDown={(uge) => playHit(uge, { sustain: false, instPatch: { uge_note: uge } })}
+              onUp={() => setActiveNote(null)}
+            />
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+    </div>
     </div>
   );
 }
@@ -1780,7 +2046,7 @@ function MacroChipStrip({
   );
 }
 
-function PropertiesFieldsTabs({
+function PropertiesFields({
   voiceFields,
   defaultFields,
   renderVoiceField,
@@ -1791,67 +2057,27 @@ function PropertiesFieldsTabs({
   renderVoiceField: (field: ChipInstrumentFieldDef) => React.ReactNode;
   renderDefaultField: (field: ChipInstrumentFieldDef) => React.ReactNode;
 }): React.JSX.Element | null {
-  type PropTab = 'voice' | 'defaults';
-  const tabs = useMemo(() => {
-    const next: Array<{ id: PropTab; label: string }> = [];
-    if (voiceFields.length) next.push({ id: 'voice', label: 'Voice' });
-    if (defaultFields.length) next.push({ id: 'defaults', label: 'Defaults' });
-    return next;
-  }, [voiceFields.length, defaultFields.length]);
-
-  const [activeId, setActiveId] = useState<PropTab | null>(null);
-  useEffect(() => {
-    if (!tabs.length) {
-      setActiveId(null);
-      return;
-    }
-    setActiveId((cur) => (
-      cur && tabs.some((t) => t.id === cur) ? cur : tabs[0]!.id
-    ));
-  }, [tabs]);
-
-  if (!tabs.length || !activeId) return null;
+  if (!voiceFields.length && !defaultFields.length) return null;
+  const both = voiceFields.length > 0 && defaultFields.length > 0;
 
   return (
-    <div className="bb-inst-editor__props-panel">
-      {tabs.length > 1 ? (
-        <div className="bb-inst-editor__macro-tabs" role="tablist" aria-label="Instrument properties">
-          {tabs.map((tab) => {
-            const selected = tab.id === activeId;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                className={`bb-inst-editor__macro-tab${selected ? ' is-active' : ''}`}
-                onClick={() => setActiveId(tab.id)}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-      <div
-        className="bb-inst-editor__macro"
-        role="tabpanel"
-        aria-label={activeId === 'voice' ? 'Voice properties' : 'Default note and program'}
-      >
-        {activeId === 'voice' ? (
+    <div className="bb-inst-editor__stack-list">
+      {voiceFields.length ? (
+        <section className="bb-inst-editor__stack-block" aria-label="Voice properties">
+          {both ? <h3 className="bb-inst-editor__stack-title">Voice</h3> : null}
           <div className="bb-inst-editor__props-voice">
             {voiceFields.map(renderVoiceField)}
           </div>
-        ) : (
-          <div
-            className="bb-inst-editor__macro-controls"
-            role="group"
-            aria-label="Default note and program"
-          >
+        </section>
+      ) : null}
+      {defaultFields.length ? (
+        <section className="bb-inst-editor__stack-block" aria-label="Default note and program">
+          {both ? <h3 className="bb-inst-editor__stack-title">Defaults</h3> : null}
+          <div className="bb-inst-editor__macro-controls" role="group" aria-label="Default note and program">
             {defaultFields.map(renderDefaultField)}
           </div>
-        )}
-      </div>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -1894,12 +2120,6 @@ function HardwareEnvSweepSection({
     return next;
   }, [envelope, sweep]);
 
-  const defined = useMemo(
-    () => items.filter((item) => (
-      item.id === 'envelope' ? hwFieldDefined(envelopeValue) : hwFieldDefined(sweepValue)
-    )),
-    [items, envelopeValue, sweepValue],
-  );
   const available = useMemo(
     () => items.filter((item) => (
       item.id === 'envelope' ? !hwFieldDefined(envelopeValue) : !hwFieldDefined(sweepValue)
@@ -1907,20 +2127,7 @@ function HardwareEnvSweepSection({
     [items, envelopeValue, sweepValue],
   );
 
-  const [activeId, setActiveId] = useState<HwTab | null>(null);
-  useEffect(() => {
-    if (!defined.length) {
-      setActiveId(null);
-      return;
-    }
-    setActiveId((cur) => (
-      cur && defined.some((d) => d.id === cur) ? cur : defined[0]!.id
-    ));
-  }, [defined]);
-
   if (!items.length) return null;
-
-  const active = defined.find((d) => d.id === activeId) ?? defined[0] ?? null;
 
   const addEnvelope = () => {
     const defaults = { level: 12, direction: 'down' as const, period: 1 };
@@ -1929,12 +2136,10 @@ function HardwareEnvSweepSection({
     } else {
       onEnvelopeChange(formatHardwareEnvelope(defaults));
     }
-    setActiveId('envelope');
   };
   const addSweep = () => {
     const time = Math.max(sweepPeriodMin, 7);
     onSweepChange(formatHardwareSweep({ time, direction: 'down', shift: 3 }));
-    setActiveId('sweep');
   };
 
   return (
@@ -1942,22 +2147,7 @@ function HardwareEnvSweepSection({
       <div className="bb-inst-editor__macros-header">
         <SectionHeading>Hardware</SectionHeading>
         <MacroChipStrip
-          tablistLabel="Hardware envelope and sweep"
-          tabs={defined.length ? defined.map((item) => {
-            const selected = item.id === active?.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                className={`bb-inst-editor__macro-tab${selected ? ' is-active' : ''}`}
-                onClick={() => setActiveId(item.id)}
-              >
-                {item.label}
-              </button>
-            );
-          }) : undefined}
+          tablistLabel="Add hardware envelope or sweep"
           addGroupLabel="Add hardware envelope or sweep"
           addButtons={available.length ? available.map((item) => (
             <button
@@ -1980,9 +2170,10 @@ function HardwareEnvSweepSection({
         />
       </div>
 
-      {defined.length && active ? (
-        <div className="bb-inst-editor__macro-panel">
-          {active.id === 'envelope' && envelope ? (
+      <div className="bb-inst-editor__stack-list">
+        {envelope && hwFieldDefined(envelopeValue) ? (
+          <section className="bb-inst-editor__stack-block" aria-label={envelope.label}>
+            <h3 className="bb-inst-editor__stack-title">{envelope.label}</h3>
             <EnvelopeEditor
               hint={envelope.hint}
               disabled={disabled}
@@ -1995,8 +2186,11 @@ function HardwareEnvSweepSection({
                 onEnvelopeChange(undefined);
               }}
             />
-          ) : null}
-          {active.id === 'sweep' && sweep ? (
+          </section>
+        ) : null}
+        {sweep && hwFieldDefined(sweepValue) ? (
+          <section className="bb-inst-editor__stack-block" aria-label={sweep.label}>
+            <h3 className="bb-inst-editor__stack-title">{sweep.label}</h3>
             <SweepEditor
               hint={sweep.hint}
               disabled={disabled}
@@ -2005,9 +2199,9 @@ function HardwareEnvSweepSection({
               onChange={onSweepChange}
               onRemove={disabled ? undefined : () => onSweepChange(undefined)}
             />
-          ) : null}
-        </div>
-      ) : null}
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -2428,6 +2622,230 @@ function WaveformCanvas({
   );
 }
 
+function cloneSubpatRows(rows: SubPatternRowLike[]): SubPatternRowLike[] {
+  return rows.map((row) => {
+    const next: SubPatternRowLike = { empty: !!row.empty };
+    if (row.offset !== undefined) next.offset = row.offset;
+    if (row.vol !== undefined) next.vol = row.vol;
+    if (row.jump !== undefined) next.jump = row.jump;
+    if (row.halt) next.halt = true;
+    if (row.timbre !== undefined) next.timbre = row.timbre;
+    if (row.fx) next.fx = { code: row.fx.code, param: row.fx.param };
+    return next;
+  });
+}
+
+function SubpatternRows({
+  disabled,
+  rows,
+  onCommit,
+}: {
+  disabled: boolean;
+  rows: SubPatternRowLike[];
+  onCommit: (rows: SubPatternRowLike[]) => void;
+}): React.JSX.Element {
+  const signature = rows.map((row) => formatSubPatternRow(row)).join('\n');
+  const [texts, setTexts] = useState<string[]>(() => (signature ? signature.split('\n') : []));
+  const [rowError, setRowError] = useState<string | null>(null);
+  const textsRef = useRef(texts);
+  const seen = useRef(signature);
+  textsRef.current = texts;
+
+  useEffect(() => {
+    if (seen.current === signature) return;
+    seen.current = signature;
+    const next = signature ? signature.split('\n') : [];
+    textsRef.current = next;
+    setTexts(next);
+    setRowError(null);
+  }, [signature]);
+
+  const commit = (nextTexts: string[]): boolean => {
+    if (!nextTexts.length) {
+      setRowError('A subpattern needs at least one row.');
+      return false;
+    }
+    const parsed: SubPatternRowLike[] = [];
+    for (let i = 0; i < nextTexts.length; i++) {
+      const row = parseSubPatternRow(nextTexts[i] ?? '');
+      if (!row) {
+        textsRef.current = nextTexts;
+        setTexts(nextTexts);
+        setRowError(`Row ${i + 1} is not a valid subpattern row.`);
+        return false;
+      }
+      parsed.push(row);
+    }
+    const formatted = parsed.map((row) => formatSubPatternRow(row));
+    const nextSig = formatted.join('\n');
+    textsRef.current = formatted;
+    setTexts(formatted);
+    setRowError(null);
+    if (nextSig === seen.current) return true;
+    seen.current = nextSig;
+    onCommit(parsed);
+    return true;
+  };
+
+  return (
+    <div className="bb-inst-editor__subpat-list">
+      <p className="bb-settings-note">Row numbers match jump: targets.</p>
+      {texts.map((text, index) => (
+        <div className="bb-inst-editor__subpat-line" key={index}>
+          <span className="bb-inst-editor__subpat-index">{index + 1}</span>
+          <input
+            aria-label={`Subpattern row ${index + 1}`}
+            className="bb-settings-text bb-inst-editor__subpat-text"
+            disabled={disabled}
+            value={text}
+            onBlur={() => {
+              if (!disabled) commit(textsRef.current);
+            }}
+            onChange={(event) => {
+              const next = textsRef.current.slice();
+              next[index] = event.target.value;
+              textsRef.current = next;
+              setTexts(next);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
+            }}
+          />
+          <button
+            aria-label={`Remove subpattern row ${index + 1}`}
+            className="bb-inst-editor__toolbar-btn bb-inst-editor__subpat-remove"
+            disabled={disabled || texts.length <= 1}
+            title={texts.length <= 1 ? 'A subpattern needs at least one row' : 'Remove row'}
+            type="button"
+            onClick={() => {
+              if (textsRef.current.length <= 1) {
+                setRowError('A subpattern needs at least one row.');
+                return;
+              }
+              commit(textsRef.current.filter((_, i) => i !== index));
+            }}
+            dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }}
+          />
+        </div>
+      ))}
+      {rowError ? <p className="bb-inst-editor__subpat-error" role="alert">{rowError}</p> : null}
+      <div className="bb-inst-editor__macro-add">
+        <button
+          className="bb-inst-editor__macro-add-btn"
+          disabled={disabled}
+          type="button"
+          onClick={() => commit([...textsRef.current, '.'])}
+        >
+          <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
+          <span>Add row</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SubpatternSection({
+  writable,
+  readOnly,
+  subpatName,
+  rows,
+  blockInSource,
+  attachNames,
+  sharedWith,
+  onCreate,
+  onAttach,
+  onDetach,
+  onRows,
+  onReveal,
+}: {
+  writable: boolean;
+  readOnly: boolean;
+  subpatName: string;
+  rows: SubPatternRowLike[];
+  blockInSource: boolean;
+  attachNames: string[];
+  sharedWith: string[];
+  onCreate: () => void;
+  onAttach: (name: string) => void;
+  onDetach: () => void;
+  onRows: (rows: SubPatternRowLike[]) => void;
+  onReveal?: () => void;
+}): React.JSX.Element {
+  const showRows = rows.length > 0;
+  const unresolved = Boolean(subpatName) && !showRows && !blockInSource;
+  const revealHelp = onReveal && (blockInSource || showRows)
+    ? `Show subpat ${subpatName} in the source editor`
+    : `No subpat ${subpatName} definition in this file`;
+
+  return (
+    <div className="bb-inst-editor__subpat">
+      <div className="bb-inst-editor__macros-header">
+        <SectionHeading>Subpattern</SectionHeading>
+        <div className="bb-inst-editor__subpat-actions">
+          {subpatName ? (
+            <span className="bb-inst-editor__subpat-name">{subpatName}</span>
+          ) : (
+            <span className="bb-settings-note">No subpattern attached</span>
+          )}
+          {writable && !subpatName ? (
+            <button className="bb-inst-editor__macro-add-btn" type="button" onClick={onCreate}>
+              <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
+              <span>Create</span>
+            </button>
+          ) : null}
+          {writable ? (
+            <select
+              aria-label="Attach subpattern"
+              className="bb-settings-select bb-inst-editor__subpat-attach"
+              disabled={!attachNames.length}
+              title={attachNames.length ? 'Attach an existing subpattern' : 'No other subpatterns in this song'}
+              value=""
+              onChange={(event) => {
+                const name = event.target.value;
+                if (name) onAttach(name);
+              }}
+            >
+              <option value="">Attach…</option>
+              {attachNames.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          ) : null}
+          {writable && subpatName ? (
+            <button className="bb-inst-editor__macro-add-btn" type="button" onClick={onDetach}>
+              Detach
+            </button>
+          ) : null}
+          {subpatName ? (
+            <button
+              aria-label={revealHelp}
+              className="bb-inst-editor__toolbar-btn bb-inst-editor__subpat-link"
+              disabled={!onReveal || !blockInSource}
+              title={revealHelp}
+              type="button"
+              onClick={() => onReveal?.()}
+              dangerouslySetInnerHTML={{ __html: icon('arrows-pointing-in', 'w-3.5 h-3.5') }}
+            />
+          ) : null}
+        </div>
+      </div>
+      {sharedWith.length ? (
+        <NoteText>Shared with {sharedWith.join(', ')}. Edits update that subpattern for every instrument that uses it.</NoteText>
+      ) : null}
+      {unresolved ? (
+        <NoteText>No subpat {subpatName} definition in this file.</NoteText>
+      ) : null}
+      {showRows ? (
+        <SubpatternRows
+          disabled={!writable || readOnly}
+          rows={rows}
+          onCommit={onRows}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function MacroSection({
   macros,
   draft,
@@ -2453,18 +2871,6 @@ function MacroSection({
     () => macros.filter((m) => !macroIsDefined(draft, m.name)),
     [macros, draft],
   );
-  const [activeName, setActiveName] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!defined.length) {
-      setActiveName(null);
-      return;
-    }
-    setActiveName((cur) => (
-      cur && defined.some((m) => m.name === cur) ? cur : defined[0]!.name
-    ));
-  }, [defined]);
-
   if (!macros.length) {
     if (!emptyMessage) return null;
     return (
@@ -2477,31 +2883,12 @@ function MacroSection({
     );
   }
 
-  const active = defined.find((m) => m.name === activeName) ?? defined[0] ?? null;
-  const activeParsed = active ? parseMacro(draft[active.name]) : null;
-
   return (
     <div className="bb-inst-editor__macros">
       <div className="bb-inst-editor__macros-header">
         <SectionHeading>Macros</SectionHeading>
         <MacroChipStrip
-          tablistLabel="Defined macros"
-          tabs={defined.length ? defined.map((macro) => {
-            const selected = macro.name === active?.name;
-            return (
-              <button
-                key={macro.name}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                className={`bb-inst-editor__macro-tab${selected ? ' is-active' : ''}`}
-                onClick={() => setActiveName(macro.name)}
-              >
-                {macro.label}
-                {macro.kind === 'hardware' ? <span className="bb-inst-editor__macro-hw">hw</span> : null}
-              </button>
-            );
-          }) : undefined}
+          tablistLabel="Add macro"
           addGroupLabel="Add macro"
           addButtons={available.length ? available.map((macro) => (
             <button
@@ -2518,7 +2905,6 @@ function MacroSection({
               onClick={() => {
                 if (disabled) return;
                 onChange(macro.name, defaultMacroExample(macro));
-                setActiveName(macro.name);
               }}
             >
               <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
@@ -2530,24 +2916,34 @@ function MacroSection({
 
       {lockReason ? <NoteText>{lockReason}</NoteText> : null}
 
-      {defined.length && active && activeParsed ? (
-        <div className="bb-inst-editor__macro-panel">
-          <MacroRow
-            def={active}
-            values={activeParsed.values}
-            loopPoint={activeParsed.loopPoint}
-            disabled={disabled}
-            onChange={(values, loopPoint) => {
-              if (!values.length) {
-                onChange(active.name, undefined);
-                return;
-              }
-              onChange(active.name, macroToFieldText(values, loopPoint));
-            }}
-            onRemove={disabled ? undefined : () => onChange(active.name, undefined)}
-          />
-        </div>
-      ) : null}
+      <div className="bb-inst-editor__stack-list">
+        {defined.map((macro) => {
+          const parsed = parseMacro(draft[macro.name]);
+          if (!parsed) return null;
+          return (
+            <section className="bb-inst-editor__stack-block" key={macro.name} aria-label={macro.label}>
+              <h3 className="bb-inst-editor__stack-title">
+                {macro.label}
+                {macro.kind === 'hardware' ? <span className="bb-inst-editor__macro-hw">hw</span> : null}
+              </h3>
+              <MacroRow
+                def={macro}
+                values={parsed.values}
+                loopPoint={parsed.loopPoint}
+                disabled={disabled}
+                onChange={(values, loopPoint) => {
+                  if (!values.length) {
+                    onChange(macro.name, undefined);
+                    return;
+                  }
+                  onChange(macro.name, macroToFieldText(values, loopPoint));
+                }}
+                onRemove={disabled ? undefined : () => onChange(macro.name, undefined)}
+              />
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -2865,12 +3261,24 @@ function MiniKeyboard({
 }): React.JSX.Element {
   const clampOctave = (next: number) =>
     Math.max(PIANO_OCTAVE_MIN, Math.min(PIANO_OCTAVE_MAX, next));
+  const pianoRef = useRef<HTMLDivElement>(null);
+  const computerRef = useRef<HTMLDivElement>(null);
+  const octaves: number[] = [];
+  for (let oct = PIANO_OCTAVE_MIN; oct <= PIANO_OCTAVE_MAX; oct += 1) octaves.push(oct);
+
+  useEffect(() => {
+    const piano = pianoRef.current;
+    const span = computerRef.current;
+    if (!piano || !span) return;
+    const left = span.offsetLeft - (piano.clientWidth - span.offsetWidth) / 2;
+    piano.scrollTo({ left: Math.max(0, left) });
+  }, [octave]);
 
   return (
     <div className="bb-inst-editor__keys">
       <div className="bb-inst-editor__keys-bar">
-        <div className="bb-settings-note bb-inst-editor__keys-label">A–J · Z/X octave · MIDI</div>
-        <div className="bb-inst-editor__octave" role="group" aria-label="Octave">
+        <div className="bb-settings-note bb-inst-editor__keys-label">A–J play the marked octave · Z/X shift · MIDI plays any key</div>
+        <div className="bb-inst-editor__octave" role="group" aria-label="Computer-key octave">
           <button
             type="button"
             className="bb-inst-editor__octave-btn"
@@ -2896,37 +3304,51 @@ function MiniKeyboard({
           </button>
         </div>
       </div>
-      <div className="bb-inst-editor__piano" aria-label={`Octave ${octave} keyboard`}>
-        {PIANO_SLOTS.map((slot) => {
-          const whiteNote = pianoNote(slot.white.degree, octave);
-          const blackNote = slot.black ? pianoNote(slot.black.degree, octave) : null;
+      <div className="bb-inst-editor__piano" aria-label="Preview keyboard" ref={pianoRef}>
+        {octaves.map((oct) => {
+          const isComputer = oct === octave;
           return (
-            <div key={slot.white.degree} className="bb-inst-editor__key-slot">
-              <button
-                type="button"
-                className={`bb-inst-editor__white${activeNote === whiteNote ? ' is-active' : ''}`}
-                title={`${whiteNote} (${slot.white.key.toUpperCase()})`}
-                onPointerDown={() => onDown(whiteNote)}
-                onPointerUp={onUp}
-                onPointerLeave={onUp}
-              >
-                {slot.white.key.toUpperCase()}
-              </button>
-              {slot.black && blackNote ? (
-                <button
-                  type="button"
-                  className={`bb-inst-editor__black${activeNote === blackNote ? ' is-active' : ''}`}
-                  title={`${blackNote} (${slot.black.key.toUpperCase()})`}
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                    onDown(blackNote);
-                  }}
-                  onPointerUp={onUp}
-                  onPointerLeave={onUp}
-                >
-                  {slot.black.key.toUpperCase()}
-                </button>
-              ) : null}
+            <div
+              className={`bb-inst-editor__octave-span${isComputer ? ' is-computer' : ''}`}
+              key={oct}
+              ref={isComputer ? computerRef : undefined}
+            >
+              {PIANO_SLOTS.map((slot) => {
+                const whiteNote = pianoNote(slot.white.degree, oct);
+                const blackNote = slot.black ? pianoNote(slot.black.degree, oct) : null;
+                const whiteCaption = isComputer
+                  ? slot.white.key.toUpperCase()
+                  : (slot.white.degree === 'C' ? String(oct) : '');
+                return (
+                  <div key={whiteNote} className="bb-inst-editor__key-slot">
+                    <button
+                      type="button"
+                      className={`bb-inst-editor__white${activeNote === whiteNote ? ' is-active' : ''}`}
+                      title={isComputer ? `${whiteNote} (${slot.white.key.toUpperCase()})` : whiteNote}
+                      onPointerDown={() => onDown(whiteNote)}
+                      onPointerUp={onUp}
+                      onPointerLeave={onUp}
+                    >
+                      {whiteCaption}
+                    </button>
+                    {slot.black && blackNote ? (
+                      <button
+                        type="button"
+                        className={`bb-inst-editor__black${activeNote === blackNote ? ' is-active' : ''}`}
+                        title={isComputer ? `${blackNote} (${slot.black.key.toUpperCase()})` : blackNote}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          onDown(blackNote);
+                        }}
+                        onPointerUp={onUp}
+                        onPointerLeave={onUp}
+                      >
+                        {isComputer ? slot.black.key.toUpperCase() : ''}
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -2936,17 +3358,12 @@ function MiniKeyboard({
 }
 
 export function createDesktopInstrumentEditor(
-  container: HTMLElement,
   options: DesktopInstrumentEditorOptions,
 ): DesktopInstrumentEditorHandle {
+  const host = document.createElement('div');
+  document.body.appendChild(host);
   const handleRef = { current: null as DesktopInstrumentEditorHandle | null };
-  let root: Root | null = mountReactRoot(container);
-  container.style.display = 'flex';
-  container.style.flexDirection = 'column';
-  container.style.height = '100%';
-  container.style.width = '100%';
-  container.style.minWidth = '0';
-  container.style.overflow = 'hidden';
+  let root: Root | null = mountReactRoot(host);
 
   flushSync(() => {
     root?.render(
@@ -2968,10 +3385,12 @@ export function createDesktopInstrumentEditor(
     selectInstrument: (name) => call((h) => h.selectInstrument(name)),
     getSelectedName: () => handleRef.current?.getSelectedName() ?? null,
     getMidiAudition: () => handleRef.current?.getMidiAudition() ?? null,
+    isOpen: () => handleRef.current?.isOpen() ?? false,
     setAst: (ast) => call((h) => h.setAst(ast)),
     dispose: () => {
       handleRef.current?.dispose();
-      unmountReactRoot(container, root);
+      unmountReactRoot(host, root);
+      host.remove();
       root = null;
     },
   };

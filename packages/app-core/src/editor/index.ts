@@ -86,6 +86,7 @@ export type { EditorChangeOrigin } from './editor-change-origin.js';
 
 export {
   fieldApplies,
+  listInstrumentEditorSections,
   resolveInstrumentEditorSchema,
   resolvePreviewChannel,
   fallbackInstrumentEditor,
@@ -97,7 +98,7 @@ export {
   sampleRemainderForSchemeChange,
   INSTRUMENT_SAMPLE_SCHEMES,
 } from './instrument-editor-schema.js';
-export type { InstrumentSampleScheme } from './instrument-editor-schema.js';
+export type { InstrumentEditorSection, InstrumentSampleScheme } from './instrument-editor-schema.js';
 export {
   parseHardwareEnvelope,
   formatHardwareEnvelope,

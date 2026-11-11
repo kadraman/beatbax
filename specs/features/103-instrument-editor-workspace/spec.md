@@ -47,8 +47,8 @@ This feature **supersedes** planned folders 101 (`instrument-editor-subpat-rows`
 **Acceptance scenarios**:
 
 1. **Given** `feature.instrumentEditor` and `advancedEditor`, **When** the user opens the Instrument Editor (View menu, Ctrl/Cmd+Alt+I, CodeLens **Edit**, or toolbar **Edit**), **Then** a viewport modal opens over the workspace (dimmed backdrop; Escape and backdrop click close; no focus trap required, matching Desktop Settings).
-2. **Given** the modal is open, **When** the user inspects chrome, **Then** a header always shows the instrument select, Name, Type, and New / Duplicate / Rename / Delete / Show in editor / Live / Apply / Revert; a left nav lists applicable sections; one content pane scrolls.
-3. **Given** schema + `whenType`, **When** a section has no applicable content, **Then** that nav item is omitted. Built-in section ids: Templates, Properties, Hardware, Waveform, Macros, Preview, Subpattern (US4).
+2. **Given** the modal is open, **When** the user inspects chrome, **Then** a header always shows the instrument select, Name, Type, and New / Duplicate / Rename / Delete / Show in editor / Live / Apply / Revert; a left nav lists applicable sections; one content pane scrolls; Preview stays docked at the bottom of the modal on every section.
+3. **Given** schema + `whenType`, **When** a section has no applicable content, **Then** that nav item is omitted. Built-in section ids: Templates, Properties, Hardware, Waveform, Macros, Subpattern (US4). Preview is not a nav item.
 4. **Given** optional `nav` on a field or macro def, **When** that id is present, **Then** the host adds a nav page of the same generic widgets for that id (for later FM/SID pages). Unset `nav` keeps today’s Voice/Defaults / Hardware / Macros grouping.
 5. **Given** **Show in editor**, **When** activated, **Then** the modal closes and Monaco focuses the selected `inst` (or `subpat`) line as today.
 6. **Given** Live off and a dirty draft, **When** the user closes the modal, **Then** Apply / Discard / Cancel is offered before dismiss (same rules as 099 instrument switch).
@@ -84,7 +84,7 @@ This feature **supersedes** planned folders 101 (`instrument-editor-subpat-rows`
 1. **Given** a local instrument, **When** fields/macros change with Live on, **Then** write-valid-only undoable `inst` replace still applies (021 / 099).
 2. **Given** Live off, **When** the user edits, **Then** draft audition + Apply / Revert + dirty navigation still match 099, including before modal close.
 3. **Given** imported instruments, **When** selected, **Then** they stay read-only with Copy into song.
-4. **Given** preview modes from 098 (`melodic` / `oneshot` / `uge_note`, `tone_mix` oneshot), **When** Preview is shown, **Then** the same controls apply inside the modal Preview section.
+4. **Given** preview modes from 098 (`melodic` / `oneshot` / `uge_note`, `tone_mix` oneshot), **When** the modal is open, **Then** the same controls stay in the bottom Preview dock on every section.
 5. **Given** Monaco cursor motion, **When** the caret moves in the editor, **Then** Instrument Editor selection does not change (021).
 
 ### User Story 4 — Game Boy subpat row editor (Priority: P1)
@@ -139,9 +139,9 @@ This feature **supersedes** planned folders 101 (`instrument-editor-subpat-rows`
 - **FR-002**: The Instruments right-pane tab MUST be removed; panel restore MUST NOT reopen a right-tab Instruments surface.
 - **FR-003**: The main toolbar MUST offer an instrument name select + Edit when the feature flag and `advancedEditor` are on.
 - **FR-004**: Toolbar selection MUST reveal/highlight the `inst` line without moving the Monaco caret or stealing editor focus; Edit MUST open the modal on that instrument.
-- **FR-005**: Section nav MUST omit inapplicable sections; MUST support built-in sections Templates, Properties, Hardware, Waveform, Macros, Preview, Subpattern; MUST honour optional schema `nav` ids for additional generic pages.
+- **FR-005**: Section nav MUST omit inapplicable sections; MUST support built-in sections Templates, Properties, Hardware, Waveform, Macros, Subpattern; MUST honour optional schema `nav` ids for additional generic pages. Preview MUST NOT be a nav item.
 - **FR-006**: Live edit / Apply / Revert / dirty navigation from 099 MUST continue to apply, including before modal close.
-- **FR-007**: Preview pitch modes and CodeLens alignment from 098 MUST continue to apply inside the modal Preview section.
+- **FR-007**: Preview pitch modes and CodeLens alignment from 098 MUST continue to apply in a Preview dock fixed to the bottom of the modal, visible on every section.
 - **FR-008**: Preview keys and MIDI audition MUST gate on the open modal (not right-pane tab active).
 - **FR-009**: For local Game Boy instruments, the Subpattern section MUST provide single-column row edit plus Create / Attach / Detach as in US4; no new language atoms; 082 lowering unchanged.
 - **FR-010**: The sample widget MUST provide Local **Browse…** (relative `local:` only) and **Check** for Bundled/Local/HTTPS/GitHub via existing IPC; unknown bundled names MUST fail validation; docs/hover kit lists MUST match the real kit.

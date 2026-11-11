@@ -4,6 +4,11 @@
 
 import type { InstrumentNode } from '@beatbax/engine';
 import { serializeInstrument } from '@beatbax/engine';
+import {
+  formatSubPatternSource,
+  parseSubPatternRows,
+  type SubPatternRowLike,
+} from './subpat-format.js';
 
 /**
  * Peggy `IdentChar` — `[A-Za-z0-9_\-]`. Word-boundary `\b` is wrong here because
@@ -181,6 +186,129 @@ export function findSubpatLineIndex(source: string, name: string): number {
   const lines = source.split(/\r?\n/);
   const re = subpatDefNameRe(name);
   return lines.findIndex((line) => re.test(line));
+}
+
+export function collectLocalSubpatNames(source: string): Set<string> {
+  const names = new Set<string>();
+  const re = new RegExp(`^\\s*subpat\\s+([A-Za-z_][${IDENT_CHAR}]*)`);
+  for (const line of source.split(/\r?\n/)) {
+    const match = line.match(re);
+    if (match) names.add(match[1]!);
+  }
+  return names;
+}
+
+function isTopLevelStatement(trimmed: string): boolean {
+  if (STATEMENT_PREFIX_RE.test(trimmed)) return true;
+  return /^[A-Za-z_][A-Za-z0-9_-]*\s*=/.test(trimmed);
+}
+
+/** Exclusive end line of a `subpat` block. Stops before the next statement. */
+function subpatBlockEnd(lines: string[], start: number): number {
+  let end = start + 1;
+  for (let i = start + 1; i < lines.length; i++) {
+    const { code } = splitTrailingComment(lines[i] ?? '');
+    const trimmed = code.trim();
+    if (!trimmed) continue;
+    if (isTopLevelStatement(trimmed)) break;
+    end = i + 1;
+  }
+  return end;
+}
+
+/** One source line can hold several space- or comma-separated rows. A new line starts a new row. */
+function rowsOnSubpatLine(code: string): SubPatternRowLike[] | null {
+  const trimmed = code.trim();
+  if (!trimmed) return [];
+  return parseSubPatternRows(trimmed);
+}
+
+/** Rows currently stored in a `subpat` block, or null when the name or text cannot be read. */
+export function readSubpatRows(source: string, name: string): SubPatternRowLike[] | null {
+  const start = findSubpatLineIndex(source, name);
+  if (start < 0) return null;
+  const lines = source.split(/\r?\n/);
+  const end = subpatBlockEnd(lines, start);
+  const rows: SubPatternRowLike[] = [];
+  const header = splitTrailingComment(lines[start] ?? '').code;
+  const eq = header.indexOf('=');
+  const inline = eq >= 0 ? header.slice(eq + 1) : '';
+  const chunks = [inline];
+  for (let i = start + 1; i < end; i++) chunks.push(splitTrailingComment(lines[i] ?? '').code);
+  for (const chunk of chunks) {
+    const part = rowsOnSubpatLine(chunk);
+    if (!part) return null;
+    rows.push(...part);
+  }
+  return rows;
+}
+
+function canonicalSubpatRows(rows: SubPatternRowLike[]): string {
+  return formatSubPatternSource('row', rows);
+}
+
+/**
+ * Replace an existing `subpat` block. Refuses a zero-row table (the parser rejects it).
+ * A trailing comment on the `subpat name =` line is kept.
+ */
+export function replaceSubpatBlock(
+  source: string,
+  name: string,
+  rows: SubPatternRowLike[],
+): { next: string; ok: boolean } {
+  if (!name || !rows.length) return { next: source, ok: false };
+  const start = findSubpatLineIndex(source, name);
+  if (start < 0) return { next: source, ok: false };
+  const lines = source.split(/\r?\n/);
+  const end = subpatBlockEnd(lines, start);
+  const { comment } = splitTrailingComment(lines[start] ?? '');
+  const formatted = formatSubPatternSource(name, rows).split('\n');
+  if (comment && formatted[0]) formatted[0] = `${formatted[0]} ${comment}`;
+  lines.splice(start, end - start, ...formatted);
+  return { next: lines.join('\n'), ok: true };
+}
+
+/** Insert a new `subpat` block immediately above `beforeInst`, or above the first `inst`. */
+export function insertSubpatBlock(
+  source: string,
+  name: string,
+  rows: SubPatternRowLike[],
+  beforeInst?: string,
+): { next: string; ok: boolean } {
+  if (!name || !isValidInstName(name) || !rows.length) return { next: source, ok: false };
+  if (findSubpatLineIndex(source, name) >= 0) return { next: source, ok: false };
+  const lines = source.split(/\r?\n/);
+  let at = beforeInst ? findInstLineIndex(source, beforeInst) : -1;
+  if (at < 0) at = lines.findIndex((line) => /^\s*inst\s+/.test(line));
+  if (at < 0) at = lines.length;
+  lines.splice(at, 0, ...formatSubPatternSource(name, rows).split('\n'));
+  return { next: lines.join('\n'), ok: true };
+}
+
+/**
+ * Insert or replace the named block so it matches `node.subpatRows`.
+ * Leaves the block alone when `subpat` is unset, or when the file already matches.
+ * Does not delete a block when `subpat` is cleared — callers drop `subpat=` via `replaceInstLine`.
+ */
+export function syncSubpatBlock(
+  source: string,
+  node: InstrumentNode,
+  beforeInst?: string,
+): { next: string; ok: boolean; error?: string } {
+  const name = typeof node.subpat === 'string' ? node.subpat.trim() : '';
+  if (!name) return { next: source, ok: true };
+  const rows = Array.isArray(node.subpatRows) ? node.subpatRows as SubPatternRowLike[] : [];
+  if (!rows.length) {
+    return { next: source, ok: false, error: 'A subpattern needs at least one row.' };
+  }
+  if (findSubpatLineIndex(source, name) < 0) {
+    return insertSubpatBlock(source, name, rows, beforeInst);
+  }
+  const existing = readSubpatRows(source, name);
+  if (existing && canonicalSubpatRows(existing) === canonicalSubpatRows(rows)) {
+    return { next: source, ok: true };
+  }
+  return replaceSubpatBlock(source, name, rows);
 }
 
 export function replaceInstLine(

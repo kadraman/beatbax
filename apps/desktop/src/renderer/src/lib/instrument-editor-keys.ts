@@ -14,14 +14,14 @@ export function isInstrumentEditorTypingTarget(target: EventTarget | null): bool
 }
 
 /**
- * Whether A–J / Z/X should preview while the Instruments tab is showing.
+ * Whether A–J / Z/X should preview while the Instrument Editor modal is open.
  * Skips modifier chords and typing surfaces (panel fields and Monaco).
  */
 export function shouldHandleInstrumentPreviewKey(
   e: KeyboardEvent,
   panel: HTMLElement | null,
 ): boolean {
-  if (!panel?.closest('.bb-right-tab-content--active')) return false;
+  if (panel?.dataset.bbInstEditorOpen !== 'true') return false;
   if (e.metaKey || e.ctrlKey || e.altKey) return false;
   if (isInstrumentEditorTypingTarget(e.target)) return false;
   return true;

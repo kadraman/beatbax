@@ -1,19 +1,20 @@
 /**
- * Instrument Editor panel visibility (feature flag + Desktop).
+ * Instrument Editor availability (feature flag + Desktop).
+ *
+ * The editor is a modal opened on demand (spec 103). Stored
+ * `panel.instrument-editor` must not restore a right-pane tab or reopen the modal.
  */
 
 import type { ClientCapabilities } from '../client-profile.js';
 import { isFeatureEnabled, FeatureFlag } from './feature-flags.js';
-import { storage, StorageKey } from './local-storage.js';
 
 export function isInstrumentEditorAllowed(capabilities: ClientCapabilities): boolean {
   if (!capabilities.advancedEditor) return false;
   return isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR);
 }
 
+/** Always false: the modal is not restored on startup. */
 export function shouldShowInstrumentEditor(capabilities: ClientCapabilities): boolean {
-  if (!isInstrumentEditorAllowed(capabilities)) return false;
-  const raw = storage.get(StorageKey.PANEL_VIS_INSTRUMENT_EDITOR);
-  if (raw === 'false') return false;
-  return true;
+  void capabilities;
+  return false;
 }
