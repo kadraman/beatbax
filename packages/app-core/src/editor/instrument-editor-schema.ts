@@ -408,7 +408,8 @@ function constraintApplies(when: string | undefined, type: string | undefined): 
 /**
  * Built-in Instrument Editor pages for one type, then any optional `nav` pages.
  * Empty songs (no selected instrument) have no pages. Pages with nothing to show
- * are omitted. Preview is not a page: the editor docks it under every page.
+ * are omitted. Preview is docked under every page. Templates are not a page:
+ * New shows them only while creating an instrument.
  * Unset `nav` keeps Voice/Defaults, Hardware, and Macros grouping.
  */
 export function listInstrumentEditorSections(args: {
@@ -436,9 +437,7 @@ export function listInstrumentEditorSections(args: {
   const properties = propertyFields.length > 0
     || (schema.constraints ?? []).some((note) => constraintApplies(note.when, type));
 
-  const sections: InstrumentEditorSection[] = [
-    { id: 'templates', label: BUILTIN_INSTRUMENT_SECTION_LABELS.templates },
-  ];
+  const sections: InstrumentEditorSection[] = [];
   if (properties) sections.push({ id: 'properties', label: BUILTIN_INSTRUMENT_SECTION_LABELS.properties });
   if (hardware) sections.push({ id: 'hardware', label: BUILTIN_INSTRUMENT_SECTION_LABELS.hardware });
   if (waveform) sections.push({ id: 'waveform', label: BUILTIN_INSTRUMENT_SECTION_LABELS.waveform });

@@ -75,7 +75,7 @@ export interface BeatBaxEvents {
   // UI events
   'theme:changed': { theme: 'dark' | 'light' };
   'panel:toggled': { panel: string; visible: boolean };
-  'instrument-editor:open': { name: string };
+  'instrument-editor:open': { name?: string };
   /** Toolbar (or other) selection. Reveals the inst line and does not open the modal. */
   'instrument-editor:select': { name: string };
   /** Names and labels currently shown in the instrument picker. */

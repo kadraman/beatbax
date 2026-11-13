@@ -38,7 +38,6 @@ describe('listInstrumentEditorSections', () => {
     });
 
     expect(sections.map((section) => section.id)).toEqual([
-      'templates',
       'properties',
       'hardware',
       'macros',
@@ -63,7 +62,6 @@ describe('listInstrumentEditorSections', () => {
     });
 
     expect(sections.map((section) => section.label)).toEqual([
-      'Templates',
       'Macros',
       'Extras',
     ]);

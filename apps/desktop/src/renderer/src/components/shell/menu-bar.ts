@@ -726,6 +726,15 @@ export class MenuBar {
         shortcut: menuShortcut('tools.openCommandPalette'),
         action: () => this.opts.onOpenCommandPalette?.(),
       },
+      {
+        type: 'item',
+        label: 'Instrument Editor',
+        id: 'instrument-editor-toggle',
+        checkable: true,
+        shortcut: menuShortcut('view.toggleInstrumentEditor'),
+        disabled: !isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR),
+        action: () => this.emitPanelToggle('instrument-editor'),
+      },
       { type: 'separator' },
       {
         type: 'item',
@@ -785,15 +794,6 @@ export class MenuBar {
         shortcut: menuShortcut('view.togglePatternGrid'),
         disabled: !isFeatureEnabled(FeatureFlag.PATTERN_GRID),
         action: () => this.emitPanelToggle('pattern-grid'),
-      },
-      {
-        type: 'item',
-        label: 'Instruments',
-        id: 'instrument-editor-toggle',
-        checkable: true,
-        shortcut: menuShortcut('view.toggleInstrumentEditor'),
-        disabled: !isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR),
-        action: () => this.emitPanelToggle('instrument-editor'),
       },
       { type: 'separator' },
       {

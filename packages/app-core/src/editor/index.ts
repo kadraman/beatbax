@@ -99,6 +99,8 @@ export {
   INSTRUMENT_SAMPLE_SCHEMES,
 } from './instrument-editor-schema.js';
 export type { InstrumentEditorSection, InstrumentSampleScheme } from './instrument-editor-schema.js';
+export { localSampleRemainder, songDirectory } from './instrument-sample-path.js';
+export type { LocalSamplePathResult } from './instrument-sample-path.js';
 export {
   parseHardwareEnvelope,
   formatHardwareEnvelope,

@@ -871,6 +871,12 @@ describe('NES instrument validation', () => {
     expect(errors[0].field).toBe('noise_mode');
   });
 
+  test('rejects an unknown bundled DMC sample name', () => {
+    const errors = validateNesInstrument({ type: 'dmc', dmc_sample: '@nes/not-a-real-sample' });
+    expect(errors.some((e) => e.field === 'dmc_sample' && e.message.includes('@nes/not-a-real-sample'))).toBe(true);
+    expect(validateNesInstrument({ type: 'dmc', dmc_sample: '@nes/kick' })).toEqual([]);
+  });
+
   test('rejects invalid DMC sample scheme', () => {
     const errors = validateNesInstrument({ type: 'dmc', dmc_sample: 'file:///etc/passwd' });
     expect(errors.length).toBeGreaterThan(0);

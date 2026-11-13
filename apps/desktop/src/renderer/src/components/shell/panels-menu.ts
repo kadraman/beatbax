@@ -123,7 +123,7 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
   if (caps.advancedEditor) {
     entries.push({
       id: 'instrument-editor',
-      label: 'Instruments',
+      label: 'Instrument Editor',
       group: 'side',
       shortcut: panelShortcut('view.toggleInstrumentEditor'),
       checked: state.instrumentEditorVisible,

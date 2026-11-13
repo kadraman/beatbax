@@ -236,6 +236,8 @@ beatbax convert wav2dmc hit.wav --dmc-rate 15 --gain 0.5 --trim-silence -45 --ta
 inst kick_punch type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/kick_punch"
 ```
 
+In the Instrument Editor, set the sample scheme to Local and use **Browse…** to pick a `.dmc` inside the saved song's folder. The field stores a relative `local:` path. **Check** loads that reference and reports the byte length, or why it failed, including a remote host that is not on the Settings → Advanced allowlist.
+
 The `dmc_rate` value is not stored in the `.dmc` file; it must match the rate used during conversion for drums and tonal hits. Rate `15` gives the best high-frequency detail. Hardware length max is 4081 bytes (~0.98 s at rate 15, ~1.93 s at rate 12).
 
 **Speech: encode fast, play slow.** Resample (or perform) a phrase faster by roughly `rate15 / rateP`, encode at `--dmc-rate 15`, then set the instrument to a slower `dmc_rate`. Pitch and duration move together (tape-speed). Useful NTSC pairs:

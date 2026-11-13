@@ -447,26 +447,6 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-toolbar__group--right {
   margin-left: auto;
 }
-.bb-toolbar__inst {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.bb-toolbar__inst-select {
-  max-width: 220px;
-  height: 24px;
-  background: #2a2a2a;
-  color: #ddd;
-  border: 1px solid #3a3a3a;
-  border-radius: 4px;
-  font-size: 12px;
-  padding: 0 6px;
-}
-[data-theme="light"] .bb-toolbar__inst-select {
-  background: #fff;
-  color: #1e1e1e;
-  border-color: #ccc;
-}
 
 /* ─── DSEG7 LCD font (self-hosted from public/fonts/) ───────────────────── */
 @font-face {
@@ -9384,7 +9364,7 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-inst-editor__preview-bar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 12px;
   min-width: 0;
 }
@@ -9393,7 +9373,21 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex: 1 1 auto;
   margin-right: auto;
+}
+.bb-inst-editor__audition {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  min-width: 0;
+}
+.bb-inst-editor__audition .bb-inst-editor__trigger {
+  flex: 0 0 9.5rem;
+  width: 9.5rem;
+  height: 88px;
 }
 .bb-inst-editor__preview-lead .bb-inst-editor__keys-label {
   overflow: hidden;
@@ -9403,15 +9397,91 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 .bb-inst-editor__preview-lead .bb-inst-editor__octave {
   flex-shrink: 0;
 }
-.bb-inst-editor__preview .bb-inst-editor__midi-bar {
-  flex: 0 1 auto;
-  flex-wrap: nowrap;
+.bb-inst-editor__preview-bar .bb-inst-editor__midi-bar {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+.bb-inst-editor__preview-bar .bb-inst-editor__midi-status {
+  flex: 0 0 11rem;
+  width: 11rem;
+  max-width: 11rem;
+  min-height: 0;
 }
 [data-theme="light"] .bb-inst-editor__preview {
   background: #ececec;
   border-top-color: #ccc;
 }
-.bb-inst-editor__section { display: none; flex-direction: column; gap: 12px; }
+.bb-inst-editor__create {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  min-width: 0;
+  max-width: 28rem;
+}
+.bb-inst-editor__create-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+.bb-inst-editor__create-group .bb-inst-editor__stack-title {
+  margin: 0;
+}
+.bb-inst-editor__create-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bb-inst-editor__create-preset {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: #2a2a2a;
+  color: #ddd;
+  cursor: pointer;
+}
+.bb-inst-editor__create-preset-name {
+  min-width: 0;
+  font-weight: 600;
+}
+.bb-inst-editor__create-preset-type {
+  flex: 0 0 auto;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8a8a8a;
+}
+.bb-inst-editor__create-copy {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+.bb-inst-editor__create-preset:hover {
+  border-color: #6ee7b7;
+  color: #fff;
+}
+[data-theme="light"] .bb-inst-editor__create-preset {
+  background: #fff;
+  border-color: #ccc;
+  color: #222;
+}
+[data-theme="light"] .bb-inst-editor__create-preset-type { color: #666; }
+[data-theme="light"] .bb-inst-editor__create-preset:hover {
+  border-color: #1a7f37;
+  color: #111;
+}
+.bb-inst-editor__section { display: none; flex-direction: column; gap: 8px; }
 .bb-inst-editor__section.is-active { display: flex; }
 .bb-inst-editor__chrome {
   flex-shrink: 0;
@@ -9753,10 +9823,50 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 }
 .bb-inst-editor__sample-controls {
   display: grid;
-  grid-template-columns: minmax(0, 6.5rem) minmax(0, 1fr);
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 36rem;
+  grid-template-columns: 6.5rem minmax(8rem, 1fr) auto;
   gap: 6px 8px;
-  align-items: stretch;
+  align-items: center;
 }
+.bb-inst-editor__sample-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.bb-inst-editor__sample-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.bb-inst-editor__sample-browse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+}
+.bb-inst-editor__sample-browse svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+.bb-inst-editor__sample-ok {
+  font-size: 11px;
+  color: #8a8;
+  white-space: nowrap;
+}
+[data-theme="light"] .bb-inst-editor__sample-ok { color: #2d6a32; }
+.bb-inst-editor__sample-status {
+  margin: 0;
+  padding-left: calc(7.5rem + 10px);
+}
+.bb-inst-editor__sample-status.is-error { color: #f88; }
+[data-theme="light"] .bb-inst-editor__sample-status.is-error { color: #a33; }
 .bb-inst-editor__sample-controls .bb-inst-editor__sample-scheme,
 .bb-inst-editor__sample-controls .bb-inst-editor__sample-value {
   width: 100%;
@@ -9773,10 +9883,13 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   line-height: 22px;
   color: #ccc;
 }
-/* Stack scheme above value when label + two fields cannot share one row. */
-@container inst-sample-row (max-width: 22rem) {
+/* Stack the scheme when the row cannot hold scheme, path, and actions. */
+@container inst-sample-row (max-width: 28rem) {
   .bb-inst-editor__sample-controls {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .bb-inst-editor__sample-controls .bb-inst-editor__sample-scheme {
+    grid-column: 1 / -1;
   }
 }
 .bb-inst-editor__subpat-link {
@@ -9839,10 +9952,11 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   flex: 1 1 0;
 }
 .bb-inst-editor .bb-settings-section {
-  gap: 10px;
+  gap: 8px;
 }
 .bb-inst-editor .bb-settings-heading {
-  margin-top: 4px;
+  margin-top: 2px;
+  margin-bottom: 0;
 }
 .bb-inst-editor .bb-settings-row {
   width: 100%;
@@ -9877,11 +9991,8 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   min-width: 0;
   max-width: none;
 }
-.bb-inst-editor .bb-settings-toggle-row .bb-settings-label {
-  flex: 1 1 auto;
-  width: auto;
-  min-width: 0;
-  max-width: none;
+.bb-inst-editor .bb-settings-toggle-row {
+  justify-content: flex-start;
 }
 .bb-inst-editor .bb-settings-select:disabled,
 .bb-inst-editor .bb-settings-text:disabled,
@@ -10133,8 +10244,8 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   gap: 8px;
   padding: 8px 10px;
   background: #252525;
-  border: 1px solid #333;
-  border-radius: 3px;
+  border: 1px solid #2e2e2e;
+  border-radius: 5px;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
@@ -10211,28 +10322,27 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #2a2a2a;
-}
-.bb-inst-editor__stack-block:last-child {
-  padding-bottom: 0;
-  border-bottom: none;
 }
 .bb-inst-editor__stack-title {
-  margin: 0;
+  margin: 8px 0 0;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: #aaa;
+  color: #888;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #2a2a2a;
+}
+.bb-inst-editor__stack-block > .bb-inst-editor__stack-title:first-child,
+.bb-inst-editor__create-group > .bb-inst-editor__stack-title:first-child {
+  margin-top: 0;
 }
 .bb-inst-editor__stack-title .bb-inst-editor__macro-hw {
   margin-left: 6px;
   text-transform: none;
   letter-spacing: 0;
 }
-[data-theme="light"] .bb-inst-editor__stack-block { border-bottom-color: #ddd; }
-[data-theme="light"] .bb-inst-editor__stack-title { color: #444; }
+[data-theme="light"] .bb-inst-editor__stack-title { color: #666; border-bottom-color: #ddd; }
 .bb-inst-editor__props-panel {
   display: flex;
   flex-direction: column;
@@ -10244,6 +10354,59 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+}
+.bb-inst-editor__props-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.bb-inst-editor__prop {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.bb-inst-editor__prop-note {
+  margin: 0;
+  padding-left: calc(7.5rem + 10px);
+  line-height: 1.35;
+}
+.bb-inst-editor__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bb-inst-editor__choice {
+  min-width: 2.5rem;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #444;
+  border-radius: 3px;
+  background: #2d2d2d;
+  color: #ddd;
+  font-size: 12px;
+  cursor: pointer;
+}
+.bb-inst-editor__choice[aria-checked="true"] {
+  border-color: #c8a227;
+  background: #3a3218;
+  color: #f3e2a4;
+}
+.bb-inst-editor__choice:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+[data-theme="light"] .bb-inst-editor__choice {
+  background: #f7f7f7;
+  border-color: #ccc;
+  color: #222;
+}
+[data-theme="light"] .bb-inst-editor__choice[aria-checked="true"] {
+  border-color: #9a7b16;
+  background: #f8f1d8;
+  color: #5c4810;
 }
 .bb-inst-editor__macro-remove {
   display: inline-flex;
@@ -10433,9 +10596,16 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 }
 .bb-inst-editor__midi-bar {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+.bb-inst-editor__midi-controls {
+  display: flex;
   align-items: center;
-  gap: 6px 8px;
+  gap: 8px;
   min-width: 0;
 }
 .bb-inst-editor__midi-enable {
@@ -10458,16 +10628,17 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   max-width: 16rem;
 }
 .bb-inst-editor__midi-refresh {
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  min-width: 4.75rem;
   padding: 4px 8px;
   font-size: 11px;
 }
 .bb-inst-editor__midi-status {
-  flex: 0 1 auto;
-  max-width: 11rem;
+  display: block;
+  max-width: 22rem;
+  min-height: 1.25em;
   font-size: 11px;
   color: #888;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -10638,7 +10809,7 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 }
 [data-theme="light"] .bb-inst-editor__wave-canvas { background: #f3f3f3; border-color: #ccc; }
 [data-theme="light"] .bb-inst-editor__macro {
-  background: #f5f5f5;
+  background: #f0f0f0;
   border-color: #ddd;
 }
 [data-theme="light"] .bb-inst-editor__macro-tab {

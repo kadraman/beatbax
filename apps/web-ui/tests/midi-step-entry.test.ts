@@ -441,6 +441,7 @@ describe('MidiStepEntryService requestAccess coalescing', () => {
     const inputs = new Map([[id, input]]);
     return {
       id,
+      onstatechange: null as ((event: Event) => void) | null,
       inputs: {
         size: inputs.size,
         get: (deviceId: string) => inputs.get(deviceId),
@@ -544,6 +545,25 @@ describe('MidiStepEntryService requestAccess coalescing', () => {
     await jest.advanceTimersByTimeAsync(0);
     await expect(second).resolves.toBeNull();
     expect(service.listDevices().map((d) => d.id)).toEqual(['fresh']);
+  });
+
+  it('notifies when a MIDI input is added or removed', async () => {
+    const deferred = createDeferred<ReturnType<typeof mockMidiAccess>>();
+    requestMIDIAccess.mockReturnValue(deferred.promise);
+    const pending = service.requestAccess();
+    const access = mockMidiAccess('live');
+    deferred.resolve(access);
+    await jest.advanceTimersByTimeAsync(0);
+    await expect(pending).resolves.toBeNull();
+
+    const onDevices = jest.fn();
+    service.setDevicesListener(onDevices);
+    access.onstatechange?.(new Event('statechange'));
+    expect(onDevices).toHaveBeenCalledTimes(1);
+
+    service.setDevicesListener(null);
+    access.onstatechange?.(new Event('statechange'));
+    expect(onDevices).toHaveBeenCalledTimes(1);
   });
 });
 

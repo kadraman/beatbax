@@ -1,6 +1,14 @@
+export interface DesktopFileFilter {
+  name: string;
+  extensions: string[];
+}
+
 export interface DesktopOpenFileOptions {
   title?: string;
   defaultPath?: string;
+  filters?: DesktopFileFilter[];
+  /** Return the chosen path without reading bytes or adding it to recent songs. */
+  pathOnly?: boolean;
 }
 
 export interface DesktopSaveFileOptions {

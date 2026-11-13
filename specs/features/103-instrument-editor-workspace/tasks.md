@@ -14,8 +14,8 @@
 - [x] T003 [P] Add nav-visibility / section-list helper in `packages/app-core/src/editor/instrument-editor-schema.ts` + unit tests in `packages/app-core/tests/`
 - [x] T004 [P] Add `parseSubPatternRow` (inverse of format) in `packages/app-core/src/editor/subpat-format.ts` (or sibling) + round-trip tests in `packages/app-core/tests/subpat-format.test.ts`
 - [x] T005 Extend `packages/app-core/src/editor/instrument-editor-writeback.ts`: subpat block extent, `replaceSubpatBlock`, `insertSubpatBlock`; set/clear `subpat=` via existing `replaceInstLine`; tests in `packages/app-core/tests/`
-- [ ] T006 [P] Add song-dir relative path helper (absolute → `local:` remainder; reject `..` / outside / missing song path) in `packages/app-core/src/editor/` (e.g. `instrument-sample-path.ts`) + unit tests
-- [ ] T007 [P] Extend NES `packages/engine/src/chips/nes/validate.ts` to reject unknown `@nes/<name>` against bundled kit keys; tests in `packages/engine/tests/nes/`
+- [x] T006 [P] Add song-dir relative path helper (absolute → `local:` remainder; reject `..` / outside / missing song path) in `packages/app-core/src/editor/` (e.g. `instrument-sample-path.ts`) + unit tests
+- [x] T007 [P] Extend NES `packages/engine/src/chips/nes/validate.ts` to reject unknown `@nes/<name>` against bundled kit keys; tests in `packages/engine/tests/nes/`
 - [x] T008 Ensure draft fingerprint includes `subpat` name + rows in `packages/app-core/src/editor/instrument-editor-draft.ts`
 
 **Checkpoint**: schema helpers, subpat writeback, sample path helper, NES validate green under `npm test`.
@@ -49,9 +49,9 @@
 
 ## Phase 4: User Story 5 — Sample Browse + Check (P1)
 
-- [ ] T040 [US5] Ensure Desktop open-file supports DMC filters (`apps/desktop/src/main/ipc-handlers.ts`, preload, `apps/desktop/src/shared/electron-api.ts` as needed)
-- [ ] T041 [US5] Browse… + Check + status on sample field in `DesktopInstrumentEditor.tsx`; resolve via chip `resolveSampleAsset` / IPC
-- [ ] T042 [US5] Align kit lists in `packages/engine/src/chips/nes/ui-contributions.ts` and `songWizard.ts` with `dmcSamples.ts`
+- [x] T040 [US5] Ensure Desktop open-file supports DMC filters (`apps/desktop/src/main/ipc-handlers.ts`, preload, `apps/desktop/src/shared/electron-api.ts` as needed)
+- [x] T041 [US5] Browse… + Check + status on sample field in `DesktopInstrumentEditor.tsx`; resolve via chip `resolveSampleAsset` / IPC
+- [x] T042 [US5] Align kit lists in `packages/engine/src/chips/nes/ui-contributions.ts` and `songWizard.ts` with `dmcSamples.ts`
 
 **Checkpoint**: Browse/Check on `songs/nes/instruments/nes_dmc_demo.bax`; blocked host shows remediation.
 

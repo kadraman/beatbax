@@ -188,7 +188,7 @@ const hoverDocs: Record<string, string> = {
     '- `dmc_rate` — playback rate index 0–15 (0 = ~4.18 kHz, 15 = ~33.14 kHz; recommended: 6–10)',
     '- `dmc_loop` — `true` to loop the sample continuously; `false` for one-shot',
     '- `dmc_sample` — sample reference:',
-    '  - `"@nes/<name>"` — bundled sample (`kick_punch`, `snare_tight`, `hat_closed`, `bass_saw_c2`, `orch_hit`, `voice_ready`, …; see `BUNDLED_SAMPLES`)',
+    '  - `"@nes/<name>"` — bundled sample (`kick_punch`, `snare_tight`, `hat_closed`, `bass_saw_c1`, `orch_hit`, `voice_ready`, …; see `BUNDLED_SAMPLES`)',
     '  - `"local:<path>"` — file-system path (CLI, Node.js, and BeatBax Desktop)',
     '  - `"https://…"` — remote URL (browser + Node.js 18+)',
     '',
@@ -265,7 +265,7 @@ inst hihat type=noise noise_mode=normal noise_period=3  env=8,down  env_period=0
         code:
 `inst bass_hit type=dmc dmc_rate=7 dmc_loop=false dmc_sample="@nes/bass_c2"
 inst sfx      type=dmc dmc_rate=10 dmc_loop=false dmc_sample="@nes/crash"
-# Bundled: kick_punch, snare_tight, hat_closed, bass_saw_c2, orch_hit, voice_ready, …`,
+# Bundled: kick_punch, snare_tight, hat_closed, bass_saw_c1, orch_hit, voice_ready, …`,
       },
       {
         kind: 'snippet',

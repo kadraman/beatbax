@@ -59,6 +59,7 @@ import {
   insertInstLine,
   instIsReferenced,
   isValidInstName,
+  readSubpatRows,
   renameInstrumentInSource,
   replaceInstLine,
   syncSubpatBlock,
@@ -74,6 +75,7 @@ import {
   instrumentDraftPreviewPatch,
   isInstrumentDraftDirty,
 } from '@beatbax/app-core/editor/instrument-editor-draft';
+import { localSampleRemainder, songDirectory } from '@beatbax/app-core/editor/instrument-sample-path';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import {
   discreteSweepPatchFromCsv,
@@ -96,7 +98,9 @@ import {
   settingMidiInputDevice,
   settingMidiInputEnabled,
 } from '@beatbax/app-core/stores/settings.store';
-import { focusInstrumentEditorPanel, shouldHandleInstrumentPreviewKey } from '../../lib/instrument-editor-keys';
+import { getClientProfile } from '@beatbax/app-core/client-profile';
+import { detectShortcutPlatform, formatCommandShortcut } from '@beatbax/app-core/shortcuts';
+import { focusInstrumentEditorPanel, isInstrumentEditorTypingTarget, shouldHandleInstrumentPreviewKey } from '../../lib/instrument-editor-keys';
 
 const BEATBAX_NOTE_OPTIONS = listInstrumentNoteOptions();
 const UGE_NOTE_OPTIONS = listUgeNoteOptions();
@@ -112,28 +116,25 @@ function isHardwarePropField(field: { name: string; widget: string }): boolean {
   return field.widget === 'envelope' || field.widget === 'sweep' || field.name === 'env_period';
 }
 
-function CompactPropField({
+function SettingsField({
   id,
   label,
   hint,
-  disabled,
   children,
 }: {
   id: string;
   label: string;
   hint?: string;
-  disabled?: boolean;
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <label
-      className={`bb-inst-editor__ctrl-pair${disabled ? ' is-disabled' : ''}`}
-      htmlFor={id}
-      title={hint}
-    >
-      <span className="bb-inst-editor__ctrl-pair-label">{label}</span>
-      {children}
-    </label>
+    <div className="bb-inst-editor__prop">
+      <div className="bb-settings-row">
+        <label className="bb-settings-label" htmlFor={id}>{label}</label>
+        {children}
+      </div>
+      {hint ? <p className="bb-settings-note bb-inst-editor__prop-note">{hint}</p> : null}
+    </div>
   );
 }
 
@@ -175,13 +176,78 @@ function InstrumentSampleField({
     : scheme === 'https'
       ? 'https://'
       : `${scheme}:`;
+  const [status, setStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const commit = (nextScheme: InstrumentSampleScheme, nextRemainder: string) => {
+    setStatus(null);
     onChange(formatInstrumentSampleRef(nextScheme, nextRemainder, chip));
   };
 
+  const onBrowse = async () => {
+    if (disabled || busy) return;
+    const songPath = storage.get(StorageKey.LAST_DOCUMENT_PATH);
+    const directory = songPath ? songDirectory(songPath) : null;
+    if (!directory) {
+      setStatus({ kind: 'error', text: 'Save the song before choosing a local sample.' });
+      return;
+    }
+    const api = window.electronAPI;
+    if (!api?.openFile) {
+      setStatus({ kind: 'error', text: 'File browse is only available in the desktop app.' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const picked = await api.openFile({
+        title: 'Choose a DMC sample',
+        defaultPath: directory,
+        pathOnly: true,
+        filters: [
+          { name: 'DMC samples (*.dmc)', extensions: ['dmc'] },
+          { name: 'All files', extensions: ['*'] },
+        ],
+      });
+      if (!picked?.path) return;
+      const relative = localSampleRemainder(picked.path, songPath);
+      if (!relative.ok) {
+        setStatus({ kind: 'error', text: relative.error });
+        return;
+      }
+      commit('local', relative.remainder);
+    } catch (error) {
+      setStatus({ kind: 'error', text: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onCheck = async () => {
+    if (disabled || busy) return;
+    const ref = formatInstrumentSampleRef(scheme, remainder, chip);
+    if (!ref) {
+      setStatus({ kind: 'error', text: 'Enter a sample reference before checking it.' });
+      return;
+    }
+    const plugin = chipRegistry.get(chipRegistry.resolve(chip));
+    if (!plugin?.resolveSampleAsset) {
+      setStatus({ kind: 'error', text: 'This chip cannot check samples.' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const bytes = await plugin.resolveSampleAsset(ref);
+      setStatus({ kind: 'ok', text: `OK · ${bytes.byteLength} bytes` });
+    } catch (error) {
+      setStatus({ kind: 'error', text: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <div className="bb-settings-row bb-inst-editor__sample-row" title={field.hint}>
+    <div className="bb-inst-editor__sample-block" title={field.hint}>
+    <div className="bb-settings-row bb-inst-editor__sample-row">
       <span className="bb-settings-label" id={`${fieldId}-label`}>{field.label}</span>
       <div className="bb-inst-editor__sample-controls" role="group" aria-labelledby={`${fieldId}-label`}>
         <select
@@ -231,7 +297,38 @@ function InstrumentSampleField({
             }}
           />
         )}
+        <div className="bb-inst-editor__sample-actions">
+          {scheme === 'local' ? (
+            <button
+              type="button"
+              className="bb-settings-btn-secondary bb-inst-editor__sample-browse"
+              title="Browse for a .dmc file in the song folder"
+              aria-label="Browse for a sample file"
+              disabled={disabled || busy}
+              onClick={() => { void onBrowse(); }}
+            >
+              <span dangerouslySetInnerHTML={{ __html: icon('folder-open', 'w-3.5 h-3.5') }} />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="bb-settings-btn-secondary"
+            disabled={disabled || busy || !formatInstrumentSampleRef(scheme, remainder, chip)}
+            onClick={() => { void onCheck(); }}
+          >
+            Check
+          </button>
+          {status?.kind === 'ok' ? (
+            <span className="bb-inst-editor__sample-ok">{status.text}</span>
+          ) : null}
+        </div>
       </div>
+    </div>
+      {status?.kind === 'error' ? (
+        <p className="bb-settings-note bb-inst-editor__sample-status is-error">
+          {status.text}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -351,6 +448,12 @@ function instrumentOptionLabel(name: string, type: string, imported: boolean): s
   return suffix ? `${name} (${suffix})` : name;
 }
 
+/** Copy-from lists instruments. Always show a subpattern name the same way. */
+function copySourceLabel(name: string, subpat: string): string {
+  if (!subpat) return name;
+  return `${name} (subpattern: ${subpat})`;
+}
+
 /** Position the hint without a React render so a hover or press does not rebuild the editor. */
 function placeToolbarTip(tip: HTMLDivElement, text: string, anchor: HTMLElement): void {
   tip.textContent = text;
@@ -433,7 +536,8 @@ function DesktopInstrumentEditor({
   useEffect(() => {
     if (!open) hideToolbarTip(toolbarTipRef.current);
   }, [open]);
-  const [activeSection, setActiveSection] = useState('templates');
+  const [activeSection, setActiveSection] = useState('properties');
+  const [creating, setCreating] = useState(false);
   const lastPreviewNote = useRef('C4');
   const selectedRef = useRef<string | null>(null);
   const draftRef = useRef<InstrumentNode>({});
@@ -631,6 +735,10 @@ function DesktopInstrumentEditor({
   useEffect(() => {
     return eventBus.on('instrument-editor:open', ({ name }) => {
       setModalOpen(true);
+      if (!name) {
+        restorePanelFocus();
+        return;
+      }
       if (dirtyRef.current) {
         pendingNavRef.current = () => {
           loadInst(name, undefined, { reveal: true, focus: false });
@@ -787,31 +895,75 @@ function DesktopInstrumentEditor({
     ? resolveBundledSampleMeta(chip, draft.dmc_sample)
     : null;
 
+  /**
+   * `parseInstrumentBody` keeps `subpat=` and drops resolved rows. Put the
+   * source instrument's rows back so the copy can show and write that block.
+   * The `subpat` name stays shared — the block is not cloned.
+   */
+  const withSubpatRows = (draft: InstrumentNode, sourceName?: string): InstrumentNode => {
+    const subpat = typeof draft.subpat === 'string' ? draft.subpat.trim() : '';
+    if (!subpat) return draft;
+    if (Array.isArray(draft.subpatRows) && draft.subpatRows.length > 0) return draft;
+    const fromAst = sourceName ? ast?.insts?.[sourceName]?.subpatRows : undefined;
+    const rows = Array.isArray(fromAst) && fromAst.length
+      ? fromAst as SubPatternRowLike[]
+      : readSubpatRows(getSource(), subpat);
+    if (!rows?.length) return draft;
+    return { ...draft, subpatRows: cloneSubpatRows(rows) };
+  };
+
+  const finishCreate = (name: string, nextDraft: InstrumentNode) => {
+    selectedRef.current = name;
+    setSelected(name);
+    setDraft(nextDraft);
+    setBaseline(cloneInst(nextDraft));
+    setErrors([]);
+    setCreating(false);
+    setActiveSection('properties');
+    syncPreviewOctave(nextDraft, chip, schema);
+    revealInst(name, { focus: false, reveal: true });
+    restorePanelFocus();
+  };
+
+  const createFromBody = (body: string, type?: string) => {
+    const parsed = parseInstrumentBody(body);
+    const resolvedType = type ?? String(parsed.type ?? schema.types[0]?.id ?? '');
+    const name = uniqueInstName(defaultNewInstBaseName(resolvedType), localNames);
+    const serialized = `inst ${name} ${body.replace(/^inst\s+\S+\s+/i, '')}`;
+    const afterName = selectedLocal && selected ? selected : undefined;
+    applySource(insertInstLine(getSource(), serialized, afterName));
+    finishCreate(name, parsed);
+  };
+
+  const createFromInstrument = (sourceName: string) => {
+    if (localNames.has(sourceName)) {
+      const { next, newName, body, ok } = duplicateInstLine(getSource(), sourceName, localNames);
+      if (!ok) return;
+      const copied = withSubpatRows(parseInstrumentBody(body), sourceName);
+      selectedRef.current = newName;
+      applySource(next);
+      finishCreate(newName, copied);
+      return;
+    }
+    const src = ast?.insts?.[sourceName];
+    if (!src) return;
+    const { note: _n, gm: _g, __loc, ...rest } = cloneInst(src);
+    const copied = withSubpatRows(rest, sourceName);
+    const type = String(copied.type ?? schema.types[0]?.id ?? '');
+    const name = uniqueInstName(sourceName, localNames);
+    const { next } = replaceInstLine(
+      insertInstLine(getSource(), `inst ${name} type=${type}`),
+      name,
+      copied,
+      fieldOrder,
+    );
+    selectedRef.current = name;
+    applySource(next);
+    finishCreate(name, copied);
+  };
+
   const onNew = () => {
-    withDirtyGuard(() => {
-      // Read draftRef so Discard → New uses the reverted baseline type, not the
-      // dirty draft captured when the guard opened.
-      const currentType = String(draftRef.current.type ?? schema.types[0]?.id ?? '')
-        || schema.types[0]?.id;
-      const preset = currentType
-        ? schema.presets.find((p) => p.type === currentType)
-        : schema.presets[0];
-      const body = preset?.content
-        ?? (currentType ? `type=${currentType}` : `type=${schema.types[0]?.id ?? 'pulse1'}`);
-      const type = preset?.type ?? currentType ?? schema.types[0]?.id;
-      const name = uniqueInstName(defaultNewInstBaseName(type), localNames);
-      const serialized = `inst ${name} ${body.replace(/^inst\s+\S+\s+/i, '')}`;
-      const afterName = selectedLocal && selected ? selected : undefined;
-      applySource(insertInstLine(getSource(), serialized, afterName));
-      const nextDraft = parseInstrumentBody(body);
-      setSelected(name);
-      setDraft(nextDraft);
-      setBaseline(cloneInst(nextDraft));
-      setErrors([]);
-      syncPreviewOctave(nextDraft, chip, schema);
-      revealInst(name, { focus: false, reveal: true });
-      restorePanelFocus();
-    });
+    withDirtyGuard(() => setCreating(true));
   };
 
   const onDuplicate = () => {
@@ -821,8 +973,9 @@ function DesktopInstrumentEditor({
       // withheld by write-valid-only never land in the document.
       const { next, newName, body, ok } = duplicateInstLine(getSource(), selected, localNames);
       if (!ok) return;
+      const nextDraft = withSubpatRows(parseInstrumentBody(body), selected);
+      selectedRef.current = newName;
       applySource(next);
-      const nextDraft = parseInstrumentBody(body);
       setSelected(newName);
       setDraft(nextDraft);
       setBaseline(cloneInst(nextDraft));
@@ -836,16 +989,34 @@ function DesktopInstrumentEditor({
   const onDelete = () => {
     if (!selected || !selectedLocal) return;
     withDirtyGuard(() => {
-      if (instIsReferenced(getSource(), selected)
-        && !window.confirm(`Instrument '${selected}' is still referenced. Delete anyway?`)) {
-        return;
-      }
+      const referenced = instIsReferenced(getSource(), selected);
+      const message = referenced
+        ? `Instrument '${selected}' is still referenced. Delete it anyway?`
+        : `Delete instrument '${selected}'?`;
+      if (!window.confirm(message)) return;
+      const idx = instNames.indexOf(selected);
+      const remaining = instNames.filter((name) => name !== selected);
+      const neighbor = remaining[idx] ?? remaining[idx - 1] ?? null;
+      // Point the next parse at the neighbor before it runs, so it does not
+      // clear the panel and then land on the first instrument in the song.
+      selectedRef.current = neighbor;
       applySource(deleteInstLine(getSource(), selected));
-      setSelected(null);
-      setDraft({});
-      setBaseline({});
-      setErrors([]);
-      revealInst(null);
+      if (neighbor && ast?.insts?.[neighbor]) {
+        const nextDraft = cloneInst(ast.insts[neighbor]);
+        setSelected(neighbor);
+        setDraft(nextDraft);
+        setBaseline(cloneInst(nextDraft));
+        setErrors([]);
+        syncPreviewOctave(nextDraft, chip, schema);
+        revealInst(neighbor, { focus: false, reveal: true });
+      } else {
+        setSelected(null);
+        setDraft({});
+        setBaseline({});
+        setErrors([]);
+        revealInst(null);
+      }
+      restorePanelFocus();
     });
   };
 
@@ -935,25 +1106,6 @@ function DesktopInstrumentEditor({
     };
   }, [renameOpen, dirtyNavOpen]);
 
-  const applyPreset = (content: string) => {
-    const parsed = parseInstrumentBody(content);
-    // Presets are full instrument snippets — replace the body so type-specific
-    // leftovers (e.g. wave= after switching to pulse) do not remain.
-    writeDraft({ ...parsed, __loc: draft.__loc });
-  };
-
-  const copyFrom = (name: string) => {
-    const src = ast?.insts?.[name];
-    if (!src) return;
-    const { note: _n, gm: _g, __loc, subpatRows, ...rest } = cloneInst(src);
-    writeDraft({
-      ...rest,
-      __loc: draft.__loc,
-      ...(draft.note !== undefined ? { note: draft.note } : {}),
-      ...(draft.gm !== undefined ? { gm: draft.gm } : {}),
-    });
-  };
-
   const copyImported = () => {
     if (!selected) return;
     withDirtyGuard(() => {
@@ -961,13 +1113,14 @@ function DesktopInstrumentEditor({
       const d = draftRef.current;
       const type = String(d.type ?? schema.types[0]?.id ?? '');
       const name = uniqueInstName(selected, localNames);
-      const body = { ...d, __loc: undefined };
+      const body = withSubpatRows({ ...d, __loc: undefined }, selected);
       const { next } = replaceInstLine(
         insertInstLine(getSource(), `inst ${name} type=${type}`),
         name,
         body,
         fieldOrder,
       );
+      selectedRef.current = name;
       applySource(next);
       const nextDraft = cloneInst(body);
       setSelected(name);
@@ -1022,10 +1175,21 @@ function DesktopInstrumentEditor({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!shouldHandleInstrumentPreviewKey(e, bodyRef.current)) return;
+      const auditionKey = e.code === 'KeyA'
+        || e.code === 'Space'
+        || e.key === ' '
+        || e.key === 'Spacebar'
+        || e.key.toLowerCase() === 'a';
       if (previewMode !== 'melodic') {
-        if (e.type === 'keydown' && !e.repeat && (e.key === ' ' || e.key.toLowerCase() === 'a')) {
-          e.preventDefault();
+        // A and Space audition even when a select or button has focus. Text
+        // fields still take the key so names and numbers can be typed.
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        if (bodyRef.current?.dataset.bbInstEditorOpen !== 'true') return;
+        if (isInstrumentEditorTypingTarget(e.target) && (e.target as HTMLElement).tagName !== 'SELECT') return;
+        if (!auditionKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === 'keydown' && !e.repeat) {
           if (previewMode === 'uge_note') {
             playHit('hit', {
               sustain: false,
@@ -1034,13 +1198,13 @@ function DesktopInstrumentEditor({
                 : { uge_note: 'C-6' },
             });
           } else {
-            // Oneshot: sample / envelope duration, not key hold.
             playHit('hit', { sustain: false });
           }
         }
-        if (e.type === 'keyup' && (e.key === ' ' || e.key.toLowerCase() === 'a')) releaseHoldPreview();
+        if (e.type === 'keyup') releaseHoldPreview();
         return;
       }
+      if (!shouldHandleInstrumentPreviewKey(e, bodyRef.current)) return;
       const key = e.key.toLowerCase();
       if (key === 'z' || key === 'x') {
         if (e.type === 'keydown' && !e.repeat) {
@@ -1055,11 +1219,11 @@ function DesktopInstrumentEditor({
       if (e.type === 'keydown' && !e.repeat) playNote(found.note, { sustain: true });
       if (e.type === 'keyup') releaseNote();
     };
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('keyup', onKey);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKey, true);
     return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('keyup', onKey);
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKey, true);
     };
   });
 
@@ -1083,6 +1247,24 @@ function DesktopInstrumentEditor({
     patch({ [name]: next });
   };
 
+  /** Keep a vendor prefix such as `gb:width` when the parsed value carries `format`. */
+  const setChoiceField = (name: string, next: string) => {
+    if (!next.trim()) {
+      clearOrSetField(name, '');
+      return;
+    }
+    const current = draft[name];
+    if (current && typeof current === 'object' && 'format' in current) {
+      const format = String((current as { format?: string }).format ?? '').trim();
+      const n = Number(next);
+      if (format && Number.isFinite(n)) {
+        patch({ [name]: { value: n, format } });
+        return;
+      }
+    }
+    patch({ [name]: next });
+  };
+
   const renderDefaultField = (field: ChipInstrumentFieldDef) => {
     const value = formatInstrumentFieldValue(field.name, draft[field.name]);
     const fieldId = `bb-inst-field-${field.name}`;
@@ -1090,16 +1272,10 @@ function DesktopInstrumentEditor({
       const options = field.widget === 'uge_note' ? UGE_NOTE_OPTIONS : BEATBAX_NOTE_OPTIONS;
       const opts = value && !options.includes(value) ? [value, ...options] : options;
       return (
-        <CompactPropField
-          key={field.name}
-          id={fieldId}
-          label={field.label}
-          hint={field.hint}
-          disabled={!selectedLocal}
-        >
+        <SettingsField key={field.name} id={fieldId} label={field.label} hint={field.hint}>
           <select
             id={fieldId}
-            className="bb-settings-select bb-inst-editor__hw-dir"
+            className="bb-settings-select"
             disabled={!selectedLocal}
             value={value}
             onChange={(e) => clearOrSetField(field.name, e.target.value)}
@@ -1109,17 +1285,11 @@ function DesktopInstrumentEditor({
               <option key={n} value={n}>{n}</option>
             ))}
           </select>
-        </CompactPropField>
+        </SettingsField>
       );
     }
     return (
-      <CompactPropField
-        key={field.name}
-        id={fieldId}
-        label={field.label}
-        hint={field.hint}
-        disabled={!selectedLocal}
-      >
+      <SettingsField key={field.name} id={fieldId} label={field.label} hint={field.hint}>
         <input
           id={fieldId}
           className="bb-settings-number"
@@ -1130,7 +1300,7 @@ function DesktopInstrumentEditor({
           value={value}
           onChange={(e) => clearOrSetField(field.name, e.target.value)}
         />
-      </CompactPropField>
+      </SettingsField>
     );
   };
 
@@ -1192,23 +1362,45 @@ function DesktopInstrumentEditor({
       );
     }
     return (
-      <div className="bb-settings-row" key={field.name} title={field.hint}>
-        <label className="bb-settings-label" htmlFor={fieldId}>{field.label}</label>
+      <SettingsField key={field.name} id={fieldId} label={field.label} hint={field.hint}>
         {field.widget === 'enum' && field.values ? (
-          <select
-            id={fieldId}
-            className="bb-settings-select bb-inst-editor__grow"
-            disabled={!selectedLocal}
-            value={value}
-            onChange={(e) => patch({ [field.name]: e.target.value })}
-          >
-            <option value="">—</option>
-            {field.values.map((v) => <option key={v} value={v}>{v}</option>)}
-          </select>
+          field.values.length <= 8 ? (
+            <div
+              className="bb-inst-editor__choices"
+              id={fieldId}
+              role="radiogroup"
+              aria-label={field.label}
+            >
+              {(value && !field.values.includes(value) ? [value, ...field.values] : field.values).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  role="radio"
+                  className="bb-inst-editor__choice"
+                  aria-checked={value === v}
+                  disabled={!selectedLocal}
+                  onClick={() => setChoiceField(field.name, v)}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <select
+              id={fieldId}
+              className="bb-settings-select"
+              disabled={!selectedLocal}
+              value={value}
+              onChange={(e) => setChoiceField(field.name, e.target.value)}
+            >
+              <option value="">—</option>
+              {field.values.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          )
         ) : (
           <input
             id={fieldId}
-            className={field.widget === 'int' ? 'bb-settings-number' : 'bb-settings-text bb-inst-editor__grow'}
+            className={field.widget === 'int' ? 'bb-settings-number' : 'bb-settings-text'}
             disabled={!selectedLocal}
             type={field.widget === 'int' ? 'number' : 'text'}
             min={field.min}
@@ -1217,7 +1409,7 @@ function DesktopInstrumentEditor({
             onChange={(e) => patch({ [field.name]: e.target.value })}
           />
         )}
-      </div>
+      </SettingsField>
     );
   };
 
@@ -1253,7 +1445,7 @@ function DesktopInstrumentEditor({
   );
   useEffect(() => {
     if (!editorSections.some((section) => section.id === activeSection)) {
-      setActiveSection(editorSections[0]?.id ?? 'templates');
+      setActiveSection(editorSections[0]?.id ?? 'properties');
     }
   }, [activeSection, editorSections]);
   useEffect(() => {
@@ -1331,6 +1523,9 @@ function DesktopInstrumentEditor({
     >
       <div className="bb-inst-editor-modal__header">
         <span className="bb-inst-editor-modal__title">Instrument Editor</span>
+        <span className="bb-settings-modal-hint">
+          {formatCommandShortcut('view.toggleInstrumentEditor', getClientProfile(), detectShortcutPlatform())}
+        </span>
         <button
           aria-label="Close"
           className="bb-inst-editor-modal__close"
@@ -1641,10 +1836,13 @@ function DesktopInstrumentEditor({
           <nav aria-label="Instrument sections" className="bb-inst-editor__nav">
             {editorSections.map((section) => (
               <button
-                aria-selected={activeSection === section.id}
-                className={`bb-settings-nav-btn${activeSection === section.id ? ' bb-settings-nav-btn--active' : ''}`}
+                aria-selected={!creating && activeSection === section.id}
+                className={`bb-settings-nav-btn${!creating && activeSection === section.id ? ' bb-settings-nav-btn--active' : ''}`}
                 key={section.id}
-                onClick={() => setActiveSection(section.id)}
+                onClick={() => {
+                  setCreating(false);
+                  setActiveSection(section.id);
+                }}
                 type="button"
               >
                 {section.label}
@@ -1661,42 +1859,84 @@ function DesktopInstrumentEditor({
               </div>
             ) : null}
           <div className="bb-inst-editor__pane">
-        {selected ? (
-          <>
-          <div className={sectionClass('templates')}>
-            <SectionHeading>Templates</SectionHeading>
-            <div className="bb-settings-row">
-              <label className="bb-settings-label" htmlFor="bb-inst-template">Template</label>
-              <select
-                id="bb-inst-template"
-                className="bb-settings-select bb-inst-editor__grow"
-                defaultValue=""
-                disabled={!selectedLocal}
-                onChange={(e) => { if (e.target.value) applyPreset(e.target.value); e.target.value = ''; }}
+        {creating ? (
+          <div className="bb-inst-editor__create">
+            <SectionHeading>New instrument</SectionHeading>
+            <p className="bb-settings-note">Nothing is added until you pick a template or an instrument to copy.</p>
+            <section className="bb-inst-editor__create-group" aria-label="Templates">
+              <h3 className="bb-inst-editor__stack-title">Templates</h3>
+              <div className="bb-inst-editor__create-list">
+                {schema.presets.map((preset) => {
+                  const typeLabel = schema.types.find((type) => type.id === preset.type)?.label ?? preset.type;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className="bb-inst-editor__create-preset"
+                      onClick={() => createFromBody(preset.content, preset.type)}
+                    >
+                      <span className="bb-inst-editor__create-preset-name">{preset.label}</span>
+                      <span className="bb-inst-editor__create-preset-type">{typeLabel}</span>
+                    </button>
+                  );
+                })}
+                {!schema.presets.length ? (
+                  <button
+                    type="button"
+                    className="bb-inst-editor__create-preset"
+                    onClick={() => {
+                      const type = schema.types[0]?.id ?? 'pulse1';
+                      createFromBody(`type=${type}`, type);
+                    }}
+                  >
+                    <span className="bb-inst-editor__create-preset-name">Blank</span>
+                    <span className="bb-inst-editor__create-preset-type">
+                      {schema.types[0]?.label ?? 'Instrument'}
+                    </span>
+                  </button>
+                ) : null}
+              </div>
+            </section>
+            {instNames.some((name) => name !== selected) ? (
+              <section className="bb-inst-editor__create-group" aria-label="Copy from song">
+                <h3 className="bb-inst-editor__stack-title">
+                  <label htmlFor="bb-inst-copy-from">Copy from song</label>
+                </h3>
+                <select
+                  id="bb-inst-copy-from"
+                  className="bb-settings-select bb-inst-editor__create-copy"
+                  aria-label="Copy from song"
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value) createFromInstrument(e.target.value);
+                  }}
+                >
+                  <option value="">Choose an instrument…</option>
+                  {instNames.filter((name) => name !== selected).map((name) => {
+                    const subpat = typeof ast?.insts?.[name]?.subpat === 'string'
+                      ? String(ast.insts[name].subpat).trim()
+                      : '';
+                    return (
+                      <option key={name} value={name}>
+                        {copySourceLabel(name, subpat)}
+                      </option>
+                    );
+                  })}
+                </select>
+              </section>
+            ) : null}
+            <div>
+              <button
+                type="button"
+                className="bb-settings-btn-secondary"
+                onClick={() => setCreating(false)}
               >
-                <option value="">Plugin presets…</option>
-                {schema.presets.map((p) => (
-                  <option key={p.id} value={p.content}>{p.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="bb-settings-row">
-              <label className="bb-settings-label" htmlFor="bb-inst-copy-from">Copy from</label>
-              <select
-                id="bb-inst-copy-from"
-                className="bb-settings-select bb-inst-editor__grow"
-                defaultValue=""
-                disabled={!selectedLocal}
-                onChange={(e) => { if (e.target.value) copyFrom(e.target.value); e.target.value = ''; }}
-              >
-                <option value="">Song instruments…</option>
-                {instNames.filter((n) => n !== selected).map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
+                Cancel
+              </button>
             </div>
           </div>
-
+        ) : selected ? (
+          <>
           <div className={sectionClass('properties')}>
             <SectionHeading>Properties</SectionHeading>
             <PropertiesFields
@@ -1875,51 +2115,18 @@ function DesktopInstrumentEditor({
       </div>
       {selected ? (
         <div className="bb-inst-editor__preview" aria-label="Preview">
-          <div className="bb-inst-editor__preview-bar">
-            {previewMode === 'melodic' ? (
-              <div className="bb-inst-editor__preview-lead">
-                <span className="bb-settings-note bb-inst-editor__keys-label">A–J play the marked octave · Z/X shift</span>
-                <OctaveStepper octave={pianoOctave} onChange={setPianoOctave} />
-              </div>
-            ) : null}
-            {previewMode === 'uge_note' ? (
-              <div className="bb-inst-editor__preview-lead">
-                <span className="bb-settings-note bb-inst-editor__keys-label">UGE / noise clock (audition only)</span>
-              </div>
-            ) : null}
-            <MidiPreviewStrip />
-          </div>
-          {previewMode === 'melodic' ? (
-            <MiniKeyboard
-              activeNote={activeNote}
-              octave={pianoOctave}
-              onDown={(note) => playNote(note, { sustain: true })}
-              onUp={releaseNote}
-            />
-          ) : null}
-          {previewMode === 'oneshot' || previewMode === 'uge_note' ? (
-            <div className={`bb-inst-editor__pads${previewMode === 'oneshot' ? ' bb-inst-editor__pads--solo' : ''}`}>
+          {previewMode === 'oneshot' ? (
+            <div className="bb-inst-editor__audition">
               <button
                 type="button"
                 className={`bb-inst-editor__trigger${activeNote === 'hit' ? ' is-active' : ''}`}
                 title={isDmcType ? 'Trigger sample (A / Space) — plays to end' : 'Trigger hit (A / Space) — plays to end'}
-                onPointerDown={() => {
-                  if (previewMode === 'uge_note') {
-                    playHit('hit', {
-                      sustain: false,
-                      instPatch: currentUge ? undefined : { uge_note: 'C-6' },
-                    });
-                  } else {
-                    playHit('hit', { sustain: false });
-                  }
-                }}
+                onPointerDown={() => playHit('hit', { sustain: false })}
                 onPointerUp={releaseHoldPreview}
                 onPointerLeave={releaseHoldPreview}
               >
                 <span className="bb-inst-editor__pad-title">{isDmcType ? 'Trigger sample' : 'Trigger'}</span>
-                <span className="bb-inst-editor__pad-sub">
-                  {previewMode === 'uge_note' ? (currentUge || 'C-6') : 'A / Space'}
-                </span>
+                <span className="bb-inst-editor__pad-sub">A / Space</span>
                 {dmcSampleMeta ? (
                   <span className="bb-inst-editor__pad-meta">
                     Designed
@@ -1929,16 +2136,60 @@ function DesktopInstrumentEditor({
                   </span>
                 ) : null}
               </button>
-              {previewMode === 'uge_note' ? (
-                <UgeNoteStrip
+              <MidiPreviewStrip />
+            </div>
+          ) : (
+            <>
+              <div className="bb-inst-editor__preview-bar">
+                {previewMode === 'melodic' ? (
+                  <div className="bb-inst-editor__preview-lead">
+                    <span className="bb-settings-note bb-inst-editor__keys-label">A–J play the marked octave · Z/X shift</span>
+                    <OctaveStepper octave={pianoOctave} onChange={setPianoOctave} />
+                  </div>
+                ) : null}
+                {previewMode === 'uge_note' ? (
+                  <div className="bb-inst-editor__preview-lead">
+                    <span className="bb-settings-note bb-inst-editor__keys-label">UGE / noise clock (audition only)</span>
+                  </div>
+                ) : null}
+                <MidiPreviewStrip />
+              </div>
+              {previewMode === 'melodic' ? (
+                <MiniKeyboard
                   activeNote={activeNote}
-                  marked={currentUge}
-                  onDown={(uge) => playHit(uge, { sustain: false, instPatch: { uge_note: uge } })}
-                  onUp={() => setActiveNote(null)}
+                  octave={pianoOctave}
+                  onDown={(note) => playNote(note, { sustain: true })}
+                  onUp={releaseNote}
                 />
               ) : null}
-            </div>
-          ) : null}
+              {previewMode === 'uge_note' ? (
+                <div className="bb-inst-editor__pads">
+                  <button
+                    type="button"
+                    className={`bb-inst-editor__trigger${activeNote === 'hit' ? ' is-active' : ''}`}
+                    title="Trigger hit (A / Space) — plays to end"
+                    onPointerDown={() => {
+                      playHit('hit', {
+                        sustain: false,
+                        instPatch: currentUge ? undefined : { uge_note: 'C-6' },
+                      });
+                    }}
+                    onPointerUp={releaseHoldPreview}
+                    onPointerLeave={releaseHoldPreview}
+                  >
+                    <span className="bb-inst-editor__pad-title">Trigger</span>
+                    <span className="bb-inst-editor__pad-sub">{currentUge || 'C-6'}</span>
+                  </button>
+                  <UgeNoteStrip
+                    activeNote={activeNote}
+                    marked={currentUge}
+                    onDown={(uge) => playHit(uge, { sustain: false, instPatch: { uge_note: uge } })}
+                    onUp={() => setActiveNote(null)}
+                  />
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       ) : null}
     </div>
@@ -2074,21 +2325,17 @@ function PropertiesFields({
   const both = voiceFields.length > 0 && defaultFields.length > 0;
 
   return (
-    <div className="bb-inst-editor__stack-list">
+    <div className="bb-settings-section">
       {voiceFields.length ? (
-        <section className="bb-inst-editor__stack-block" aria-label="Voice properties">
-          {both ? <h3 className="bb-inst-editor__stack-title">Voice</h3> : null}
-          <div className="bb-inst-editor__props-voice">
-            {voiceFields.map(renderVoiceField)}
-          </div>
+        <section className="bb-inst-editor__props-group" aria-label="Voice properties">
+          {both ? <SectionHeading>Voice</SectionHeading> : null}
+          {voiceFields.map((field) => renderVoiceField(field))}
         </section>
       ) : null}
       {defaultFields.length ? (
-        <section className="bb-inst-editor__stack-block" aria-label="Default note and program">
-          {both ? <h3 className="bb-inst-editor__stack-title">Defaults</h3> : null}
-          <div className="bb-inst-editor__macro-controls" role="group" aria-label="Default note and program">
-            {defaultFields.map(renderDefaultField)}
-          </div>
+        <section className="bb-inst-editor__props-group" aria-label="Default note and program">
+          {both ? <SectionHeading>Defaults</SectionHeading> : null}
+          {defaultFields.map((field) => renderDefaultField(field))}
         </section>
       ) : null}
     </div>
@@ -2800,8 +3047,15 @@ function SubpatternSection({
           ) : (
             <span className="bb-settings-note">No subpattern attached</span>
           )}
-          {writable && !subpatName ? (
-            <button className="bb-inst-editor__macro-add-btn" type="button" onClick={onCreate}>
+          {writable ? (
+            <button
+              className="bb-inst-editor__macro-add-btn"
+              type="button"
+              title={subpatName
+                ? 'Create a new subpattern for this instrument. The current block stays in the song.'
+                : 'Create a subpattern for this instrument'}
+              onClick={onCreate}
+            >
               <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
               <span>Create</span>
             </button>
@@ -2811,7 +3065,9 @@ function SubpatternSection({
               aria-label="Attach subpattern"
               className="bb-settings-select bb-inst-editor__subpat-attach"
               disabled={!attachNames.length}
-              title={attachNames.length ? 'Attach an existing subpattern' : 'No other subpatterns in this song'}
+              title={attachNames.length
+                ? 'Use a different subpattern from this song'
+                : 'No other subpatterns in this song'}
               value=""
               onChange={(event) => {
                 const name = event.target.value;
@@ -3114,6 +3370,7 @@ function midiController(): {
   requestMidiAccess?: (force?: boolean) => Promise<string | null | void>;
   setEnabled?: (enabled: boolean) => Promise<void>;
   setDeviceById?: (deviceId: string) => void;
+  setDevicesListener?: (listener: (() => void) | null) => void;
 } | null {
   return (window as any).__beatbax_midiStepEntry ?? null;
 }
@@ -3130,17 +3387,39 @@ function MidiPreviewStrip(): React.JSX.Element {
   const midiDevice = useStoreValue(settingMidiInputDevice);
   const [devices, setDevices] = useState<Array<{ id: string; name: string }>>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [fault, setFault] = useState('');
+  const [flash, setFlash] = useState('');
+  const flashTimer = useRef<number | null>(null);
   const supported = MidiStepEntryService.isSupported();
 
-  const refreshDevices = useCallback(async (force = false) => {
+  const showFlash = useCallback((text: string) => {
+    setFlash(text);
+    if (flashTimer.current != null) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => {
+      flashTimer.current = null;
+      setFlash('');
+    }, 2500);
+  }, []);
+
+  useEffect(() => () => {
+    if (flashTimer.current != null) window.clearTimeout(flashTimer.current);
+  }, []);
+
+  const refreshDevices = useCallback(async (force = false, announce = false) => {
     if (!supported) {
       setDevices([]);
       return;
     }
-    setRefreshing(true);
+    if (announce) setRefreshing(true);
     try {
       const controller = midiController();
-      await controller?.requestMidiAccess?.(force);
+      const accessErr = await controller?.requestMidiAccess?.(force);
+      if (typeof accessErr === 'string' && accessErr) {
+        setDevices([]);
+        setFlash('');
+        setFault(accessErr);
+        return;
+      }
       const next = controller?.listDevices?.() ?? [];
       const selectedId = settingMidiInputDevice.get();
       if (
@@ -3152,77 +3431,99 @@ function MidiPreviewStrip(): React.JSX.Element {
         else settingMidiInputDevice.set('');
       }
       setDevices((cur) => (sameMidiDevices(cur, next) ? cur : next));
+      setFault('');
+      if (announce) {
+        showFlash(next.length === 1 ? 'Found 1 device' : `Found ${next.length} devices`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFault(msg ? `MIDI refresh failed: ${msg}` : 'MIDI refresh failed');
     } finally {
-      setRefreshing(false);
+      if (announce) setRefreshing(false);
     }
-  }, [supported]);
+  }, [showFlash, supported]);
 
   useEffect(() => {
     if (midiEnabled) void refreshDevices();
-    else setDevices([]);
+    else {
+      setDevices([]);
+      setFault('');
+      setFlash('');
+    }
   }, [midiEnabled, refreshDevices]);
+
+  useEffect(() => {
+    const controller = midiController();
+    if (!controller?.setDevicesListener) return;
+    controller.setDevicesListener(() => { void refreshDevices(); });
+    return () => controller.setDevicesListener?.(null);
+  }, [refreshDevices]);
 
   const selectedName = devices.find((d) => d.id === midiDevice)?.name;
   let status = 'Unsupported';
   if (supported) {
     if (!midiEnabled) status = 'MIDI off';
-    else if (!midiDevice || !selectedName) status = devices.length ? 'No device' : 'No devices found';
+    else if (!midiDevice || !selectedName) status = devices.length ? 'No device selected' : 'No devices found';
     else status = `Ready · ${selectedName}`;
   }
+  const statusLine = refreshing ? 'Checking devices…' : (fault || flash || status);
 
   return (
     <div className="bb-inst-editor__midi-bar" role="group" aria-label="MIDI input">
-      <label className="bb-inst-editor__midi-enable" title="MIDI plays any key">
-        <input
-          type="checkbox"
-          checked={midiEnabled && supported}
-          disabled={!supported || refreshing}
+      <div className="bb-inst-editor__midi-controls">
+        <label className="bb-inst-editor__midi-enable" title="MIDI plays any key">
+          <input
+            type="checkbox"
+            checked={midiEnabled && supported}
+            disabled={!supported || refreshing}
+            onChange={(e) => {
+              const next = e.target.checked;
+              const controller = midiController();
+              if (controller?.setEnabled) {
+                void controller.setEnabled(next).then(() => {
+                  if (next) void refreshDevices();
+                  else setDevices([]);
+                });
+                return;
+              }
+              settingMidiInputEnabled.set(next);
+              if (next) void refreshDevices();
+              else setDevices([]);
+            }}
+          />
+          <span>MIDI</span>
+        </label>
+        <select
+          className="bb-settings-select bb-inst-editor__midi-device"
+          aria-label="MIDI input device"
+          disabled={!supported || !midiEnabled || refreshing}
+          value={midiDevice}
+          onFocus={() => { if (midiEnabled) void refreshDevices(); }}
           onChange={(e) => {
-            const next = e.target.checked;
-            const controller = midiController();
-            if (controller?.setEnabled) {
-              void controller.setEnabled(next).then(() => {
-                if (next) void refreshDevices();
-                else setDevices([]);
-              });
-              return;
-            }
-            settingMidiInputEnabled.set(next);
-            if (next) void refreshDevices();
-            else setDevices([]);
+            const id = e.target.value;
+            settingMidiInputDevice.set(id);
+            midiController()?.setDeviceById?.(id);
           }}
-        />
-        <span>MIDI</span>
-      </label>
-      <select
-        className="bb-settings-select bb-inst-editor__midi-device"
-        aria-label="MIDI input device"
-        disabled={!supported || !midiEnabled || refreshing}
-        value={midiDevice}
-        onFocus={() => { if (midiEnabled) void refreshDevices(); }}
-        onChange={(e) => {
-          const id = e.target.value;
-          settingMidiInputDevice.set(id);
-          midiController()?.setDeviceById?.(id);
-        }}
-      >
-        <option value="">
-          {devices.length > 0 ? 'Select device…' : '(No MIDI devices)'}
-        </option>
-        {devices.map((d) => (
-          <option key={d.id} value={d.id}>{d.name}</option>
-        ))}
-      </select>
-      <button
-        type="button"
-        className="bb-settings-btn-secondary bb-inst-editor__midi-refresh"
-        title="Re-scan for MIDI devices"
-        disabled={!supported || !midiEnabled || refreshing}
-        onClick={() => { void refreshDevices(true); }}
-      >
-        {refreshing ? '…' : 'Refresh'}
-      </button>
-      <span className="bb-inst-editor__midi-status" aria-live="polite">{status}</span>
+        >
+          <option value="">
+            {devices.length > 0 ? 'Select device…' : '(No MIDI devices)'}
+          </option>
+          {devices.map((d) => (
+            <option key={d.id} value={d.id}>{d.name}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="bb-settings-btn-secondary bb-inst-editor__midi-refresh"
+          title="Re-scan for MIDI devices"
+          aria-busy={refreshing}
+          disabled={!supported || !midiEnabled || refreshing}
+          onClick={() => { void refreshDevices(true, true); }}
+        >
+          Refresh
+        </button>
+      </div>
+      <span className="bb-inst-editor__midi-status" aria-live="polite">{statusLine}</span>
     </div>
   );
 }
