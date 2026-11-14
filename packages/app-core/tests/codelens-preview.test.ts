@@ -110,9 +110,13 @@ describe('CodeLens Preview provider', () => {
     // Expect inst preview notes for 'lead' (at least one note button)
     expect(ids.some((id: string) => id.startsWith('bb-inst-lead-'))).toBe(true);
 
+    // Validation errors still emit parse:success with valid:false; CodeLens
+    // stays up as long as an AST was available (missing channel inst, etc.).
     eventBus.emit('parse:success', { ast: {}, valid: false });
     const afterInvalid = capturedProvider.provideCodeLenses(model);
-    expect(afterInvalid.lenses).toEqual([]);
+    const afterIds = (afterInvalid.lenses || []).map((l: any) => l.id);
+    expect(afterIds).toContain('bb-pat-preview-bass-line');
+    expect(afterIds.some((id: string) => id.startsWith('bb-inst-lead-'))).toBe(true);
   });
 
   it('shows a Sample lens for DMC instruments with spaced/case-insensitive type=', () => {
