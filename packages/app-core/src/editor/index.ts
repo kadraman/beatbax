@@ -86,6 +86,7 @@ export type { EditorChangeOrigin } from './editor-change-origin.js';
 
 export {
   fieldApplies,
+  listInstrumentEditorSections,
   resolveInstrumentEditorSchema,
   resolvePreviewChannel,
   fallbackInstrumentEditor,
@@ -97,7 +98,9 @@ export {
   sampleRemainderForSchemeChange,
   INSTRUMENT_SAMPLE_SCHEMES,
 } from './instrument-editor-schema.js';
-export type { InstrumentSampleScheme } from './instrument-editor-schema.js';
+export type { InstrumentEditorSection, InstrumentSampleScheme } from './instrument-editor-schema.js';
+export { localSampleRemainder, songDirectory } from './instrument-sample-path.js';
+export type { LocalSamplePathResult } from './instrument-sample-path.js';
 export {
   parseHardwareEnvelope,
   formatHardwareEnvelope,

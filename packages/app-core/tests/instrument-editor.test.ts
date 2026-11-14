@@ -29,7 +29,13 @@ import {
   splitTrailingComment,
   collectLocalInstNames,
   findInstLineIndex,
+  collectLocalSubpatNames,
   findSubpatLineIndex,
+  insertSubpatBlock,
+  readSubpatRows,
+  replaceSubpatBlock,
+  syncSubpatBlock,
+  replaceInstLine,
   insertInstLine,
   deleteInstLine,
   duplicateInstLine,
@@ -59,10 +65,10 @@ describe('instrument editor panel flag', () => {
     expect(shouldShowInstrumentEditor(desktop)).toBe(false);
   });
 
-  it('is allowed on desktop when the experimental flag is on', () => {
+  it('is allowed on desktop when the experimental flag is on, without restoring a pane', () => {
     setFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR, true);
     expect(isInstrumentEditorAllowed(desktop)).toBe(true);
-    expect(shouldShowInstrumentEditor(desktop)).toBe(true);
+    expect(shouldShowInstrumentEditor(desktop)).toBe(false);
   });
 });
 
@@ -86,6 +92,18 @@ describe('writeback helpers', () => {
     const inserted = insertInstLine(src, 'inst bass type=wave', 'lead');
     expect(inserted).toBe('chip gameboy\ninst lead type=pulse1\ninst bass type=wave\npat a = C4\n');
     expect(deleteInstLine(inserted, 'bass')).toBe('chip gameboy\ninst lead type=pulse1\npat a = C4\n');
+  });
+
+  it('preserves CRLF so a one-line writeback does not rewrite the whole file', () => {
+    const src = 'chip gameboy\r\ninst lead type=pulse1 duty=50\r\npat a = C4\r\n';
+    const replaced = replaceInstLine(src, 'lead', { type: 'pulse1', duty: '25' });
+    expect(replaced.ok).toBe(true);
+    expect(replaced.next).toBe('chip gameboy\r\ninst lead\r\npat a = C4\r\n');
+    expect(replaced.next.includes('\r\n')).toBe(true);
+    expect(replaced.next.includes('\n') && !replaced.next.replace(/\r\n/g, '').includes('\n')).toBe(true);
+
+    const deleted = deleteInstLine(src, 'lead');
+    expect(deleted).toBe('chip gameboy\r\npat a = C4\r\n');
   });
 
   it('inserts after the last inst when no anchor is given', () => {
@@ -325,6 +343,76 @@ describe('writeback helpers', () => {
     ].join('\n');
     expect(findSubpatLineIndex(shared, 'kick_huge')).toBe(0);
     expect(findInstLineIndex(shared, 'kick_huge')).toBe(1);
+  });
+
+  it('rewrites a subpat block without swallowing the next statement', () => {
+    const src = [
+      'subpat kick =',
+      '  .',
+      '  +0 vol:15',
+      '  halt',
+      'inst kick type=noise subpat=kick',
+      '',
+    ].join('\n');
+    const { next, ok } = replaceSubpatBlock(src, 'kick', [
+      { empty: true },
+      { empty: false, halt: true },
+    ]);
+    expect(ok).toBe(true);
+    expect(next).toBe([
+      'subpat kick =',
+      '  .',
+      '  halt',
+      'inst kick type=noise subpat=kick',
+      '',
+    ].join('\n'));
+  });
+
+  it('keeps a header comment and refuses an empty subpat', () => {
+    const src = 'subpat kick = . halt # body\ninst kick type=noise subpat=kick\n';
+    const replaced = replaceSubpatBlock(src, 'kick', [{ empty: false, offset: 0, vol: 15 }]);
+    expect(replaced.ok).toBe(true);
+    expect(replaced.next.startsWith('subpat kick = # body\n  +0 vol:15\ninst kick')).toBe(true);
+    expect(replaceSubpatBlock(src, 'kick', []).ok).toBe(false);
+    expect(readSubpatRows(src, 'kick')?.map((row) => row.empty || row.halt)).toEqual([true, true]);
+  });
+
+  it('inserts a subpat above the instrument and will not duplicate a name', () => {
+    const src = 'chip gameboy\ninst kick type=noise\n';
+    const inserted = insertSubpatBlock(src, 'kick', [{ empty: true }], 'kick');
+    expect(inserted.ok).toBe(true);
+    expect(inserted.next).toBe([
+      'chip gameboy',
+      'subpat kick =',
+      '  .',
+      'inst kick type=noise',
+      '',
+    ].join('\n'));
+    expect(insertSubpatBlock(inserted.next, 'kick', [{ empty: true }], 'kick').ok).toBe(false);
+    expect(collectLocalSubpatNames(inserted.next)).toEqual(new Set(['kick']));
+  });
+
+  it('syncs a missing block, skips an unchanged one, and leaves the block when subpat= is cleared', () => {
+    const src = 'chip gameboy\ninst kick type=noise\n';
+    const created = syncSubpatBlock(src, {
+      type: 'noise',
+      subpat: 'kick',
+      subpatRows: [{ empty: true }],
+    }, 'kick');
+    expect(created.ok).toBe(true);
+    expect(created.next).toContain('subpat kick =');
+
+    const same = syncSubpatBlock(created.next, {
+      subpat: 'kick',
+      subpatRows: [{ empty: true }],
+    }, 'kick');
+    expect(same.next).toBe(created.next);
+
+    const cleared = replaceInstLine(created.next, 'kick', { type: 'noise' });
+    expect(cleared.ok).toBe(true);
+    expect(cleared.next).toContain('subpat kick =');
+    expect(cleared.next).not.toContain('subpat=');
+    expect(cleared.next).toContain('inst kick');
   });
 });
 

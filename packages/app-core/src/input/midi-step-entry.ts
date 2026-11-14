@@ -88,6 +88,7 @@ interface MidiInputMap {
 
 interface MidiAccess {
   inputs: MidiInputMap;
+  onstatechange: ((event: Event) => void) | null;
 }
 
 export interface MidiStepEntryCallbacks {
@@ -377,6 +378,8 @@ export class MidiStepEntryService {
 
   // Stored message handler so we can remove it cleanly
   private _msgHandler: ((e: MidiMessageEvent) => void) | null = null;
+  /** Notified when the browser adds or removes a MIDI input. */
+  private _onDevicesChanged: (() => void) | null = null;
 
   constructor(private callbacks: MidiStepEntryCallbacks) {}
 
@@ -398,6 +401,15 @@ export class MidiStepEntryService {
   getDeviceId(): string { return this._deviceId; }
   /** True once navigator.requestMIDIAccess has resolved (including late after timeout). */
   hasMidiAccess(): boolean { return this.midiAccess != null; }
+
+  /**
+   * Hear hot-plug updates on the current MIDI access.
+   * Pass null to stop. A grant that arrives later still calls the listener.
+   */
+  setDevicesListener(listener: (() => void) | null): void {
+    this._onDevicesChanged = listener;
+    this._bindDeviceWatch();
+  }
 
   // ── MIDI access ────────────────────────────────────────────────────────────
 
@@ -446,6 +458,7 @@ export class MidiStepEntryService {
         return 'MIDI access request was superseded.';
       }
       this.midiAccess = access;
+      this._bindDeviceWatch();
       log.info('MIDI access granted. Inputs:', this.midiAccess!.inputs.size);
       return null;
     } catch (err: any) {
@@ -537,6 +550,8 @@ export class MidiStepEntryService {
   dispose(): void {
     this._retireAccessRequest();
     this._detachInput();
+    if (this.midiAccess) this.midiAccess.onstatechange = null;
+    this._onDevicesChanged = null;
     this.midiAccess = null;
     this.armed = false;
     log.info('MIDI step entry disposed');
@@ -616,9 +631,17 @@ export class MidiStepEntryService {
   private _adoptAccess(midiAccess: MidiAccess): void {
     const keepId = this._deviceId;
     this.midiAccess = midiAccess;
+    this._bindDeviceWatch();
     if (keepId) {
       this.setDevice(keepId);
     }
+  }
+
+  private _bindDeviceWatch(): void {
+    if (!this.midiAccess) return;
+    this.midiAccess.onstatechange = () => {
+      this._onDevicesChanged?.();
+    };
   }
 
   private _attachInput(): void {

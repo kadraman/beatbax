@@ -25,7 +25,7 @@ related:
 
 ## Summary
 
-The Desktop Instrument Editor leaves the right-pane **Instruments** tab and becomes a **Settings-style modal** with left section navigation, so waveform, macros, and future chip pages have room without shrinking the `.bax` editor. A **toolbar instrument list + Edit** keeps quick selection while coding. The same workspace absorbs the unfinished Game Boy **`subpat` row editor** ([#233](https://github.com/kadraman/beatbax/issues/233)) and NES DMC **Browse… / Check** ([#234](https://github.com/kadraman/beatbax/issues/234)). Plugins still supply `ChipInstrumentEditor` data only. No new `.bax` syntax. Shipped preview pitch ([098](../../complete/098-instrument-editor-preview-pitch/spec.md)) and Live edit / Apply ([099](../../complete/099-instrument-editor-live-edit/spec.md)) remain as specified.
+The Desktop Instrument Editor leaves the right-pane **Instruments** tab and becomes a **Settings-style modal** with left section navigation, so waveform, macros, and future chip pages have room without shrinking the `.bax` editor. A **toolbar icon** opens the editor while coding. Instrument choice stays in the modal. The same workspace absorbs the unfinished Game Boy **`subpat` row editor** ([#233](https://github.com/kadraman/beatbax/issues/233)) and NES DMC **Browse… / Check** ([#234](https://github.com/kadraman/beatbax/issues/234)). Plugins still supply `ChipInstrumentEditor` data only. No new `.bax` syntax. Shipped preview pitch ([098](../../complete/098-instrument-editor-preview-pitch/spec.md)) and Live edit / Apply ([099](../../complete/099-instrument-editor-live-edit/spec.md)) remain as specified.
 
 This feature **supersedes** planned folders 101 (`instrument-editor-subpat-rows`) and 102 (`instrument-editor-sample-browse-verify`); those ids are not recreated.
 
@@ -46,9 +46,9 @@ This feature **supersedes** planned folders 101 (`instrument-editor-subpat-rows`
 
 **Acceptance scenarios**:
 
-1. **Given** `feature.instrumentEditor` and `advancedEditor`, **When** the user opens the Instrument Editor (View menu, Ctrl/Cmd+Alt+I, CodeLens **Edit**, or toolbar **Edit**), **Then** a viewport modal opens over the workspace (dimmed backdrop; Escape and backdrop click close; no focus trap required, matching Desktop Settings).
-2. **Given** the modal is open, **When** the user inspects chrome, **Then** a header always shows the instrument select, Name, Type, and New / Duplicate / Rename / Delete / Show in editor / Live / Apply / Revert; a left nav lists applicable sections; one content pane scrolls.
-3. **Given** schema + `whenType`, **When** a section has no applicable content, **Then** that nav item is omitted. Built-in section ids: Templates, Properties, Hardware, Waveform, Macros, Preview, Subpattern (US4).
+1. **Given** `feature.instrumentEditor` and `advancedEditor`, **When** the user opens the Instrument Editor (View → Instrument Editor, Ctrl/Cmd+Alt+I, CodeLens **Edit**, or the toolbar **Instruments** button), **Then** a viewport modal opens over the workspace (dimmed backdrop; Escape and backdrop click close; no focus trap required, matching Desktop Settings). Nested prompts (Rename, Delete, unsaved draft) close only via their buttons or Escape — not backdrop click.
+2. **Given** the modal is open, **When** the user inspects chrome, **Then** a header always shows the instrument select, Name, Type, and New / Duplicate / Rename / Delete / Show in editor / Live / Apply / Revert; a left nav lists applicable sections; one content pane scrolls; Preview stays docked at the bottom of the modal on every section.
+3. **Given** schema + `whenType`, **When** a section has no applicable content, **Then** that nav item is omitted. Built-in section ids: Properties, Hardware, Waveform, Macros, Subpattern (US4). Preview is not a nav item. While creating, left nav includes a **New** page (type / template / copy / name); after a candidate is chosen, the usual section pages stay available so the user can edit the candidate before Create (no song write yet). Choosing a type, template, or copy source selects a candidate; the Preview dock auditions it; **Create** (on the New page / toolbar) inserts the instrument and switches to editing that instrument on Properties.
 4. **Given** optional `nav` on a field or macro def, **When** that id is present, **Then** the host adds a nav page of the same generic widgets for that id (for later FM/SID pages). Unset `nav` keeps today’s Voice/Defaults / Hardware / Macros grouping.
 5. **Given** **Show in editor**, **When** activated, **Then** the modal closes and Monaco focuses the selected `inst` (or `subpat`) line as today.
 6. **Given** Live off and a dirty draft, **When** the user closes the modal, **Then** Apply / Discard / Cancel is offered before dismiss (same rules as 099 instrument switch).
@@ -58,20 +58,19 @@ This feature **supersedes** planned folders 101 (`instrument-editor-subpat-rows`
 10. **Given** dialog size, **When** the modal opens, **Then** it is larger than Settings so waveform and macro graphs fit (e.g. about `min(1040px, 94vw)` × `min(760px, 88vh)`).
 11. **Given** app restart, **When** the feature flag is on, **Then** the modal does **not** reopen automatically (toolbar / menus / CodeLens open it on demand). Song playback continues under the backdrop.
 
-### User Story 2 — Toolbar instrument picker (Priority: P1)
+### User Story 2 — Toolbar icon (Priority: P1)
 
-**Why this priority**: Mitigates loss of side-by-side panel while editing `.bax`.
+**Why this priority**: The editor has to be reachable while coding, without a second instrument list on the toolbar.
 
-**Independent test**: Toolbar shows an instrument dropdown and Edit; selecting a name highlights the `inst` line without moving the caret; Edit opens the modal on that instrument.
+**Independent test**: Toolbar shows one Instrument Editor icon and no instrument dropdown. The icon opens the modal. Ctrl/Cmd+Alt+I does the same while the caret is in the `.bax` editor and does not insert a character.
 
 **Acceptance scenarios**:
 
-1. **Given** the feature flag and `advancedEditor`, **When** the main toolbar is visible, **Then** a compact instrument `<select>` and **Edit** button appear in the right-hand toolbar group (before Theme / Settings).
-2. **Given** song instruments in the AST (including imported), **When** the dropdown opens, **Then** options match the modal list (`name (type)`, imported marked). Empty song: “No instruments”; **Edit** disabled.
-3. **Given** a name in the dropdown, **When** the user selects it, **Then** that instrument becomes the selection the modal will open, and the `inst` line is revealed/highlighted **without** moving the Monaco caret or taking keyboard focus from the editor.
-4. **Given** **Edit** with a selection, **When** clicked, **Then** the modal opens on that instrument with focus on the modal (preview keys ready), same as CodeLens **Edit**.
-5. **Given** the toolbar is hidden, **When** the user still needs the editor, **Then** View menu, Ctrl/Cmd+Alt+I, and CodeLens **Edit** remain available.
-6. **Given** the modal’s own instrument select, **When** the user changes instruments while the modal is open, **Then** behaviour matches 021 (reveal without focusing Monaco; dirty prompt when Live off).
+1. **Given** the feature flag and `advancedEditor`, **When** the main toolbar is visible, **Then** one labeled **Instruments** button appears with Verify, before the status message. Theme and Settings stay in the right-hand group. There is no toolbar instrument `<select>`.
+2. **Given** that icon, **When** clicked, **Then** the modal opens on the current instrument (or empty, ready for New) with focus on the modal.
+3. **Given** the caret is in the `.bax` editor, **When** the user presses Ctrl/Cmd+Alt+I, **Then** the modal toggles and the key does not insert a character. On Windows, Ctrl+Alt is AltGr, so the editor must swallow that chord.
+4. **Given** the toolbar is hidden, **When** the user still needs the editor, **Then** View → Instrument Editor, Ctrl/Cmd+Alt+I, and CodeLens **Edit** remain available. In View, Instrument Editor is grouped with Command Palette, above the window panels. Ctrl/Cmd+Alt+I from the `.bax` editor uses the physical I key so Windows AltGr does not insert a character.
+5. **Given** the modal’s own instrument select, **When** the user changes instruments while the modal is open, **Then** behaviour matches 021 (reveal without focusing Monaco; dirty prompt when Live off).
 
 ### User Story 3 — Preserve 021 / 098 / 099 behaviour (Priority: P1)
 
@@ -84,7 +83,7 @@ This feature **supersedes** planned folders 101 (`instrument-editor-subpat-rows`
 1. **Given** a local instrument, **When** fields/macros change with Live on, **Then** write-valid-only undoable `inst` replace still applies (021 / 099).
 2. **Given** Live off, **When** the user edits, **Then** draft audition + Apply / Revert + dirty navigation still match 099, including before modal close.
 3. **Given** imported instruments, **When** selected, **Then** they stay read-only with Copy into song.
-4. **Given** preview modes from 098 (`melodic` / `oneshot` / `uge_note`, `tone_mix` oneshot), **When** Preview is shown, **Then** the same controls apply inside the modal Preview section.
+4. **Given** preview modes from 098 (`melodic` / `oneshot` / `uge_note`, `tone_mix` oneshot), **When** the modal is open, **Then** the same controls stay in the bottom Preview dock on every section.
 5. **Given** Monaco cursor motion, **When** the caret moves in the editor, **Then** Instrument Editor selection does not change (021).
 
 ### User Story 4 — Game Boy subpat row editor (Priority: P1)
@@ -95,15 +94,16 @@ This feature **supersedes** planned folders 101 (`instrument-editor-subpat-rows`
 
 **Acceptance scenarios**:
 
-1. **Given** a local Game Boy instrument with resolved `subpat=`, **When** the Subpattern section is shown, **Then** a single-column row list appears (row index + editable text cell + remove), plus Add; go-to-source for the `subpat` definition remains available.
-2. **Given** Live on and a row edited to valid SubPatRow text (e.g. `+0 vol:15`, `.`, `halt`, `jump:5`), **When** the edit commits, **Then** the named `subpat` block is rewritten.
-3. **Given** invalid row text, **When** the edit finishes, **Then** source is not written and a panel error is shown (write-valid-only).
-4. **Given** Create on a local GB instrument without `subpat=`, **When** chosen, **Then** a uniquely named `subpat` block is inserted, the `inst` line gains `subpat=<name>`, macros lock, and the row editor appears.
-5. **Given** Attach, **When** the user picks an existing song-local `subpat` name, **Then** `subpat=` is set and rows load from that table. If no names exist, Attach is unavailable or empty.
-6. **Given** Detach, **When** chosen, **Then** `subpat=` is cleared from the `inst` line, macros unlock, and the `subpat` block is **not** deleted.
-7. **Given** other local instruments share the same `subpat=` name, **When** the row editor is visible, **Then** a non-blocking note indicates shared use; edits rewrite the shared definition (no copy-on-write).
-8. **Given** Live off, **When** rows or Create/Attach/Detach change the draft, **Then** 099 Apply / Revert / dirty rules apply to both the `inst` line and the `subpat` block.
-9. **Given** imported or non–Game Boy instruments, **When** selected, **Then** there is no writable row editor (imported may keep read-only name + reveal if applicable).
+1. **Given** a local Game Boy instrument with resolved `subpat=`, **When** the Subpattern section is shown, **Then** a single-column row list appears (row index + structured Empty / Offset / Vol / Timbre / Fx / Jump / Halt controls + remove), plus Add; go-to-source for the `subpat` definition remains available.
+2. **Given** Live on and a row edited via valid structured controls (e.g. Offset `+0` + Vol `15`, Empty, Halt, Jump `5`), **When** the edit commits, **Then** the controls serialize to SubPatRow text and the named `subpat` block is rewritten.
+3. **Given** an invalid structured edit (or writeback that would be invalid), **When** the edit finishes, **Then** source is not written and a panel error is shown (write-valid-only); Empty disables the other fields so Empty + other tokens cannot be combined in normal editing.
+4. **Given** Create on a local GB instrument without `subpat=`, **When** chosen, **Then** a uniquely named `subpat` block is inserted (default name `<inst>_subpat`, with a numeric suffix if taken), the `inst` line gains `subpat=<name>`, macros lock, and the row editor appears.
+5. **Given** Create on a local GB instrument that already has `subpat=`, **When** chosen, **Then** a new uniquely named `subpat` block is inserted (same `<inst>_subpat` naming), this instrument's `subpat=` points at that new block, and the previous block stays in the song.
+6. **Given** Attach, **When** the user picks an existing song-local `subpat` name, **Then** `subpat=` is set and rows load from that table. Attach stays available while one is already attached and lists the other names. If no other names exist, Attach is unavailable or empty.
+7. **Given** Detach, **When** chosen, **Then** `subpat=` is cleared from the `inst` line, macros unlock, and the `subpat` block is **not** deleted.
+8. **Given** other local instruments share the same `subpat=` name, **When** the row editor is visible, **Then** a non-blocking note indicates shared use; edits rewrite the shared definition (no copy-on-write).
+9. **Given** Live off, **When** rows or Create/Attach/Detach change the draft, **Then** 099 Apply / Revert / dirty rules apply to both the `inst` line and the `subpat` block.
+10. **Given** imported or non–Game Boy instruments, **When** selected, **Then** there is no writable row editor (imported may keep read-only name + reveal if applicable).
 
 ### User Story 5 — DMC sample Browse + Check (Priority: P1)
 
@@ -124,10 +124,12 @@ This feature **supersedes** planned folders 101 (`instrument-editor-subpat-rows`
 
 ### Edge cases
 
-- Empty instrument list: toolbar and modal select show “No instruments”; structural New remains available once the modal is open (or New from an empty modal).
+- Empty instrument list: the modal select shows “No instruments”; structural New remains available once the modal is open (or New from an empty modal). The toolbar icon still opens the modal.
 - Unresolved / missing `subpat=` name: no writable empty table; keep today’s diagnostics / reveal behaviour.
 - Empty subpat row list after removals: do not leave a zero-row `subpat` the parser rejects; keep at least one valid row or refuse writeback.
-- Rename / dirty dialogs: center on the modal (not the old panel rect).
+- Rename / Delete / dirty dialogs: center on the modal (not the old panel rect); dismiss only via their buttons or Escape (not backdrop click).
+- Closing the Instrument Editor (Escape, backdrop, or ×) abandons an unfinished New session so the next open shows the selected instrument, not the create page. If the create candidate was edited (differs from the type/template/copy baseline), the 099 Apply / Discard / Cancel prompt runs first — Apply inserts the instrument, Discard drops the New session, Cancel keeps editing.
+- Subpattern row fields stay editable while a value is cleared and replaced (including typing a leading `-` for a negative offset). A fieldless row collapses to Empty only on blur, Enter, Add/Remove, or the Empty checkbox — not on every keystroke.
 - Non-NES chips later using `widget: 'sample'`: Browse/Check SHOULD work when Desktop can resolve the same way; NES DMC is the shipping target.
 - Web-lite Instrument Editor: out of scope.
 
@@ -135,15 +137,15 @@ This feature **supersedes** planned folders 101 (`instrument-editor-subpat-rows`
 
 ### Functional requirements
 
-- **FR-001**: Desktop MUST present the Instrument Editor as a Settings-style modal (backdrop, header, left section nav, one content pane, Close) when opened via View / shortcut / CodeLens Edit / toolbar Edit.
+- **FR-001**: Desktop MUST present the Instrument Editor as a Settings-style modal (backdrop, header, left section nav, one content pane, Close; Escape and backdrop click dismiss, matching Settings) when opened via View → Instrument Editor, the shortcut, CodeLens Edit, or the toolbar icon. Nested Rename / Delete / unsaved-draft prompts MUST NOT dismiss on backdrop click.
 - **FR-002**: The Instruments right-pane tab MUST be removed; panel restore MUST NOT reopen a right-tab Instruments surface.
-- **FR-003**: The main toolbar MUST offer an instrument name select + Edit when the feature flag and `advancedEditor` are on.
-- **FR-004**: Toolbar selection MUST reveal/highlight the `inst` line without moving the Monaco caret or stealing editor focus; Edit MUST open the modal on that instrument.
-- **FR-005**: Section nav MUST omit inapplicable sections; MUST support built-in sections Templates, Properties, Hardware, Waveform, Macros, Preview, Subpattern; MUST honour optional schema `nav` ids for additional generic pages.
+- **FR-003**: The main toolbar MUST offer one labeled Instruments button next to Verify when the feature flag and `advancedEditor` are on, and MUST NOT offer an instrument `<select>`. The button MUST open the modal. Theme and Settings stay in the right-hand group.
+- **FR-004**: Ctrl/Cmd+Alt+I MUST toggle the modal while the `.bax` editor has focus and MUST NOT insert a character. Instrument choice stays on the modal’s own select.
+- **FR-005**: Section nav MUST omit inapplicable sections; MUST support built-in sections Properties, Hardware, Waveform, Macros, Subpattern; MUST honour optional schema `nav` ids for additional generic pages. Preview MUST NOT be a nav item. While creating, nav MUST include a **New** page and MUST NOT discard the create session when switching to other applicable section pages; those pages MUST edit the create candidate in memory. **New** MUST offer an optional name field (identifier + local uniqueness check; blank auto-names), horizontal blank-by-type tiles (honouring optional type `description` / audible `blankContent`), and — only after an opt-in control — plugin presets (optional `description`) and copy-from as an in-pane list. Selecting a type, template, or copy source MUST set a create candidate without writing the song; the Preview dock MUST audition that candidate; **Create** MUST insert the instrument (disabled until a candidate is selected and the name field has no error) and then select that instrument for normal editing.
 - **FR-006**: Live edit / Apply / Revert / dirty navigation from 099 MUST continue to apply, including before modal close.
-- **FR-007**: Preview pitch modes and CodeLens alignment from 098 MUST continue to apply inside the modal Preview section.
+- **FR-007**: Preview pitch modes and CodeLens alignment from 098 MUST continue to apply in a Preview dock fixed to the bottom of the modal, visible on every section.
 - **FR-008**: Preview keys and MIDI audition MUST gate on the open modal (not right-pane tab active).
-- **FR-009**: For local Game Boy instruments, the Subpattern section MUST provide single-column row edit plus Create / Attach / Detach as in US4; no new language atoms; 082 lowering unchanged.
+- **FR-009**: For local Game Boy instruments, the Subpattern section MUST provide single-column structured row controls (Empty / Offset / Vol / Timbre / Fx / Jump / Halt) that serialize to SubPatRow text, plus Create / Attach / Detach as in US4; no new language atoms; 082 lowering unchanged.
 - **FR-010**: The sample widget MUST provide Local **Browse…** (relative `local:` only) and **Check** for Bundled/Local/HTTPS/GitHub via existing IPC; unknown bundled names MUST fail validation; docs/hover kit lists MUST match the real kit.
 - **FR-011**: No new `.bax` syntax, no plugin-shipped React, no Web-lite Instrument Editor in this feature.
 - **FR-012**: Feature flag `INSTRUMENT_EDITOR` remains Experimental and default off.
@@ -162,8 +164,8 @@ This feature **supersedes** planned folders 101 (`instrument-editor-subpat-rows`
 
 ## Success criteria
 
-- **SC-001**: Authors open a full Instrument Editor modal without a right-pane Instruments tab; code editor stays full width until Edit / CodeLens / shortcut.
-- **SC-002**: Toolbar select highlights an `inst` line without stealing the caret; Edit opens the modal.
+- **SC-001**: Authors open a full Instrument Editor modal without a right-pane Instruments tab; code editor stays full width until the toolbar button, View menu, CodeLens, or shortcut opens it.
+- **SC-002**: The toolbar icon opens the modal. Ctrl/Cmd+Alt+I toggles it from the `.bax` editor without inserting a character.
 - **SC-003**: Local GB Create / row edit / Attach / Detach round-trip without leaving the Instrument Editor; macros lock/unlock correctly; preview/UGE still match 082.
 - **SC-004**: Authors Browse a `.dmc` beside a saved song to a validating relative `local:` ref; Check reports OK or failure (including allowlist remediation) without full-song play.
 - **SC-005**: Unit tests cover nav visibility, subpat writeback helpers, sample relative-path Browse outcomes, and preview-key modal gating; manual QA on GB subpat and NES DMC demo songs passes.

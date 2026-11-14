@@ -83,7 +83,7 @@ const FEATURES: FeatureEntry[] = [
   {
     atom: settingFeatureInstrumentEditor,
     badge: 'Experimental',
-    description: 'Graphical instrument editor in the right pane: waveforms, macros, templates, and a mini keyboard. Edits write back into the open .bax file.',
+    description: 'Graphical instrument editor: waveforms, macros, templates, and a mini keyboard. Edits write back into the open .bax file.',
     flag: FeatureFlag.INSTRUMENT_EDITOR,
     label: 'Instrument Editor',
   },

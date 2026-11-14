@@ -26,6 +26,18 @@ describe('instrument editor draft helpers (099)', () => {
     expect(isInstrumentDraftDirty(a, a)).toBe(false);
   });
 
+  test('fingerprint includes subpat name and rows', () => {
+    const base = { type: 'noise', subpat: 'kick', subpatRows: [{ empty: true }] };
+    expect(instrumentDraftFingerprint(base)).not.toBe(instrumentDraftFingerprint({
+      ...base,
+      subpat: 'snare',
+    }));
+    expect(instrumentDraftFingerprint(base)).not.toBe(instrumentDraftFingerprint({
+      ...base,
+      subpatRows: [{ empty: false, halt: true }],
+    }));
+  });
+
   test('fingerprint is key-order independent', () => {
     expect(instrumentDraftFingerprint({ vol: 1, type: 'noise' }))
       .toBe(instrumentDraftFingerprint({ type: 'noise', vol: 1 }));

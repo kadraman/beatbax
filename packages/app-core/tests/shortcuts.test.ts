@@ -49,6 +49,19 @@ describe('shortcuts match', () => {
     expect(shortcutId(binding)).toBe('ctrl+s');
   });
 
+  it('matches Ctrl+Alt+I from the physical key when AltGr types a character', () => {
+    const binding = { key: 'i', ctrl: true, alt: true };
+    const event = {
+      key: 'í',
+      code: 'KeyI',
+      ctrlKey: true,
+      metaKey: false,
+      shiftKey: false,
+      altKey: true,
+    } as KeyboardEvent;
+    expect(bindingMatchesEvent(binding, event)).toBe(true);
+  });
+
   it('allows alt shortcuts when layouts report an extra ctrl modifier', () => {
     const binding = { key: 'i', alt: true, shift: true };
     const event = {

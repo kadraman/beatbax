@@ -35,6 +35,7 @@ export interface RegisterDesktopShortcutsOptions {
   channelMixer: DesktopChannelMixerHandle | null;
   copilot: DesktopCopilotHandle | null;
   getSectionFocusController?: () => SectionFocusController | null;
+  isInstrumentEditorOpen?: () => boolean;
   onStatus?: (message: string) => void;
 }
 
@@ -93,7 +94,7 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
     },
     'view.toggleInstrumentEditor': () => {
       if (!isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR)) return;
-      const vis = rightTabs.tabOpen.instruments && rightTabs.activeTab === 'instruments';
+      const vis = opts.isInstrumentEditorOpen?.() ?? false;
       eventBus.emit('panel:toggled', { panel: 'instrument-editor', visible: !vis });
     },
 

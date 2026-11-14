@@ -807,11 +807,18 @@ async function chooseOpenFile(
       })
     ),
     properties: ['openFile'],
-    filters: TEXT_FILE_FILTERS
+    filters: options?.filters?.length ? options.filters : TEXT_FILE_FILTERS
   })
 
   const selectedPath = result.canceled ? null : result.filePaths[0]
   if (!selectedPath) return null
+  if (options?.pathOnly) {
+    return {
+      path: assertAbsoluteFilePath(selectedPath),
+      name: path.basename(selectedPath),
+      data: new Uint8Array()
+    }
+  }
   await rememberLastFileDialogDirectory(selectedPath)
   return readFilePayload(selectedPath)
 }
@@ -894,7 +901,7 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
     IPC_CHANNELS.OPEN_FILE,
     async (_event: IpcMainInvokeEvent, request?: DesktopOpenFileOptions) => {
       const payload = await chooseOpenFile(requireMainWindow(getWindow), request)
-      if (payload?.path) {
+      if (payload?.path && !request?.pathOnly) {
         await addRecentFileEntry(recentFilesPath, payload.path)
         onRecentFilesChanged?.()
       }

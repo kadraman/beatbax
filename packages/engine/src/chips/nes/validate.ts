@@ -7,6 +7,7 @@
 import type { InstrumentNode } from '../../parser/ast.js';
 import { isAbsoluteLocalPath } from '../../import/localImportPath.js';
 import type { ValidationError } from '../types.js';
+import { BUNDLED_SAMPLES } from './dmcSamples.js';
 
 /** NES instrument types and their channel assignments. */
 export const NES_TYPES = new Set(['pulse1', 'pulse2', 'triangle', 'noise', 'dmc']);
@@ -149,6 +150,15 @@ export function validateNesInstrument(inst: InstrumentNode): ValidationError[] {
       // standalone path segment (preceded by '/' or start-of-string AND
       // followed by '/' or end-of-string).  This correctly allows safe
       // filenames like 'file..dmc' while still blocking '../' traversal.
+      if (ref.startsWith('@nes/')) {
+        const name = ref.slice('@nes/'.length);
+        if (!Object.prototype.hasOwnProperty.call(BUNDLED_SAMPLES, name)) {
+          errors.push({
+            field: 'dmc_sample',
+            message: `Unknown bundled sample '@nes/${name}'.`,
+          });
+        }
+      }
       if (ref.startsWith('local:')) {
         const localPath = ref.slice('local:'.length).replace(/\\/g, '/');
         if (/(^|\/)\.\.($|\/)/.test(localPath)) {

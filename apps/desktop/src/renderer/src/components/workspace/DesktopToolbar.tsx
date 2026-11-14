@@ -10,6 +10,7 @@ import {
   type ShortcutCommandId,
 } from '@beatbax/app-core/shortcuts';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
+import { isInstrumentEditorAllowed } from '@beatbax/app-core/utils/instrument-editor-panel';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import { icon } from '../../utils/icons';
 import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
@@ -114,6 +115,9 @@ function DesktopToolbar({
     message: '',
     type: '',
   });
+  const [instrumentEditorOn, setInstrumentEditorOn] = useState(
+    () => isInstrumentEditorAllowed(getCurrentCapabilities()),
+  );
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
 
@@ -159,6 +163,12 @@ function DesktopToolbar({
       for (const cleanup of cleanups) cleanup();
     };
   }, [eventBus, setStatus]);
+
+  useEffect(() => {
+    return eventBus.on('feature-flag:changed', () => {
+      setInstrumentEditorOn(isInstrumentEditorAllowed(getCurrentCapabilities()));
+    });
+  }, [eventBus]);
 
   const caps = getCurrentCapabilities();
   const openFile = () => {
@@ -268,6 +278,21 @@ function DesktopToolbar({
           <ToolbarIcon name="check-circle" />
           <span className="bb-toolbar__btn-label">Verify</span>
         </button>
+        {instrumentEditorOn ? (
+          <button
+            aria-label={`Instrument Editor (${toolbarShortcut('view.toggleInstrumentEditor')})`}
+            className="bb-toolbar__btn"
+            id="tb-inst-edit"
+            onClick={() => {
+              eventBus.emit('instrument-editor:open', {});
+            }}
+            title={`Instrument Editor (${toolbarShortcut('view.toggleInstrumentEditor')})`}
+            type="button"
+          >
+            <ToolbarIcon name="queue-list" />
+            <span className="bb-toolbar__btn-label">Instruments</span>
+          </button>
+        ) : null}
       </div>
 
       <div className="bb-toolbar__status" id="tb-status" aria-live="polite" data-type={status.type}>

@@ -29,6 +29,8 @@ channel 1 => inst lead pat a
     expect(formatInstrumentFieldValue('env', { level: 12, direction: 'down', period: 1 })).toBe('12,down');
     expect(formatInstrumentFieldValue('env', { level: 8, direction: 'up', period: 3 })).toBe('8,up,3');
     expect(formatInstrumentFieldValue('width', { value: 7, format: 'gb' })).toBe('7');
+    expect(serializeInstrument('kick', { type: 'noise', width: { value: 7, format: 'gb' } })).toBe('inst kick type=noise gb:width=7');
+    expect(serializeInstrument('kick', { type: 'noise', width: '' })).toBe('inst kick type=noise');
     expect(formatInstrumentFieldValue('env', '15,flat')).toBe('15,flat');
   });
 

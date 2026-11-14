@@ -30,6 +30,7 @@ export interface SetupDesktopMonacoShortcutsOptions {
   onVerify: () => void;
   getEditor: () => BeatBaxEditor | null;
   getSectionFocusController?: () => SectionFocusController | null;
+  isInstrumentEditorOpen?: () => boolean;
   onStatus?: (message: string) => void;
 }
 
@@ -116,11 +117,6 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
       const vis = raw === 'true';
       eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: !vis });
     }, requiresCapability: 'patternGrid' },
-    { commandId: 'view.toggleInstrumentEditor', handler: () => {
-      if (!isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR)) return;
-      const vis = rightTabs.tabOpen.instruments && rightTabs.activeTab === 'instruments';
-      eventBus.emit('panel:toggled', { panel: 'instrument-editor', visible: !vis });
-    }, requiresCapability: 'advancedEditor' },
   ], DESKTOP_CAPABILITIES);
 
   if (patternGridHandlers) {
@@ -162,6 +158,25 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
       if (rightTabs.activeTab === 'help') rightTabs.switch('channels');
     }
   }));
+
+  // Ctrl+Alt+I is AltGr+I on Windows. Monaco's keyCode follows the typed
+  // character, so match the physical key. KeyboardShortcuts runs first in
+  // capture; if it already toggled, leave that result alone. Otherwise this
+  // listener toggles, including while the Instrument Editor itself is focused.
+  const onInstrumentEditorChord = (event: KeyboardEvent) => {
+    if (event.repeat || event.shiftKey || event.defaultPrevented) return;
+    if (event.code !== 'KeyI') return;
+    const alt = event.altKey || event.getModifierState('AltGraph');
+    const ctrl = event.ctrlKey || event.metaKey || event.getModifierState('AltGraph');
+    if (!alt || !ctrl) return;
+    if (!isFeatureEnabled(FeatureFlag.INSTRUMENT_EDITOR)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const vis = options.isInstrumentEditorOpen?.() ?? false;
+    eventBus.emit('panel:toggled', { panel: 'instrument-editor', visible: !vis });
+  };
+  window.addEventListener('keydown', onInstrumentEditorChord, true);
+  disposables.push({ dispose: () => window.removeEventListener('keydown', onInstrumentEditorChord, true) });
 
   return () => {
     for (const disposable of disposables) disposable.dispose();

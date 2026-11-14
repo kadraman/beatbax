@@ -2,10 +2,41 @@ import type { ChipInstrumentEditor } from '../types.js';
 
 export const gameboyInstrumentEditor: ChipInstrumentEditor = {
   types: [
-    { id: 'pulse1', label: 'Pulse 1', previewChannel: 1, previewMode: 'melodic', previewOctave: 4 },
-    { id: 'pulse2', label: 'Pulse 2', previewChannel: 2, previewMode: 'melodic', previewOctave: 4 },
-    { id: 'wave', label: 'Wave', previewChannel: 3, previewMode: 'melodic', previewOctave: 2 },
-    { id: 'noise', label: 'Noise', previewChannel: 4, previewMode: 'uge_note' },
+    {
+      id: 'pulse1',
+      label: 'Pulse 1',
+      description: 'Narrow pulse · ch 1 (sweep)',
+      blankContent: 'type=pulse1 duty=12.5 env=12,down',
+      previewChannel: 1,
+      previewMode: 'melodic',
+      previewOctave: 4,
+    },
+    {
+      id: 'pulse2',
+      label: 'Pulse 2',
+      description: 'Square pulse · ch 2',
+      blankContent: 'type=pulse2 duty=50 env=15,flat',
+      previewChannel: 2,
+      previewMode: 'melodic',
+      previewOctave: 4,
+    },
+    {
+      id: 'wave',
+      label: 'Wave',
+      description: '32-sample wavetable · ch 3',
+      blankContent: 'type=wave volume=100 wave=[0,2,5,8,11,13,14,15,15,14,13,11,8,5,2,0,0,2,5,8,11,13,14,15,15,14,13,11,8,5,2,0]',
+      previewChannel: 3,
+      previewMode: 'melodic',
+      previewOctave: 2,
+    },
+    {
+      id: 'noise',
+      label: 'Noise',
+      description: 'LFSR noise · ch 4',
+      blankContent: 'type=noise gb:width=7 uge_note=C-6 env=12,down',
+      previewChannel: 4,
+      previewMode: 'uge_note',
+    },
   ],
   fields: [
     // Type-defining controls first (appear immediately after Type in the panel).
@@ -41,8 +72,26 @@ export const gameboyInstrumentEditor: ChipInstrumentEditor = {
     ],
   },
   presets: [
-    { id: 'pluck-lead', label: 'Pluck lead', type: 'pulse1', content: 'type=pulse1 duty=50 env=12,down gm=81' },
-    { id: 'wave-bass', label: 'Wave bass', type: 'wave', content: 'type=wave wave=[0,5,11,15,15,15,15,15,11,5,0,0,0,0,0,0,0,0,6,8,8,8,8,8,8,8,8,6,0,0,0,0] volume=100 gm=39' },
-    { id: 'noise-kick', label: 'Noise kick', type: 'noise', content: 'type=noise gb:width=7 uge_note=C-6 vol_env=[15,12,8,4] pitch_env=[0,-2,-4,-6]' },
+    {
+      id: 'pluck-lead',
+      label: 'Pluck lead',
+      description: 'Bright 50% pulse with a short decay envelope',
+      type: 'pulse1',
+      content: 'type=pulse1 duty=50 env=12,down gm=81',
+    },
+    {
+      id: 'wave-bass',
+      label: 'Wave bass',
+      description: 'Low wavetable bass with full NR32 volume',
+      type: 'wave',
+      content: 'type=wave wave=[0,5,11,15,15,15,15,15,11,5,0,0,0,0,0,0,0,0,6,8,8,8,8,8,8,8,8,6,0,0,0,0] volume=100 gm=39',
+    },
+    {
+      id: 'noise-kick',
+      label: 'Noise kick',
+      description: 'Pitch-falling noise hit (UGE C-6)',
+      type: 'noise',
+      content: 'type=noise gb:width=7 uge_note=C-6 vol_env=[15,12,8,4] pitch_env=[0,-2,-4,-6]',
+    },
   ],
 };

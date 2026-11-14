@@ -21,6 +21,11 @@ export function endInstrumentEditorEdit(): void {
   instrumentEditorEditDepth = Math.max(0, instrumentEditorEditDepth - 1);
 }
 
+/** True while {@link beginInstrumentEditorEdit} wraps an `executeEdits` call. */
+export function isInstrumentEditorEditInProgress(): boolean {
+  return instrumentEditorEditDepth > 0;
+}
+
 /** Call from the Monaco model-content listener, before `editor:changed` is scheduled. */
 export function noteEditorModelChange(): void {
   pendingOrigin = instrumentEditorEditDepth > 0 ? INSTRUMENT_EDITOR_EDIT_SOURCE : 'user';

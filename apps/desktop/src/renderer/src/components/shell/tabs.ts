@@ -240,21 +240,19 @@ export function buildBottomTabs(
 
 // ─── Right Tabs (Visualizer | Help | Copilot) ────────────────────────────────
 
-export type RightTabId = 'channels' | 'instruments' | 'help' | 'ai';
+export type RightTabId = 'channels' | 'help' | 'ai';
 
 const RIGHT_TAB_LABELS: Record<RightTabId, string> = {
   channels: 'Visualizer',
-  instruments: 'Instruments',
   help:     'Help',
   ai:       'Copilot',
 };
 const RIGHT_TAB_ICONS: Record<RightTabId, string> = {
   channels: 'waveform',
-  instruments: 'musical-note',
   help: 'information-circle',
   ai: 'sparkles',
 };
-const RIGHT_TAB_ORDER: RightTabId[]  = ['channels', 'instruments', 'help', 'ai'];
+const RIGHT_TAB_ORDER: RightTabId[]  = ['channels', 'help', 'ai'];
 
 /** Per open tab + collapse button; below this, labels hide in favor of icons. */
 const RIGHT_TAB_COMPACT_PER_TAB = 88;
@@ -300,7 +298,6 @@ export function buildRightTabs(
   const caps = getCurrentCapabilities();
   const rightTabOrder: RightTabId[] = RIGHT_TAB_ORDER.filter(t => {
         if (t === 'channels') return caps.songVisualizer;
-        if (t === 'instruments') return caps.advancedEditor;
         if (t === 'ai') return caps.copilot;
         if (t === 'help') return caps.helpPanel;
         return true;
@@ -309,6 +306,7 @@ export function buildRightTabs(
   let savedInitialTab: RightTabId | null = null;
   try {
     const raw = storage.get(StorageKey.ACTIVE_RIGHT_TAB);
+    // Legacy `instruments` (and any other removed id) falls back to the first tab.
     if (raw && (rightTabOrder as string[]).includes(raw)) {
       savedInitialTab = raw as RightTabId;
     }
@@ -318,7 +316,6 @@ export function buildRightTabs(
   let activeTab: RightTabId | null = defaultTab;
   const tabOpen: Record<RightTabId, boolean> = {
     channels: caps.songVisualizer,
-    instruments: false,
     help: caps.helpPanel,
     ai: caps.copilot,
   };

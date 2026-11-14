@@ -75,7 +75,14 @@ export interface BeatBaxEvents {
   // UI events
   'theme:changed': { theme: 'dark' | 'light' };
   'panel:toggled': { panel: string; visible: boolean };
-  'instrument-editor:open': { name: string };
+  'instrument-editor:open': { name?: string };
+  /** Toolbar (or other) selection. Reveals the inst line and does not open the modal. */
+  'instrument-editor:select': { name: string };
+  /** Names and labels currently shown in the instrument picker. */
+  'instrument-editor:catalog': {
+    options: Array<{ name: string; label: string }>;
+    selected: string | null;
+  };
   /** Mini-keyboard highlight while MIDI (or other external) audition is held. `note: null` clears. */
   'instrument-editor:audition': { note: string | null };
   'layout:changed': { layout: string };

@@ -234,6 +234,11 @@ export class MidiStepEntryController {
     return this.service.listDevices();
   }
 
+  /** Forward hot-plug updates. Pass null to stop listening. */
+  setDevicesListener(listener: (() => void) | null): void {
+    this.service.setDevicesListener?.(listener);
+  }
+
   // ── Step entry controls ───────────────────────────────────────────────────
 
   /** Arm step entry and request MIDI access if needed. */

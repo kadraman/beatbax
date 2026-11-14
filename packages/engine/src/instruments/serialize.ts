@@ -43,11 +43,16 @@ function formatNoise(noise: string | NoiseAST): string {
 
 function formatWidth(value: unknown): { key: string; text: string } | null {
   if (typeof value === 'number') return { key: 'width', text: String(value) };
-  if (typeof value === 'string') return { key: 'width', text: value };
+  if (typeof value === 'string') {
+    const text = value.trim();
+    return text ? { key: 'width', text } : null;
+  }
   if (value && typeof value === 'object' && 'value' in (value as object)) {
     const obj = value as { value: number; format?: string };
+    const text = String(obj.value ?? '').trim();
+    if (!text) return null;
     const key = obj.format ? `${obj.format}:width` : 'width';
-    return { key, text: String(obj.value) };
+    return { key, text };
   }
   return null;
 }

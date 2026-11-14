@@ -39,6 +39,7 @@ import {
   settingCodeLensInstruments,
   settingCodeLensEffects,
 } from '../stores/settings.store.js';
+import { INSTRUMENT_EDITOR_EDIT_SOURCE } from './editor-change-origin.js';
 
 export interface CodeLensCategoryFlags {
   patterns: boolean;
@@ -401,7 +402,11 @@ export interface InstNotePreviewOptions {
    * `hit` — named instrument token so noise/DMC use instrument props (`uge_note`, `noise_period`, …).
    */
   mode?: 'note' | 'hit';
-  /** Temporary instrument prop overrides for audition only (e.g. `{ uge_note: 'C-7' }`). */
+  /**
+   * Temporary instrument props for audition only (e.g. `{ uge_note: 'C-7' }`).
+   * When the named instrument is missing from the AST, a full patch (including
+   * `type`) defines it for this preview only — used by New-instrument candidates.
+   */
   instPatch?: Record<string, unknown>;
 }
 
@@ -886,6 +891,14 @@ function ensureCommandsRegistered(): void {
 // Main setup
 // ---------------------------------------------------------------------------
 
+/**
+ * True after a non-ephemeral editor `parse:success` (AST available).
+ * Validation errors still emit parse:success with `valid: false`; CodeLens
+ * stays on in that case. Module-scoped so setup can seed if the first parse
+ * finished before the provider registered.
+ */
+let lastEditorParseHadAst = false;
+
 export function setupCodeLensPreview(
   _editor: monaco.editor.IStandaloneCodeEditor,
   eventBus: EventBus,
@@ -896,7 +909,10 @@ export function setupCodeLensPreview(
 
   ensureCommandsRegistered();
 
-  let hasValidParse = false;
+  // Seed from the latest editor parse — scheduleInitialParse can finish before
+  // this provider is registered, so waiting only for the next parse:success
+  // would leave lenses blank until the user edits.
+  let hasParsedAst = lastEditorParseHadAst;
   let previewState: PreviewState | null = null;
   /** One player for keyboard / MIDI / CodeLens instrument notes. */
   let instAuditionPlayer: Player | null = null;
@@ -1012,7 +1028,11 @@ export function setupCodeLensPreview(
     const rawAst = await astForPreview();
     if (isCancelled() || !rawAst) return;
 
-    const instDef = rawAst.insts?.[instName];
+    const baseInst = rawAst.insts?.[instName];
+    // Full instPatch may define a temporary instrument (New-instrument candidate).
+    const instDef = options?.instPatch
+      ? (baseInst ? { ...baseInst, ...options.instPatch } : { ...options.instPatch })
+      : baseInst;
     if (!instDef) {
       failPreview(`Preview unavailable: instrument '${instName}' is not defined.`);
       return;
@@ -1360,11 +1380,32 @@ export function setupCodeLensPreview(
   // ── EventBus subscriptions ────────────────────────────────────────────────
   const unsubParseSuccess = eventBus.on('parse:success', (payload) => {
     if (payload.ephemeral) return;
-    hasValidParse = payload.valid !== false;
+    // Gate on AST availability, not zero validation errors — a missing channel
+    // inst should not blank Preview/Edit on every definition in the file.
+    lastEditorParseHadAst = true;
+    hasParsedAst = true;
     notifyChange();
   });
-  const unsubParseError = eventBus.on('parse:error',   () => { hasValidParse = false; stopPreview(); });
+  // Playback also emits parse:error; do not clear hasParsedAst here or a failed
+  // Play would wipe editor CodeLens until the next successful editor parse.
+  const unsubParseError = eventBus.on('parse:error', () => {
+    stopPreview();
+  });
   const unsubPlaybackStarted = eventBus.on('playback:started', () => stopPreview());
+  // Instrument Editor Apply/Delete focuses the modal after writeback. Monaco
+  // cancels a pending CodeLens provide on blur, so re-notify after focus settles.
+  let codeLensFocusRefreshTimer: number | null = null;
+  const unsubEditorChanged = eventBus.on('editor:changed', ({ origin }) => {
+    if (origin !== INSTRUMENT_EDITOR_EDIT_SOURCE) return;
+    if (codeLensFocusRefreshTimer !== null) window.clearTimeout(codeLensFocusRefreshTimer);
+    codeLensFocusRefreshTimer = window.setTimeout(() => {
+      codeLensFocusRefreshTimer = null;
+      notifyChange();
+    }, 0);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => notifyChange());
+    });
+  });
   const unsubCategoryFlags = [
     settingCodeLensPatterns,
     settingCodeLensSequences,
@@ -1388,7 +1429,7 @@ export function setupCodeLensPreview(
     },
 
     provideCodeLenses(model): monaco.languages.CodeLensList {
-      if (!hasValidParse) return { lenses: [], dispose: () => {} };
+      if (!hasParsedAst) return { lenses: [], dispose: () => {} };
 
       const lenses: monaco.languages.CodeLens[] = [];
       const lineCount = model.getLineCount();
@@ -1643,13 +1684,21 @@ export function setupCodeLensPreview(
     },
   };
   const providerRegistration = monaco.languages.registerCodeLensProvider('beatbax', providerInstance);
+  // First provide may have run with hasParsedAst still false, or the initial
+  // parse:success may have landed before onDidChange was hooked up.
+  queueMicrotask(() => notifyChange());
 
   const dispose = (): void => {
     stopPreview();
     unsubParseSuccess();
     unsubParseError();
+    unsubEditorChanged();
     unsubPlaybackStarted();
     unsubCategoryFlags.forEach((unsub) => unsub());
+    if (codeLensFocusRefreshTimer !== null) {
+      window.clearTimeout(codeLensFocusRefreshTimer);
+      codeLensFocusRefreshTimer = null;
+    }
     providerRegistration.dispose();
     changeListeners = [];
     if (_codeLensSetupDispose === dispose) {

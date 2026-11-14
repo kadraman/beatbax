@@ -215,11 +215,14 @@ describe('desktop native menu', () => {
     const viewMenu = findTopLevelMenu(template, 'View').submenu as MenuItemConstructorOptions[];
     const transport = viewMenu.find((item) => item.label === 'Transport Bar')!;
     const wrapText = viewMenu.find((item) => item.label === 'Wrap Text')!;
+    const instruments = viewMenu.find((item) => item.label === 'Instrument Editor')!;
 
     expect(transport.type).toBe('checkbox');
     expect(transport.checked).toBe(false);
     expect(wrapText.type).toBe('checkbox');
     expect(wrapText.checked).toBe(true);
+    expect(instruments.type).toBe('checkbox');
+    expect(instruments.checked).toBe(false);
   });
 
   it('shows Toggle Developer Tools in the macOS View menu only when allowed', () => {
@@ -262,7 +265,7 @@ describe('desktop native menu', () => {
     const toolbar = viewMenu.find((item) => item.label === 'Toolbar')!;
     const transport = viewMenu.find((item) => item.label === 'Transport Bar')!;
     const patternGrid = viewMenu.find((item) => item.label === 'Pattern Grid')!;
-    const instruments = viewMenu.find((item) => item.label === 'Instruments')!;
+    const instruments = viewMenu.find((item) => item.label === 'Instrument Editor')!;
 
     expect(toolbar.accelerator).toBe('CmdOrCtrl+Shift+B');
     expect(transport.accelerator).toBe('CmdOrCtrl+Shift+R');

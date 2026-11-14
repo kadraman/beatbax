@@ -2,9 +2,33 @@ import type { ChipInstrumentEditor } from '@beatbax/engine';
 
 export const spectrumInstrumentEditor: ChipInstrumentEditor = {
   types: [
-    { id: 'tone1', label: 'Tone A', previewChannel: 1, previewMode: 'melodic', previewOctave: 4 },
-    { id: 'tone2', label: 'Tone B', previewChannel: 2, previewMode: 'melodic', previewOctave: 4 },
-    { id: 'tone3', label: 'Tone C', previewChannel: 3, previewMode: 'melodic', previewOctave: 2 },
+    {
+      id: 'tone1',
+      label: 'Tone A',
+      description: 'AY tone · channel A',
+      blankContent: 'type=tone1 vol=12 arp_env=[0,4,7|0]',
+      previewChannel: 1,
+      previewMode: 'melodic',
+      previewOctave: 4,
+    },
+    {
+      id: 'tone2',
+      label: 'Tone B',
+      description: 'AY tone · channel B',
+      blankContent: 'type=tone2 vol=14',
+      previewChannel: 2,
+      previewMode: 'melodic',
+      previewOctave: 4,
+    },
+    {
+      id: 'tone3',
+      label: 'Tone C',
+      description: 'AY tone · channel C',
+      blankContent: 'type=tone3 vol=10',
+      previewChannel: 3,
+      previewMode: 'melodic',
+      previewOctave: 2,
+    },
   ],
   fields: [
     { name: 'vol', label: 'Volume', widget: 'int', min: 0, max: 15 },
@@ -22,8 +46,20 @@ export const spectrumInstrumentEditor: ChipInstrumentEditor = {
     { name: 'pitch_env', label: 'Pitch', min: -24, max: 24, signed: true, loop: true, kind: 'software' },
   ],
   presets: [
-    { id: 'ay-lead', label: 'Tone lead', type: 'tone1', content: 'type=tone1 vol=12 arp_env=[0,4,7|0]' },
-    { id: 'ay-bass', label: 'Tone bass', type: 'tone2', content: 'type=tone2 vol=14' },
+    {
+      id: 'ay-lead',
+      label: 'Tone lead',
+      description: 'Channel A lead with a looping triad arpeggio',
+      type: 'tone1',
+      content: 'type=tone1 vol=12 arp_env=[0,4,7|0]',
+    },
+    {
+      id: 'ay-bass',
+      label: 'Tone bass',
+      description: 'Sustained channel B tone for bass lines',
+      type: 'tone2',
+      content: 'type=tone2 vol=14',
+    },
   ],
   constraints: [
     { id: 'one-envelope', message: 'Only one instrument should use vol_env or env_bass at a time (shared AY envelope).' },
