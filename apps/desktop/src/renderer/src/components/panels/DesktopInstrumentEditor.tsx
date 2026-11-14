@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type Ref,
@@ -365,6 +366,8 @@ type CreateCandidate = {
   kind: 'type' | 'preset' | 'copy';
   id: string;
   body: string;
+  /** Snapshot when the candidate was chosen; edits are dirty against this. */
+  baseline: InstrumentNode;
   draft: InstrumentNode;
 };
 
@@ -598,6 +601,8 @@ function DesktopInstrumentEditor({
     onOpenChange?.(next);
   }, [abandonCreating, onOpenChange]);
   const dirtyRef = useRef(false);
+  /** Latest Create insert; dirty-nav Apply reads this so the dialog is not a stale closure. */
+  const applyCreateCandidateRef = useRef<() => boolean>(() => false);
   const pendingNavRef = useRef<(() => void) | null>(null);
   const chipRef = useRef('gameboy');
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -612,7 +617,14 @@ function DesktopInstrumentEditor({
   // piano/rename/dialog re-render. Mutation handlers already replace these refs.
   const baselineFp = useMemo(() => instrumentDraftFingerprint(baseline), [baseline]);
   const draftFp = useMemo(() => instrumentDraftFingerprint(draft), [draft]);
-  const dirty = baselineFp !== draftFp;
+  const selectedDirty = baselineFp !== draftFp;
+  const createDirty = Boolean(
+    creating
+    && createCandidate
+    && isInstrumentDraftDirty(createCandidate.baseline, createCandidate.draft),
+  );
+  // While New is open, only candidate edits are "unsaved"; the prior inst draft is parked.
+  const dirty = creating ? createDirty : selectedDirty;
   dirtyRef.current = dirty;
 
   const chip = String(ast?.chip ?? 'gameboy').toLowerCase();
@@ -723,12 +735,16 @@ function DesktopInstrumentEditor({
     hide: () => requestCloseRef.current(),
     isOpen: () => openRef.current,
     selectInstrument: (name) => {
+      const go = () => {
+        if (creatingRef.current) abandonCreating();
+        loadInst(name, undefined, { reveal: false, focus: false });
+      };
       if (dirtyRef.current) {
-        pendingNavRef.current = () => loadInst(name, undefined, { reveal: false, focus: false });
+        pendingNavRef.current = go;
         setDirtyNavOpen(true);
         return;
       }
-      loadInst(name, ast, { reveal: false, focus: false });
+      go();
     },
     getSelectedName: () => selectedRef.current,
     getMidiAudition: () => {
@@ -774,7 +790,7 @@ function DesktopInstrumentEditor({
     dispose: () => {
       revealInst(null);
     },
-  }), [ast, loadInst, revealInst, setModalOpen, syncSelectionFromAst]);
+  }), [abandonCreating, ast, loadInst, revealInst, setModalOpen, syncSelectionFromAst]);
 
   useEffect(() => {
     return eventBus.on('parse:success', ({ ast: next, resolvedAst, ephemeral }) => {
@@ -793,30 +809,35 @@ function DesktopInstrumentEditor({
         restorePanelFocus();
         return;
       }
+      const go = () => {
+        if (creatingRef.current) abandonCreating();
+        loadInst(name, undefined, { reveal: true, focus: false });
+        restorePanelFocus();
+      };
       if (dirtyRef.current) {
-        pendingNavRef.current = () => {
-          loadInst(name, undefined, { reveal: true, focus: false });
-          restorePanelFocus();
-        };
+        pendingNavRef.current = go;
         setDirtyNavOpen(true);
         return;
       }
-      loadInst(name, ast, { reveal: true, focus: false });
-      restorePanelFocus();
+      go();
     });
-  }, [ast, eventBus, loadInst, restorePanelFocus, setModalOpen]);
+  }, [abandonCreating, eventBus, loadInst, restorePanelFocus, setModalOpen]);
 
   useEffect(() => {
     return eventBus.on('instrument-editor:select', ({ name }) => {
+      const go = () => {
+        if (creatingRef.current) abandonCreating();
+        loadInst(name, undefined, { reveal: true, focus: false });
+      };
       if (dirtyRef.current) {
         setModalOpen(true);
-        pendingNavRef.current = () => loadInst(name, undefined, { reveal: true, focus: false });
+        pendingNavRef.current = go;
         setDirtyNavOpen(true);
         return;
       }
-      loadInst(name, ast, { reveal: true, focus: false });
+      go();
     });
-  }, [ast, eventBus, loadInst, setModalOpen]);
+  }, [abandonCreating, eventBus, loadInst, setModalOpen]);
 
   useEffect(() => {
     return eventBus.on('instrument-editor:audition', ({ note }) => {
@@ -869,6 +890,7 @@ function DesktopInstrumentEditor({
     if (creatingRef.current && createCandidateRef.current) {
       const updated: CreateCandidate = { ...createCandidateRef.current, draft: next };
       createCandidateRef.current = updated;
+      dirtyRef.current = isInstrumentDraftDirty(updated.baseline, next);
       setCreateCandidate(updated);
       setErrors(validateDraft(chip, next));
       return;
@@ -910,7 +932,11 @@ function DesktopInstrumentEditor({
   }, [commitToSource]);
 
   const withDirtyGuard = useCallback((action: () => void) => {
-    if (!isInstrumentDraftDirty(baselineRef.current, draftRef.current)) {
+    const candidate = creatingRef.current ? createCandidateRef.current : null;
+    const sessionDirty = candidate
+      ? isInstrumentDraftDirty(candidate.baseline, candidate.draft)
+      : isInstrumentDraftDirty(baselineRef.current, draftRef.current);
+    if (!sessionDirty) {
       action();
       return;
     }
@@ -930,6 +956,23 @@ function DesktopInstrumentEditor({
       closeDirtyNav();
       return;
     }
+    const creatingNow = creatingRef.current;
+    const candidate = createCandidateRef.current;
+    if (creatingNow && candidate) {
+      if (choice === 'apply') {
+        // Insert the candidate (Create), then run the pending close/navigation.
+        if (!applyCreateCandidateRef.current()) return;
+      } else {
+        // Drop the create session so pending close/loadInst is not stuck on New.
+        abandonCreating();
+        dirtyRef.current = isInstrumentDraftDirty(baselineRef.current, draftRef.current);
+        if (selectedRef.current) setActiveSection('properties');
+      }
+      pendingNavRef.current = null;
+      setDirtyNavOpen(false);
+      pending?.();
+      return;
+    }
     if (choice === 'apply') {
       if (!commitToSource(draftRef.current)) return;
     } else {
@@ -939,7 +982,7 @@ function DesktopInstrumentEditor({
     pendingNavRef.current = null;
     setDirtyNavOpen(false);
     pending?.();
-  }, [closeDirtyNav, commitToSource, revertDraft]);
+  }, [abandonCreating, closeDirtyNav, commitToSource, revertDraft]);
 
   const patch = (partial: Partial<InstrumentNode>) => {
     const base = creatingRef.current && createCandidateRef.current
@@ -982,6 +1025,9 @@ function DesktopInstrumentEditor({
 
   const finishCreate = (name: string, nextDraft: InstrumentNode) => {
     selectedRef.current = name;
+    creatingRef.current = false;
+    createCandidateRef.current = null;
+    dirtyRef.current = false;
     setSelected(name);
     setDraft(nextDraft);
     setBaseline(cloneInst(nextDraft));
@@ -995,6 +1041,8 @@ function DesktopInstrumentEditor({
   };
 
   const selectCreateCandidate = (candidate: CreateCandidate) => {
+    createCandidateRef.current = candidate;
+    dirtyRef.current = false;
     setCreateCandidate(candidate);
     syncPreviewOctave(candidate.draft, chip, schema);
     stopPreview();
@@ -1002,30 +1050,36 @@ function DesktopInstrumentEditor({
   };
 
   const cancelCreating = () => {
-    abandonCreating();
-    if (selected) {
-      setActiveSection('properties');
-    }
+    withDirtyGuard(() => {
+      abandonCreating();
+      if (selectedRef.current) {
+        setActiveSection('properties');
+      }
+    });
   };
 
   const selectCreateType = (typeId: string) => {
     const typeDef = schema.types.find((t) => t.id === typeId);
     const body = (typeDef?.blankContent?.trim() || `type=${typeId}`).replace(/^inst\s+\S+\s+/i, '');
+    const draft = parseInstrumentBody(body);
     selectCreateCandidate({
       kind: 'type',
       id: typeId,
       body,
-      draft: parseInstrumentBody(body),
+      baseline: cloneInst(draft),
+      draft,
     });
   };
 
   const selectCreatePreset = (presetId: string, content: string) => {
     const body = content.replace(/^inst\s+\S+\s+/i, '');
+    const draft = parseInstrumentBody(body);
     selectCreateCandidate({
       kind: 'preset',
       id: presetId,
       body,
-      draft: parseInstrumentBody(body),
+      baseline: cloneInst(draft),
+      draft,
     });
   };
 
@@ -1038,11 +1092,13 @@ function DesktopInstrumentEditor({
       const bodyMatch = code.match(/^\s*inst\s+\S+\s+(.*)$/);
       const body = (bodyMatch?.[1] ?? '').trim();
       if (!body) return;
+      const draft = withSubpatRows(parseInstrumentBody(body), sourceName);
       selectCreateCandidate({
         kind: 'copy',
         id: sourceName,
         body,
-        draft: withSubpatRows(parseInstrumentBody(body), sourceName),
+        baseline: cloneInst(draft),
+        draft,
       });
       return;
     }
@@ -1054,6 +1110,7 @@ function DesktopInstrumentEditor({
       kind: 'copy',
       id: sourceName,
       body: '',
+      baseline: cloneInst(copied),
       draft: copied,
     });
   };
@@ -1099,14 +1156,20 @@ function DesktopInstrumentEditor({
     setNewInstNameError(null);
   };
 
-  const applyCreateCandidate = () => {
-    if (!createCandidate || newInstNameError) return;
-    const nextDraft = cloneInst(createCandidate.draft);
+  const applyCreateCandidate = (): boolean => {
+    const candidate = createCandidateRef.current;
+    if (!candidate || newInstNameError) return false;
+    const nextDraft = cloneInst(candidate.draft);
+    const issues = validateDraft(chip, nextDraft);
+    if (issues.length) {
+      setErrors(issues);
+      return false;
+    }
     const type = String(nextDraft.type ?? schema.types[0]?.id ?? '');
     const name = resolveCreateName(
-      createCandidate.kind === 'copy' ? createCandidate.id : defaultNewInstBaseName(type),
+      candidate.kind === 'copy' ? candidate.id : defaultNewInstBaseName(type),
     );
-    if (!name) return;
+    if (!name) return false;
     const afterName = selectedLocal && selected ? selected : undefined;
     const source = insertInstLine(getSource(), `inst ${name} type=${type}`, afterName);
     const block = syncSubpatBlock(source, nextDraft, name);
@@ -1115,17 +1178,20 @@ function DesktopInstrumentEditor({
         field: 'subpat',
         message: block.error ?? `Could not write subpattern '${String(nextDraft.subpat ?? '')}'.`,
       }]);
-      return;
+      return false;
     }
     const { next, ok } = replaceInstLine(block.next, name, nextDraft, fieldOrder);
     if (!ok) {
       setErrors([{ field: 'inst', message: `Could not create '${name}'.` }]);
-      return;
+      return false;
     }
     selectedRef.current = name;
     applySource(next);
     finishCreate(name, nextDraft);
+    dirtyRef.current = false;
+    return true;
   };
+  applyCreateCandidateRef.current = applyCreateCandidate;
 
   const onNew = () => {
     withDirtyGuard(() => {
@@ -1199,9 +1265,11 @@ function DesktopInstrumentEditor({
 
   const onDelete = () => {
     if (!selected || !selectedLocal) return;
-    // Skip the Apply/Discard prompt: deleting the instrument abandons the draft.
-    setDeleteReferenced(instIsReferenced(getSource(), selected));
-    setDeleteOpen(true);
+    // Resolve pending draft edits before the delete confirmation (spec 099).
+    withDirtyGuard(() => {
+      setDeleteReferenced(instIsReferenced(getSource(), selected));
+      setDeleteOpen(true);
+    });
   };
 
   const onRename = () => {
@@ -1897,7 +1965,8 @@ function DesktopInstrumentEditor({
               if (!name) return;
               const selectEl = e.currentTarget;
               withDirtyGuard(() => {
-                if (creating) cancelCreating();
+                // Already past the dirty prompt — leave New without nesting another guard.
+                if (creatingRef.current) abandonCreating();
                 loadInst(name, ast, { reveal: true, focus: false });
                 selectEl.blur();
                 restorePanelFocus();
@@ -2062,7 +2131,9 @@ function DesktopInstrumentEditor({
               </div>
               <div className="bb-inst-editor__dialog-body">
                 <p className="bb-inst-editor__dialog-copy">
-                  Write your panel edits to the editor, discard them, or cancel and keep editing.
+                  {creating
+                    ? 'Create this instrument in the song, discard the new-instrument edits, or cancel and keep editing.'
+                    : 'Write your panel edits to the editor, discard them, or cancel and keep editing.'}
                 </p>
                 {errors.length ? (
                   <ul className="bb-inst-editor__errors" role="alert">
@@ -3316,7 +3387,19 @@ function formatFxNibble(value: number): string {
   return String(value);
 }
 
-function normalizeSubpatRow(row: SubPatternRowLike): SubPatternRowLike {
+function subpatRowHasFields(row: SubPatternRowLike): boolean {
+  if (row.empty) return false;
+  return (
+    (row.offset !== undefined && row.offset !== null)
+    || row.vol !== undefined
+    || row.timbre !== undefined
+    || !!row.fx
+    || row.jump !== undefined
+    || !!row.halt
+  );
+}
+
+function normalizeSubpatRow(row: SubPatternRowLike, collapseEmpty = true): SubPatternRowLike {
   if (row.empty) return { empty: true };
   const next: SubPatternRowLike = { empty: false };
   if (row.offset !== undefined && row.offset !== null) next.offset = row.offset;
@@ -3326,15 +3409,16 @@ function normalizeSubpatRow(row: SubPatternRowLike): SubPatternRowLike {
   if (row.fx) next.fx = { code: row.fx.code, param: row.fx.param };
   if (row.jump !== undefined) next.jump = row.jump;
   if (row.halt) next.halt = true;
-  const hasFields =
-    (next.offset !== undefined && next.offset !== null) ||
-    next.vol !== undefined ||
-    next.timbre !== undefined ||
-    !!next.fx ||
-    next.jump !== undefined ||
-    !!next.halt;
-  if (!hasFields) return { empty: true };
+  if (collapseEmpty && !subpatRowHasFields(next)) return { empty: true };
+  // Keep a fieldless editing row non-empty so inputs stay enabled mid-edit.
+  if (!subpatRowHasFields(next)) return { empty: false, offset: null };
   return next;
+}
+
+type SubpatEditField = 'offset' | 'vol' | 'timbre' | 'jump' | 'fxCode' | 'fxParam';
+
+function subpatEditKey(index: number, field: SubpatEditField): string {
+  return `${index}:${field}`;
 }
 
 function SubpatternRows({
@@ -3351,6 +3435,8 @@ function SubpatternRows({
   const signature = subpatRowsSignature(rows);
   const [draft, setDraft] = useState<SubPatternRowLike[]>(() => cloneSubpatRows(rows.length ? rows : [{ empty: true }]));
   const [rowError, setRowError] = useState<string | null>(null);
+  /** Typed text while a cell is focused (allows '-' / empty before blur commit). */
+  const [editText, setEditText] = useState<Record<string, string>>({});
   const draftRef = useRef(draft);
   const seen = useRef(signature);
   draftRef.current = draft;
@@ -3361,15 +3447,17 @@ function SubpatternRows({
     const next = cloneSubpatRows(rows.length ? rows : [{ empty: true }]);
     draftRef.current = next;
     setDraft(next);
+    setEditText({});
     setRowError(null);
   }, [rows, signature]);
 
-  const commit = (nextRows: SubPatternRowLike[]): boolean => {
+  const commit = (nextRows: SubPatternRowLike[], opts?: { collapseEmpty?: boolean }): boolean => {
     if (!nextRows.length) {
       setRowError('A subpattern needs at least one row.');
       return false;
     }
-    const normalized = nextRows.map((row) => normalizeSubpatRow(row));
+    const collapseEmpty = opts?.collapseEmpty !== false;
+    const normalized = nextRows.map((row) => normalizeSubpatRow(row, collapseEmpty));
     for (let i = 0; i < normalized.length; i++) {
       const row = normalized[i]!;
       if (row.jump !== undefined && (row.jump < 1 || row.jump > normalized.length)) {
@@ -3385,21 +3473,59 @@ function SubpatternRows({
         return false;
       }
     }
-    const nextSig = subpatRowsSignature(normalized);
     draftRef.current = normalized;
     setDraft(normalized);
     setRowError(null);
+    // Fieldless mid-edit rows stay local until blur / explicit commit.
+    if (!collapseEmpty && normalized.some((row) => !row.empty && !subpatRowHasFields(row))) {
+      return true;
+    }
+    const nextSig = subpatRowsSignature(normalized);
     if (nextSig === seen.current) return true;
     seen.current = nextSig;
     onCommit(normalized);
     return true;
   };
 
-  const updateRow = (index: number, patch: Partial<SubPatternRowLike> | ((row: SubPatternRowLike) => SubPatternRowLike)) => {
+  const updateRow = (
+    index: number,
+    patch: Partial<SubPatternRowLike> | ((row: SubPatternRowLike) => SubPatternRowLike),
+    opts?: { collapseEmpty?: boolean },
+  ) => {
     const next = cloneSubpatRows(draftRef.current);
     const current = next[index] ?? { empty: true };
     next[index] = typeof patch === 'function' ? patch(current) : { ...current, ...patch };
-    commit(next);
+    commit(next, opts);
+  };
+
+  const clearEditField = (index: number, field: SubpatEditField) => {
+    const key = subpatEditKey(index, field);
+    setEditText((prev) => {
+      if (prev[key] === undefined) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const cellText = (index: number, field: SubpatEditField, fallback: string): string => {
+    const key = subpatEditKey(index, field);
+    return editText[key] !== undefined ? editText[key]! : fallback;
+  };
+
+  const beginEdit = (index: number, field: SubpatEditField, fallback: string) => {
+    setEditText((prev) => ({ ...prev, [subpatEditKey(index, field)]: fallback }));
+  };
+
+  const finishEdit = (index: number, field: SubpatEditField) => {
+    clearEditField(index, field);
+    commit(draftRef.current, { collapseEmpty: true });
+  };
+
+  const onEditKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>, index: number, field: SubpatEditField) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    (event.target as HTMLInputElement).blur();
   };
 
   return (
@@ -3408,9 +3534,14 @@ function SubpatternRows({
         <div className="bb-inst-editor__subpat-rows">
       {draft.map((row, index) => {
         const empty = !!row.empty;
+        // Empty checkbox disables fields; a cleared mid-edit row stays empty=false.
         const fieldsDisabled = disabled || empty;
-        const fxCode = row.fx ? formatFxNibble(row.fx.code) : '';
-        const fxParam = row.fx ? formatFxNibble(row.fx.param) : '';
+        const offsetFallback = empty || row.offset === undefined || row.offset === null ? '' : String(row.offset);
+        const volFallback = empty || row.vol === undefined ? '' : String(row.vol);
+        const timbreFallback = empty || row.timbre === undefined ? '' : String(row.timbre);
+        const jumpFallback = empty || row.jump === undefined ? '' : String(row.jump);
+        const fxCodeFallback = empty || !row.fx ? '' : formatFxNibble(row.fx.code);
+        const fxParamFallback = empty || !row.fx ? '' : formatFxNibble(row.fx.param);
         return (
           <div className="bb-inst-editor__subpat-line" key={index}>
             <span className="bb-inst-editor__subpat-index">{index + 1}</span>
@@ -3422,87 +3553,105 @@ function SubpatternRows({
                 checked={empty}
                 disabled={disabled}
                 onChange={(event) => {
+                  setEditText({});
                   if (event.target.checked) {
-                    updateRow(index, { empty: true });
+                    updateRow(index, { empty: true }, { collapseEmpty: true });
                     return;
                   }
-                  updateRow(index, { empty: false, offset: 0 });
+                  updateRow(index, { empty: false, offset: 0 }, { collapseEmpty: true });
                 }}
               />
             </label>
             <label className="bb-inst-editor__subpat-field">
               <span>Offset</span>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 className="bb-settings-text bb-inst-editor__subpat-num"
                 aria-label={`Subpattern row ${index + 1} offset`}
                 disabled={fieldsDisabled}
-                value={empty || row.offset === undefined || row.offset === null ? '' : row.offset}
+                value={cellText(index, 'offset', offsetFallback)}
+                onFocus={() => beginEdit(index, 'offset', offsetFallback)}
                 onChange={(event) => {
-                  const raw = event.target.value.trim();
-                  if (!raw) {
+                  const raw = event.target.value;
+                  if (raw !== '' && !/^-?\d*$/.test(raw)) return;
+                  setEditText((prev) => ({ ...prev, [subpatEditKey(index, 'offset')]: raw }));
+                  if (raw === '' || raw === '-') {
                     updateRow(index, (cur) => {
-                      const next = { ...cur, empty: false };
-                      delete next.offset;
-                      next.offset = null;
+                      const next = { ...cur, empty: false, offset: null };
                       return next;
-                    });
+                    }, { collapseEmpty: false });
                     return;
                   }
                   const value = Number(raw);
                   if (!Number.isFinite(value)) return;
-                  updateRow(index, { empty: false, offset: Math.trunc(value) });
+                  updateRow(index, { empty: false, offset: Math.trunc(value) }, { collapseEmpty: false });
                 }}
+                onBlur={() => finishEdit(index, 'offset')}
+                onKeyDown={(event) => onEditKeyDown(event, index, 'offset')}
               />
             </label>
             <label className="bb-inst-editor__subpat-field">
               <span>Vol</span>
               <input
-                type="number"
-                min={0}
-                max={15}
+                type="text"
+                inputMode="numeric"
                 className="bb-settings-text bb-inst-editor__subpat-num"
                 aria-label={`Subpattern row ${index + 1} vol`}
                 disabled={fieldsDisabled}
-                value={empty || row.vol === undefined ? '' : row.vol}
+                value={cellText(index, 'vol', volFallback)}
+                onFocus={() => beginEdit(index, 'vol', volFallback)}
                 onChange={(event) => {
-                  const raw = event.target.value.trim();
-                  if (!raw) {
+                  const raw = event.target.value;
+                  if (raw !== '' && !/^\d*$/.test(raw)) return;
+                  setEditText((prev) => ({ ...prev, [subpatEditKey(index, 'vol')]: raw }));
+                  if (raw === '') {
                     updateRow(index, (cur) => {
                       const next = { ...cur, empty: false };
                       delete next.vol;
                       return next;
-                    });
+                    }, { collapseEmpty: false });
                     return;
                   }
                   const value = Number(raw);
                   if (!Number.isFinite(value)) return;
-                  updateRow(index, { empty: false, vol: Math.max(0, Math.min(15, Math.trunc(value))) });
+                  updateRow(index, {
+                    empty: false,
+                    vol: Math.max(0, Math.min(15, Math.trunc(value))),
+                  }, { collapseEmpty: false });
                 }}
+                onBlur={() => finishEdit(index, 'vol')}
+                onKeyDown={(event) => onEditKeyDown(event, index, 'vol')}
               />
             </label>
             <label className="bb-inst-editor__subpat-field">
               <span>Timbre</span>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 className="bb-settings-text bb-inst-editor__subpat-num"
                 aria-label={`Subpattern row ${index + 1} timbre`}
                 disabled={fieldsDisabled}
-                value={empty || row.timbre === undefined ? '' : row.timbre}
+                value={cellText(index, 'timbre', timbreFallback)}
+                onFocus={() => beginEdit(index, 'timbre', timbreFallback)}
                 onChange={(event) => {
-                  const raw = event.target.value.trim();
-                  if (!raw) {
+                  const raw = event.target.value;
+                  if (raw !== '' && !/^-?\d*$/.test(raw)) return;
+                  setEditText((prev) => ({ ...prev, [subpatEditKey(index, 'timbre')]: raw }));
+                  if (raw === '' || raw === '-') {
                     updateRow(index, (cur) => {
                       const next = { ...cur, empty: false };
                       delete next.timbre;
                       return next;
-                    });
+                    }, { collapseEmpty: false });
                     return;
                   }
                   const value = Number(raw);
                   if (!Number.isFinite(value)) return;
-                  updateRow(index, { empty: false, timbre: Math.trunc(value) });
+                  updateRow(index, { empty: false, timbre: Math.trunc(value) }, { collapseEmpty: false });
                 }}
+                onBlur={() => finishEdit(index, 'timbre')}
+                onKeyDown={(event) => onEditKeyDown(event, index, 'timbre')}
               />
             </label>
             <label className="bb-inst-editor__subpat-field bb-inst-editor__subpat-field--fx">
@@ -3516,24 +3665,29 @@ function SubpatternRows({
                   aria-label={`Subpattern row ${index + 1} fx code`}
                   placeholder="C"
                   disabled={fieldsDisabled}
-                  value={empty ? '' : fxCode}
+                  value={cellText(index, 'fxCode', fxCodeFallback)}
+                  onFocus={() => beginEdit(index, 'fxCode', fxCodeFallback)}
                   onChange={(event) => {
-                    const raw = event.target.value.trim();
-                    if (!raw) {
+                    const raw = event.target.value;
+                    setEditText((prev) => ({ ...prev, [subpatEditKey(index, 'fxCode')]: raw }));
+                    const trimmed = raw.trim();
+                    if (!trimmed) {
                       updateRow(index, (cur) => {
                         const next = { ...cur, empty: false };
                         delete next.fx;
                         return next;
-                      });
+                      }, { collapseEmpty: false });
                       return;
                     }
-                    const code = parseOptionalFxNibble(raw);
+                    const code = parseOptionalFxNibble(trimmed);
                     if (code === undefined) return;
                     updateRow(index, {
                       empty: false,
                       fx: { code, param: row.fx?.param ?? 0 },
-                    });
+                    }, { collapseEmpty: false });
                   }}
+                  onBlur={() => finishEdit(index, 'fxCode')}
+                  onKeyDown={(event) => onEditKeyDown(event, index, 'fxCode')}
                 />
                 <span className="bb-inst-editor__subpat-fx-sep">,</span>
                 <input
@@ -3544,45 +3698,52 @@ function SubpatternRows({
                   aria-label={`Subpattern row ${index + 1} fx param`}
                   placeholder="0"
                   disabled={fieldsDisabled}
-                  value={empty ? '' : fxParam}
+                  value={cellText(index, 'fxParam', fxParamFallback)}
+                  onFocus={() => beginEdit(index, 'fxParam', fxParamFallback)}
                   onChange={(event) => {
-                    const raw = event.target.value.trim();
-                    if (!raw) {
+                    const raw = event.target.value;
+                    setEditText((prev) => ({ ...prev, [subpatEditKey(index, 'fxParam')]: raw }));
+                    const trimmed = raw.trim();
+                    if (!trimmed) {
                       updateRow(index, (cur) => {
                         const next = { ...cur, empty: false };
                         delete next.fx;
                         return next;
-                      });
+                      }, { collapseEmpty: false });
                       return;
                     }
-                    const param = parseOptionalFxNibble(raw);
+                    const param = parseOptionalFxNibble(trimmed);
                     if (param === undefined) return;
                     updateRow(index, {
                       empty: false,
                       fx: { code: row.fx?.code ?? 0, param },
-                    });
+                    }, { collapseEmpty: false });
                   }}
+                  onBlur={() => finishEdit(index, 'fxParam')}
+                  onKeyDown={(event) => onEditKeyDown(event, index, 'fxParam')}
                 />
               </span>
             </label>
             <label className="bb-inst-editor__subpat-field">
               <span>Jump</span>
               <input
-                type="number"
-                min={1}
-                max={draft.length}
+                type="text"
+                inputMode="numeric"
                 className="bb-settings-text bb-inst-editor__subpat-num"
                 aria-label={`Subpattern row ${index + 1} jump`}
                 disabled={fieldsDisabled}
-                value={empty || row.jump === undefined ? '' : row.jump}
+                value={cellText(index, 'jump', jumpFallback)}
+                onFocus={() => beginEdit(index, 'jump', jumpFallback)}
                 onChange={(event) => {
-                  const raw = event.target.value.trim();
-                  if (!raw) {
+                  const raw = event.target.value;
+                  if (raw !== '' && !/^\d*$/.test(raw)) return;
+                  setEditText((prev) => ({ ...prev, [subpatEditKey(index, 'jump')]: raw }));
+                  if (raw === '') {
                     updateRow(index, (cur) => {
                       const next = { ...cur, empty: false };
                       delete next.jump;
                       return next;
-                    });
+                    }, { collapseEmpty: false });
                     return;
                   }
                   const value = Number(raw);
@@ -3590,8 +3751,10 @@ function SubpatternRows({
                   updateRow(index, {
                     empty: false,
                     jump: Math.max(1, Math.min(draft.length, Math.trunc(value))),
-                  });
+                  }, { collapseEmpty: false });
                 }}
+                onBlur={() => finishEdit(index, 'jump')}
+                onKeyDown={(event) => onEditKeyDown(event, index, 'jump')}
               />
             </label>
             <label className="bb-inst-editor__subpat-field bb-inst-editor__subpat-field--check">
@@ -3607,7 +3770,7 @@ function SubpatternRows({
                     if (!event.target.checked) delete next.halt;
                     else next.halt = true;
                     return next;
-                  });
+                  }, { collapseEmpty: true });
                 }}
               />
             </label>
@@ -3622,7 +3785,8 @@ function SubpatternRows({
                   setRowError('A subpattern needs at least one row.');
                   return;
                 }
-                commit(draftRef.current.filter((_, i) => i !== index));
+                setEditText({});
+                commit(draftRef.current.filter((_, i) => i !== index), { collapseEmpty: true });
               }}
               dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }}
             />
@@ -3635,7 +3799,10 @@ function SubpatternRows({
           className="bb-inst-editor__macro-add-btn"
           disabled={disabled}
           type="button"
-          onClick={() => commit([...draftRef.current, { empty: true }])}
+          onClick={() => {
+            setEditText({});
+            commit([...draftRef.current, { empty: true }], { collapseEmpty: true });
+          }}
         >
           <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
           <span>Add row</span>

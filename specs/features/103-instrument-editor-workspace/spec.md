@@ -128,7 +128,8 @@ This feature **supersedes** planned folders 101 (`instrument-editor-subpat-rows`
 - Unresolved / missing `subpat=` name: no writable empty table; keep today’s diagnostics / reveal behaviour.
 - Empty subpat row list after removals: do not leave a zero-row `subpat` the parser rejects; keep at least one valid row or refuse writeback.
 - Rename / Delete / dirty dialogs: center on the modal (not the old panel rect); dismiss only via their buttons or Escape (not backdrop click).
-- Closing the Instrument Editor (Escape, backdrop, or ×) abandons an unfinished New session so the next open shows the selected instrument, not the create page.
+- Closing the Instrument Editor (Escape, backdrop, or ×) abandons an unfinished New session so the next open shows the selected instrument, not the create page. If the create candidate was edited (differs from the type/template/copy baseline), the 099 Apply / Discard / Cancel prompt runs first — Apply inserts the instrument, Discard drops the New session, Cancel keeps editing.
+- Subpattern row fields stay editable while a value is cleared and replaced (including typing a leading `-` for a negative offset). A fieldless row collapses to Empty only on blur, Enter, Add/Remove, or the Empty checkbox — not on every keystroke.
 - Non-NES chips later using `widget: 'sample'`: Browse/Check SHOULD work when Desktop can resolve the same way; NES DMC is the shipping target.
 - Web-lite Instrument Editor: out of scope.
 
