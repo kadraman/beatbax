@@ -13,6 +13,7 @@ import {
 import { setupGlyphMargin } from '@beatbax/app-core/editor/glyph-margin';
 import { resolveScaleContext } from '@beatbax/app-core/editor/scale-context';
 import { toggleChannelMuted, toggleChannelSoloed } from '@beatbax/app-core/stores/channel.store';
+import { settingCodeLens } from '@beatbax/app-core/stores/settings.store';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { FeatureFlag, isFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
@@ -120,9 +121,8 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
   };
 
   if (capabilities.advancedEditor) {
-    const storedCodeLens = storage.get(StorageKey.CODELENS, 'true') !== 'false';
     codeLensDispose = setupCodeLensPreview(monacoEditor, eventBus, getSource);
-    monacoEditor.updateOptions({ codeLens: storedCodeLens });
+    monacoEditor.updateOptions({ codeLens: settingCodeLens.get() });
     glyphMarginDispose = setupGlyphMargin(monacoEditor, eventBus);
   } else {
     monacoEditor.updateOptions({ codeLens: false });

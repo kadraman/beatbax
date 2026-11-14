@@ -2,11 +2,50 @@ import type { ChipInstrumentEditor } from '../types.js';
 
 export const nesInstrumentEditor: ChipInstrumentEditor = {
   types: [
-    { id: 'pulse1', label: 'Pulse 1', previewChannel: 1, previewMode: 'melodic', previewOctave: 4 },
-    { id: 'pulse2', label: 'Pulse 2', previewChannel: 2, previewMode: 'melodic', previewOctave: 4 },
-    { id: 'triangle', label: 'Triangle', previewChannel: 3, previewMode: 'melodic', previewOctave: 2 },
-    { id: 'noise', label: 'Noise', previewChannel: 4, previewMode: 'oneshot' },
-    { id: 'dmc', label: 'DMC', previewChannel: 5, previewMode: 'oneshot' },
+    {
+      id: 'pulse1',
+      label: 'Pulse 1',
+      description: 'Narrow pulse · ch 1',
+      blankContent: 'type=pulse1 duty=12.5 env=12,down',
+      previewChannel: 1,
+      previewMode: 'melodic',
+      previewOctave: 4,
+    },
+    {
+      id: 'pulse2',
+      label: 'Pulse 2',
+      description: 'Square pulse · ch 2',
+      blankContent: 'type=pulse2 duty=50 env=15,flat',
+      previewChannel: 2,
+      previewMode: 'melodic',
+      previewOctave: 4,
+    },
+    {
+      id: 'triangle',
+      label: 'Triangle',
+      description: 'Triangle · ch 3',
+      blankContent: 'type=triangle linear=80',
+      previewChannel: 3,
+      previewMode: 'melodic',
+      previewOctave: 2,
+    },
+    {
+      id: 'noise',
+      label: 'Noise',
+      description: 'Noise LFSR · ch 4',
+      // Mid period + hardware env = snare-like hit (note pitch is ignored on NES noise).
+      blankContent: 'type=noise noise_mode=normal noise_period=6 env=14,down env_period=1',
+      previewChannel: 4,
+      previewMode: 'oneshot',
+    },
+    {
+      id: 'dmc',
+      label: 'DMC',
+      description: 'Sample channel · ch 5',
+      blankContent: 'type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/snare_tight"',
+      previewChannel: 5,
+      previewMode: 'oneshot',
+    },
   ],
   fields: [
     // Type-defining controls first (appear immediately after Type in the panel).
@@ -64,9 +103,34 @@ export const nesInstrumentEditor: ChipInstrumentEditor = {
     },
   ],
   presets: [
-    { id: 'nes-lead', label: 'Pulse lead', type: 'pulse1', content: 'type=pulse1 duty=50 env=15,down' },
-    { id: 'nes-tri', label: 'Triangle bass', type: 'triangle', content: 'type=triangle' },
-    { id: 'nes-noise', label: 'Noise hit', type: 'noise', content: 'type=noise vol_env=[15,12,8,4,0]' },
+    {
+      id: 'nes-lead',
+      label: 'Pulse lead',
+      description: '50% pulse with a decaying envelope',
+      type: 'pulse1',
+      content: 'type=pulse1 duty=50 env=15,down',
+    },
+    {
+      id: 'nes-tri',
+      label: 'Triangle bass',
+      description: 'Clean triangle bass (no volume register)',
+      type: 'triangle',
+      content: 'type=triangle',
+    },
+    {
+      id: 'nes-noise',
+      label: 'Noise snare',
+      description: 'Mid-period noise hit with a short hardware envelope',
+      type: 'noise',
+      content: 'type=noise noise_mode=normal noise_period=6 env=14,down env_period=1',
+    },
+    {
+      id: 'nes-dmc',
+      label: 'DMC snare',
+      description: 'Bundled @nes/snare_tight sample at rate 15',
+      type: 'dmc',
+      content: 'type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/snare_tight"',
+    },
   ],
   constraints: [
     { id: 'triangle-vol', when: 'type=triangle', message: 'Triangle has no volume register — volume macros do not apply.' },

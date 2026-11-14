@@ -567,5 +567,26 @@ describe('CodeLens Preview provider', () => {
       playAST.mockRestore();
       stop.mockRestore();
     });
+
+    it('auditions a full instPatch when the instrument name is not in the AST', async () => {
+      const playAST = jest.spyOn(Player.prototype, 'playAST').mockResolvedValue(undefined as any);
+      const errors: string[] = [];
+      eventBus.on('preview:error', ({ message }) => { errors.push(message); });
+      mockParse.mockReturnValue({ imports: [], insts: {}, chip: 'gameboy' });
+      mockResolveImports.mockImplementation(async (ast: any) => ast);
+
+      setupCodeLensPreview(mockEditor, eventBus as any, () => 'chip gameboy');
+      triggerInstNotePreview('__bb_new__', 'C4', {
+        sustain: true,
+        instPatch: { type: 'pulse1', duty: '50', env: '12,down', gm: 81 },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(errors).toEqual([]);
+      expect(playAST).toHaveBeenCalled();
+      const previewAst = playAST.mock.calls[0]?.[0] as { insts?: Record<string, unknown> };
+      expect(previewAst?.insts?.__bb_new__).toMatchObject({ type: 'pulse1', duty: '50' });
+      playAST.mockRestore();
+    });
   });
 });

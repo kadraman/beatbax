@@ -55,6 +55,7 @@ import {
   collectLocalSubpatNames,
   deleteInstLine,
   duplicateInstLine,
+  findInstLineIndex,
   findSubpatLineIndex,
   insertInstLine,
   instIsReferenced,
@@ -62,12 +63,12 @@ import {
   readSubpatRows,
   renameInstrumentInSource,
   replaceInstLine,
+  splitTrailingComment,
   syncSubpatBlock,
   uniqueInstName,
 } from '@beatbax/app-core/editor/instrument-editor-writeback';
 import {
   formatSubPatternRow,
-  parseSubPatternRow,
   type SubPatternRowLike,
 } from '@beatbax/app-core/editor/subpat-format';
 import {
@@ -178,8 +179,11 @@ function InstrumentSampleField({
       : `${scheme}:`;
   const [status, setStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const checkEpochRef = useRef(0);
 
   const commit = (nextScheme: InstrumentSampleScheme, nextRemainder: string) => {
+    checkEpochRef.current += 1;
+    setBusy(false);
     setStatus(null);
     onChange(formatInstrumentSampleRef(nextScheme, nextRemainder, chip));
   };
@@ -234,14 +238,17 @@ function InstrumentSampleField({
       setStatus({ kind: 'error', text: 'This chip cannot check samples.' });
       return;
     }
+    const epoch = ++checkEpochRef.current;
     setBusy(true);
     try {
       const bytes = await plugin.resolveSampleAsset(ref);
+      if (epoch !== checkEpochRef.current) return;
       setStatus({ kind: 'ok', text: `OK · ${bytes.byteLength} bytes` });
     } catch (error) {
+      if (epoch !== checkEpochRef.current) return;
       setStatus({ kind: 'error', text: error instanceof Error ? error.message : String(error) });
     } finally {
-      setBusy(false);
+      if (epoch === checkEpochRef.current) setBusy(false);
     }
   };
 
@@ -348,6 +355,18 @@ function defaultNewInstBaseName(type: string | undefined): string {
       return 'lead';
   }
 }
+
+/** Phantom AST name for New-instrument audition (never written to the song). */
+const CREATE_PREVIEW_INST = '__bb_new__';
+/** Left-nav id for the New-instrument page while creating. */
+const CREATE_SECTION_ID = 'new';
+
+type CreateCandidate = {
+  kind: 'type' | 'preset' | 'copy';
+  id: string;
+  body: string;
+  draft: InstrumentNode;
+};
 
 function macroIsDefined(draft: InstrumentNode, name: string): boolean {
   const parsed = parseMacro(draft[name]);
@@ -518,6 +537,13 @@ function DesktopInstrumentEditor({
   const [renameError, setRenameError] = useState<string | null>(null);
   const [renameBounds, setRenameBounds] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [dirtyNavOpen, setDirtyNavOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteReferenced, setDeleteReferenced] = useState(false);
+  const [newInstName, setNewInstName] = useState('');
+  const [newInstNameError, setNewInstNameError] = useState<string | null>(null);
+  const [showCreateTemplates, setShowCreateTemplates] = useState(false);
+  const [showCreateCopy, setShowCreateCopy] = useState(false);
+  const [createCandidate, setCreateCandidate] = useState<CreateCandidate | null>(null);
   const [dialogBounds, setDialogBounds] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const toolbarTipRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -542,14 +568,35 @@ function DesktopInstrumentEditor({
   const selectedRef = useRef<string | null>(null);
   const draftRef = useRef<InstrumentNode>({});
   const baselineRef = useRef<InstrumentNode>({});
+  const createCandidateRef = useRef<CreateCandidate | null>(null);
+  const creatingRef = useRef(false);
   const liveEditRef = useRef(liveEdit);
   const openRef = useRef(false);
   const requestCloseRef = useRef<() => void>(() => {});
+  const abandonCreating = useCallback(() => {
+    creatingRef.current = false;
+    createCandidateRef.current = null;
+    setCreating(false);
+    setCreateCandidate(null);
+    setShowCreateTemplates(false);
+    setShowCreateCopy(false);
+    setNewInstName('');
+    setNewInstNameError(null);
+    setErrors([]);
+    stopPreview();
+    setActiveNote(null);
+  }, [stopPreview]);
+
   const setModalOpen = useCallback((next: boolean) => {
     openRef.current = next;
+    if (!next) {
+      // Closing must drop an unfinished New session so reopen edits the selected instrument.
+      abandonCreating();
+      setActiveSection((prev) => (prev === CREATE_SECTION_ID ? 'properties' : prev));
+    }
     setOpen(next);
     onOpenChange?.(next);
-  }, [onOpenChange]);
+  }, [abandonCreating, onOpenChange]);
   const dirtyRef = useRef(false);
   const pendingNavRef = useRef<(() => void) | null>(null);
   const chipRef = useRef('gameboy');
@@ -558,6 +605,8 @@ function DesktopInstrumentEditor({
   selectedRef.current = selected;
   draftRef.current = draft;
   baselineRef.current = baseline;
+  createCandidateRef.current = createCandidate;
+  creatingRef.current = creating;
   liveEditRef.current = liveEdit;
   // Fingerprint only when draft/baseline identity changes — not on every
   // piano/rename/dialog re-render. Mutation handlers already replace these refs.
@@ -683,16 +732,21 @@ function DesktopInstrumentEditor({
     },
     getSelectedName: () => selectedRef.current,
     getMidiAudition: () => {
-      const name = selectedRef.current;
+      const creatingNow = creatingRef.current;
+      const candidate = createCandidateRef.current;
+      if (creatingNow && !candidate) return null;
+      const name = creatingNow ? CREATE_PREVIEW_INST : selectedRef.current;
       if (!name) return null;
       const chipName = chipRef.current;
       const schemaNow = resolveInstrumentEditorSchema(chipName);
-      const d = draftRef.current;
+      const d = creatingNow && candidate ? candidate.draft : draftRef.current;
       const type = String(d.type ?? schemaNow.types[0]?.id ?? '');
       const mode = resolvePreviewMode(type, chipName, schemaNow, d);
-      const draftPatch = isInstrumentDraftDirty(baselineRef.current, d)
+      const draftPatch = creatingNow
         ? instrumentDraftPreviewPatch(d)
-        : undefined;
+        : isInstrumentDraftDirty(baselineRef.current, d)
+          ? instrumentDraftPreviewPatch(d)
+          : undefined;
       if (mode === 'melodic') {
         return {
           name,
@@ -811,6 +865,14 @@ function DesktopInstrumentEditor({
   }, [applySource, chip, fieldOrder, getSource, revealInst, selected, selectedLocal]);
 
   const writeDraft = useCallback((next: InstrumentNode) => {
+    // New-instrument candidate: edit in memory only until Create.
+    if (creatingRef.current && createCandidateRef.current) {
+      const updated: CreateCandidate = { ...createCandidateRef.current, draft: next };
+      createCandidateRef.current = updated;
+      setCreateCandidate(updated);
+      setErrors(validateDraft(chip, next));
+      return;
+    }
     setDraft(next);
     // Keep refs current for audition before the next render (playNote / MIDI).
     draftRef.current = next;
@@ -880,21 +942,27 @@ function DesktopInstrumentEditor({
   }, [closeDirtyNav, commitToSource, revertDraft]);
 
   const patch = (partial: Partial<InstrumentNode>) => {
-    const next = { ...draft, ...partial };
+    const base = creatingRef.current && createCandidateRef.current
+      ? createCandidateRef.current.draft
+      : draft;
+    const next = { ...base, ...partial };
     writeDraft(next);
     if (partial.type !== undefined || partial.note !== undefined || partial.tone_mix !== undefined) {
       syncPreviewOctave(next, chip, schema);
     }
   };
 
-  const instType = String(draft.type ?? schema.types[0]?.id ?? '');
+  /** Draft shown/edited in panels: create candidate while New, else selected instrument. */
+  const workingDraft = creating && createCandidate ? createCandidate.draft : draft;
+  const canEditFields = creating ? Boolean(createCandidate) : selectedLocal;
+  const previewDraft = workingDraft;
+  const instType = String(previewDraft.type ?? schema.types[0]?.id ?? '');
   const isDmcType = instType.toLowerCase() === 'dmc';
-  const previewMode = resolvePreviewMode(instType, chip, schema, draft);
-  const currentUge = typeof draft.uge_note === 'string' ? draft.uge_note.trim() : '';
+  const previewMode = resolvePreviewMode(instType, chip, schema, previewDraft);
+  const currentUge = typeof previewDraft.uge_note === 'string' ? previewDraft.uge_note.trim() : '';
   const dmcSampleMeta = previewMode === 'oneshot' && isDmcType
-    ? resolveBundledSampleMeta(chip, draft.dmc_sample)
+    ? resolveBundledSampleMeta(chip, previewDraft.dmc_sample)
     : null;
-
   /**
    * `parseInstrumentBody` keeps `subpat=` and drops resolved rows. Put the
    * source instrument's rows back so the copy can show and write that block.
@@ -918,6 +986,7 @@ function DesktopInstrumentEditor({
     setDraft(nextDraft);
     setBaseline(cloneInst(nextDraft));
     setErrors([]);
+    setCreateCandidate(null);
     setCreating(false);
     setActiveSection('properties');
     syncPreviewOctave(nextDraft, chip, schema);
@@ -925,45 +994,150 @@ function DesktopInstrumentEditor({
     restorePanelFocus();
   };
 
-  const createFromBody = (body: string, type?: string) => {
-    const parsed = parseInstrumentBody(body);
-    const resolvedType = type ?? String(parsed.type ?? schema.types[0]?.id ?? '');
-    const name = uniqueInstName(defaultNewInstBaseName(resolvedType), localNames);
-    const serialized = `inst ${name} ${body.replace(/^inst\s+\S+\s+/i, '')}`;
-    const afterName = selectedLocal && selected ? selected : undefined;
-    applySource(insertInstLine(getSource(), serialized, afterName));
-    finishCreate(name, parsed);
+  const selectCreateCandidate = (candidate: CreateCandidate) => {
+    setCreateCandidate(candidate);
+    syncPreviewOctave(candidate.draft, chip, schema);
+    stopPreview();
+    setActiveNote(null);
   };
 
-  const createFromInstrument = (sourceName: string) => {
+  const cancelCreating = () => {
+    abandonCreating();
+    if (selected) {
+      setActiveSection('properties');
+    }
+  };
+
+  const selectCreateType = (typeId: string) => {
+    const typeDef = schema.types.find((t) => t.id === typeId);
+    const body = (typeDef?.blankContent?.trim() || `type=${typeId}`).replace(/^inst\s+\S+\s+/i, '');
+    selectCreateCandidate({
+      kind: 'type',
+      id: typeId,
+      body,
+      draft: parseInstrumentBody(body),
+    });
+  };
+
+  const selectCreatePreset = (presetId: string, content: string) => {
+    const body = content.replace(/^inst\s+\S+\s+/i, '');
+    selectCreateCandidate({
+      kind: 'preset',
+      id: presetId,
+      body,
+      draft: parseInstrumentBody(body),
+    });
+  };
+
+  const selectCreateCopy = (sourceName: string) => {
     if (localNames.has(sourceName)) {
-      const { next, newName, body, ok } = duplicateInstLine(getSource(), sourceName, localNames);
-      if (!ok) return;
-      const copied = withSubpatRows(parseInstrumentBody(body), sourceName);
-      selectedRef.current = newName;
-      applySource(next);
-      finishCreate(newName, copied);
+      const source = getSource();
+      const idx = findInstLineIndex(source, sourceName);
+      if (idx < 0) return;
+      const { code } = splitTrailingComment(source.split(/\r?\n/)[idx]!);
+      const bodyMatch = code.match(/^\s*inst\s+\S+\s+(.*)$/);
+      const body = (bodyMatch?.[1] ?? '').trim();
+      if (!body) return;
+      selectCreateCandidate({
+        kind: 'copy',
+        id: sourceName,
+        body,
+        draft: withSubpatRows(parseInstrumentBody(body), sourceName),
+      });
       return;
     }
     const src = ast?.insts?.[sourceName];
     if (!src) return;
-    const { note: _n, gm: _g, __loc, ...rest } = cloneInst(src);
+    const { __loc: _loc, ...rest } = cloneInst(src);
     const copied = withSubpatRows(rest, sourceName);
-    const type = String(copied.type ?? schema.types[0]?.id ?? '');
-    const name = uniqueInstName(sourceName, localNames);
-    const { next } = replaceInstLine(
-      insertInstLine(getSource(), `inst ${name} type=${type}`),
-      name,
-      copied,
-      fieldOrder,
+    selectCreateCandidate({
+      kind: 'copy',
+      id: sourceName,
+      body: '',
+      draft: copied,
+    });
+  };
+
+  /** Blank → unique fallback; typed name must be a valid unused local identifier. */
+  const resolveCreateName = (fallbackBase: string): string | null => {
+    const trimmed = newInstName.trim();
+    if (!trimmed) {
+      setNewInstNameError(null);
+      return uniqueInstName(fallbackBase, localNames);
+    }
+    if (!isValidInstName(trimmed)) {
+      setNewInstNameError(
+        'Must start with a letter or underscore; then letters, digits, underscore, or hyphen.',
+      );
+      return null;
+    }
+    if (localNames.has(trimmed)) {
+      setNewInstNameError(`Name '${trimmed}' is already used.`);
+      return null;
+    }
+    setNewInstNameError(null);
+    return trimmed;
+  };
+
+  const validateNewInstName = (raw: string) => {
+    setNewInstName(raw);
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      setNewInstNameError(null);
+      return;
+    }
+    if (!isValidInstName(trimmed)) {
+      setNewInstNameError(
+        'Must start with a letter or underscore; then letters, digits, underscore, or hyphen.',
+      );
+      return;
+    }
+    if (localNames.has(trimmed)) {
+      setNewInstNameError(`Name '${trimmed}' is already used.`);
+      return;
+    }
+    setNewInstNameError(null);
+  };
+
+  const applyCreateCandidate = () => {
+    if (!createCandidate || newInstNameError) return;
+    const nextDraft = cloneInst(createCandidate.draft);
+    const type = String(nextDraft.type ?? schema.types[0]?.id ?? '');
+    const name = resolveCreateName(
+      createCandidate.kind === 'copy' ? createCandidate.id : defaultNewInstBaseName(type),
     );
+    if (!name) return;
+    const afterName = selectedLocal && selected ? selected : undefined;
+    const source = insertInstLine(getSource(), `inst ${name} type=${type}`, afterName);
+    const block = syncSubpatBlock(source, nextDraft, name);
+    if (!block.ok) {
+      setErrors([{
+        field: 'subpat',
+        message: block.error ?? `Could not write subpattern '${String(nextDraft.subpat ?? '')}'.`,
+      }]);
+      return;
+    }
+    const { next, ok } = replaceInstLine(block.next, name, nextDraft, fieldOrder);
+    if (!ok) {
+      setErrors([{ field: 'inst', message: `Could not create '${name}'.` }]);
+      return;
+    }
     selectedRef.current = name;
     applySource(next);
-    finishCreate(name, copied);
+    finishCreate(name, nextDraft);
   };
 
   const onNew = () => {
-    withDirtyGuard(() => setCreating(true));
+    withDirtyGuard(() => {
+      setNewInstName('');
+      setNewInstNameError(null);
+      setShowCreateTemplates(false);
+      setShowCreateCopy(false);
+      setCreateCandidate(null);
+      setErrors([]);
+      setActiveSection(CREATE_SECTION_ID);
+      setCreating(true);
+    });
   };
 
   const onDuplicate = () => {
@@ -986,38 +1160,48 @@ function DesktopInstrumentEditor({
     });
   };
 
+  const closeDelete = () => {
+    setDeleteOpen(false);
+    setDeleteReferenced(false);
+  };
+
+  const confirmDelete = () => {
+    if (!selected || !selectedLocal) {
+      closeDelete();
+      return;
+    }
+    const name = selected;
+    const idx = instNames.indexOf(name);
+    const remaining = instNames.filter((n) => n !== name);
+    const neighbor = remaining[idx] ?? remaining[idx - 1] ?? null;
+    // Point the next parse at the neighbor before it runs, so it does not
+    // clear the panel and then land on the first instrument in the song.
+    selectedRef.current = neighbor;
+    applySource(deleteInstLine(getSource(), name));
+    closeDelete();
+    if (neighbor && ast?.insts?.[neighbor]) {
+      const nextDraft = cloneInst(ast.insts[neighbor]);
+      setSelected(neighbor);
+      setDraft(nextDraft);
+      setBaseline(cloneInst(nextDraft));
+      setErrors([]);
+      syncPreviewOctave(nextDraft, chip, schema);
+      revealInst(neighbor, { focus: false, reveal: true });
+    } else {
+      setSelected(null);
+      setDraft({});
+      setBaseline({});
+      setErrors([]);
+      revealInst(null);
+    }
+    restorePanelFocus();
+  };
+
   const onDelete = () => {
     if (!selected || !selectedLocal) return;
-    withDirtyGuard(() => {
-      const referenced = instIsReferenced(getSource(), selected);
-      const message = referenced
-        ? `Instrument '${selected}' is still referenced. Delete it anyway?`
-        : `Delete instrument '${selected}'?`;
-      if (!window.confirm(message)) return;
-      const idx = instNames.indexOf(selected);
-      const remaining = instNames.filter((name) => name !== selected);
-      const neighbor = remaining[idx] ?? remaining[idx - 1] ?? null;
-      // Point the next parse at the neighbor before it runs, so it does not
-      // clear the panel and then land on the first instrument in the song.
-      selectedRef.current = neighbor;
-      applySource(deleteInstLine(getSource(), selected));
-      if (neighbor && ast?.insts?.[neighbor]) {
-        const nextDraft = cloneInst(ast.insts[neighbor]);
-        setSelected(neighbor);
-        setDraft(nextDraft);
-        setBaseline(cloneInst(nextDraft));
-        setErrors([]);
-        syncPreviewOctave(nextDraft, chip, schema);
-        revealInst(neighbor, { focus: false, reveal: true });
-      } else {
-        setSelected(null);
-        setDraft({});
-        setBaseline({});
-        setErrors([]);
-        revealInst(null);
-      }
-      restorePanelFocus();
-    });
+    // Skip the Apply/Discard prompt: deleting the instrument abandons the draft.
+    setDeleteReferenced(instIsReferenced(getSource(), selected));
+    setDeleteOpen(true);
   };
 
   const onRename = () => {
@@ -1081,8 +1265,20 @@ function DesktopInstrumentEditor({
     };
   }, [renameOpen]);
 
+  useEffect(() => {
+    if (!deleteOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeDelete();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [deleteOpen]);
+
   useLayoutEffect(() => {
-    if (!renameOpen && !dirtyNavOpen) {
+    if (!renameOpen && !dirtyNavOpen && !deleteOpen) {
       setRenameBounds(null);
       setDialogBounds(null);
       return;
@@ -1104,7 +1300,7 @@ function DesktopInstrumentEditor({
       window.removeEventListener('resize', syncBounds);
       ro?.disconnect();
     };
-  }, [renameOpen, dirtyNavOpen]);
+  }, [renameOpen, dirtyNavOpen, deleteOpen]);
 
   const copyImported = () => {
     if (!selected) return;
@@ -1134,14 +1330,19 @@ function DesktopInstrumentEditor({
   };
 
   const playNote = (note: string, options?: InstNotePreviewOptions) => {
-    const name = selectedRef.current;
+    const creatingNow = creatingRef.current;
+    const candidate = createCandidateRef.current;
+    if (creatingNow && !candidate) return;
+    const name = creatingNow ? CREATE_PREVIEW_INST : selectedRef.current;
     if (!name) return;
     lastPreviewNote.current = note;
     setActiveNote(note);
     // Refs stay current across key events between renders (same as getMidiAudition).
-    const draftPatch = dirtyRef.current
-      ? instrumentDraftPreviewPatch(draftRef.current)
-      : undefined;
+    const draftPatch = creatingNow && candidate
+      ? instrumentDraftPreviewPatch(candidate.draft)
+      : dirtyRef.current
+        ? instrumentDraftPreviewPatch(draftRef.current)
+        : undefined;
     const merged: InstNotePreviewOptions = { ...options };
     if (draftPatch || options?.instPatch) {
       // Explicit audition overrides (e.g. uge strip) win over draft props.
@@ -1193,7 +1394,7 @@ function DesktopInstrumentEditor({
           if (previewMode === 'uge_note') {
             playHit('hit', {
               sustain: false,
-              instPatch: typeof draft.uge_note === 'string' && draft.uge_note.trim()
+              instPatch: typeof previewDraft.uge_note === 'string' && previewDraft.uge_note.trim()
                 ? undefined
                 : { uge_note: 'C-6' },
             });
@@ -1231,15 +1432,15 @@ function DesktopInstrumentEditor({
     ? schema.waveform
     : undefined;
   const waveSamples = waveDef
-    ? normalizeWaveSamples(draft[waveDef.field], waveDef.length, waveDef.min, waveDef.max)
+    ? normalizeWaveSamples(workingDraft[waveDef.field], waveDef.length, waveDef.min, waveDef.max)
     : [];
-  const subpatSet = typeof draft.subpat === 'string' && draft.subpat.trim().length > 0;
+  const subpatSet = typeof workingDraft.subpat === 'string' && workingDraft.subpat.trim().length > 0;
   const quietWave = waveDef && waveSamples.length && Math.max(...waveSamples) < waveDef.max;
   const visibleFields = schema.fields.filter((f) => fieldApplies(f.whenType, instType));
 
   const clearOrSetField = (name: string, next: string) => {
     if (!next) {
-      const cleared = { ...draft };
+      const cleared = { ...workingDraft };
       delete cleared[name];
       writeDraft(cleared);
       return;
@@ -1253,7 +1454,7 @@ function DesktopInstrumentEditor({
       clearOrSetField(name, '');
       return;
     }
-    const current = draft[name];
+    const current = workingDraft[name];
     if (current && typeof current === 'object' && 'format' in current) {
       const format = String((current as { format?: string }).format ?? '').trim();
       const n = Number(next);
@@ -1266,7 +1467,7 @@ function DesktopInstrumentEditor({
   };
 
   const renderDefaultField = (field: ChipInstrumentFieldDef) => {
-    const value = formatInstrumentFieldValue(field.name, draft[field.name]);
+    const value = formatInstrumentFieldValue(field.name, workingDraft[field.name]);
     const fieldId = `bb-inst-field-${field.name}`;
     if (field.widget === 'note' || field.widget === 'uge_note') {
       const options = field.widget === 'uge_note' ? UGE_NOTE_OPTIONS : BEATBAX_NOTE_OPTIONS;
@@ -1276,7 +1477,7 @@ function DesktopInstrumentEditor({
           <select
             id={fieldId}
             className="bb-settings-select"
-            disabled={!selectedLocal}
+            disabled={!canEditFields}
             value={value}
             onChange={(e) => clearOrSetField(field.name, e.target.value)}
           >
@@ -1293,7 +1494,7 @@ function DesktopInstrumentEditor({
         <input
           id={fieldId}
           className="bb-settings-number"
-          disabled={!selectedLocal}
+          disabled={!canEditFields}
           type="number"
           min={field.min ?? 0}
           max={field.max ?? 127}
@@ -1305,7 +1506,7 @@ function DesktopInstrumentEditor({
   };
 
   const renderVoiceField = (field: ChipInstrumentFieldDef) => {
-    const raw = draft[field.name];
+    const raw = workingDraft[field.name];
     const value = formatInstrumentFieldValue(field.name, raw);
     const fieldId = `bb-inst-field-${field.name}`;
     if (field.widget === 'bool') {
@@ -1313,7 +1514,7 @@ function DesktopInstrumentEditor({
         <ToggleRow
           key={field.name}
           checked={value === 'true' || value === '1'}
-          disabled={!selectedLocal}
+          disabled={!canEditFields}
           label={field.label}
           title={field.hint}
           onChange={(checked) => patch({ [field.name]: checked ? 'true' : 'false' })}
@@ -1323,9 +1524,9 @@ function DesktopInstrumentEditor({
     if (field.widget === 'sample') {
       return (
         <InstrumentSampleField
-          key={`${selected ?? ''}:${field.name}`}
+          key={`${creating ? CREATE_PREVIEW_INST : (selected ?? '')}:${field.name}`}
           chip={chip}
-          disabled={!selectedLocal}
+          disabled={!canEditFields}
           field={field}
           value={value}
           onChange={(next) => clearOrSetField(field.name, next)}
@@ -1371,6 +1572,18 @@ function DesktopInstrumentEditor({
               role="radiogroup"
               aria-label={field.label}
             >
+              <button
+                type="button"
+                className="bb-inst-editor__choice bb-inst-editor__choice--clear"
+                disabled={!canEditFields || !value}
+                title={value
+                  ? `Clear ${field.label} (omit from instrument; use default)`
+                  : `${field.label} is already omitted`}
+                aria-label={`Clear ${field.label}`}
+                onClick={() => setChoiceField(field.name, '')}
+              >
+                <span dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }} />
+              </button>
               {(value && !field.values.includes(value) ? [value, ...field.values] : field.values).map((v) => (
                 <button
                   key={v}
@@ -1378,7 +1591,7 @@ function DesktopInstrumentEditor({
                   role="radio"
                   className="bb-inst-editor__choice"
                   aria-checked={value === v}
-                  disabled={!selectedLocal}
+                  disabled={!canEditFields}
                   onClick={() => setChoiceField(field.name, v)}
                 >
                   {v}
@@ -1389,7 +1602,7 @@ function DesktopInstrumentEditor({
             <select
               id={fieldId}
               className="bb-settings-select"
-              disabled={!selectedLocal}
+              disabled={!canEditFields}
               value={value}
               onChange={(e) => setChoiceField(field.name, e.target.value)}
             >
@@ -1401,7 +1614,7 @@ function DesktopInstrumentEditor({
           <input
             id={fieldId}
             className={field.widget === 'int' ? 'bb-settings-number' : 'bb-settings-text'}
-            disabled={!selectedLocal}
+            disabled={!canEditFields}
             type={field.widget === 'int' ? 'number' : 'text'}
             min={field.min}
             max={field.max}
@@ -1418,8 +1631,8 @@ function DesktopInstrumentEditor({
   const paneFields = visibleFields.filter((f) => !f.nav && f.name !== 'subpat');
   const voiceFields = paneFields.filter((f) => !isHardwarePropField(f) && !isDefaultPropField(f));
   const defaultFields = paneFields.filter(isDefaultPropField);
-  const subpatName = typeof draft.subpat === 'string' ? draft.subpat.trim() : '';
-  const subpatRows = Array.isArray(draft.subpatRows) ? draft.subpatRows as SubPatternRowLike[] : [];
+  const subpatName = typeof workingDraft.subpat === 'string' ? workingDraft.subpat.trim() : '';
+  const subpatRows = Array.isArray(workingDraft.subpatRows) ? workingDraft.subpatRows as SubPatternRowLike[] : [];
   const subpatBlockInSource = Boolean(subpatName) && findSubpatLineIndex(getSource(), subpatName) >= 0;
   const subpatAttachNames = [...collectLocalSubpatNames(getSource())]
     .filter((name) => {
@@ -1435,31 +1648,55 @@ function DesktopInstrumentEditor({
       && String(ast?.insts?.[name]?.subpat ?? '').trim() === subpatName
     ))
     : [];
-  const editorSections = useMemo(
-    () => listInstrumentEditorSections({
+  const editorSections = useMemo(() => {
+    if (creating) {
+      const createPage = { id: CREATE_SECTION_ID, label: 'New' };
+      if (!createCandidate) return [createPage];
+      return [
+        createPage,
+        ...listInstrumentEditorSections({
+          schema,
+          type: instType,
+          hasInstrument: true,
+        }),
+      ];
+    }
+    return listInstrumentEditorSections({
       schema,
       type: instType,
       hasInstrument: Boolean(selected),
-    }),
-    [schema, instType, selected],
-  );
+    });
+  }, [creating, createCandidate, schema, instType, selected]);
   useEffect(() => {
     if (!editorSections.some((section) => section.id === activeSection)) {
-      setActiveSection(editorSections[0]?.id ?? 'properties');
+      setActiveSection(editorSections[0]?.id ?? (creating ? CREATE_SECTION_ID : 'properties'));
     }
-  }, [activeSection, editorSections]);
+  }, [activeSection, creating, editorSections]);
+  const siblingPeriod = Number(formatInstrumentFieldValue('env_period', workingDraft.env_period));
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (renameOpen || dirtyNavOpen) return;
       event.preventDefault();
       event.stopPropagation();
+      // Nested prompts: Escape cancels; backdrop click does not dismiss them.
+      if (renameOpen) {
+        closeRename();
+        return;
+      }
+      if (dirtyNavOpen) {
+        resolveDirtyNav('cancel');
+        return;
+      }
+      if (deleteOpen) {
+        closeDelete();
+        return;
+      }
       requestCloseRef.current();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [dirtyNavOpen, open, renameOpen]);
+  }, [closeDelete, closeRename, deleteOpen, dirtyNavOpen, open, renameOpen, resolveDirtyNav]);
   const catalogKey = `${selected ?? ''}|${pickerNames.map((name) => {
     const type = String(ast?.insts?.[name]?.type ?? (name === selected ? draft.type : '') ?? '');
     return `${name}:${instrumentOptionLabel(name, type, !localNames.has(name))}`;
@@ -1476,7 +1713,6 @@ function DesktopInstrumentEditor({
     // catalogKey already snapshots names, labels, and selection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalogKey, eventBus]);
-  const siblingPeriod = Number(formatInstrumentFieldValue('env_period', draft.env_period));
 
   const showToolbarHint = (hint: string, anchor: HTMLElement) => {
     const tip = toolbarTipRef.current;
@@ -1492,9 +1728,14 @@ function DesktopInstrumentEditor({
 
   const liveEditHintFor = (on: boolean) => (on ? 'Live edit mode - on' : 'Live edit mode - off');
   const liveEditHint = liveEditHintFor(liveEdit);
-  const applyHint = dirty
-    ? 'Write panel draft to the .bax instrument line'
-    : 'No panel changes to write';
+  const applyHint = creating
+    ? (createCandidate
+      ? 'Create the instrument in the song and open it for editing'
+      : 'Choose a type, template, or copy source first')
+    : dirty
+      ? 'Write panel draft to the .bax instrument line'
+      : 'No panel changes to write';
+  const createActionLabel = 'Create';
   const revertHint = dirty
     ? 'Discard panel edits and reload from the editor'
     : 'No panel changes to discard';
@@ -1536,7 +1777,7 @@ function DesktopInstrumentEditor({
         </button>
       </div>
     <div
-      className={`bb-inst-editor${renameOpen || dirtyNavOpen ? ' is-dialog-open' : ''}${dirty ? ' is-draft-dirty' : ''}`}
+      className={`bb-inst-editor${renameOpen || dirtyNavOpen || deleteOpen ? ' is-dialog-open' : ''}${dirty ? ' is-draft-dirty' : ''}`}
     >
       <div className="bb-inst-editor__chrome">
       <div className="bb-inst-editor__chrome-row">
@@ -1545,7 +1786,9 @@ function DesktopInstrumentEditor({
           type="button"
           className="bb-inst-editor__toolbar-btn"
           aria-label="New instrument"
-          {...toolbarHintProps('New instrument')}
+          {...toolbarHintProps(creating ? 'Already creating a new instrument' : 'New instrument')}
+          aria-disabled={creating ? 'true' : undefined}
+          disabled={creating}
           onClick={onNew}
           dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3.5 h-3.5') }}
         />
@@ -1553,9 +1796,9 @@ function DesktopInstrumentEditor({
           type="button"
           className="bb-inst-editor__toolbar-btn"
           aria-label="Duplicate instrument"
-          {...toolbarHintProps('Duplicate instrument')}
-          aria-disabled={!selectedLocal ? 'true' : undefined}
-          disabled={!selectedLocal}
+          {...toolbarHintProps(creating ? 'Unavailable while creating' : 'Duplicate instrument')}
+          aria-disabled={creating || !selectedLocal ? 'true' : undefined}
+          disabled={creating || !selectedLocal}
           onClick={onDuplicate}
           dangerouslySetInnerHTML={{ __html: icon('document-duplicate', 'w-3.5 h-3.5') }}
         />
@@ -1563,9 +1806,9 @@ function DesktopInstrumentEditor({
           type="button"
           className="bb-inst-editor__toolbar-btn"
           aria-label="Rename instrument"
-          {...toolbarHintProps('Rename instrument')}
-          aria-disabled={!selectedLocal ? 'true' : undefined}
-          disabled={!selectedLocal}
+          {...toolbarHintProps(creating ? 'Unavailable while creating' : 'Rename instrument')}
+          aria-disabled={creating || !selectedLocal ? 'true' : undefined}
+          disabled={creating || !selectedLocal}
           onClick={onRename}
           dangerouslySetInnerHTML={{ __html: icon('pencil', 'w-3.5 h-3.5') }}
         />
@@ -1573,11 +1816,11 @@ function DesktopInstrumentEditor({
           type="button"
           className="bb-inst-editor__toolbar-btn"
           aria-label="Show in editor"
-          {...toolbarHintProps('Show this instrument in the editor')}
-          aria-disabled={!selected ? 'true' : undefined}
-          disabled={!selected}
+          {...toolbarHintProps(creating ? 'Unavailable while creating' : 'Show this instrument in the editor')}
+          aria-disabled={creating || !selected ? 'true' : undefined}
+          disabled={creating || !selected}
           onClick={() => {
-            if (!selected) return;
+            if (!selected || creating) return;
             withDirtyGuard(() => {
               setModalOpen(false);
               revealInst(selected, { focus: true, reveal: true });
@@ -1589,20 +1832,23 @@ function DesktopInstrumentEditor({
           type="button"
           className="bb-inst-editor__toolbar-btn"
           aria-label="Delete instrument"
-          {...toolbarHintProps('Delete instrument')}
-          aria-disabled={!selectedLocal ? 'true' : undefined}
-          disabled={!selectedLocal}
+          {...toolbarHintProps(creating ? 'Unavailable while creating' : 'Delete instrument')}
+          aria-disabled={creating || !selectedLocal ? 'true' : undefined}
+          disabled={creating || !selectedLocal}
           onClick={onDelete}
           dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }}
         />
         <span className="bb-inst-editor__toolbar-sep" aria-hidden="true" />
         <button
           type="button"
-          className={`bb-inst-editor__toolbar-btn${liveEdit ? ' is-active' : ''}`}
+          className={`bb-inst-editor__toolbar-btn${liveEdit && !creating ? ' is-active' : ''}`}
           aria-label="Live edit"
           aria-pressed={liveEdit}
-          {...toolbarHintProps(liveEditHint)}
+          {...toolbarHintProps(creating ? 'Unavailable while creating' : liveEditHint)}
+          aria-disabled={creating ? 'true' : undefined}
+          disabled={creating}
           onClick={(event) => {
+            if (creating) return;
             const next = !liveEdit;
             if (!setLiveEdit(next)) return;
             showToolbarHint(liveEditHintFor(next), event.currentTarget);
@@ -1612,23 +1858,27 @@ function DesktopInstrumentEditor({
         {/* Always mount Apply/Revert so Live toggle does not shift icon positions. */}
         <button
           type="button"
-          className={`bb-inst-editor__toolbar-btn${dirty && !liveEdit ? ' is-dirty' : ''}${liveEdit ? ' is-slot-hidden' : ''}`}
-          aria-label="Write panel draft to the editor"
-          aria-hidden={liveEdit ? true : undefined}
-          tabIndex={liveEdit ? -1 : undefined}
+          className={`bb-inst-editor__toolbar-btn${
+            (creating && createCandidate) || (dirty && !liveEdit) ? ' is-dirty' : ''
+          }${liveEdit && !creating ? ' is-slot-hidden' : ''}`}
+          aria-label={creating ? createActionLabel : 'Write panel draft to the editor'}
+          aria-hidden={liveEdit && !creating ? true : undefined}
+          tabIndex={liveEdit && !creating ? -1 : undefined}
           {...toolbarHintProps(applyHint)}
-          disabled={liveEdit || !selectedLocal || !dirty || errors.length > 0}
-          onClick={applyDraft}
+          disabled={creating
+            ? (!createCandidate || Boolean(newInstNameError) || errors.length > 0)
+            : (liveEdit || !selectedLocal || !dirty || errors.length > 0)}
+          onClick={creating ? applyCreateCandidate : applyDraft}
           dangerouslySetInnerHTML={{ __html: icon('check-circle', 'w-3.5 h-3.5') }}
         />
         <button
           type="button"
-          className={`bb-inst-editor__toolbar-btn${liveEdit ? ' is-slot-hidden' : ''}`}
+          className={`bb-inst-editor__toolbar-btn${liveEdit || creating ? ' is-slot-hidden' : ''}`}
           aria-label="Discard panel edits and reload from the editor"
-          aria-hidden={liveEdit ? true : undefined}
-          tabIndex={liveEdit ? -1 : undefined}
+          aria-hidden={liveEdit || creating ? true : undefined}
+          tabIndex={liveEdit || creating ? -1 : undefined}
           {...toolbarHintProps(revertHint)}
-          disabled={liveEdit || !selectedLocal || !dirty}
+          disabled={liveEdit || creating || !selectedLocal || !dirty}
           onClick={revertDraft}
           dangerouslySetInnerHTML={{ __html: icon('arrow-uturn-left', 'w-3.5 h-3.5') }}
         />
@@ -1640,13 +1890,14 @@ function DesktopInstrumentEditor({
             id="bb-inst-picker"
             className="bb-settings-select"
             aria-label="Select instrument"
-            disabled={!pickerNames.length}
+            disabled={creating || !pickerNames.length}
             value={selected ?? ''}
             onChange={(e) => {
               const name = e.target.value;
               if (!name) return;
               const selectEl = e.currentTarget;
               withDirtyGuard(() => {
+                if (creating) cancelCreating();
                 loadInst(name, ast, { reveal: true, focus: false });
                 selectEl.blur();
                 restorePanelFocus();
@@ -1664,7 +1915,16 @@ function DesktopInstrumentEditor({
             })}
           </select>
         </div>
-        {selected ? (
+        {creating ? (
+          <div className="bb-inst-editor__field bb-inst-editor__field--status">
+            <span className="bb-settings-label">Status</span>
+            <p className="bb-settings-note bb-inst-editor__field-status">
+              {createCandidate
+                ? `Creating ${String(createCandidate.draft.type ?? 'instrument')} - return to New and Create to add it`
+                : 'Creating - choose a type, template, or copy source'}
+            </p>
+          </div>
+        ) : selected ? (
           <>
             <div className="bb-inst-editor__field">
               <span className="bb-settings-label">Name</span>
@@ -1702,9 +1962,6 @@ function DesktopInstrumentEditor({
               left: renameBounds.left,
               width: renameBounds.width,
               height: renameBounds.height,
-            }}
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) closeRename();
             }}
           >
             <form
@@ -1783,9 +2040,6 @@ function DesktopInstrumentEditor({
               width: dialogBounds.width,
               height: dialogBounds.height,
             }}
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) resolveDirtyNav('cancel');
-            }}
           >
             <div
               className="bb-inst-editor__dialog"
@@ -1832,17 +2086,66 @@ function DesktopInstrumentEditor({
           document.body,
         )
         : null}
+      {deleteOpen && selected && dialogBounds
+        ? createPortal(
+          <div
+            className="bb-inst-editor__dialog-backdrop"
+            role="presentation"
+            style={{
+              position: 'fixed',
+              top: dialogBounds.top,
+              left: dialogBounds.left,
+              width: dialogBounds.width,
+              height: dialogBounds.height,
+            }}
+          >
+            <div
+              className="bb-inst-editor__dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="bb-inst-delete-title"
+            >
+              <div className="bb-inst-editor__dialog-header">
+                <span id="bb-inst-delete-title" className="bb-inst-editor__dialog-title">
+                  Delete instrument
+                </span>
+                <button
+                  type="button"
+                  className="bb-inst-editor__dialog-close"
+                  aria-label="Close"
+                  onClick={closeDelete}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="bb-inst-editor__dialog-body">
+                <p className="bb-inst-editor__dialog-copy">
+                  {deleteReferenced
+                    ? `Instrument '${selected}' is still referenced. Delete it anyway?`
+                    : `Delete instrument '${selected}'?`}
+                </p>
+              </div>
+              <div className="bb-inst-editor__dialog-footer">
+                <button type="button" className="bb-settings-btn-secondary" onClick={closeDelete}>
+                  Cancel
+                </button>
+                <button type="button" className="bb-settings-btn-danger" onClick={confirmDelete}>
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+        : null}
       <div className="bb-inst-editor__layout">
           <nav aria-label="Instrument sections" className="bb-inst-editor__nav">
             {editorSections.map((section) => (
               <button
-                aria-selected={!creating && activeSection === section.id}
-                className={`bb-settings-nav-btn${!creating && activeSection === section.id ? ' bb-settings-nav-btn--active' : ''}`}
+                aria-selected={activeSection === section.id}
+                className={`bb-settings-nav-btn${activeSection === section.id ? ' bb-settings-nav-btn--active' : ''}`}
                 key={section.id}
-                onClick={() => {
-                  setCreating(false);
-                  setActiveSection(section.id);
-                }}
+                onClick={() => setActiveSection(section.id)}
                 type="button"
               >
                 {section.label}
@@ -1859,83 +2162,176 @@ function DesktopInstrumentEditor({
               </div>
             ) : null}
           <div className="bb-inst-editor__pane">
-        {creating ? (
+        {creating && activeSection === CREATE_SECTION_ID ? (
           <div className="bb-inst-editor__create">
             <SectionHeading>New instrument</SectionHeading>
-            <p className="bb-settings-note">Nothing is added until you pick a template or an instrument to copy.</p>
-            <section className="bb-inst-editor__create-group" aria-label="Templates">
-              <h3 className="bb-inst-editor__stack-title">Templates</h3>
-              <div className="bb-inst-editor__create-list">
-                {schema.presets.map((preset) => {
-                  const typeLabel = schema.types.find((type) => type.id === preset.type)?.label ?? preset.type;
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      className="bb-inst-editor__create-preset"
-                      onClick={() => createFromBody(preset.content, preset.type)}
-                    >
-                      <span className="bb-inst-editor__create-preset-name">{preset.label}</span>
-                      <span className="bb-inst-editor__create-preset-type">{typeLabel}</span>
-                    </button>
-                  );
-                })}
-                {!schema.presets.length ? (
-                  <button
-                    type="button"
-                    className="bb-inst-editor__create-preset"
-                    onClick={() => {
-                      const type = schema.types[0]?.id ?? 'pulse1';
-                      createFromBody(`type=${type}`, type);
-                    }}
-                  >
-                    <span className="bb-inst-editor__create-preset-name">Blank</span>
-                    <span className="bb-inst-editor__create-preset-type">
-                      {schema.types[0]?.label ?? 'Instrument'}
-                    </span>
-                  </button>
-                ) : null}
-              </div>
+            <p className="bb-settings-note">
+              Choose a type, template, or copy source. Audition in Preview, tweak Properties / Hardware / Macros, then Create. Leave the name blank to auto-name.
+            </p>
+            <section className="bb-inst-editor__create-group" aria-label="Name">
+              <h3 className="bb-inst-editor__stack-title">
+                <label htmlFor="bb-inst-new-name">Name</label>
+              </h3>
+              <input
+                id="bb-inst-new-name"
+                className="bb-settings-text bb-inst-editor__create-name"
+                value={newInstName}
+                spellCheck={false}
+                autoComplete="off"
+                placeholder="Auto (e.g. lead, lead2)"
+                aria-invalid={Boolean(newInstNameError)}
+                aria-describedby={newInstNameError ? 'bb-inst-new-name-error' : undefined}
+                onChange={(e) => validateNewInstName(e.target.value)}
+              />
+              {newInstNameError ? (
+                <p id="bb-inst-new-name-error" className="bb-inst-editor__dialog-error" role="alert">
+                  {newInstNameError}
+                </p>
+              ) : null}
             </section>
-            {instNames.some((name) => name !== selected) ? (
-              <section className="bb-inst-editor__create-group" aria-label="Copy from song">
-                <h3 className="bb-inst-editor__stack-title">
-                  <label htmlFor="bb-inst-copy-from">Copy from song</label>
-                </h3>
-                <select
-                  id="bb-inst-copy-from"
-                  className="bb-settings-select bb-inst-editor__create-copy"
-                  aria-label="Copy from song"
-                  defaultValue=""
-                  onChange={(e) => {
-                    if (e.target.value) createFromInstrument(e.target.value);
-                  }}
-                >
-                  <option value="">Choose an instrument…</option>
-                  {instNames.filter((name) => name !== selected).map((name) => {
-                    const subpat = typeof ast?.insts?.[name]?.subpat === 'string'
-                      ? String(ast.insts[name].subpat).trim()
-                      : '';
+            {schema.types.length > 0 ? (
+              <section className="bb-inst-editor__create-group" aria-label="Type">
+                <h3 className="bb-inst-editor__stack-title">Type</h3>
+                <div className="bb-inst-editor__create-types" role="list">
+                  {schema.types.map((type) => {
+                    const selectedType = createCandidate?.kind === 'type' && createCandidate.id === type.id;
                     return (
-                      <option key={name} value={name}>
-                        {copySourceLabel(name, subpat)}
-                      </option>
+                      <button
+                        key={type.id}
+                        type="button"
+                        role="listitem"
+                        aria-pressed={selectedType}
+                        className={`bb-inst-editor__create-type${selectedType ? ' is-selected' : ''}`}
+                        onClick={() => selectCreateType(type.id)}
+                      >
+                        <span className="bb-inst-editor__create-type-label">{type.label}</span>
+                        {type.description ? (
+                          <span className="bb-inst-editor__create-type-desc">{type.description}</span>
+                        ) : (
+                          <span className="bb-inst-editor__create-type-desc">{type.id}</span>
+                        )}
+                      </button>
                     );
                   })}
-                </select>
+                </div>
               </section>
             ) : null}
-            <div>
+            {(schema.presets.length > 0 || !schema.types.length) ? (
+              <section className="bb-inst-editor__create-group" aria-label="Templates">
+                <label className="bb-inst-editor__dialog-check">
+                  <input
+                    type="checkbox"
+                    checked={showCreateTemplates}
+                    onChange={(e) => setShowCreateTemplates(e.target.checked)}
+                  />
+                  <span>Start from a template</span>
+                </label>
+                {showCreateTemplates ? (
+                  <div className="bb-inst-editor__create-list">
+                    {schema.presets.map((preset) => {
+                      const typeLabel = schema.types.find((type) => type.id === preset.type)?.label ?? preset.type;
+                      const selectedPreset = createCandidate?.kind === 'preset' && createCandidate.id === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          aria-pressed={selectedPreset}
+                          className={`bb-inst-editor__create-preset${selectedPreset ? ' is-selected' : ''}`}
+                          onClick={() => selectCreatePreset(preset.id, preset.content)}
+                        >
+                          <span className="bb-inst-editor__create-preset-main">
+                            <span className="bb-inst-editor__create-preset-name">{preset.label}</span>
+                            {preset.description ? (
+                              <span className="bb-inst-editor__create-preset-desc">{preset.description}</span>
+                            ) : null}
+                          </span>
+                          <span className="bb-inst-editor__create-preset-type">{typeLabel}</span>
+                        </button>
+                      );
+                    })}
+                    {!schema.presets.length ? (
+                      <button
+                        type="button"
+                        aria-pressed={createCandidate?.kind === 'type' && createCandidate.id === (schema.types[0]?.id ?? 'pulse1')}
+                        className={`bb-inst-editor__create-preset${
+                          createCandidate?.kind === 'type' && createCandidate.id === (schema.types[0]?.id ?? 'pulse1')
+                            ? ' is-selected'
+                            : ''
+                        }`}
+                        onClick={() => {
+                          const type = schema.types[0]?.id ?? 'pulse1';
+                          selectCreateType(type);
+                        }}
+                      >
+                        <span className="bb-inst-editor__create-preset-name">Blank</span>
+                        <span className="bb-inst-editor__create-preset-type">
+                          {schema.types[0]?.label ?? 'Instrument'}
+                        </span>
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+            {instNames.length > 0 ? (
+              <section className="bb-inst-editor__create-group" aria-label="Copy from song">
+                <label className="bb-inst-editor__dialog-check">
+                  <input
+                    type="checkbox"
+                    checked={showCreateCopy}
+                    onChange={(e) => setShowCreateCopy(e.target.checked)}
+                  />
+                  <span>Copy from an instrument in this song</span>
+                </label>
+                {showCreateCopy ? (
+                  <div className="bb-inst-editor__create-list bb-inst-editor__create-copy-list">
+                    {instNames.map((name) => {
+                      const subpat = typeof ast?.insts?.[name]?.subpat === 'string'
+                        ? String(ast.insts[name].subpat).trim()
+                        : '';
+                      const type = String(ast?.insts?.[name]?.type ?? '');
+                      const typeLabel = schema.types.find((t) => t.id === type)?.label ?? type;
+                      const selectedCopy = createCandidate?.kind === 'copy' && createCandidate.id === name;
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          aria-pressed={selectedCopy}
+                          className={`bb-inst-editor__create-preset${selectedCopy ? ' is-selected' : ''}`}
+                          onClick={() => selectCreateCopy(name)}
+                        >
+                          <span className="bb-inst-editor__create-preset-name">
+                            {copySourceLabel(name, subpat)}
+                          </span>
+                          <span className="bb-inst-editor__create-preset-type">
+                            {typeLabel || 'Instrument'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+            <div className="bb-inst-editor__create-actions">
               <button
                 type="button"
                 className="bb-settings-btn-secondary"
-                onClick={() => setCreating(false)}
+                onClick={cancelCreating}
               >
                 Cancel
               </button>
+              <button
+                type="button"
+                className="bb-settings-btn-primary"
+                disabled={!createCandidate || Boolean(newInstNameError) || errors.length > 0}
+                onClick={applyCreateCandidate}
+              >
+                {createActionLabel}
+              </button>
             </div>
           </div>
-        ) : selected ? (
+        ) : (creating ? Boolean(createCandidate) : Boolean(selected)) ? (
           <>
           <div className={sectionClass('properties')}>
             <SectionHeading>Properties</SectionHeading>
@@ -1960,12 +2356,12 @@ function DesktopInstrumentEditor({
             <HardwareEnvSweepSection
               envelope={envelopeField}
               sweep={sweepField}
-              envelopeValue={envelopeField ? draft[envelopeField.name] : undefined}
+              envelopeValue={envelopeField ? workingDraft[envelopeField.name] : undefined}
               sweepValue={
                 sweepField
                   ? (sweepField.storage === 'discrete'
-                    ? discreteSweepValueFromDraft(draft as Record<string, unknown>)
-                    : draft[sweepField.name])
+                    ? discreteSweepValueFromDraft(workingDraft as Record<string, unknown>)
+                    : workingDraft[sweepField.name])
                   : undefined
               }
               periodSibling={Boolean(
@@ -1974,7 +2370,7 @@ function DesktopInstrumentEditor({
                   || visibleFields.some((f) => f.name === 'env_period')),
               )}
               siblingPeriod={Number.isFinite(siblingPeriod) ? siblingPeriod : 0}
-              disabled={!selectedLocal}
+              disabled={!canEditFields}
               onEnvelopeChange={(next, siblingPeriodValue) => {
                 if (!envelopeField) return;
                 if (next == null) {
@@ -2010,7 +2406,7 @@ function DesktopInstrumentEditor({
               <WaveformCanvas
                 samples={waveSamples}
                 def={waveDef}
-                disabled={!selectedLocal}
+                disabled={!canEditFields}
                 hex={samplesToHex(waveSamples.slice(0, waveDef.length))}
                 quiet={Boolean(quietWave)}
                 onChange={(samples) => {
@@ -2022,14 +2418,16 @@ function DesktopInstrumentEditor({
 
           <div className={sectionClass('macros')}>
             <MacroSection
-              draft={draft}
-              disabled={!selectedLocal || subpatSet}
+              draft={workingDraft}
+              disabled={!canEditFields || subpatSet}
               lockReason={
-                !selectedLocal
-                  ? 'Imported instruments are read-only. Copy into the song to edit macros.'
-                  : subpatSet
-                    ? 'Software macros are locked while subpat is set.'
-                    : null
+                creating
+                  ? (subpatSet ? 'Software macros are locked while subpat is set.' : null)
+                  : !selectedLocal
+                    ? 'Imported instruments are read-only. Copy into the song to edit macros.'
+                    : subpatSet
+                      ? 'Software macros are locked while subpat is set.'
+                      : null
               }
               emptyMessage={
                 schema.macros.some((m) => !m.nav)
@@ -2042,7 +2440,7 @@ function DesktopInstrumentEditor({
               macros={schema.macros.filter((m) => !m.nav && fieldApplies(m.whenType, instType))}
               onChange={(name, text) => {
                 if (text === undefined) {
-                  const next = { ...draft };
+                  const next = { ...workingDraft };
                   delete next[name];
                   writeDraft(next);
                   return;
@@ -2062,24 +2460,25 @@ function DesktopInstrumentEditor({
             <SubpatternSection
               attachNames={subpatAttachNames}
               blockInSource={subpatBlockInSource}
-              readOnly={!selectedLocal}
+              readOnly={!canEditFields}
               rows={subpatRows}
               sharedWith={subpatSharedWith}
               subpatName={subpatName}
-              writable={selectedLocal && chip === 'gameboy'}
+              writable={canEditFields && chip === 'gameboy'}
               onAttach={(name) => {
                 const table = (ast?.subpatterns as Record<string, { rows?: SubPatternRowLike[] }> | undefined)?.[name];
                 if (!table?.rows?.length) return;
                 patch({ subpat: name, subpatRows: cloneSubpatRows(table.rows) });
               }}
               onCreate={() => {
-                if (!selected) return;
-                const base = isValidInstName(selected) ? selected : 'sub';
-                const name = uniqueInstName(base, collectLocalSubpatNames(getSource()));
+                const instBase = creating
+                  ? (newInstName.trim() || defaultNewInstBaseName(instType))
+                  : (selected && isValidInstName(selected) ? selected : 'inst');
+                const name = uniqueInstName(`${instBase}_subpat`, collectLocalSubpatNames(getSource()));
                 patch({ subpat: name, subpatRows: [{ empty: true }] });
               }}
               onDetach={() => {
-                const next = { ...draft };
+                const next = { ...workingDraft };
                 delete next.subpat;
                 delete next.subpatRows;
                 writeDraft(next);
@@ -2088,17 +2487,17 @@ function DesktopInstrumentEditor({
               onRows={(rows) => patch({ subpatRows: rows })}
             />
           </div>
-          {editorSections.filter((section) => !BUILTIN_SECTION_IDS.has(section.id)).map((section) => (
+          {editorSections.filter((section) => !BUILTIN_SECTION_IDS.has(section.id) && section.id !== CREATE_SECTION_ID).map((section) => (
             <div className={sectionClass(section.id)} key={section.id}>
               <SectionHeading>{section.label}</SectionHeading>
               {visibleFields.filter((field) => field.nav === section.id).map((field) => renderVoiceField(field))}
               <MacroSection
-                draft={draft}
-                disabled={!selectedLocal || subpatSet}
+                draft={workingDraft}
+                disabled={!canEditFields || subpatSet}
                 macros={schema.macros.filter((macro) => macro.nav === section.id && fieldApplies(macro.whenType, instType))}
                 onChange={(name, text) => {
                   if (text === undefined) {
-                    const next = { ...draft };
+                    const next = { ...workingDraft };
                     delete next[name];
                     writeDraft(next);
                     return;
@@ -2113,8 +2512,13 @@ function DesktopInstrumentEditor({
           </div>
         </div>
       </div>
-      {selected ? (
+      {(creating ? Boolean(createCandidate) : Boolean(selected)) ? (
         <div className="bb-inst-editor__preview" aria-label="Preview">
+          {creating && createCandidate ? (
+            <p className="bb-settings-note bb-inst-editor__create-preview-note">
+              Auditioning candidate — not in the song until Create.
+            </p>
+          ) : null}
           {previewMode === 'oneshot' ? (
             <div className="bb-inst-editor__audition">
               <button
@@ -2895,110 +3299,366 @@ function cloneSubpatRows(rows: SubPatternRowLike[]): SubPatternRowLike[] {
   });
 }
 
+function subpatRowsSignature(rows: SubPatternRowLike[]): string {
+  return rows.map((row) => formatSubPatternRow(row)).join('\n');
+}
+
+function parseOptionalFxNibble(raw: string): number | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  if (!/^[0-9A-Fa-f]+$/.test(trimmed)) return undefined;
+  const value = /[A-Fa-f]/.test(trimmed) ? parseInt(trimmed, 16) : parseInt(trimmed, 10);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function formatFxNibble(value: number): string {
+  if (value >= 0 && value <= 15) return value.toString(16).toUpperCase();
+  return String(value);
+}
+
+function normalizeSubpatRow(row: SubPatternRowLike): SubPatternRowLike {
+  if (row.empty) return { empty: true };
+  const next: SubPatternRowLike = { empty: false };
+  if (row.offset !== undefined && row.offset !== null) next.offset = row.offset;
+  else next.offset = null;
+  if (row.vol !== undefined) next.vol = row.vol;
+  if (row.timbre !== undefined) next.timbre = row.timbre;
+  if (row.fx) next.fx = { code: row.fx.code, param: row.fx.param };
+  if (row.jump !== undefined) next.jump = row.jump;
+  if (row.halt) next.halt = true;
+  const hasFields =
+    (next.offset !== undefined && next.offset !== null) ||
+    next.vol !== undefined ||
+    next.timbre !== undefined ||
+    !!next.fx ||
+    next.jump !== undefined ||
+    !!next.halt;
+  if (!hasFields) return { empty: true };
+  return next;
+}
+
 function SubpatternRows({
   disabled,
   rows,
+  sharedWith,
   onCommit,
 }: {
   disabled: boolean;
   rows: SubPatternRowLike[];
+  sharedWith?: string[];
   onCommit: (rows: SubPatternRowLike[]) => void;
 }): React.JSX.Element {
-  const signature = rows.map((row) => formatSubPatternRow(row)).join('\n');
-  const [texts, setTexts] = useState<string[]>(() => (signature ? signature.split('\n') : []));
+  const signature = subpatRowsSignature(rows);
+  const [draft, setDraft] = useState<SubPatternRowLike[]>(() => cloneSubpatRows(rows.length ? rows : [{ empty: true }]));
   const [rowError, setRowError] = useState<string | null>(null);
-  const textsRef = useRef(texts);
+  const draftRef = useRef(draft);
   const seen = useRef(signature);
-  textsRef.current = texts;
+  draftRef.current = draft;
 
   useEffect(() => {
     if (seen.current === signature) return;
     seen.current = signature;
-    const next = signature ? signature.split('\n') : [];
-    textsRef.current = next;
-    setTexts(next);
+    const next = cloneSubpatRows(rows.length ? rows : [{ empty: true }]);
+    draftRef.current = next;
+    setDraft(next);
     setRowError(null);
-  }, [signature]);
+  }, [rows, signature]);
 
-  const commit = (nextTexts: string[]): boolean => {
-    if (!nextTexts.length) {
+  const commit = (nextRows: SubPatternRowLike[]): boolean => {
+    if (!nextRows.length) {
       setRowError('A subpattern needs at least one row.');
       return false;
     }
-    const parsed: SubPatternRowLike[] = [];
-    for (let i = 0; i < nextTexts.length; i++) {
-      const row = parseSubPatternRow(nextTexts[i] ?? '');
-      if (!row) {
-        textsRef.current = nextTexts;
-        setTexts(nextTexts);
-        setRowError(`Row ${i + 1} is not a valid subpattern row.`);
+    const normalized = nextRows.map((row) => normalizeSubpatRow(row));
+    for (let i = 0; i < normalized.length; i++) {
+      const row = normalized[i]!;
+      if (row.jump !== undefined && (row.jump < 1 || row.jump > normalized.length)) {
+        draftRef.current = nextRows;
+        setDraft(nextRows);
+        setRowError(`Row ${i + 1}: jump must be between 1 and ${normalized.length}.`);
         return false;
       }
-      parsed.push(row);
+      if (row.vol !== undefined && (row.vol < 0 || row.vol > 15)) {
+        draftRef.current = nextRows;
+        setDraft(nextRows);
+        setRowError(`Row ${i + 1}: vol must be 0–15.`);
+        return false;
+      }
     }
-    const formatted = parsed.map((row) => formatSubPatternRow(row));
-    const nextSig = formatted.join('\n');
-    textsRef.current = formatted;
-    setTexts(formatted);
+    const nextSig = subpatRowsSignature(normalized);
+    draftRef.current = normalized;
+    setDraft(normalized);
     setRowError(null);
     if (nextSig === seen.current) return true;
     seen.current = nextSig;
-    onCommit(parsed);
+    onCommit(normalized);
     return true;
+  };
+
+  const updateRow = (index: number, patch: Partial<SubPatternRowLike> | ((row: SubPatternRowLike) => SubPatternRowLike)) => {
+    const next = cloneSubpatRows(draftRef.current);
+    const current = next[index] ?? { empty: true };
+    next[index] = typeof patch === 'function' ? patch(current) : { ...current, ...patch };
+    commit(next);
   };
 
   return (
     <div className="bb-inst-editor__subpat-list">
-      <p className="bb-settings-note">Row numbers match jump: targets.</p>
-      {texts.map((text, index) => (
-        <div className="bb-inst-editor__subpat-line" key={index}>
-          <span className="bb-inst-editor__subpat-index">{index + 1}</span>
-          <input
-            aria-label={`Subpattern row ${index + 1}`}
-            className="bb-settings-text bb-inst-editor__subpat-text"
-            disabled={disabled}
-            value={text}
-            onBlur={() => {
-              if (!disabled) commit(textsRef.current);
-            }}
-            onChange={(event) => {
-              const next = textsRef.current.slice();
-              next[index] = event.target.value;
-              textsRef.current = next;
-              setTexts(next);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
-            }}
-          />
-          <button
-            aria-label={`Remove subpattern row ${index + 1}`}
-            className="bb-inst-editor__toolbar-btn bb-inst-editor__subpat-remove"
-            disabled={disabled || texts.length <= 1}
-            title={texts.length <= 1 ? 'A subpattern needs at least one row' : 'Remove row'}
-            type="button"
-            onClick={() => {
-              if (textsRef.current.length <= 1) {
-                setRowError('A subpattern needs at least one row.');
-                return;
-              }
-              commit(textsRef.current.filter((_, i) => i !== index));
-            }}
-            dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }}
-          />
-        </div>
-      ))}
+      <div className="bb-inst-editor__subpat-body">
+        <div className="bb-inst-editor__subpat-rows">
+      {draft.map((row, index) => {
+        const empty = !!row.empty;
+        const fieldsDisabled = disabled || empty;
+        const fxCode = row.fx ? formatFxNibble(row.fx.code) : '';
+        const fxParam = row.fx ? formatFxNibble(row.fx.param) : '';
+        return (
+          <div className="bb-inst-editor__subpat-line" key={index}>
+            <span className="bb-inst-editor__subpat-index">{index + 1}</span>
+            <label className="bb-inst-editor__subpat-field bb-inst-editor__subpat-field--check">
+              <span>Empty</span>
+              <input
+                type="checkbox"
+                aria-label={`Subpattern row ${index + 1} empty`}
+                checked={empty}
+                disabled={disabled}
+                onChange={(event) => {
+                  if (event.target.checked) {
+                    updateRow(index, { empty: true });
+                    return;
+                  }
+                  updateRow(index, { empty: false, offset: 0 });
+                }}
+              />
+            </label>
+            <label className="bb-inst-editor__subpat-field">
+              <span>Offset</span>
+              <input
+                type="number"
+                className="bb-settings-text bb-inst-editor__subpat-num"
+                aria-label={`Subpattern row ${index + 1} offset`}
+                disabled={fieldsDisabled}
+                value={empty || row.offset === undefined || row.offset === null ? '' : row.offset}
+                onChange={(event) => {
+                  const raw = event.target.value.trim();
+                  if (!raw) {
+                    updateRow(index, (cur) => {
+                      const next = { ...cur, empty: false };
+                      delete next.offset;
+                      next.offset = null;
+                      return next;
+                    });
+                    return;
+                  }
+                  const value = Number(raw);
+                  if (!Number.isFinite(value)) return;
+                  updateRow(index, { empty: false, offset: Math.trunc(value) });
+                }}
+              />
+            </label>
+            <label className="bb-inst-editor__subpat-field">
+              <span>Vol</span>
+              <input
+                type="number"
+                min={0}
+                max={15}
+                className="bb-settings-text bb-inst-editor__subpat-num"
+                aria-label={`Subpattern row ${index + 1} vol`}
+                disabled={fieldsDisabled}
+                value={empty || row.vol === undefined ? '' : row.vol}
+                onChange={(event) => {
+                  const raw = event.target.value.trim();
+                  if (!raw) {
+                    updateRow(index, (cur) => {
+                      const next = { ...cur, empty: false };
+                      delete next.vol;
+                      return next;
+                    });
+                    return;
+                  }
+                  const value = Number(raw);
+                  if (!Number.isFinite(value)) return;
+                  updateRow(index, { empty: false, vol: Math.max(0, Math.min(15, Math.trunc(value))) });
+                }}
+              />
+            </label>
+            <label className="bb-inst-editor__subpat-field">
+              <span>Timbre</span>
+              <input
+                type="number"
+                className="bb-settings-text bb-inst-editor__subpat-num"
+                aria-label={`Subpattern row ${index + 1} timbre`}
+                disabled={fieldsDisabled}
+                value={empty || row.timbre === undefined ? '' : row.timbre}
+                onChange={(event) => {
+                  const raw = event.target.value.trim();
+                  if (!raw) {
+                    updateRow(index, (cur) => {
+                      const next = { ...cur, empty: false };
+                      delete next.timbre;
+                      return next;
+                    });
+                    return;
+                  }
+                  const value = Number(raw);
+                  if (!Number.isFinite(value)) return;
+                  updateRow(index, { empty: false, timbre: Math.trunc(value) });
+                }}
+              />
+            </label>
+            <label className="bb-inst-editor__subpat-field bb-inst-editor__subpat-field--fx">
+              <span>Fx</span>
+              <span className="bb-inst-editor__subpat-fx">
+                <input
+                  type="text"
+                  inputMode="text"
+                  spellCheck={false}
+                  className="bb-settings-text bb-inst-editor__subpat-num"
+                  aria-label={`Subpattern row ${index + 1} fx code`}
+                  placeholder="C"
+                  disabled={fieldsDisabled}
+                  value={empty ? '' : fxCode}
+                  onChange={(event) => {
+                    const raw = event.target.value.trim();
+                    if (!raw) {
+                      updateRow(index, (cur) => {
+                        const next = { ...cur, empty: false };
+                        delete next.fx;
+                        return next;
+                      });
+                      return;
+                    }
+                    const code = parseOptionalFxNibble(raw);
+                    if (code === undefined) return;
+                    updateRow(index, {
+                      empty: false,
+                      fx: { code, param: row.fx?.param ?? 0 },
+                    });
+                  }}
+                />
+                <span className="bb-inst-editor__subpat-fx-sep">,</span>
+                <input
+                  type="text"
+                  inputMode="text"
+                  spellCheck={false}
+                  className="bb-settings-text bb-inst-editor__subpat-num"
+                  aria-label={`Subpattern row ${index + 1} fx param`}
+                  placeholder="0"
+                  disabled={fieldsDisabled}
+                  value={empty ? '' : fxParam}
+                  onChange={(event) => {
+                    const raw = event.target.value.trim();
+                    if (!raw) {
+                      updateRow(index, (cur) => {
+                        const next = { ...cur, empty: false };
+                        delete next.fx;
+                        return next;
+                      });
+                      return;
+                    }
+                    const param = parseOptionalFxNibble(raw);
+                    if (param === undefined) return;
+                    updateRow(index, {
+                      empty: false,
+                      fx: { code: row.fx?.code ?? 0, param },
+                    });
+                  }}
+                />
+              </span>
+            </label>
+            <label className="bb-inst-editor__subpat-field">
+              <span>Jump</span>
+              <input
+                type="number"
+                min={1}
+                max={draft.length}
+                className="bb-settings-text bb-inst-editor__subpat-num"
+                aria-label={`Subpattern row ${index + 1} jump`}
+                disabled={fieldsDisabled}
+                value={empty || row.jump === undefined ? '' : row.jump}
+                onChange={(event) => {
+                  const raw = event.target.value.trim();
+                  if (!raw) {
+                    updateRow(index, (cur) => {
+                      const next = { ...cur, empty: false };
+                      delete next.jump;
+                      return next;
+                    });
+                    return;
+                  }
+                  const value = Number(raw);
+                  if (!Number.isFinite(value)) return;
+                  updateRow(index, {
+                    empty: false,
+                    jump: Math.max(1, Math.min(draft.length, Math.trunc(value))),
+                  });
+                }}
+              />
+            </label>
+            <label className="bb-inst-editor__subpat-field bb-inst-editor__subpat-field--check">
+              <span>Halt</span>
+              <input
+                type="checkbox"
+                aria-label={`Subpattern row ${index + 1} halt`}
+                checked={!empty && !!row.halt}
+                disabled={fieldsDisabled}
+                onChange={(event) => {
+                  updateRow(index, (cur) => {
+                    const next = { ...cur, empty: false, halt: event.target.checked || undefined };
+                    if (!event.target.checked) delete next.halt;
+                    else next.halt = true;
+                    return next;
+                  });
+                }}
+              />
+            </label>
+            <button
+              aria-label={`Remove subpattern row ${index + 1}`}
+              className="bb-inst-editor__toolbar-btn bb-inst-editor__subpat-remove"
+              disabled={disabled || draft.length <= 1}
+              title={draft.length <= 1 ? 'A subpattern needs at least one row' : 'Remove row'}
+              type="button"
+              onClick={() => {
+                if (draftRef.current.length <= 1) {
+                  setRowError('A subpattern needs at least one row.');
+                  return;
+                }
+                commit(draftRef.current.filter((_, i) => i !== index));
+              }}
+              dangerouslySetInnerHTML={{ __html: icon('trash', 'w-3.5 h-3.5') }}
+            />
+          </div>
+        );
+      })}
       {rowError ? <p className="bb-inst-editor__subpat-error" role="alert">{rowError}</p> : null}
       <div className="bb-inst-editor__macro-add">
         <button
           className="bb-inst-editor__macro-add-btn"
           disabled={disabled}
           type="button"
-          onClick={() => commit([...textsRef.current, '.'])}
+          onClick={() => commit([...draftRef.current, { empty: true }])}
         >
           <span dangerouslySetInnerHTML={{ __html: icon('plus', 'w-3 h-3') }} />
           <span>Add row</span>
         </button>
+      </div>
+        </div>
+        <aside className="bb-inst-editor__subpat-help" aria-label="Subpattern overview">
+          <div className="bb-inst-editor__subpat-help-overview">
+            <p>One row = one tick (~60 Hz). Same model as hUGETracker instrument subpatterns. Native <code>subpat</code> locks macros.</p>
+            {sharedWith && sharedWith.length > 0 ? (
+              <p className="bb-inst-editor__subpat-help-shared">
+                Shared with {sharedWith.join(', ')}. Edits update that subpattern for every instrument that uses it.
+              </p>
+            ) : null}
+          </div>
+          <div className="bb-inst-editor__subpat-help-fields">
+            <p><strong>Offset</strong> — semitones from the played note (− = down)</p>
+            <p><strong>Timbre</strong> — duty / noise width / wave that tick (hUGE <code>9xx</code>)</p>
+            <p><strong>Fx</strong> — one tracker effect for the tick (<code>C</code> vol, <code>9</code> timbre, …); blank = none</p>
+            <p><strong>Jump</strong> — next row (1-based #); back = loop</p>
+            <p><strong>Halt</strong> — stop advancing</p>
+          </div>
+        </aside>
       </div>
     </div>
   );
@@ -3098,16 +3758,17 @@ function SubpatternSection({
           ) : null}
         </div>
       </div>
-      {sharedWith.length ? (
-        <NoteText>Shared with {sharedWith.join(', ')}. Edits update that subpattern for every instrument that uses it.</NoteText>
-      ) : null}
       {unresolved ? (
         <NoteText>No subpat {subpatName} definition in this file.</NoteText>
+      ) : null}
+      {!showRows && sharedWith.length ? (
+        <NoteText>Shared with {sharedWith.join(', ')}. Edits update that subpattern for every instrument that uses it.</NoteText>
       ) : null}
       {showRows ? (
         <SubpatternRows
           disabled={!writable || readOnly}
           rows={rows}
+          sharedWith={sharedWith}
           onCommit={onRows}
         />
       ) : null}

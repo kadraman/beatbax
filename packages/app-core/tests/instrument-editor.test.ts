@@ -94,6 +94,18 @@ describe('writeback helpers', () => {
     expect(deleteInstLine(inserted, 'bass')).toBe('chip gameboy\ninst lead type=pulse1\npat a = C4\n');
   });
 
+  it('preserves CRLF so a one-line writeback does not rewrite the whole file', () => {
+    const src = 'chip gameboy\r\ninst lead type=pulse1 duty=50\r\npat a = C4\r\n';
+    const replaced = replaceInstLine(src, 'lead', { type: 'pulse1', duty: '25' });
+    expect(replaced.ok).toBe(true);
+    expect(replaced.next).toBe('chip gameboy\r\ninst lead\r\npat a = C4\r\n');
+    expect(replaced.next.includes('\r\n')).toBe(true);
+    expect(replaced.next.includes('\n') && !replaced.next.replace(/\r\n/g, '').includes('\n')).toBe(true);
+
+    const deleted = deleteInstLine(src, 'lead');
+    expect(deleted).toBe('chip gameboy\r\npat a = C4\r\n');
+  });
+
   it('inserts after the last inst when no anchor is given', () => {
     const src = 'chip gameboy\ninst lead type=pulse1\ninst bass type=wave\npat a = C4\n';
     const inserted = insertInstLine(src, 'inst hat type=noise');

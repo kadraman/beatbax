@@ -27,6 +27,25 @@ describe('localSampleRemainder', () => {
     expect(parent.ok).toBe(false);
   });
 
+  it('rejects a POSIX path that differs only by directory case', () => {
+    const mismatch = localSampleRemainder('/music/song/kick.dmc', '/music/Song/tune.bax');
+    expect(mismatch.ok).toBe(false);
+  });
+
+  it('accepts a matching POSIX path and keeps remainder casing', () => {
+    expect(localSampleRemainder(
+      '/music/Song/samples/Kick.dmc',
+      '/music/Song/tune.bax',
+    )).toEqual({ ok: true, remainder: 'samples/Kick.dmc' });
+  });
+
+  it('accepts a Windows path that differs only by directory case', () => {
+    expect(localSampleRemainder(
+      'C:/SONGS/nes/Kick.dmc',
+      'c:/songs/nes/tune.bax',
+    )).toEqual({ ok: true, remainder: 'Kick.dmc' });
+  });
+
   it('exposes the song directory for the file dialog', () => {
     expect(songDirectory('C:/songs/nes/tune.bax')).toBe('C:/songs/nes');
     expect(songDirectory('/music/tune.bax')).toBe('/music');

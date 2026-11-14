@@ -48,8 +48,13 @@ function splitAbsolute(posix: string): AbsolutePath | null {
   return { root, parts };
 }
 
-function sameSegment(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase();
+/** Windows drive / UNC roots compare case-insensitively; POSIX `/` segments do not. */
+function caseInsensitiveRoot(root: string): boolean {
+  return root !== '/';
+}
+
+function sameSegment(a: string, b: string, ignoreCase: boolean): boolean {
+  return ignoreCase ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 /** Directory of a saved song, using forward slashes. */
@@ -71,11 +76,12 @@ export function localSampleRemainder(
   const file = splitAbsolute(toPosix(absoluteFile.trim()));
   if (!song || song.parts.length === 0) return { ok: false, error: UNSAVED };
   if (!file) return { ok: false, error: OUTSIDE };
-  if (!sameSegment(song.root, file.root)) return { ok: false, error: OUTSIDE };
+  const ignoreCase = caseInsensitiveRoot(song.root);
+  if (!sameSegment(song.root, file.root, ignoreCase)) return { ok: false, error: OUTSIDE };
 
   const songDir = song.parts.slice(0, -1);
   const inside = file.parts.length > songDir.length
-    && songDir.every((part, index) => sameSegment(part, file.parts[index] ?? ''));
+    && songDir.every((part, index) => sameSegment(part, file.parts[index] ?? '', ignoreCase));
   if (!inside) return { ok: false, error: OUTSIDE };
 
   const remainder = file.parts.slice(songDir.length).join('/');

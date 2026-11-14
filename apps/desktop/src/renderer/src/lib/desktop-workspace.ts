@@ -414,7 +414,20 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     applySource: (next) => {
       const monacoEditor = getEditor()?.editor;
       if (!monacoEditor) return;
+      // Keep scroll/cursor across the edit. Writeback preserves line endings so
+      // the change stays local; still restore view in case Monaco jumps.
+      const scrollTop = monacoEditor.getScrollTop();
+      const position = monacoEditor.getPosition();
       applyUndoableReplace(monacoEditor, 'instrument-editor', next);
+      monacoEditor.setScrollTop(scrollTop);
+      if (position) {
+        const model = monacoEditor.getModel();
+        if (model) {
+          const line = Math.min(position.lineNumber, model.getLineCount());
+          const column = Math.min(position.column, model.getLineMaxColumn(line));
+          monacoEditor.setPosition({ lineNumber: line, column });
+        }
+      }
     },
     revealInst: (name, opts) => {
       // Writeback is undoable executeEdits — refresh the highlight after the model updates.

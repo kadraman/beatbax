@@ -7,7 +7,11 @@ import * as monaco from 'monaco-editor';
 import { eventBus } from '../utils/event-bus.js';
 import { editorContent, editorDirty } from '../stores/editor.store.js';
 import { activeTheme } from '../stores/theme.store.js';
-import { consumeEditorChangeOrigin, noteEditorModelChange } from './editor-change-origin.js';
+import {
+  consumeEditorChangeOrigin,
+  isInstrumentEditorEditInProgress,
+  noteEditorModelChange,
+} from './editor-change-origin.js';
 import { hideIrrelevantMonacoActions } from './hide-monaco-actions.js';
 
 /** Monaco theme that matches the active BeatBax UI theme. */
@@ -151,6 +155,17 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
   if (emitChangedEvents) {
     editor.onDidChangeModelContent(() => {
       noteEditorModelChange();
+      // Instrument Editor writeback must parse right away. Debouncing it behind
+      // the autosave delay lets cancelPendingChangeNotification drop the emit,
+      // so CodeLens never get a parse:success refresh after Apply/Delete.
+      if (isInstrumentEditorEditInProgress()) {
+        if (autoSaveTimeout !== null) {
+          clearTimeout(autoSaveTimeout);
+          autoSaveTimeout = null;
+        }
+        emitChange();
+        return;
+      }
       scheduleChangeEmit();
     });
   }

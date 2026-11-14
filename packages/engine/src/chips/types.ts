@@ -296,6 +296,13 @@ export type ChipInstrumentPreviewMode = 'melodic' | 'oneshot' | 'uge_note';
 export interface ChipInstrumentTypeDef {
   id: string;
   label: string;
+  /** Short blurb for New-instrument type tiles (optional). */
+  description?: string;
+  /**
+   * Default `inst` body when creating a blank of this type (no `inst <name>` prefix).
+   * Should be audible for Preview; falls back to `type=<id>` when unset.
+   */
+  blankContent?: string;
   /** 1-based hardware channel used for preview. */
   previewChannel: number;
   /**
@@ -384,6 +391,8 @@ export interface ChipInstrumentPreset {
   id: string;
   label: string;
   type: string;
+  /** Short blurb for New-instrument template rows (optional). */
+  description?: string;
   /** Single `inst` line body (no `inst <name>` prefix). */
   content: string;
 }

@@ -1,6 +1,9 @@
 import { applyUndoableReplace } from '../src/editor/undoable-replace';
 import {
+  beginInstrumentEditorEdit,
   consumeEditorChangeOrigin,
+  endInstrumentEditorEdit,
+  isInstrumentEditorEditInProgress,
   noteEditorModelChange,
   resetEditorChangeOriginForTests,
   shouldArmTransportLive,
@@ -56,5 +59,13 @@ describe('transport Live vs Instrument Editor writes', () => {
     expect(shouldArmTransportLive({ liveMode: true, hasParseErrors: true, origin: 'user' })).toBe(false);
     expect(shouldArmTransportLive({ liveMode: false, hasParseErrors: false, origin: 'user' })).toBe(false);
     expect(shouldArmTransportLive({ liveMode: true, hasParseErrors: false })).toBe(true);
+  });
+
+  it('reports when an instrument-editor executeEdits wrap is in progress', () => {
+    expect(isInstrumentEditorEditInProgress()).toBe(false);
+    beginInstrumentEditorEdit();
+    expect(isInstrumentEditorEditInProgress()).toBe(true);
+    endInstrumentEditorEdit();
+    expect(isInstrumentEditorEditInProgress()).toBe(false);
   });
 });

@@ -16,6 +16,19 @@ import {
  */
 const IDENT_CHAR = 'A-Za-z0-9_-';
 
+/**
+ * Prefer CRLF when the source already uses it. Joining with `\n` alone would
+ * rewrite every line on Windows songs and jump the Monaco view (scroll, folds,
+ * CodeLens) even for a one-line instrument edit.
+ */
+export function detectNewline(source: string): '\n' | '\r\n' {
+  return source.includes('\r\n') ? '\r\n' : '\n';
+}
+
+export function joinSourceLines(lines: string[], source: string): string {
+  return lines.join(detectNewline(source));
+}
+
 export function splitTrailingComment(line: string): { code: string; comment: string } {
   let depth = 0;
   let quote: string | null = null;
@@ -265,7 +278,7 @@ export function replaceSubpatBlock(
   const formatted = formatSubPatternSource(name, rows).split('\n');
   if (comment && formatted[0]) formatted[0] = `${formatted[0]} ${comment}`;
   lines.splice(start, end - start, ...formatted);
-  return { next: lines.join('\n'), ok: true };
+  return { next: joinSourceLines(lines, source), ok: true };
 }
 
 /** Insert a new `subpat` block immediately above `beforeInst`, or above the first `inst`. */
@@ -282,7 +295,7 @@ export function insertSubpatBlock(
   if (at < 0) at = lines.findIndex((line) => /^\s*inst\s+/.test(line));
   if (at < 0) at = lines.length;
   lines.splice(at, 0, ...formatSubPatternSource(name, rows).split('\n'));
-  return { next: lines.join('\n'), ok: true };
+  return { next: joinSourceLines(lines, source), ok: true };
 }
 
 /**
@@ -323,7 +336,7 @@ export function replaceInstLine(
   const { comment } = splitTrailingComment(lines[idx]!);
   const serialized = serializeInstrument(name, node, { fieldOrder });
   lines[idx] = comment ? `${serialized} ${comment}` : serialized;
-  return { next: lines.join('\n'), ok: true };
+  return { next: joinSourceLines(lines, source), ok: true };
 }
 
 export function insertInstLine(source: string, serialized: string, afterName?: string): string {
@@ -332,7 +345,7 @@ export function insertInstLine(source: string, serialized: string, afterName?: s
     const idx = findInstLineIndex(source, afterName);
     if (idx >= 0) {
       lines.splice(idx + 1, 0, serialized);
-      return lines.join('\n');
+      return joinSourceLines(lines, source);
     }
   }
   let lastInst = -1;
@@ -341,12 +354,12 @@ export function insertInstLine(source: string, serialized: string, afterName?: s
   }
   if (lastInst >= 0) {
     lines.splice(lastInst + 1, 0, serialized);
-    return lines.join('\n');
+    return joinSourceLines(lines, source);
   }
   let chipIdx = lines.findIndex((l) => /^\s*chip\s+/.test(l));
   if (chipIdx < 0) chipIdx = 0;
   lines.splice(chipIdx + 1, 0, serialized);
-  return lines.join('\n');
+  return joinSourceLines(lines, source);
 }
 
 export function deleteInstLine(source: string, name: string): string {
@@ -354,7 +367,7 @@ export function deleteInstLine(source: string, name: string): string {
   const idx = findInstLineIndex(source, name);
   if (idx < 0) return source;
   lines.splice(idx, 1);
-  return lines.join('\n');
+  return joinSourceLines(lines, source);
 }
 
 /**
@@ -447,7 +460,7 @@ export function renameInstrumentInSource(
     }
   }
 
-  return { next: lines.join('\n'), ok: true };
+  return { next: joinSourceLines(lines, source), ok: true };
 }
 
 /**
