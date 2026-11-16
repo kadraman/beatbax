@@ -1,8 +1,34 @@
 import {
   attachBipolarPulseDc,
   bipolarPulseDcOffset,
+  createBipolarPulsePeriodicWave,
+  fillBipolarPulseFourierCoeffs,
   setBipolarPulseDcOffset,
+  synthesizeBipolarPulseWave,
 } from '../src/chips/pulseDc.js';
+
+function pcmPulse(duty: number, sampleCount: number): Float32Array {
+  const d = Math.max(0, Math.min(1, duty));
+  const out = new Float32Array(sampleCount);
+  for (let i = 0; i < sampleCount; i++) {
+    out[i] = i / sampleCount < d ? 1 : -1;
+  }
+  return out;
+}
+
+function meanRms(samples: Float32Array): { mean: number; rms: number; absPeak: number } {
+  let sum = 0;
+  let sum2 = 0;
+  let absPeak = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const x = samples[i];
+    sum += x;
+    sum2 += x * x;
+    absPeak = Math.max(absPeak, Math.abs(x));
+  }
+  const n = samples.length;
+  return { mean: sum / n, rms: Math.sqrt(sum2 / n), absPeak };
+}
 
 describe('bipolarPulseDcOffset', () => {
   test('matches mean of a ±1 pulse for common duties', () => {
@@ -16,6 +42,52 @@ describe('bipolarPulseDcOffset', () => {
     expect(bipolarPulseDcOffset(-1)).toBe(-1);
     expect(bipolarPulseDcOffset(2)).toBe(1);
     expect(bipolarPulseDcOffset(Number.NaN)).toBe(0);
+  });
+});
+
+describe('bipolar pulse Fourier coeffs (#271)', () => {
+  test('50% duty uses classic odd-harmonic square amplitudes (peak ~1, not ~2)', () => {
+    const real = new Float32Array(256);
+    const imag = new Float32Array(256);
+    fillBipolarPulseFourierCoeffs(real, imag, 0.5, 200);
+    expect(real[1]).toBeCloseTo(0, 6);
+    expect(imag[1]).toBeCloseTo(4 / Math.PI, 5);
+    expect(imag[2]).toBeCloseTo(0, 6);
+    expect(imag[3]).toBeCloseTo(4 / (3 * Math.PI), 5);
+
+    const wave = synthesizeBipolarPulseWave(0.5, 4096, 200);
+    const { absPeak, mean, rms } = meanRms(wave);
+    expect(mean).toBeCloseTo(0, 5);
+    expect(rms).toBeCloseTo(1, 2);
+    expect(absPeak).toBeLessThan(1.25);
+    expect(absPeak).toBeGreaterThan(0.9);
+  });
+
+  test.each([0.125, 0.25, 0.5, 0.75])(
+    'synthesized wave mean/RMS match PCM at duty=%s',
+    (duty) => {
+      const N = 8192;
+      const pcm = meanRms(pcmPulse(duty, N));
+      const synth = meanRms(synthesizeBipolarPulseWave(duty, N, 200));
+      expect(synth.mean).toBeCloseTo(pcm.mean, 5);
+      expect(synth.rms).toBeCloseTo(pcm.rms, 2);
+      expect(synth.absPeak).toBeLessThan(1.25);
+    },
+  );
+
+  test('createBipolarPulsePeriodicWave disables normalization', () => {
+    const createPeriodicWave = jest.fn((..._args: unknown[]) => ({ tag: 'pw' }));
+    const ctx = { createPeriodicWave } as unknown as BaseAudioContext;
+    const wave = createBipolarPulsePeriodicWave(ctx, 0.25);
+    expect(wave).toEqual({ tag: 'pw' });
+    expect(createPeriodicWave).toHaveBeenCalledWith(
+      expect.any(Float32Array),
+      expect.any(Float32Array),
+      { disableNormalization: true },
+    );
+    const call = createPeriodicWave.mock.calls[0] as unknown as [Float32Array, Float32Array, object];
+    expect(call[0][1]).not.toBe(0);
+    expect(call[1][1]).not.toBe(0);
   });
 });
 

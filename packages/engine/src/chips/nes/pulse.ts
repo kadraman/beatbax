@@ -25,7 +25,7 @@ import {
   DUTY_ENV_INDEX_TO_KEY,
   type ParsedMacro, type MacroState,
 } from './macros.js';
-import { attachBipolarPulseDc } from '../pulseDc.js';
+import { attachBipolarPulseDc, createBipolarPulsePeriodicWave } from '../pulseDc.js';
 
 // ─── Duty cycle sequences (8-step NES sequences) ─────────────────────────────
 
@@ -439,19 +439,11 @@ const NES_FRAME_RATE = 60; // NTSC ~60.1 Hz; close enough for envelope/sweep tim
 
 /**
  * Build a PeriodicWave matching an NES pulse duty cycle.
- * Same Fourier series as Game Boy pulse; disableNormalization keeps AC amplitude
- * on the ±1 scale so ConstantSource DC (2d − 1) restores PCM parity (#271).
+ * Uses the shared bipolar ±1 Fourier series (not the imag-only sin(nπd) form,
+ * which peaks near ±2 with disableNormalization). DC is restored separately (#271).
  */
 function createNESPulseWave(ctx: BaseAudioContext, dutyRatio: number): any {
-  const size = 4096;
-  const real = new Float32Array(size);
-  const imag = new Float32Array(size);
-  const d = Math.max(0, Math.min(1, dutyRatio));
-  for (let n = 1; n < 201; n++) {
-    const a = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * d);
-    imag[n] = Number.isFinite(a) ? a : 0;
-  }
-  return (ctx as any).createPeriodicWave(real, imag, { disableNormalization: true });
+  return createBipolarPulsePeriodicWave(ctx, dutyRatio);
 }
 
 /**

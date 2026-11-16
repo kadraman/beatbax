@@ -10,7 +10,11 @@ import {
   type TickProgram,
 } from './instrumentProgram.js';
 import type { PulsePortamentoLink } from './pulsePortamento.js';
-import { attachBipolarPulseDc, setBipolarPulseDcOffset } from '../pulseDc.js';
+import {
+  attachBipolarPulseDc,
+  createBipolarPulsePeriodicWave,
+  setBipolarPulseDcOffset,
+} from '../pulseDc.js';
 
 /**
  * Pulse PCM/WebAudio output scale tuned against hUGETracker WAV export.
@@ -62,20 +66,7 @@ function scaledPortamentoGain(flag: unknown, fallback: number): number {
 }
 
 function createPulsePeriodicWave(ctx: BaseAudioContext, duty = 0.5) {
-  const size = 4096;
-  const real = new Float32Array(size);
-  const imag = new Float32Array(size);
-  const maxHarm = 200;
-  let d = Number(duty);
-  if (!Number.isFinite(d)) d = 0.5;
-  d = Math.max(0, Math.min(1, d));
-  for (let n = 1; n <= maxHarm; n++) {
-    const k = n;
-    const a = (2 / (k * Math.PI)) * Math.sin(k * Math.PI * d);
-    real[k] = 0;
-    imag[k] = Number.isFinite(a) ? a : 0;
-  }
-  return (ctx as any).createPeriodicWave(real, imag, { disableNormalization: true });
+  return createBipolarPulsePeriodicWave(ctx, duty);
 }
 
 export function parseEnvelope(envStr: any) {
