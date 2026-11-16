@@ -7,6 +7,7 @@ import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import { loadExampleSong } from './load-example-song';
 import { sanitizeFilename } from '@beatbax/app-core/export/download-helper';
 import { TransportControls } from '@beatbax/app-core/playback/transport-controls';
+import { playNewSongWizardPreview } from '@beatbax/app-core/playback/new-song-wizard-preview';
 import { ensureChannels } from '@beatbax/app-core/stores/channel.store';
 import { songStepCount } from '@beatbax/app-core/playback/playback-range';
 import {
@@ -598,14 +599,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       getDefaultBpm: () => settingDefaultBpm.get(),
       getDefaultArtist: () => settingSongArtist.get().trim(),
       onPreview: (source, { onEnded }) => {
-        const unsub = eventBus.on('playback:stopped', () => {
-          unsub();
-          onEnded();
-        });
-        void playbackManager.play(source).catch(() => {
-          unsub();
-          onEnded();
-        });
+        playNewSongWizardPreview(playbackManager, eventBus, source, onEnded);
       },
       onStopPreview: () => {
         playbackManager.stop();

@@ -4,6 +4,7 @@
 
 export { PlaybackManager } from './playback-manager.js';
 export type { PlaybackState, PlaybackOptions } from './playback-manager.js';
+export { playNewSongWizardPreview } from './new-song-wizard-preview.js';
 
 export {
   songStepCount,

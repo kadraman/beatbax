@@ -426,12 +426,14 @@ SID and SNES must not require Desktop code changes beyond generic widgets once t
 ## Future Enhancements
 
 - Web UI port of the same host widgets.
-- Game Boy `subpat` tracker-row editor (empty rows, jumps, `fx:`).
+- Multi-column tracker-style `subpat` grid (beyond the single-column row editor shipped in [103](../103-instrument-editor-workspace/spec.md)).
 - Shared wavetable bank (only if language support is added; not implied by hUGE).
 - Optional plugin widget slots for SID combined-wave, SNES BRR encode picker.
 - In-place editing of `.ins` libraries.
 - Generate `CHIP_INSTRUMENT_META` from `instrumentEditor` so hover/complete stay in sync.
 - Scale-aware mini-keyboard styling (`[virtual-piano-keyboard.md](virtual-piano-keyboard.md)`).
+
+**Absorbed by [103 Instrument Editor workspace](../103-instrument-editor-workspace/spec.md):** Settings-style modal (replacing the right-pane Instruments tab), toolbar open, Game Boy single-column `subpat` row editor (Create / Attach / Detach), and NES DMC **Browse…** / **Check**.
 
 ---
 
