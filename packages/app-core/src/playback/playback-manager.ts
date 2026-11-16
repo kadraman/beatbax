@@ -49,9 +49,16 @@ export interface PlaybackOptions {
    * When true, this play uses a temporary/synthetic source (Play Selection,
    * arrangement slice, etc.). `parse:success` is still emitted for playback
    * internals, but UI should not replace the Pattern Grid / song context with
-   * the ephemeral AST.
+   * the ephemeral AST. Same-song previews may still drive playheads.
    */
   ephemeral?: boolean;
+  /**
+   * When true, play audio only for document chrome: skip Pattern Grid /
+   * Song Visualizer / transport time updates and do not overwrite parsed
+   * chip/BPM stores. Implies ephemeral document-AST isolation. Use for
+   * New Song Wizard Preview (#268), not for Play Selection / section focus.
+   */
+  isolateDocumentUi?: boolean;
   /**
    * Play only part of the full song (Pattern Grid seek/loop, spec 014).
    * Positions are still reported in full-song coordinates. An out-of-range
@@ -123,6 +130,8 @@ export class PlaybackManager {
   private _lastKnownSeqPath: Map<number, string[]> = new Map();
   private _lastKnownPat: Map<number, string> = new Map();
   private _perChannelAnalyserEnabled: boolean = false;
+  /** Active play() requested audio-only document chrome (#268 wizard Preview). */
+  private _isolateDocumentUi = false;
 
   constructor(
     private eventBus: EventBus,
@@ -167,6 +176,10 @@ export class PlaybackManager {
         log.debug('Stopping existing playback');
         this.stop();
       }
+
+      const isolateDocumentUi = options.isolateDocumentUi === true;
+      const isEphemeral = options.ephemeral === true || isolateDocumentUi;
+      this._isolateDocumentUi = isolateDocumentUi;
 
       // Reset error state
       this.state.error = null;
@@ -342,15 +355,18 @@ export class PlaybackManager {
       // Emit parse success — include sourceBpm (pre-override) so the transport
       // bar can distinguish a real source edit from a nudge override.
       parseStatus.set('success');
-      parsedBpm.set((resolved as any).bpm || 120);
-      parsedChip.set((resolved as any).chip || 'gameboy');
-      playbackBpm.set((resolved as any).bpm || 120);
+      // Wizard / audio-only previews must not overwrite the open song's chip/BPM.
+      if (!isolateDocumentUi) {
+        parsedBpm.set((resolved as any).bpm || 120);
+        parsedChip.set((resolved as any).chip || 'gameboy');
+        playbackBpm.set((resolved as any).bpm || 120);
+      }
       this.eventBus.emit('parse:success', {
         ast: resolved,
         song: resolved,
         sourceBpm,
         valid: true,
-        ephemeral: options.ephemeral === true,
+        ephemeral: isEphemeral,
       });
 
       const sliced = options.range ? sliceSongForRange(resolved, options.range) : null;
@@ -403,8 +419,8 @@ export class PlaybackManager {
         options.onWarn?.(warning);
       };
 
-      // Wire per-channel analyser when enabled
-      if (this._perChannelAnalyserEnabled) {
+      // Wire per-channel analyser when enabled (skip document UI for audio-only).
+      if (this._perChannelAnalyserEnabled && !isolateDocumentUi) {
         this.player.setPerChannelAnalyser(true);
         this.player.onChannelWaveform = (payload) => {
           this.eventBus.emit('playback:channel-waveform', payload);
@@ -465,7 +481,6 @@ export class PlaybackManager {
 
       // Apply channel mute/solo state before playback starts.
       const activeChannelIds = new Set<number>((resolved.channels || []).map((ch: any) => ch.id));
-      const isEphemeral = options.ephemeral === true;
 
       if (!isEphemeral) {
         // Reconcile: clear solo/mute for channels that don't exist in the new song.
@@ -480,22 +495,25 @@ export class PlaybackManager {
       }
 
       // Apply mute/solo to the Player for channels in this playback source only.
-      const currentStates = channelStates.get();
+      // Audio-only previews (wizard) ignore document mute/solo so the kit is audible.
       this.player.muted.clear();
       this.player.solo = null;
-      let soloedId: number | null = null;
-      for (const [idStr, info] of Object.entries(currentStates)) {
-        const id = Number(idStr);
-        if (!activeChannelIds.has(id)) continue;
-        if (info.soloed) { soloedId = id; break; }
-      }
-      if (soloedId !== null) {
-        this.player.solo = soloedId;
-      } else {
+      if (!isolateDocumentUi) {
+        const currentStates = channelStates.get();
+        let soloedId: number | null = null;
         for (const [idStr, info] of Object.entries(currentStates)) {
           const id = Number(idStr);
           if (!activeChannelIds.has(id)) continue;
-          if (info.muted) this.player.muted.add(id);
+          if (info.soloed) { soloedId = id; break; }
+        }
+        if (soloedId !== null) {
+          this.player.solo = soloedId;
+        } else {
+          for (const [idStr, info] of Object.entries(currentStates)) {
+            const id = Number(idStr);
+            if (!activeChannelIds.has(id)) continue;
+            if (info.muted) this.player.muted.add(id);
+          }
         }
       }
 
@@ -526,9 +544,11 @@ export class PlaybackManager {
         : undefined;
       await this.player.playAST(playable as any, passOptions);
       log.debug('player.playAST() completed');
-      this._startPositionTimer(this.player);
-      this._emitElapsedPosition(this.player);
-      if (this._range) this._emitRangeStartPositions();
+      if (!isolateDocumentUi) {
+        this._startPositionTimer(this.player);
+        this._emitElapsedPosition(this.player);
+        if (this._range) this._emitRangeStartPositions();
+      }
 
       // Update state
       this.state.isPlaying = true;
@@ -547,6 +567,7 @@ export class PlaybackManager {
       playbackStatus.set('playing');
 
     } catch (error: any) {
+      this._isolateDocumentUi = false;
       this.state.error = error as Error;
       const errorMessage = this.formatParseError(error);
       this.eventBus.emit('parse:error', { error: error as Error, message: errorMessage });
@@ -603,6 +624,7 @@ export class PlaybackManager {
       this.state.isPaused = false;
       this.state.currentTime = 0;
       this._range = null;
+      this._isolateDocumentUi = false;
       this._resetElapsedClock();
 
       // Clear position tracking
@@ -724,8 +746,9 @@ export class PlaybackManager {
     this._perChannelAnalyserEnabled = enabled;
     try { storage.set(StorageKey.FEATURE_PER_CHANNEL_ANALYSER, String(enabled)); } catch { /* ignore */ }
     if (this.player) {
-      this.player.setPerChannelAnalyser(enabled);
-      if (enabled) {
+      const emitWaveforms = enabled && !this._isolateDocumentUi;
+      this.player.setPerChannelAnalyser(emitWaveforms);
+      if (emitWaveforms) {
         this.player.onChannelWaveform = (payload) => {
           this.eventBus.emit('playback:channel-waveform', payload);
         };
@@ -890,6 +913,8 @@ export class PlaybackManager {
 
     this.playbackPosition.set(channelId, position);
 
+    if (this._isolateDocumentUi) return;
+
     log.debug(`Emitting playback:position-changed for channel ${channelId}`, position);
     this.eventBus.emit('playback:position-changed', { channelId, position });
 
@@ -929,6 +954,7 @@ export class PlaybackManager {
   }
 
   private _emitElapsedPosition(player: Player): void {
+    if (this._isolateDocumentUi) return;
     try {
       const playerAny: any = player as any;
       const startTs = this._elapsedStartTimestamp || playerAny._playbackStartTimestamp || 0;

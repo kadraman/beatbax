@@ -13,7 +13,7 @@ related:
   - "specs/complete/058-nes-apu-chip-plugin/spec.md"
   - "specs/complete/074-builtin-nes-chip-plugin/spec.md"
   - "specs/complete/098-instrument-editor-preview-pitch/spec.md"
-  - "specs/features/103-instrument-editor-workspace/spec.md"
+  - "specs/complete/103-instrument-editor-workspace/spec.md"
 ---
 
 # Feature Specification: NES DMC sample kit expansion

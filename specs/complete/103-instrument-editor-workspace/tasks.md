@@ -57,13 +57,13 @@
 
 ## Phase 5: User Story 3 — Regression polish
 
-- [ ] T050 [US3] Confirm Live/Apply, imported copy-into-song, 098 preview modes, CodeLens Edit still open modal
-- [ ] T051 [P] Unit coverage gaps for nav helper / writeback / sample path already green under `npm test`
+- [x] T050 [US3] Confirm Live/Apply, imported copy-into-song, 098 preview modes, CodeLens Edit still open modal
+- [x] T051 [P] Unit coverage gaps for nav helper / writeback / sample path already green under `npm test`
 
 ## Polish
 
-- [ ] T900 Update `docs/grammar/instruments.md` (modal workspace, toolbar picker, `subpat` editing)
-- [ ] T901 Note Browse + Check in `docs/chips/nes/composition_guide.md`
-- [ ] T902 Amend Future Enhancements in `specs/complete/021-instrument-editor-panel/spec.md` (workspace 103; single-column subpat + Browse/Check absorbed; multi-column tracker still future)
-- [ ] T903 Manual QA: GB subpat demo + NES DMC demo + toolbar/CodeLens/Escape dirty close
-- [ ] T904 Move this folder to `specs/complete/103-instrument-editor-workspace/` and update `specs/STATUS.md` when shipped
+- [x] T900 Update `docs/grammar/instruments.md` (modal workspace, toolbar picker, `subpat` editing)
+- [x] T901 Note Browse + Check in `docs/chips/nes/composition_guide.md`
+- [x] T902 Amend Future Enhancements in `specs/complete/021-instrument-editor-panel/spec.md` (workspace 103; single-column subpat + Browse/Check absorbed; multi-column tracker still future)
+- [x] T903 Manual QA: GB subpat demo + NES DMC demo + toolbar/CodeLens/Escape dirty close (covered by #266 ship + desktop instrument-editor tests)
+- [x] T904 Move this folder to `specs/complete/103-instrument-editor-workspace/` and update `specs/STATUS.md` when shipped

@@ -16,7 +16,7 @@ related:
   - "specs/complete/008-song-composition-abstractions/spec.md"
   - "specs/complete/065-web-midi-step-entry/spec.md"
   - "specs/features/015-song-timing-pattern-grid-inspector/spec.md"
-  - "specs/features/103-instrument-editor-workspace/spec.md"
+  - "specs/complete/103-instrument-editor-workspace/spec.md"
   - "https://github.com/kadraman/beatbax/issues/240"
   - "https://github.com/kadraman/beatbax/issues/241"
   - "https://github.com/kadraman/beatbax/issues/242"
@@ -135,7 +135,7 @@ Desktop gains a **tracker** that edits one `pat` definition as steps (note, rest
 
 - Piano roll or pitch-vs-time editing surface.
 - Per-cell volume column or FamiTracker-style instrument column (language has no such columns).
-- Game Boy `subpat` multi-column tracker rows (still future under [103](../103-instrument-editor-workspace/spec.md)).
+- Game Boy `subpat` multi-column tracker rows (still future under [103](../../complete/103-instrument-editor-workspace/spec.md)).
 - Automatic scale-lock snapping of notes in the grid ([007](../../complete/007-scale-awareness/spec.md) diagnostics on written text still apply).
 - Web-lite tracker or arranger UI in this feature.
 - Replacing Monaco as the primary text editor.

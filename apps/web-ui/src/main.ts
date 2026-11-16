@@ -63,6 +63,7 @@ import { buildNewSongWizard, claimNewSongWizardOnboarding } from './panels/new-s
 
 // Playback imports
 import { TransportControls } from '@beatbax/app-core/playback/transport-controls';
+import { playNewSongWizardPreview } from '@beatbax/app-core/playback/new-song-wizard-preview';
 import { songStepCount } from '@beatbax/app-core/playback/playback-range';
 import {
   followActiveLoop,
@@ -1534,14 +1535,7 @@ newSongWizard = buildNewSongWizard({
   getDefaultBpm: () => settingDefaultBpm.get(),
   getDefaultArtist: () => settingSongArtist.get(),
   onPreview: (source, { onEnded }) => {
-    const unsub = eventBus.on('playback:stopped', () => {
-      unsub();
-      onEnded();
-    });
-    void playbackManager.play(source).catch(() => {
-      unsub();
-      onEnded();
-    });
+    playNewSongWizardPreview(playbackManager, eventBus, source, onEnded);
   },
   onStopPreview: () => {
     playbackManager.stop();

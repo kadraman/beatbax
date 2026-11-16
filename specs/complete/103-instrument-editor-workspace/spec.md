@@ -2,11 +2,11 @@
 title: "Instrument Editor workspace (modal, subpat rows, DMC Browse/Check)"
 id: 103
 slug: "instrument-editor-workspace"
-status: "specified"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-11-01"
-updated: "2026-11-01"
+updated: "2026-11-16"
 issue: "https://github.com/kadraman/beatbax/issues/236"
 area: "desktop"
 related:

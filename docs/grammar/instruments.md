@@ -1,6 +1,6 @@
 # Instruments Reference
 
-Desktop can edit `inst` lines graphically (Settings → Features → Instrument Editor). The language syntax below is unchanged; the panel writes the same fields back into source. Hardware `env` / `sweep` appear as parametric controls with a live shape preview; software macros (`vol_env`, …) are editable bar graphs (click/drag), one tab per defined macro.
+Desktop can edit `inst` lines graphically (Settings → Features → Instrument Editor). With the feature on, the editor opens as a **Settings-style modal** (View → Instrument Editor, toolbar **Instruments**, CodeLens **Edit**, or Ctrl/Cmd+Alt+I) — not a right-pane tab. The language syntax below is unchanged; the workspace writes the same fields back into source. Hardware `env` / `sweep` appear as parametric controls with a live shape preview; software macros (`vol_env`, …) are editable bar graphs (click/drag). Game Boy `subpat` rows are editable in the Subpattern section (Create / Attach / Detach); NES DMC samples support **Browse…** and **Check** for `local:` paths.
 
 ## Pulse (Duty)
 
@@ -163,7 +163,7 @@ inst kick2 type=noise gb:width=7 uge_note=C-6 subpat=body
 
 One-shot macros (no `|loop`) append a silence/halt row so the subpattern does not restart. Prefer `uge_note=C-6` for kicks; do not rely on large negative offsets from a high base (noise note table is non-monotonic).
 
-See [gameboy-uge-instrument-subpatterns.md](../features/gameboy-uge-instrument-subpatterns.md) and the demo [`gb_subpattern_macro_demo.bax`](../../songs/gameboy/instruments/gb_subpattern_macro_demo.bax).
+In the Instrument Editor modal, the **Subpattern** section edits those rows (empty cells, jumps, volume, halt) and can Create / Attach / Detach a `subpat` without hand-editing the program. Demo: [`gb_subpattern_macro_demo.bax`](../../songs/gameboy/instruments/gb_subpattern_macro_demo.bax). Full authoring: [gameboy-uge-instrument-subpatterns.md](../features/gameboy-uge-instrument-subpatterns.md).
 
 ---
 
