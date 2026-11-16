@@ -203,6 +203,17 @@ describe('GB pulse tick-program playback', () => {
     expect(osc.frequency.setValueAtTime.mock.calls.length).toBeGreaterThan(1);
   });
 
+  test('playPulse injects bipolar pulse DC for PeriodicWave path (#271)', () => {
+    const { ctx } = makePulsePreviewCtx();
+    playPulse(ctx, 440, 0.25, 0, 0.2, {
+      env: { level: 12, direction: 'flat', period: 0, format: 'gb' },
+    });
+    expect(ctx.createConstantSource).toHaveBeenCalled();
+    const dc = ctx.createConstantSource.mock.results[0].value;
+    expect(dc.offset.setValueAtTime).toHaveBeenCalledWith(-0.5, 0);
+    expect(dc.connect).toHaveBeenCalled();
+  });
+
   test('playPulse still bakes a buffer when duty_env changes', () => {
     const { ctx } = makePulsePreviewCtx();
     playPulse(ctx, 440, 0.5, 0, 0.1, {
@@ -237,6 +248,12 @@ function makePulsePreviewCtx() {
     sampleRate: 44100,
     destination: {},
     createPeriodicWave: jest.fn(() => ({})),
+    createConstantSource: jest.fn(() => ({
+      offset: { setValueAtTime: jest.fn(), value: 0 },
+      connect: jest.fn(),
+      start: jest.fn(),
+      stop: jest.fn(),
+    })),
     createOscillator: jest.fn(() => ({
       setPeriodicWave: jest.fn(),
       frequency: {

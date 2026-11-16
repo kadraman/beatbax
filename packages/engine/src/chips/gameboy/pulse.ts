@@ -10,6 +10,11 @@ import {
   type TickProgram,
 } from './instrumentProgram.js';
 import type { PulsePortamentoLink } from './pulsePortamento.js';
+import {
+  attachBipolarPulseDc,
+  createBipolarPulsePeriodicWave,
+  setBipolarPulseDcOffset,
+} from '../pulseDc.js';
 
 /**
  * Pulse PCM/WebAudio output scale tuned against hUGETracker WAV export.
@@ -17,6 +22,9 @@ import type { PulsePortamentoLink } from './pulsePortamento.js';
  * Calibrated so held pulse notes (e.g. env=12,flat → peak ≈ 12/15 × gain) match
  * hUGETracker on `gb_subpattern_macro_demo` (~0.20). Raw ±1 squares without this
  * scale sit ~2× above the DMG/hUGE mix on sustained tones.
+ *
+ * Web Audio PeriodicWave is AC-only; a ConstantSourceNode restores PCM DC
+ * (`2d − 1`) into the same GainNode (#271).
  */
 export const PULSE_OUTPUT_GAIN = 0.25;
 
@@ -27,6 +35,8 @@ interface HeldPulseVoice {
   duty: number;
   /** Pulse-scaled gain held for notes that join this voice. */
   level: number;
+  /** DC compensator for PeriodicWave; updated when duty changes. */
+  dc: ReturnType<typeof attachBipolarPulseDc>;
 }
 
 const heldPulseVoices = new Map<number, HeldPulseVoice>();
@@ -56,20 +66,7 @@ function scaledPortamentoGain(flag: unknown, fallback: number): number {
 }
 
 function createPulsePeriodicWave(ctx: BaseAudioContext, duty = 0.5) {
-  const size = 4096;
-  const real = new Float32Array(size);
-  const imag = new Float32Array(size);
-  const maxHarm = 200;
-  let d = Number(duty);
-  if (!Number.isFinite(d)) d = 0.5;
-  d = Math.max(0, Math.min(1, d));
-  for (let n = 1; n <= maxHarm; n++) {
-    const k = n;
-    const a = (2 / (k * Math.PI)) * Math.sin(k * Math.PI * d);
-    real[k] = 0;
-    imag[k] = Number.isFinite(a) ? a : 0;
-  }
-  return (ctx as any).createPeriodicWave(real, imag, { disableNormalization: true });
+  return createBipolarPulsePeriodicWave(ctx, duty);
 }
 
 export function parseEnvelope(envStr: any) {
@@ -370,6 +367,7 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
     if (held.duty !== duty) {
       try {
         held.osc.setPeriodicWave(createPulsePeriodicWave(ctx, duty));
+        setBipolarPulseDcOffset(held.dc, duty, start);
         held.duty = duty;
       } catch (_) {}
     }
@@ -427,6 +425,8 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
 
   osc.connect(gain);
   gain.connect(destination || (ctx as any).destination);
+  const stopAt = (link?.voiceStopAt ?? (start + dur)) + 0.02;
+  const dc = attachBipolarPulseDc(ctx, gain, duty, start, stopAt);
 
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;
@@ -436,6 +436,7 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
     gain: g,
     duty,
     level: PULSE_OUTPUT_GAIN,
+    dc,
   };
   if (link) {
     (gain as any).__portamento_voice_joined__ = false;
@@ -539,7 +540,6 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
   }
 
   try { (osc as any).start(start); } catch (e) { try { (osc as any).start(); } catch (_) {} }
-  const stopAt = (link?.voiceStopAt ?? (start + dur)) + 0.02;
   try { (osc as any).stop(stopAt); } catch (e) {}
   return [osc, gain];
 }

@@ -745,6 +745,8 @@ class MyPulseBackend implements ChipChannelBackend {
 - Connect `osc → gain → destination`; the engine inserts effects (pan, echo) between `gain` and `destination` automatically.
 - Call `osc.start(start)` / `osc.stop(start + dur + 0.02)` using the provided `start` time, not `ctx.currentTime`.
 
+**Pulse / duty DC parity:** Web Audio `PeriodicWave` ignores the DC (index-0) coefficient. If your PCM path is bipolar ±1 with duty fraction `d` (mean `2d − 1`), either mean-centre **both** paths or inject DC into Web Audio with a `ConstantSourceNode` summed into the same `GainNode` as the oscillator (`attachBipolarPulseDc` / `createBipolarPulsePeriodicWave` in `packages/engine/src/chips/pulseDc.ts`). Use the bipolar Fourier pair `a_n=(2/(nπ))sin(2πnd)`, `b_n=(2/(nπ))(1−cos(2πnd))` with `disableNormalization` — do not use imag-only `(2/(nπ))sin(nπd)`, which peaks near ±2. Built-in Game Boy and NES pulse follow this. Fixed 50% squares have mean 0 (DC source still harmless).
+
 **The NES plugin** (`packages/plugins/chip-nes/src/pulse.ts` and `triangle.ts`) is the canonical example of the dual-path pattern with duty-cycle `PeriodicWave`, envelope scheduling, and hardware sweep animation.
 
 ---
