@@ -25,6 +25,7 @@ import {
   DUTY_ENV_INDEX_TO_KEY,
   type ParsedMacro, type MacroState,
 } from './macros.js';
+import { attachBipolarPulseDc } from '../pulseDc.js';
 
 // ─── Duty cycle sequences (8-step NES sequences) ─────────────────────────────
 
@@ -369,7 +370,8 @@ export class NESPulseBackend implements ChipChannelBackend {
     const osc = (ctx as any).createOscillator();
     const gain = (ctx as any).createGain();
 
-    // NES-accurate duty PeriodicWave (Fourier series of a pulse wave)
+    // NES-accurate duty PeriodicWave (Fourier series of a ±1 pulse; AC only).
+    // ConstantSource restores PCM DC (2d − 1) into the same GainNode (#271).
     const pw = createNESPulseWave(ctx, dutyRatio);
     try { osc.setPeriodicWave(pw); } catch (_) { try { osc.type = 'square'; } catch (_) {} }
 
@@ -386,6 +388,8 @@ export class NESPulseBackend implements ChipChannelBackend {
 
     osc.connect(gain);
     gain.connect(destination || (ctx as any).destination);
+    const stopAt = start + dur + 0.02;
+    attachBipolarPulseDc(ctx, gain, dutyRatio, start, stopAt);
 
     // ── Frequency macros (arp_env takes priority over pitch_env) ─────────────
     const arpEnvM  = parseMacro(inst.arp_env);
@@ -435,7 +439,8 @@ const NES_FRAME_RATE = 60; // NTSC ~60.1 Hz; close enough for envelope/sweep tim
 
 /**
  * Build a PeriodicWave matching an NES pulse duty cycle.
- * Uses the same Fourier-series approach as the built-in Game Boy pulse channel.
+ * Same Fourier series as Game Boy pulse; disableNormalization keeps AC amplitude
+ * on the ±1 scale so ConstantSource DC (2d − 1) restores PCM parity (#271).
  */
 function createNESPulseWave(ctx: BaseAudioContext, dutyRatio: number): any {
   const size = 4096;
@@ -446,8 +451,7 @@ function createNESPulseWave(ctx: BaseAudioContext, dutyRatio: number): any {
     const a = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * d);
     imag[n] = Number.isFinite(a) ? a : 0;
   }
-  // Use Web Audio default normalization so oscillator peaks match PCM square levels.
-  return (ctx as any).createPeriodicWave(real, imag);
+  return (ctx as any).createPeriodicWave(real, imag, { disableNormalization: true });
 }
 
 /**

@@ -35,6 +35,12 @@ function makeCtx() {
   const ctx: any = {
     destination: {},
     createPeriodicWave: jest.fn(() => ({})),
+    createConstantSource: jest.fn(() => ({
+      offset: makeAudioParam(),
+      connect: jest.fn(),
+      start: jest.fn(),
+      stop: jest.fn(),
+    })),
     createOscillator: jest.fn(() => {
       const osc = {
         setPeriodicWave: jest.fn(),
