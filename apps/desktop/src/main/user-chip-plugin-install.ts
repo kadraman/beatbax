@@ -2,16 +2,11 @@
  * Install / validate user chip plugins into userData (spec 111).
  */
 
-import { execFile } from 'node:child_process';
 import { existsSync, promises as fs, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { promisify } from 'node:util';
 import extractZip from 'extract-zip';
 import { x as extractTar } from 'tar';
-
-const execFileAsync = promisify(execFile);
 
 const ARCHIVE_MAX_BYTES = 32 * 1024 * 1024;
 import {
@@ -37,20 +32,6 @@ export interface InstallUserChipPluginResult {
   replaced: boolean;
 }
 
-const ENGINE_STUB_SUBPATHS = [
-  'chips',
-  'parser',
-  'audio',
-  'export',
-  'import',
-  'instruments',
-  'patterns',
-  'sequences',
-  'scheduler',
-  'song',
-  'util/music',
-];
-
 async function copyPackageExcludingNodeModules(sourceDir: string, destDir: string): Promise<void> {
   const files = listPackageFilesForCopy(sourceDir);
   await fs.rm(destDir, { recursive: true, force: true });
@@ -67,86 +48,37 @@ async function copyPackageExcludingNodeModules(sourceDir: string, destDir: strin
   }
 }
 
-async function writeEngineStubs(packageDir: string): Promise<void> {
-  const engineRoot = path.join(packageDir, 'node_modules', '@beatbax', 'engine');
-  await fs.mkdir(engineRoot, { recursive: true });
-  const exportsField: Record<string, string> = {
-    '.': './index.js',
+/**
+ * Load the plugin entry in a sandboxed renderer (no Node, no preload).
+ * Outside Electron (unit tests) this launches a dedicated Electron process whose
+ * renderer is sandboxed the same way. The entry is never evaluated in this process.
+ */
+async function loadPluginForValidation(entryAbsolutePath: string, packageDir: string): Promise<unknown> {
+  const entryRelativePath = path.relative(packageDir, entryAbsolutePath).replace(/\\/g, '/');
+  const shape = process.versions.electron
+    ? await loadPluginShapeInProcess(packageDir, entryRelativePath)
+    : await loadPluginShapeInChild(packageDir, entryRelativePath);
+  return {
+    name: shape.name,
+    aliases: shape.aliases,
+    createChannel: () => ({}),
   };
-  for (const sub of ENGINE_STUB_SUBPATHS) {
-    exportsField[`./${sub}`] = `./${sub}.js`;
-  }
-  await fs.writeFile(
-    path.join(engineRoot, 'package.json'),
-    `${JSON.stringify(
-      {
-        name: '@beatbax/engine',
-        version: '0.0.0-desktop-stub',
-        type: 'module',
-        exports: exportsField,
-      },
-      null,
-      2
-    )}\n`,
-    'utf8'
-  );
-  const stubBody = 'const stub = new Proxy({}, { get: () => stub });\nexport default stub;\n';
-  await fs.writeFile(path.join(engineRoot, 'index.js'), stubBody, 'utf8');
-  for (const sub of ENGINE_STUB_SUBPATHS) {
-    const filePath = path.join(engineRoot, `${sub}.js`);
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, stubBody, 'utf8');
-  }
 }
 
-async function loadPluginForValidation(entryAbsolutePath: string, packageDir: string): Promise<unknown> {
-  await writeEngineStubs(packageDir);
-  try {
-    // Load in a real Node subprocess so Jest's resolver cannot intercept file: imports,
-    // and so engine stubs resolve via the staging node_modules.
-    const href = pathToFileURL(entryAbsolutePath).href;
-    const script = `
-      const mod = await import(${JSON.stringify(href)});
-      const plugin = mod?.default ?? mod;
-      if (!plugin || typeof plugin !== 'object') {
-        throw new Error('Plugin default export must be a ChipPlugin object.');
-      }
-      if (typeof plugin.name !== 'string' || !plugin.name.trim()) {
-        throw new Error('ChipPlugin must have a non-empty string name.');
-      }
-      if (typeof plugin.createChannel !== 'function') {
-        throw new Error('ChipPlugin must have a createChannel function.');
-      }
-      const aliases = Array.isArray(plugin.aliases)
-        ? plugin.aliases.filter((a) => typeof a === 'string' && a.trim())
-        : [];
-      process.stdout.write(JSON.stringify({ name: plugin.name, aliases }));
-    `;
-    // In Desktop, process.execPath is Electron — must set ELECTRON_RUN_AS_NODE or
-    // the child launches another app instance and the install IPC hangs forever.
-    const { stdout } = await execFileAsync(
-      process.execPath,
-      ['--input-type=module', '--eval', script],
-      {
-        cwd: packageDir,
-        windowsHide: true,
-        maxBuffer: 1024 * 1024,
-        timeout: 30_000,
-        env: {
-          ...process.env,
-          ELECTRON_RUN_AS_NODE: '1',
-        },
-      }
-    );
-    const parsed = JSON.parse(String(stdout || '').trim()) as { name: string; aliases: string[] };
-    return {
-      name: parsed.name,
-      aliases: parsed.aliases,
-      createChannel: () => ({}),
-    };
-  } finally {
-    await fs.rm(path.join(packageDir, 'node_modules'), { recursive: true, force: true });
-  }
+async function loadPluginShapeInProcess(
+  packageDir: string,
+  entryRelativePath: string
+): Promise<{ name: string; aliases: string[] }> {
+  const { loadPluginShapeInSandbox } = await import('./user-chip-plugin-sandbox');
+  return loadPluginShapeInSandbox({ packageDir, entryRelativePath });
+}
+
+async function loadPluginShapeInChild(
+  packageDir: string,
+  entryRelativePath: string
+): Promise<{ name: string; aliases: string[] }> {
+  const { loadPluginShapeInSandboxChild } = await import('./user-chip-plugin-sandbox-child');
+  return loadPluginShapeInSandboxChild({ packageDir, entryRelativePath });
 }
 
 async function validateInstalledPackage(

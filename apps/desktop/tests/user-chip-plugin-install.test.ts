@@ -11,6 +11,7 @@ import {
   installUserChipPluginFromFolder,
 } from '../src/main/user-chip-plugin-install';
 import { chipPluginsRoot, listManifestEntries, readManifest } from '../src/main/user-chip-plugin-manifest';
+import { stopSandboxValidator } from '../src/main/user-chip-plugin-sandbox-child';
 
 /** Minimal store-only ZIP (no compression) for unit tests. */
 function writeStoreZip(zipPath: string, files: Record<string, string>): void {
@@ -113,6 +114,7 @@ function writeValidPluginPackage(dir: string, options?: { name?: string; chipNam
 }
 
 describe('user-chip-plugin-install', () => {
+  jest.setTimeout(60_000);
   let userData: string;
   let source: string;
 
@@ -124,6 +126,10 @@ describe('user-chip-plugin-install', () => {
   afterEach(() => {
     rmSync(userData, { recursive: true, force: true });
     rmSync(source, { recursive: true, force: true });
+  });
+
+  afterAll(() => {
+    stopSandboxValidator();
   });
 
   it('installs from folder without copying node_modules and replaces same package', async () => {
@@ -223,5 +229,30 @@ describe('user-chip-plugin-install', () => {
     const result = await installUserChipPluginFromArchive(userData, zipPath, '0.27.0');
     expect(result.entry.chipName).toBe('zipchip');
     expect(result.entry.version).toBe('4.0.0');
+  });
+
+  it('validates a plugin that uses a named engine import', async () => {
+    writeValidPluginPackage(source, { chipName: 'named' });
+    writeFileSync(
+      path.join(source, 'dist', 'index.js'),
+      `import { chipRegistry } from '@beatbax/engine/chips';\nexport default { name: 'named', createChannel() { return { chipRegistry }; } };\n`,
+      'utf8'
+    );
+    const result = await installUserChipPluginFromFolder(userData, source, '0.27.0');
+    expect(result.entry.chipName).toBe('named');
+  });
+
+  it('does not give archive code Node builtins during validation', async () => {
+    const sentinel = path.join(source, 'pwned.txt');
+    writeValidPluginPackage(source, { chipName: 'evil' });
+    writeFileSync(
+      path.join(source, 'dist', 'index.js'),
+      `const fs = process.getBuiltinModule('fs');\nfs.writeFileSync(${JSON.stringify(sentinel)}, 'owned');\nexport default { name: 'evil', createChannel() { return {}; } };\n`,
+      'utf8'
+    );
+    await expect(installUserChipPluginFromFolder(userData, source, '0.27.0')).rejects.toThrow(
+      /process|getBuiltinModule/
+    );
+    expect(existsSync(sentinel)).toBe(false);
   });
 });

@@ -463,11 +463,11 @@ After install, Desktop reloads. Enable / disable / Remove are available on each 
 **Requirements and validation**
 
 - Package name must match `@beatbax/plugin-chip-[a-z0-9-]+` or `beatbax-plugin-chip-[a-z0-9-]+`.
-- `peerDependencies["@beatbax/engine"]` must accept the host Desktop engine version.
-- The import graph may use relative files and `@beatbax/engine` / public subpaths only — not `node:`, `fs`, or `@beatbax/engine/node`.
+- `peerDependencies["@beatbax/engine"]` must accept the host Desktop engine version. A caret on `0.0.z` (for example `^0.0.1`) accepts only that patch.
+- The import graph may use relative files and these host specifiers only: `@beatbax/engine`, `@beatbax/engine/chips`, `@beatbax/engine/parser`, `@beatbax/engine/util/music`, `@beatbax/engine/audio`, `@beatbax/engine/export`, `@beatbax/engine/instruments`, `@beatbax/engine/patterns`, `@beatbax/engine/sequences`, `@beatbax/engine/scheduler`, and `@beatbax/engine/song`. Named imports from those specifiers resolve to the host engine. `node:`, `fs`, `@beatbax/engine/node`, and other engine subpaths (including `@beatbax/engine/audio/playback`) are rejected.
 - Chip `name` / aliases must not collide with built-in chips (Game Boy, NES), pre-bundled optional chips (SMS, Spectrum 128), or another installed user chip. Reinstalling the **same package name** replaces that install.
 
-**Trust model:** installing a plugin is the same trust decision as `npm install` for the CLI. Plugin JS runs in the sandboxed renderer and shares the host `@beatbax/engine` instance.
+**Trust model:** installing a plugin is the same trust decision as `npm install` for the CLI. Install-time shape checks and later plugin execution both run in the sandboxed renderer (no Node integration) and share the host `@beatbax/engine` instance.
 
 **CLI vs Desktop:** a Desktop install does not appear in the CLI, and a CLI `node_modules` / `npm link` install does not appear in Desktop. Treat them as separate copies. Web-lite does not install user plugins.
 

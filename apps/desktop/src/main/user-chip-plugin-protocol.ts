@@ -10,50 +10,36 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chipPluginsRoot } from './user-chip-plugin-manifest';
+import {
+  ENGINE_BRIDGE_MODULES,
+  SANDBOX_VALIDATE_HOST,
+  buildSandboxValidationHtml,
+  buildSandboxValidationScript,
+  hostBridgeSources,
+} from './user-chip-plugin-engine-api';
 
 export const USER_CHIP_PLUGIN_SCHEME = 'beatbax-plugin';
 export const USER_CHIP_HOST_SCHEME = 'beatbax-host';
 
-const HOST_BRIDGE_MODULES: Record<string, string> = {
-  root: `const ns = globalThis.__BEATBAX_ENGINE_HOST__.root;
-export const BeatBaxEngine = ns.BeatBaxEngine;
-export default ns.default ?? ns;
-`,
-  chips: `const ns = globalThis.__BEATBAX_ENGINE_HOST__.chips;
-export const chipRegistry = ns.chipRegistry;
-export const gameboyPlugin = ns.gameboyPlugin;
-export const nesPlugin = ns.nesPlugin;
-export default ns.default ?? ns;
-`,
-  parser: `const ns = globalThis.__BEATBAX_ENGINE_HOST__.parser;
-export default ns.default ?? ns;
-export const parseWithPeggy = ns.parseWithPeggy;
-`,
-  'util-music': `const ns = globalThis.__BEATBAX_ENGINE_HOST__['util/music'];
-export default ns.default ?? ns;
-`,
-  audio: `const ns = globalThis.__BEATBAX_ENGINE_HOST__.audio;
-export default ns.default ?? ns;
-`,
-  export: `const ns = globalThis.__BEATBAX_ENGINE_HOST__.export;
-export default ns.default ?? ns;
-`,
-  instruments: `const ns = globalThis.__BEATBAX_ENGINE_HOST__.instruments;
-export default ns.default ?? ns;
-`,
-  patterns: `const ns = globalThis.__BEATBAX_ENGINE_HOST__.patterns;
-export default ns.default ?? ns;
-`,
-  sequences: `const ns = globalThis.__BEATBAX_ENGINE_HOST__.sequences;
-export default ns.default ?? ns;
-`,
-  scheduler: `const ns = globalThis.__BEATBAX_ENGINE_HOST__.scheduler;
-export default ns.default ?? ns;
-`,
-  song: `const ns = globalThis.__BEATBAX_ENGINE_HOST__.song;
-export default ns.default ?? ns;
-`,
-};
+/** Cross-origin module scripts fail without this header, even when the scheme is corsEnabled. */
+export const USER_CHIP_MODULE_RESPONSE_HEADERS = {
+  'Content-Type': 'text/javascript; charset=utf-8',
+  'Cache-Control': 'no-cache',
+  'Access-Control-Allow-Origin': '*',
+} as const;
+
+const HOST_BRIDGE_MODULES: Record<string, string> = hostBridgeSources();
+
+/** Install-time shape checks serve a not-yet-installed package under a one-shot id. */
+const validationRoots = new Map<string, string>();
+
+export function setUserChipPluginValidationRoot(installId: string, packageDir: string | null): void {
+  if (!installId || installId.includes('..') || installId.includes('/') || installId.includes('\\')) {
+    throw new Error('Invalid validation install id.');
+  }
+  if (packageDir) validationRoots.set(installId, path.resolve(packageDir));
+  else validationRoots.delete(installId);
+}
 
 /** Call before app.ready. */
 export function registerUserChipPluginSchemes(): void {
@@ -100,21 +86,19 @@ function mimeForPath(filePath: string): string {
   }
 }
 
-const ENGINE_IMPORT_REWRITE: Array<{ from: RegExp; to: string }> = [
-  { from: /(['"])@beatbax\/engine\/util\/music\1/g, to: `$1${USER_CHIP_HOST_SCHEME}://util-music$1` },
-  { from: /(['"])@beatbax\/engine\/chips\1/g, to: `$1${USER_CHIP_HOST_SCHEME}://chips$1` },
-  { from: /(['"])@beatbax\/engine\/parser\1/g, to: `$1${USER_CHIP_HOST_SCHEME}://parser$1` },
-  { from: /(['"])@beatbax\/engine\/audio\1/g, to: `$1${USER_CHIP_HOST_SCHEME}://audio$1` },
-  { from: /(['"])@beatbax\/engine\/export\1/g, to: `$1${USER_CHIP_HOST_SCHEME}://export$1` },
-  { from: /(['"])@beatbax\/engine\/instruments\1/g, to: `$1${USER_CHIP_HOST_SCHEME}://instruments$1` },
-  { from: /(['"])@beatbax\/engine\/patterns\1/g, to: `$1${USER_CHIP_HOST_SCHEME}://patterns$1` },
-  { from: /(['"])@beatbax\/engine\/sequences\1/g, to: `$1${USER_CHIP_HOST_SCHEME}://sequences$1` },
-  { from: /(['"])@beatbax\/engine\/scheduler\1/g, to: `$1${USER_CHIP_HOST_SCHEME}://scheduler$1` },
-  { from: /(['"])@beatbax\/engine\/song\1/g, to: `$1${USER_CHIP_HOST_SCHEME}://song$1` },
-  { from: /(['"])@beatbax\/engine\1/g, to: `$1${USER_CHIP_HOST_SCHEME}://root$1` },
-];
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-function rewriteEngineImports(source: string): string {
+/** Longer specifiers first so `@beatbax/engine/chips` is not rewritten as the root specifier. */
+const ENGINE_IMPORT_REWRITE: Array<{ from: RegExp; to: string }> = [...ENGINE_BRIDGE_MODULES]
+  .sort((a, b) => b.specifier.length - a.specifier.length)
+  .map((mod) => ({
+    from: new RegExp(`(['"])${escapeRegExp(mod.specifier)}\\1`, 'g'),
+    to: `$1${USER_CHIP_HOST_SCHEME}://${mod.hostKey}$1`,
+  }));
+
+export function rewriteEngineImports(source: string): string {
   let out = source;
   for (const rule of ENGINE_IMPORT_REWRITE) {
     out = out.replace(rule.from, rule.to);
@@ -141,6 +125,16 @@ export function resolvePluginProtocolPath(requestUrl: string, userDataPath: stri
     throw new Error('Invalid plugin path.');
   }
 
+  const validationRoot = validationRoots.get(installId);
+  if (validationRoot) {
+    const absolute = path.resolve(validationRoot, relative);
+    const prefix = validationRoot.endsWith(path.sep) ? validationRoot : validationRoot + path.sep;
+    if (absolute !== validationRoot && !absolute.startsWith(prefix)) {
+      throw new Error('Path traversal is not allowed.');
+    }
+    return absolute;
+  }
+
   const root = path.resolve(chipPluginsRoot(userDataPath));
   const installRoot = path.resolve(root, installId);
   const absolute = path.resolve(installRoot, relative);
@@ -163,16 +157,41 @@ export function handleUserChipPluginProtocols(getUserDataPath: () => string = ()
     try {
       const url = new URL(request.url);
       const key = decodeURIComponent(url.hostname || url.pathname.replace(/^\/+/, ''));
+      if (key === SANDBOX_VALIDATE_HOST) {
+        const entry = url.searchParams.get('entry') ?? '';
+        const pathname = url.pathname.replace(/\/+$/, '');
+        if (pathname === '/run.js') {
+          return new Response(buildSandboxValidationScript(), {
+            status: 200,
+            headers: USER_CHIP_MODULE_RESPONSE_HEADERS,
+          });
+        }
+        try {
+          return new Response(buildSandboxValidationHtml(entry, USER_CHIP_PLUGIN_SCHEME), {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'no-cache',
+              'Access-Control-Allow-Origin': '*',
+            },
+          });
+        } catch (error) {
+          return new Response(error instanceof Error ? error.message : String(error), {
+            status: 400,
+            headers: { 'Access-Control-Allow-Origin': '*' },
+          });
+        }
+      }
       const body = HOST_BRIDGE_MODULES[key];
       if (!body) {
-        return new Response(`Unknown host bridge "${key}"`, { status: 404 });
+        return new Response(`Unknown host bridge "${key}"`, {
+          status: 404,
+          headers: { 'Access-Control-Allow-Origin': '*' },
+        });
       }
       return new Response(body, {
         status: 200,
-        headers: {
-          'Content-Type': 'text/javascript; charset=utf-8',
-          'Cache-Control': 'no-cache',
-        },
+        headers: USER_CHIP_MODULE_RESPONSE_HEADERS,
       });
     } catch (error) {
       return new Response(error instanceof Error ? error.message : String(error), { status: 500 });
@@ -191,10 +210,7 @@ export function handleUserChipPluginProtocols(getUserDataPath: () => string = ()
         const rewritten = rewriteEngineImports(source);
         return new Response(rewritten, {
           status: 200,
-          headers: {
-            'Content-Type': 'text/javascript; charset=utf-8',
-            'Cache-Control': 'no-cache',
-          },
+          headers: USER_CHIP_MODULE_RESPONSE_HEADERS,
         });
       }
       // Non-JS: serve via file URL through net.fetch for streaming binary

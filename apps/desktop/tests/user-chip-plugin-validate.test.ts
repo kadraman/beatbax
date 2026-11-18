@@ -40,6 +40,10 @@ describe('user-chip-plugin-validate', () => {
     expect(satisfiesPeerRange('0.27.0', '*')).toBe(true);
     expect(satisfiesPeerRange('1.2.3', '^1.2.0')).toBe(true);
     expect(satisfiesPeerRange('2.0.0', '^1.2.0')).toBe(false);
+    // ^0.0.z is patch-exact: ^0.0.1 accepts 0.0.1 and rejects 0.0.2.
+    expect(satisfiesPeerRange('0.0.1', '^0.0.1')).toBe(true);
+    expect(satisfiesPeerRange('0.0.2', '^0.0.1')).toBe(false);
+    expect(satisfiesPeerRange('0.0.0', '^0.0.1')).toBe(false);
   });
 
   it('extracts import specifiers', () => {
@@ -97,6 +101,20 @@ describe('user-chip-plugin-validate', () => {
         'utf8'
       );
       expect(() => scanImportGraph(dir, path.join(dir, 'index.js'))).toThrow(/engine\/node/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects unsupported engine subpaths', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'bb-chip-scan-sub-'));
+    try {
+      writeFileSync(
+        path.join(dir, 'index.js'),
+        `import { Player } from '@beatbax/engine/audio/playback';\nexport default { name: 'x', createChannel() {} };\n`,
+        'utf8'
+      );
+      expect(() => scanImportGraph(dir, path.join(dir, 'index.js'))).toThrow(/Unsupported engine subpath/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

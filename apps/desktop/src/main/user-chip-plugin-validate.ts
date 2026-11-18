@@ -5,6 +5,7 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { isSupportedEngineSpecifier, supportedEngineSpecifierList } from './user-chip-plugin-engine-api';
 
 export const USER_CHIP_PACKAGE_NAME_RE =
   /^(?:@beatbax\/plugin-chip-[a-z0-9-]+|beatbax-plugin-chip-[a-z0-9-]+)$/;
@@ -126,11 +127,16 @@ function satisfiesSingleRange(ver: [number, number, number], clause: string): bo
   if (c.startsWith('^')) {
     const base = parseSemver(c.slice(1));
     if (!base) return false;
-    if (base[0] === 0) {
-      // ^0.y.z → compatible within 0.y.*
-      return ver[0] === 0 && ver[1] === base[1] && cmpSemver(ver, base) >= 0;
+    if (cmpSemver(ver, base) < 0) return false;
+    // npm caret: ^0.0.z is the exact patch; ^0.y.z stays in 0.y.*; ^x.y.z stays in x.*
+    if (base[0] === 0 && base[1] === 0) {
+      // ^0.0.z accepts only that patch (^0.0.1 allows 0.0.1 and rejects 0.0.2).
+      return ver[0] === 0 && ver[1] === 0 && ver[2] === base[2];
     }
-    return ver[0] === base[0] && cmpSemver(ver, base) >= 0;
+    if (base[0] === 0) {
+      return ver[0] === 0 && ver[1] === base[1];
+    }
+    return ver[0] === base[0];
   }
 
   if (c.startsWith('~')) {
@@ -320,16 +326,36 @@ function isRelativeSpecifier(spec: string): boolean {
   return spec.startsWith('./') || spec.startsWith('../');
 }
 
-function isAllowedEngineSpecifier(spec: string): boolean {
-  if (spec === '@beatbax/engine/node' || spec.startsWith('@beatbax/engine/node/')) {
-    return false;
-  }
+function isEngineSpecifier(spec: string): boolean {
   return spec === '@beatbax/engine' || spec.startsWith('@beatbax/engine/');
+}
+
+function assertSupportedEngineSpecifier(spec: string, fileLabel: string): void {
+  if (spec === '@beatbax/engine/node' || spec.startsWith('@beatbax/engine/node/')) {
+    throw new Error(
+      'Forbidden module specifier ' +
+        JSON.stringify(spec) +
+        ' in ' +
+        fileLabel +
+        '. Desktop plugins may only use relative imports and @beatbax/engine (not @beatbax/engine/node).'
+    );
+  }
+  if (!isSupportedEngineSpecifier(spec)) {
+    throw new Error(
+      'Unsupported engine subpath ' +
+        JSON.stringify(spec) +
+        ' in ' +
+        fileLabel +
+        '. Desktop plugins may import only: ' +
+        supportedEngineSpecifierList() +
+        '.'
+    );
+  }
 }
 
 function isForbiddenBareSpecifier(spec: string): boolean {
   if (spec.startsWith('node:')) return true;
-  if (isAllowedEngineSpecifier(spec)) return false;
+  if (isEngineSpecifier(spec)) return false;
   if (isRelativeSpecifier(spec)) return false;
   if (spec.startsWith('@beatbax/')) return true;
   const bareRoot = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0];
@@ -364,7 +390,10 @@ export function scanImportGraph(packageDir: string, entryAbsolutePath: string): 
         if (target) queue.push(target);
         continue;
       }
-      if (isAllowedEngineSpecifier(spec)) continue;
+      if (isEngineSpecifier(spec)) {
+        assertSupportedEngineSpecifier(spec, path.relative(root, resolvedCurrent));
+        continue;
+      }
       if (spec.startsWith('node:') || isForbiddenBareSpecifier(spec)) {
         // Avoid embedding `import "..."` — electron-vite ESMStaticImportRe false-positives on that.
         throw new Error(

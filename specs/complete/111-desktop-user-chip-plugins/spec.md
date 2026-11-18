@@ -74,9 +74,9 @@ BeatBax Desktop lets authors **install standalone chip plugins** at runtime from
 
 - Chip `name` (and aliases) MUST NOT collide with a built-in chip, a bundled optional chip already registered, or another installed user plugin’s chip name. Reinstall of the **same package name** replaces that install; a different package that exports the same chip `name` is rejected.
 - `peerDependencies["@beatbax/engine"]` MUST accept the running host engine version; otherwise install fails with a clear message.
-- Static import scan rejects `node:`, `fs`, `path`, and any bare specifier other than `@beatbax/engine` (and relative files inside the package). `@beatbax/engine/node` is rejected.
+- Static import scan rejects `node:`, `fs`, `path`, and any bare specifier other than the supported host engine subpaths (`@beatbax/engine`, `@beatbax/engine/chips`, `@beatbax/engine/parser`, `@beatbax/engine/util/music`, `@beatbax/engine/audio`, `@beatbax/engine/export`, `@beatbax/engine/instruments`, `@beatbax/engine/patterns`, `@beatbax/engine/sequences`, `@beatbax/engine/scheduler`, `@beatbax/engine/song`). `@beatbax/engine/node` and any other engine subpath are rejected.
 - Optional `exporterPlugins` on an installed chip register through the existing chip-registration path. Standalone exporter packages are out of scope.
-- Installing a package is the same trust decision as `npm install` for the CLI: Desktop does not sandbox plugin JS beyond the renderer sandbox.
+- Installing a package is the same trust decision as `npm install` for the CLI. Plugin JS runs in the sandboxed renderer. The install-time check that the default export is a `ChipPlugin` also runs in a sandboxed renderer (context isolation, no Node integration, no privileged preload) and does not evaluate the entry in the main process or a Node subprocess.
 - A Desktop install does not affect the CLI, and a CLI `node_modules` install does not appear in Desktop.
 - Web-lite MUST NOT gain user-plugin install UI or load userData plugins.
 - Corrupt or missing on-disk packages listed in the manifest: startup skips them with a diagnostic / Settings warning and continues with the rest.
@@ -99,7 +99,7 @@ Loading
 - **FR-011**: Renderer CSP MUST allow that scheme for scripts; the default CSP MUST otherwise remain as restrictive as today for unrelated origins.
 - **FR-012**: An import map (or equivalent host bridge) MUST resolve `@beatbax/engine` and its public subpaths used by plugins to the host bundle already loaded by Desktop. A second engine instance MUST NOT be created for user plugins.
 - **FR-013**: After `createAppContext()` / `loadPluginsFromStorage()` registers bundled optional chips, Desktop MUST load enabled user plugins and `chipRegistry.register` each default export that is a valid `ChipPlugin`.
-- **FR-014**: Validation before enable MUST check: package name pattern, ESM entry exists, default export has `name` string and `createChannel` function, engine peer range compatible, import graph safe (FR scan rules), and chip name / aliases do not collide (except replace of the same package name).
+- **FR-014**: Validation before enable MUST check: package name pattern, ESM entry exists, default export has `name` string and `createChannel` function, engine peer range compatible, import graph safe (FR scan rules), and chip name / aliases do not collide (except replace of the same package name). The executable shape check MUST load the entry in a sandboxed renderer with context isolation, Node integration disabled, and no privileged preload. It MUST NOT evaluate the package entry in the main process or a Node subprocess. Only the supported host engine subpaths listed in the edge cases may appear in the import graph.
 
 Lifecycle
 

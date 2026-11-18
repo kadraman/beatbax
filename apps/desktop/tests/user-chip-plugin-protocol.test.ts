@@ -6,8 +6,12 @@ import path from 'node:path';
 import {
   buildUserChipPluginEntryUrl,
   resolvePluginProtocolPath,
+  rewriteEngineImports,
+  setUserChipPluginValidationRoot,
+  USER_CHIP_MODULE_RESPONSE_HEADERS,
   USER_CHIP_PLUGIN_SCHEME,
 } from '../src/main/user-chip-plugin-protocol';
+import { hostBridgeSources } from '../src/main/user-chip-plugin-engine-api';
 import { chipPluginsRoot } from '../src/main/user-chip-plugin-manifest';
 
 describe('user-chip-plugin-protocol', () => {
@@ -53,5 +57,29 @@ describe('user-chip-plugin-protocol', () => {
     expect(absolute.replace(/\\/g, '/')).toMatch(
       /\/chip-plugins\/beatbax-plugin-chip-demo\/dist\/index\.js$/
     );
+  });
+
+  it('serves a validation package root and rewrites engine imports to named host bridges', () => {
+    const staging = mkdtempSync(path.join(tmpdir(), 'bb-chip-stage-'));
+    try {
+      setUserChipPluginValidationRoot('abc123', staging);
+      const absolute = resolvePluginProtocolPath(
+        `${USER_CHIP_PLUGIN_SCHEME}://abc123/dist/index.js`,
+        userData
+      );
+      expect(absolute).toBe(path.join(staging, 'dist', 'index.js'));
+      const bridges = hostBridgeSources();
+      expect(bridges.chips).toContain('export const chipRegistry');
+      expect(bridges.audio).toContain('export const Player');
+      expect(bridges.export).toContain('__BEATBAX_ENGINE_HOST__["export"]');
+      expect(bridges['util-music']).toContain('export const noteToMidi');
+      expect(rewriteEngineImports(`import { chipRegistry } from '@beatbax/engine/chips';`)).toBe(
+        `import { chipRegistry } from 'beatbax-host://chips';`
+      );
+      expect(USER_CHIP_MODULE_RESPONSE_HEADERS['Access-Control-Allow-Origin']).toBe('*');
+    } finally {
+      setUserChipPluginValidationRoot('abc123', null);
+      rmSync(staging, { recursive: true, force: true });
+    }
   });
 });

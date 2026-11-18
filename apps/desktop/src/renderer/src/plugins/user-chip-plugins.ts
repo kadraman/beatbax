@@ -1,44 +1,12 @@
 /**
- * Desktop host bridge + loader for user-installed chip plugins (spec 111).
+ * Desktop loader for user-installed chip plugins (spec 111).
  */
 
 import { chipRegistry } from '@beatbax/engine/chips';
-import * as engineRoot from '@beatbax/engine';
-import * as engineChips from '@beatbax/engine/chips';
-import * as engineParser from '@beatbax/engine/parser';
-import * as engineExport from '@beatbax/engine/export';
-import * as enginePatterns from '@beatbax/engine/patterns';
-import * as engineScheduler from '@beatbax/engine/scheduler';
-import * as engineSong from '@beatbax/engine/song';
 import type { DesktopUserChipPluginInfo } from '../../../shared/electron-api';
+import { installEngineHostBridge } from './engine-host-bridge';
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __BEATBAX_ENGINE_HOST__: Record<string, unknown> | undefined;
-}
-
-export function installEngineHostBridge(): void {
-  globalThis.__BEATBAX_ENGINE_HOST__ = {
-    root: engineRoot,
-    chips: engineChips,
-    parser: engineParser,
-    audio: {},
-    export: engineExport,
-    instruments: {},
-    patterns: enginePatterns,
-    sequences: {},
-    scheduler: engineScheduler,
-    song: engineSong,
-    'util/music': {},
-  };
-
-  // Optional subpaths — populate when the host build resolves them.
-  void Promise.allSettled([
-    import('@beatbax/engine/util/music').then((mod) => {
-      if (globalThis.__BEATBAX_ENGINE_HOST__) globalThis.__BEATBAX_ENGINE_HOST__['util/music'] = mod;
-    }),
-  ]);
-}
+export { installEngineHostBridge };
 
 function isChipPluginShape(value: unknown): value is { name: string; createChannel: (...args: unknown[]) => unknown } {
   return Boolean(
