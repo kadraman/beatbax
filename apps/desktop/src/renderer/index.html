@@ -6,8 +6,28 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; connect-src 'self'; script-src 'self' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:"
+      content="default-src 'self'; connect-src 'self'; script-src 'self' blob: beatbax-plugin: beatbax-host:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:"
     />
+    <!-- Scoped import map: only modules loaded from beatbax-plugin: resolve @beatbax/engine to the host bridge (spec 111). -->
+    <script type="importmap">
+      {
+        "scopes": {
+          "beatbax-plugin:": {
+            "@beatbax/engine": "beatbax-host://root",
+            "@beatbax/engine/chips": "beatbax-host://chips",
+            "@beatbax/engine/parser": "beatbax-host://parser",
+            "@beatbax/engine/util/music": "beatbax-host://util-music",
+            "@beatbax/engine/audio": "beatbax-host://audio",
+            "@beatbax/engine/export": "beatbax-host://export",
+            "@beatbax/engine/instruments": "beatbax-host://instruments",
+            "@beatbax/engine/patterns": "beatbax-host://patterns",
+            "@beatbax/engine/sequences": "beatbax-host://sequences",
+            "@beatbax/engine/scheduler": "beatbax-host://scheduler",
+            "@beatbax/engine/song": "beatbax-host://song"
+          }
+        }
+      }
+    </script>
   </head>
 
   <body>

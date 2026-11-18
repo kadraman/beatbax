@@ -16,8 +16,15 @@ import {
   resolveBundledSongsDir,
   resolveMacExampleSongsDir,
 } from './path-utils';
+import {
+  handleUserChipPluginProtocols,
+  registerUserChipPluginSchemes,
+} from './user-chip-plugin-protocol';
 import { IPC_CHANNELS } from '../shared/ipc';
 import type { DesktopFilePayload, MenuAction } from '../shared/electron-api';
+
+// Privileged custom schemes must be registered before app.ready (spec 111).
+registerUserChipPluginSchemes();
 
 let mainWindow: BrowserWindow | null = null;
 let windowCreation: Promise<void> | null = null;
@@ -321,6 +328,7 @@ app.whenReady().then(async () => {
   configureMacDevDockIcon();
   electronApp.setAppUserModelId('com.beatbax.desktop');
   installMidiPermissionHandlers(session.defaultSession);
+  handleUserChipPluginProtocols();
 
   // Packaged macOS: copy examples to Documents so File → Open can open them
   // (NSOpenPanel cannot navigate into BeatBax.app/Contents/Resources/songs).

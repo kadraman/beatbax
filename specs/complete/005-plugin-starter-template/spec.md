@@ -2,12 +2,12 @@
 title: "Create plugin starter template repository on github.com/beatbax"
 id: 5
 slug: "plugin-starter-template"
-status: "in-progress"
+status: "complete"
 authors:
   - "GitHub Copilot"
   - "kadraman"
 created: "2026-04-14"
-updated: "2026-09-03"
+updated: "2026-11-17"
 issue: "https://github.com/kadraman/beatbax/issues/86"
 area: "plugin"
 labels:

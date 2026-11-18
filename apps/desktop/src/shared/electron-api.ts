@@ -169,6 +169,21 @@ export interface AIChatCompletionResult {
   tokenParam?: AITokenParam;
 }
 
+/** Installed user chip plugin row for Settings + renderer load (spec 111). */
+export interface DesktopUserChipPluginInfo {
+  packageName: string;
+  version: string;
+  chipName: string;
+  aliases: string[];
+  enabled: boolean;
+  installId: string;
+  entryRelativePath: string;
+  /** Privileged protocol URL for the ESM entry (enabled plugins only need this for load). */
+  entryUrl: string;
+  /** True when the on-disk package is missing or incomplete. */
+  missingOnDisk?: boolean;
+}
+
 export interface ElectronAPI {
   openFile(options?: DesktopOpenFileOptions): Promise<DesktopFilePayload | null>;
   /** Load a packaged example song by virtual path (`/songs/gameboy/foo.bax`). */
@@ -214,4 +229,9 @@ export interface ElectronAPI {
   unwatchDocument(): Promise<void>;
   onDocumentChanged(callback: (payload: DesktopDocumentChangedPayload) => void): () => void;
   refreshNativeMenu(): void;
+  listUserChipPlugins(): Promise<DesktopUserChipPluginInfo[]>;
+  /** Returns null when the archive file picker is cancelled. */
+  installUserChipPluginFromArchive(): Promise<DesktopUserChipPluginInfo | null>;
+  setUserChipPluginEnabled(packageName: string, enabled: boolean): Promise<DesktopUserChipPluginInfo>;
+  removeUserChipPlugin(packageName: string): Promise<void>;
 }

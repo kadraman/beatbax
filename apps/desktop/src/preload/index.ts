@@ -5,6 +5,7 @@ import type {
   DesktopOpenFileOptions,
   DesktopRemoteAssetRequest,
   DesktopSaveFileOptions,
+  DesktopUserChipPluginInfo,
   DesktopWindowState,
   DevToolsState,
   DiagnosticsLogEntry,
@@ -13,6 +14,14 @@ import type {
 } from '../shared/electron-api';
 import { IPC_CHANNELS } from '../shared/ipc';
 import { stripIpcErrorPrefix } from '../shared/ipc-error';
+
+async function invokeUserChipPlugin<T>(channel: string, ...args: unknown[]): Promise<T> {
+  try {
+    return (await ipcRenderer.invoke(channel, ...args)) as T;
+  } catch (error) {
+    throw new Error(stripIpcErrorPrefix(error instanceof Error ? error.message : String(error)));
+  }
+}
 
 const electronAPI: ElectronAPI = {
   openFile: (options?: DesktopOpenFileOptions) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_FILE, options),
@@ -120,6 +129,20 @@ const electronAPI: ElectronAPI = {
   refreshNativeMenu: () => {
     ipcRenderer.send(IPC_CHANNELS.MENU_REFRESH_REQUEST);
   },
+  listUserChipPlugins: () =>
+    invokeUserChipPlugin<DesktopUserChipPluginInfo[]>(IPC_CHANNELS.USER_CHIP_PLUGINS_LIST),
+  installUserChipPluginFromArchive: () =>
+    invokeUserChipPlugin<DesktopUserChipPluginInfo | null>(
+      IPC_CHANNELS.USER_CHIP_PLUGINS_INSTALL_ARCHIVE
+    ),
+  setUserChipPluginEnabled: (packageName: string, enabled: boolean) =>
+    invokeUserChipPlugin<DesktopUserChipPluginInfo>(
+      IPC_CHANNELS.USER_CHIP_PLUGINS_SET_ENABLED,
+      packageName,
+      enabled
+    ),
+  removeUserChipPlugin: (packageName: string) =>
+    invokeUserChipPlugin<void>(IPC_CHANNELS.USER_CHIP_PLUGINS_REMOVE, packageName),
 };
 
 if (process.contextIsolated) {

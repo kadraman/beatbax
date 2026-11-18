@@ -454,6 +454,27 @@ play
 
 ---
 
+## Desktop install (BeatBax Desktop)
+
+BeatBax Desktop can install standalone chip plugins at runtime without rebuilding the app (spec 111). Settings → Plugins → **User plugins** → **Install from package** accepts a `.zip` or `.tgz` / `.tar.gz` of the built package (same files `npm pack` would publish). Local loop: `npm run pack:desktop` (or `npm run build && npm pack`), then choose the `.tgz`. For GitHub Releases, attach that tarball or an equivalent zip of the packed package — not a source-checkout zip. Desktop unpacks into `userData/chip-plugins/` and does **not** keep a source `node_modules`. Desktop does not install from the npm registry; publish for CLI/`npm install`, pack for Desktop.
+
+After install, Desktop reloads. Enable / disable / Remove are available on each User plugins row; enable and disable also reload so `chipRegistry` rebuilds cleanly.
+
+**Requirements and validation**
+
+- Package name must match `@beatbax/plugin-chip-[a-z0-9-]+` or `beatbax-plugin-chip-[a-z0-9-]+`.
+- `peerDependencies["@beatbax/engine"]` must accept the host Desktop engine version.
+- The import graph may use relative files and `@beatbax/engine` / public subpaths only — not `node:`, `fs`, or `@beatbax/engine/node`.
+- Chip `name` / aliases must not collide with built-in chips (Game Boy, NES), pre-bundled optional chips (SMS, Spectrum 128), or another installed user chip. Reinstalling the **same package name** replaces that install.
+
+**Trust model:** installing a plugin is the same trust decision as `npm install` for the CLI. Plugin JS runs in the sandboxed renderer and shares the host `@beatbax/engine` instance.
+
+**CLI vs Desktop:** a Desktop install does not appear in the CLI, and a CLI `node_modules` / `npm link` install does not appear in Desktop. Treat them as separate copies. Web-lite does not install user plugins.
+
+Starter template: [beatbax-plugin-chip-template](https://github.com/kadraman/beatbax-plugin-chip-template).
+
+---
+
 ## CLI Auto-Discovery
 
 The BeatBax CLI automatically discovers installed plugins matching:

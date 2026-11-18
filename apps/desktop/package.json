@@ -48,10 +48,12 @@
     "@electron-toolkit/utils": "^4.0.0",
     "buffer": "^6.0.3",
     "dompurify": "^3.3.3",
+    "extract-zip": "^2.0.1",
     "marked": "^5.1.2",
     "monaco-editor": "^0.45.0",
     "react": "^19.2.1",
-    "react-dom": "^19.2.1"
+    "react-dom": "^19.2.1",
+    "tar": "^7.5.23"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
@@ -63,6 +65,7 @@
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@types/tar": "^6.1.13",
     "@vitejs/plugin-react": "^5.1.1",
     "electron": "39.2.6",
     "electron-builder": "^26.0.12",

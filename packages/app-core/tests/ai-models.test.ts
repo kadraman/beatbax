@@ -13,9 +13,12 @@ import {
 
 describe('ai-models', () => {
   it('defaults to the OpenAI curated default model', () => {
-    expect(getDefaultAIModel()).toBe('gpt-5.4-mini');
-    expect(AI_PROVIDERS.openai.defaultModel).toBe('gpt-5.4-mini');
-    expect(AI_PROVIDERS.openai.models).toContain('gpt-5.4-mini');
+    expect(getDefaultAIModel()).toBe('gpt-5.6-terra');
+    expect(AI_PROVIDERS.openai.defaultModel).toBe('gpt-5.6-terra');
+    expect(AI_PROVIDERS.openai.models).toContain('gpt-5.6-terra');
+    expect(AI_PROVIDERS.openai.models).toEqual(
+      expect.arrayContaining(['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'])
+    );
   });
 
   it('defaults Ollama to the recommended code model', () => {
@@ -37,7 +40,8 @@ describe('ai-models', () => {
   });
 
   it('resolves select value for curated and custom models', () => {
-    expect(resolveModelSelectValue('gpt-4.1', 'openai')).toBe('gpt-4.1');
+    expect(resolveModelSelectValue('gpt-5.6-terra', 'openai')).toBe('gpt-5.6-terra');
+    expect(resolveModelSelectValue('gpt-4.1', 'openai')).toBe(CUSTOM_MODEL_VALUE);
     expect(resolveModelSelectValue('gpt-4o-mini', 'openai')).toBe(CUSTOM_MODEL_VALUE);
     expect(resolveModelSelectValue('llama3.2', 'ollama')).toBe(CUSTOM_MODEL_VALUE);
   });
@@ -70,6 +74,8 @@ describe('ai-models', () => {
 
   it('defaults context windows per provider', () => {
     expect(defaultContextWindowTokens('https://api.openai.com/v1', 'gpt-5.4-mini')).toBe(128000);
+    expect(defaultContextWindowTokens('https://api.openai.com/v1', 'gpt-5.6-terra')).toBe(1_050_000);
+    expect(defaultContextWindowTokens('https://api.openai.com/v1', 'gpt-5.6-sol')).toBe(1_050_000);
     expect(defaultContextWindowTokens('https://api.openai.com/v1', 'o3')).toBe(200000);
     expect(defaultContextWindowTokens('http://localhost:11434/v1', 'qwen2.5-coder:7b')).toBe(16384);
     expect(defaultContextWindowTokens('http://localhost:1234/v1', 'local-model')).toBe(16384);

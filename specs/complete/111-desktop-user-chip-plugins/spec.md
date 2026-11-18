@@ -2,17 +2,17 @@
 title: "Desktop install for standalone chip plugins"
 id: 111
 slug: "desktop-user-chip-plugins"
-status: "planned"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-11-15"
-updated: "2026-11-15"
+updated: "2026-11-18"
 issue: "https://github.com/kadraman/beatbax/issues/270"
 area: "desktop"
 related:
   - "specs/complete/037-plugin-system/spec.md"
   - "specs/complete/032-dynamic-chip-loading/spec.md"
-  - "specs/features/005-plugin-starter-template/spec.md"
+  - "specs/complete/005-plugin-starter-template/spec.md"
   - "docs/contributing/creating-plugins.md"
   - "packages/app-core/src/plugins/registry-config.ts"
 ---
@@ -21,7 +21,7 @@ related:
 
 ## Summary
 
-BeatBax Desktop lets authors **install standalone chip plugins** at runtime — from a **local built package folder** or by **npm package name** — without rebuilding the app. Installed plugins live under Desktop `userData`, load into the sandboxed renderer through a privileged scheme that reuses the host `@beatbax/engine`, and appear in Settings → Plugins alongside the pre-bundled catalogue. Web-lite stays pre-bundled only. CLI `node_modules` discovery is unchanged. Spec 037 Option B (browser CDN) remains out of scope.
+BeatBax Desktop lets authors **install standalone chip plugins** at runtime from a **local package archive** (`.zip` or `.tgz` / `.tar.gz`, typically from `npm pack` or a GitHub Release asset) without rebuilding the app. Installed plugins live under Desktop `userData`, load into the sandboxed renderer through a privileged scheme that reuses the host `@beatbax/engine`, and appear in Settings → Plugins alongside the pre-bundled catalogue. Desktop does **not** install from the npm registry (publish remains a CLI/`npm install` path). Web-lite stays pre-bundled only. CLI `node_modules` discovery is unchanged. Spec 037 Option B (browser CDN) remains out of scope.
 
 ## Problem
 
@@ -32,32 +32,21 @@ BeatBax Desktop lets authors **install standalone chip plugins** at runtime — 
 
 ## User scenarios
 
-### User Story 1 — Install a built local plugin folder (Priority: P1)
+### User Story 1 — Install a local plugin package archive (Priority: P1)
 
-**Why this priority**: This is the starter-template developer loop after `npm run build`.
+**Why this priority**: One artifact for local development and GitHub Releases (`npm pack` / release zip), without picking a source tree.
 
-**Independent test**: Build the chip template package, use Settings → Plugins → Install from folder on that package directory, write `chip blip` (or the plugin’s `name`), and play a short song in Desktop.
+**Independent test**: Build and pack the chip template (`npm run build && npm pack`), use Settings → Plugins → Install from package on the `.tgz` (or a release `.zip` of that package), write `chip blip` (or the plugin’s `name`), and play a short song in Desktop.
 
 **Acceptance scenarios**:
 
-1. **Given** Desktop Settings → Plugins, **When** the user opens the user-plugins section, **Then** they see **Install from folder** and a list of already-installed user plugins (empty when none).
-2. **Given** a package directory with valid `package.json` and a built ESM entry (`exports["."].import` or `main`) that exports a valid `ChipPlugin`, **When** the user installs from that folder, **Then** Desktop copies the package into `userData/chip-plugins/` (without copying that package’s `node_modules`), records it in a manifest as enabled, reloads, and the chip appears in Settings, New Song chip list, Help, and Instrument Editor contributions for that chip.
+1. **Given** Desktop Settings → Plugins, **When** the user opens the user-plugins section, **Then** they see **Install from package** and a list of already-installed user plugins (empty when none).
+2. **Given** a `.zip` or `.tgz` that unpacks to a valid package (`package.json` + built ESM entry) exporting a valid `ChipPlugin`, **When** the user installs from that archive, **Then** Desktop unpacks it into `userData/chip-plugins/` (without keeping a source `node_modules`), records it in a manifest as enabled, reloads, and the chip appears in Settings, New Song chip list, Help, and Instrument Editor contributions for that chip.
 3. **Given** a song that uses the installed chip’s `name` (or a registered alias), **When** the user plays or verifies in Desktop, **Then** the chip backend runs with the host engine (single `@beatbax/engine` instance).
-4. **Given** the same package name is already installed, **When** the user installs again from a folder, **Then** the previous install is replaced and the app reloads with the new copy.
+4. **Given** the same package name is already installed, **When** the user installs again from an archive, **Then** the previous install is replaced and the app reloads with the new copy.
+5. **Given** a source-checkout zip without a built entry (or without `package.json` at the package root / single nested root), **When** install is attempted, **Then** Desktop rejects it with a clear error and does not enable a partial install.
 
-### User Story 2 — Install a published npm chip package (Priority: P1)
-
-**Why this priority**: Published community / official plugins must work without a local clone.
-
-**Independent test**: From Settings → Plugins, enter a published `@beatbax/plugin-chip-*` or `beatbax-plugin-chip-*` name, install, and confirm the chip registers after reload.
-
-**Acceptance scenarios**:
-
-1. **Given** Settings → Plugins, **When** the user enters an allowed package name (optional version) and chooses Install from npm, **Then** the main process downloads the npm tarball, unpacks it into `userData/chip-plugins/`, validates it the same way as a folder install, enables it, and reloads.
-2. **Given** a package name that is not `@beatbax/plugin-chip-*` or `beatbax-plugin-chip-*`, **When** Install from npm is attempted, **Then** Desktop rejects it before any network request and shows a clear error.
-3. **Given** network or registry failure, or a tarball that fails validation, **When** install is attempted, **Then** no partial install remains enabled and the user sees an actionable error.
-
-### User Story 3 — Enable, disable, and remove user plugins (Priority: P1)
+### User Story 2 — Enable, disable, and remove user plugins (Priority: P1)
 
 **Why this priority**: Authors need to iterate and clean up installs without reinstalling the app.
 
@@ -70,7 +59,7 @@ BeatBax Desktop lets authors **install standalone chip plugins** at runtime — 
 3. **Given** an installed user plugin, **When** the user removes it, **Then** its `userData` directory entry and manifest record are deleted, the app reloads, and the chip is gone from Settings and New Song.
 4. **Given** built-in chips (Game Boy, NES) or pre-bundled optional chips (SMS, Spectrum 128), **When** the user views Settings, **Then** those rows remain the existing toggles / built-in labels; they are not presented as removable user installs.
 
-### User Story 4 — Docs for Desktop install (Priority: P2)
+### User Story 3 — Docs for Desktop install (Priority: P2)
 
 **Why this priority**: The starter template and contributing guide must describe the Desktop path once the UI exists.
 
@@ -78,7 +67,7 @@ BeatBax Desktop lets authors **install standalone chip plugins** at runtime — 
 
 **Acceptance scenarios**:
 
-1. **Given** this feature has shipped, **When** an author opens the chip starter template `README.md`, **Then** the old “Desktop does not install plugins via npm” note is replaced by an **Installing into BeatBax Desktop** section covering Install from folder (after `npm run build`) and Install from npm, and stating that CLI and Desktop installs are separate copies.
+1. **Given** this feature has shipped, **When** an author opens the chip starter template `README.md`, **Then** an **Installing into BeatBax Desktop** section covers Install from package (`npm pack` / release zip), states Desktop does not install from the npm registry, and states that CLI and Desktop installs are separate copies.
 2. **Given** this feature has shipped, **When** an author opens `docs/contributing/creating-plugins.md`, **Then** a Desktop install section documents the same flows and the package naming / validation expectations.
 
 ### Edge cases
@@ -98,11 +87,11 @@ BeatBax Desktop lets authors **install standalone chip plugins** at runtime — 
 
 Acquisition
 
-- **FR-001**: Desktop Settings → Plugins MUST provide **Install from folder** (directory picker via main process) and **Install from npm** (package name + optional version).
+- **FR-001**: Desktop Settings → Plugins MUST provide **Install from package** (file picker for `.zip` and `.tgz` / `.tar.gz` via main process). Desktop MUST NOT offer Install from npm / registry download in Settings.
 - **FR-002**: Allowed package names MUST match `@beatbax/plugin-chip-[a-z0-9-]+` or `beatbax-plugin-chip-[a-z0-9-]+`.
-- **FR-003**: The main process MUST copy a validated package into `app.getPath('userData')/chip-plugins/<safe-id>/` and MUST NOT copy the source package’s `node_modules`.
-- **FR-004**: Install from npm MUST download the package tarball from the npm registry in the main process (no npm CLI, no esm.sh) and then follow the same validation and storage path as a folder install.
+- **FR-003**: The main process MUST unpack a validated package into `app.getPath('userData')/chip-plugins/<safe-id>/` and MUST NOT retain a source package’s `node_modules`.
 - **FR-005**: A manifest under userData MUST record package name, version, chip name, enabled flag, and install path for each user plugin.
+- **FR-006**: Archive install MUST accept npm-pack layout (single top-level folder such as `package/`) and a flat archive with `package.json` at the root; it MUST reject ambiguous multi-package archives.
 
 Loading
 
@@ -120,8 +109,8 @@ Lifecycle
 
 Docs
 
-- **FR-030**: When this feature ships, `docs/contributing/creating-plugins.md` MUST document Desktop install (folder and npm).
-- **FR-031**: When this feature ships, the public chip starter template README MUST replace the Desktop limitation note with **Installing into BeatBax Desktop** steps (folder after build; npm by package name; CLI vs Desktop as separate copies). That README change lands with implementation, not before the Settings actions exist.
+- **FR-030**: When this feature ships, `docs/contributing/creating-plugins.md` MUST document Desktop install from package archive.
+- **FR-031**: When this feature ships, the public chip starter template README MUST document **Installing into BeatBax Desktop** (`npm pack` / release zip; no Desktop registry install; CLI vs Desktop as separate copies).
 
 ### Non-goals
 
@@ -130,30 +119,29 @@ Docs
 - Changing CLI discovery, language syntax, AST, ISM, or scheduler semantics.
 - Making Desktop read a song project’s `node_modules` for plugins.
 - Editing the starter template README in the specification-only PR before Desktop UI exists.
+- Installing an unpacked directory via the Settings UI (authors pack first; internal unpack still uses a directory staging path).
+- Desktop Install from npm / registry download (authors pack a release artifact; CLI keeps `npm install`).
 
 ## Success criteria
 
-- **SC-001**: Installing the built BLIP starter template from a local folder makes `chip blip` usable in Desktop New Song and playback without a Desktop rebuild.
-- **SC-002**: Installing a published allowed npm chip package name registers that chip after reload.
-- **SC-003**: Rejected packages (bad name, Node imports, peer mismatch, chip name collision) never appear as registered chips after reload.
+- **SC-001**: Installing the packed BLIP starter template (`.tgz` from `npm pack`, or equivalent release `.zip`) makes `chip blip` usable in Desktop New Song and playback without a Desktop rebuild.
+- **SC-003**: Rejected packages (bad name, Node imports, peer mismatch, chip name collision, invalid archive) never appear as registered chips after reload.
 - **SC-004**: Disable / remove remove the chip from Desktop surfaces after reload; re-enable restores it.
 - **SC-005**: Contributing docs and the starter template README describe the Desktop flows once the feature is shipped.
 
 ## Assumptions
 
-- Authors run `npm run build` before Install from folder so `dist` (or the package `main` / `exports` entry) exists.
+- Authors run `npm run build` (and pack with `npm pack` or an equivalent release zip of the published files) before Install from package so `dist` (or the package `main` / `exports` entry) exists inside the archive.
 - Official chips may still be added to the pre-bundled `AVAILABLE_PLUGINS` catalogue when BeatBax chooses to ship them in-app; this feature does not replace that path.
 - The host Desktop engine version is the peer that plugins must satisfy.
 
 ## Open questions
 
 - Exact custom-protocol scheme name and CSP wording (implementation detail in plan.md).
-- Whether optional version pin UI for npm install is a text field (`@1.2.3`) or a separate control — either is acceptable if FR-004 is met.
 
 ## References
 
 - Issue: https://github.com/kadraman/beatbax/issues/270
-- Starter template: https://github.com/kadraman/beatbax-plugin-chip-template
-- CLI discovery: `packages/cli/src/cli.ts` (`discoverPlugins`)
-- Bundled catalogue: `packages/app-core/src/plugins/registry-config.ts`
-- Constitution § V Plugin Isolation: `specs/constitution.md`
+- Plugin system: specs/complete/037-plugin-system/spec.md
+- Dynamic chip loading: specs/complete/032-dynamic-chip-loading/spec.md
+- Starter template: specs/complete/005-plugin-starter-template/spec.md

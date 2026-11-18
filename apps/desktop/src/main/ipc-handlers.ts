@@ -2,6 +2,7 @@ import { app, dialog, ipcMain, safeStorage, shell } from 'electron'
 import { existsSync as fsExistsSync, readFileSync as fsReadFileSync } from 'node:fs'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { resolveHostEngineVersion as resolveHostEngineVersionFromRoots } from './resolve-host-engine-version'
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from '../shared/ipc'
 import type {
@@ -10,10 +11,21 @@ import type {
   DesktopOpenFileOptions,
   DesktopRemoteAssetRequest,
   DesktopSaveFileOptions,
+  DesktopUserChipPluginInfo,
   AIChatCompletionRequest,
   AIChatCompletionResult,
   ReasoningEffortRequest,
 } from '../shared/electron-api'
+import {
+  installUserChipPluginFromArchive,
+} from './user-chip-plugin-install'
+import {
+  listManifestEntries,
+  removeManifestEntry,
+  setManifestEntryEnabled,
+  chipPluginsRoot,
+} from './user-chip-plugin-manifest'
+import { buildUserChipPluginEntryUrl } from './user-chip-plugin-protocol'
 import { parseAIChatCompletionResponse } from '../shared/ai-chat-completion'
 import {
   CUSTOM_REASONING_EFFORT_PATTERN,
@@ -1114,6 +1126,109 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
       documentFileWatcher?.unwatch()
     })
   })
+
+  ipcMain.handle(IPC_CHANNELS.USER_CHIP_PLUGINS_LIST, async (): Promise<DesktopUserChipPluginInfo[]> => {
+    return listUserChipPluginsForRenderer()
+  })
+
+  ipcMain.handle(
+    IPC_CHANNELS.USER_CHIP_PLUGINS_INSTALL_ARCHIVE,
+    async (): Promise<DesktopUserChipPluginInfo | null> => {
+      const browserWindow = requireMainWindow(getWindow)
+      const result = await dialog.showOpenDialog(browserWindow, {
+        title: 'Install chip plugin package',
+        properties: ['openFile'],
+        filters: [
+          { name: 'Chip plugin packages', extensions: ['zip', 'tgz', 'gz'] },
+          { name: 'All files', extensions: ['*'] },
+        ],
+      })
+      if (result.canceled || !result.filePaths[0]) {
+        return null
+      }
+      const installed = await installUserChipPluginFromArchive(
+        app.getPath('userData'),
+        result.filePaths[0],
+        resolveHostEngineVersion()
+      )
+      return toUserChipPluginInfo(installed.entry)
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.USER_CHIP_PLUGINS_SET_ENABLED,
+    async (
+      _event: IpcMainInvokeEvent,
+      packageName?: string,
+      enabled?: boolean
+    ): Promise<DesktopUserChipPluginInfo> => {
+      if (typeof packageName !== 'string' || !packageName.trim()) {
+        throw new Error('Missing package name.')
+      }
+      const entry = await setManifestEntryEnabled(
+        app.getPath('userData'),
+        packageName.trim(),
+        Boolean(enabled)
+      )
+      return toUserChipPluginInfo(entry)
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.USER_CHIP_PLUGINS_REMOVE,
+    async (_event: IpcMainInvokeEvent, packageName?: string): Promise<void> => {
+      if (typeof packageName !== 'string' || !packageName.trim()) {
+        throw new Error('Missing package name.')
+      }
+      await removeManifestEntry(app.getPath('userData'), packageName.trim())
+    }
+  )
+}
+
+function resolveHostEngineVersion(): string {
+  // Prefer filesystem walks over require.resolve: engine exports map
+  // `@beatbax/engine/package.json` to a non-existent dist file.
+  return resolveHostEngineVersionFromRoots([
+    process.cwd(),
+    path.join(process.cwd(), 'apps', 'desktop'),
+    app.getAppPath(),
+    __dirname,
+    path.join(__dirname, '..'),
+    path.join(__dirname, '../..'),
+    path.join(__dirname, '../../..'),
+  ])
+}
+
+function toUserChipPluginInfo(entry: {
+  packageName: string
+  version: string
+  chipName: string
+  aliases: string[]
+  enabled: boolean
+  installId: string
+  entryRelativePath: string
+}): DesktopUserChipPluginInfo {
+  const entryPath = path.join(
+    chipPluginsRoot(app.getPath('userData')),
+    entry.installId,
+    entry.entryRelativePath
+  )
+  return {
+    packageName: entry.packageName,
+    version: entry.version,
+    chipName: entry.chipName,
+    aliases: entry.aliases ?? [],
+    enabled: entry.enabled,
+    installId: entry.installId,
+    entryRelativePath: entry.entryRelativePath,
+    entryUrl: buildUserChipPluginEntryUrl(entry.installId, entry.entryRelativePath),
+    missingOnDisk: !fsExistsSync(entryPath),
+  }
+}
+
+async function listUserChipPluginsForRenderer(): Promise<DesktopUserChipPluginInfo[]> {
+  const entries = await listManifestEntries(app.getPath('userData'))
+  return entries.map((entry) => toUserChipPluginInfo(entry))
 }
 
 export function attachWindowStateEvents(window: BrowserWindow): () => void {
