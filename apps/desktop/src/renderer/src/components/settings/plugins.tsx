@@ -98,8 +98,7 @@ function UserPluginsSettings(): React.JSX.Element {
     <>
       <BuiltinSubheading>User plugins</BuiltinSubheading>
       <NoteText>
-        Add a chip plugin from a packed <code>.zip</code> or <code>.tgz</code> (
-        <code>npm pack</code> or a GitHub Release asset — not a source checkout). The app reloads after
+        Add a chip plugin from a packed <code>.zip</code> or <code>.tgz</code>. The app reloads after
         install.
       </NoteText>
 
@@ -111,7 +110,7 @@ function UserPluginsSettings(): React.JSX.Element {
             onClick={() => void installFromArchive()}
             type="button"
           >
-            Install…
+            Install
           </button>
         </div>
 
