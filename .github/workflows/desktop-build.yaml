@@ -95,6 +95,9 @@ jobs:
         run: npm run build-all
 
       - name: Run desktop unit tests
+        env:
+          # See ci.yml — Jest Electron spawn only; not used by production validation.
+          BEATBAX_ELECTRON_NO_SANDBOX: '1'
         run: npm run desktop:test
 
       - name: Install Linux GUI dependencies for Electron

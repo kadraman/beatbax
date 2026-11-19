@@ -74,12 +74,14 @@ async function startValidator(): Promise<ValidatorChild> {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   env.BEATBAX_VALIDATE_DIR = dir;
-  // GitHub-hosted Linux runners cannot configure chrome-sandbox (SUID). Without these
-  // flags Electron aborts before the validator writes the ready file.
-  const electronArgs =
-    process.platform === 'linux'
-      ? ['--no-sandbox', '--disable-setuid-sandbox', entry]
-      : [entry];
+  // This helper only spawns Electron for Jest. Production install validation runs
+  // inside the already-running Desktop app (loadPluginShapeInSandbox) and never
+  // takes this path. Chromium OS-sandbox stays on unless tests explicitly opt out
+  // (CI sets BEATBAX_ELECTRON_NO_SANDBOX=1 when chrome-sandbox SUID cannot be set).
+  const allowNoOsSandbox = process.env.BEATBAX_ELECTRON_NO_SANDBOX === '1';
+  const electronArgs = allowNoOsSandbox
+    ? ['--no-sandbox', '--disable-setuid-sandbox', entry]
+    : [entry];
   const child = spawn(electronBinary(), electronArgs, {
     env,
     stdio: ['ignore', 'ignore', 'pipe'],

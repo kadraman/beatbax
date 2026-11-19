@@ -32,6 +32,12 @@ jobs:
         run: npm run build-all
 
       - name: Run package tests
+        env:
+          # Jest spawns a throwaway Electron for user-chip plugin shape checks.
+          # GitHub Linux runners cannot set chrome-sandbox SUID (4755/root), so the
+          # test helper may opt out of Chromium's OS sandbox only when this is set.
+          # Production Desktop validation does not use this spawn path.
+          BEATBAX_ELECTRON_NO_SANDBOX: ${{ runner.os == 'Linux' && '1' || '' }}
         run: npm test
 
       - name: Lint (optional)
