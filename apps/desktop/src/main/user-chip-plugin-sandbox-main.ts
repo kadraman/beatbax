@@ -20,6 +20,12 @@ app.setName('beatbax-plugin-sandbox-validate');
 app.setPath('userData', path.join(dir, 'userData'));
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('disable-gpu');
+if (
+  process.env.BEATBAX_ELECTRON_HEADLESS === '1' ||
+  (process.platform === 'linux' && !process.env.DISPLAY)
+) {
+  app.commandLine.appendSwitch('ozone-platform', 'headless');
+}
 registerUserChipPluginSchemes();
 
 app.on('window-all-closed', () => {

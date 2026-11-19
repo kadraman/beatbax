@@ -38,6 +38,8 @@ jobs:
           # test helper may opt out of Chromium's OS sandbox only when this is set.
           # Production Desktop validation does not use this spawn path.
           BEATBAX_ELECTRON_NO_SANDBOX: ${{ runner.os == 'Linux' && '1' || '' }}
+          # Unit-test jobs have no Xvfb/$DISPLAY; force ozone headless for the spawn.
+          BEATBAX_ELECTRON_HEADLESS: ${{ runner.os == 'Linux' && '1' || '' }}
         run: npm test
 
       - name: Lint (optional)

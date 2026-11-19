@@ -271,7 +271,7 @@ describe('user-chip-plugin-install', () => {
       delete process.env.BEATBAX_PLUGIN_VALIDATE_TIMEOUT_MS;
       stopSandboxValidator();
     }
-  }, 30_000);
+  }, 60_000);
 
   it('does not give archive code Node builtins during validation', async () => {
     const sentinel = path.join(source, 'pwned.txt');

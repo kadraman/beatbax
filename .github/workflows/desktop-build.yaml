@@ -98,6 +98,7 @@ jobs:
         env:
           # See ci.yml — Jest Electron spawn only; not used by production validation.
           BEATBAX_ELECTRON_NO_SANDBOX: '1'
+          BEATBAX_ELECTRON_HEADLESS: '1'
         run: npm run desktop:test
 
       - name: Install Linux GUI dependencies for Electron

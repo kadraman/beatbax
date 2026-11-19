@@ -76,12 +76,20 @@ async function startValidator(): Promise<ValidatorChild> {
   env.BEATBAX_VALIDATE_DIR = dir;
   // This helper only spawns Electron for Jest. Production install validation runs
   // inside the already-running Desktop app (loadPluginShapeInSandbox) and never
-  // takes this path. Chromium OS-sandbox stays on unless tests explicitly opt out
-  // (CI sets BEATBAX_ELECTRON_NO_SANDBOX=1 when chrome-sandbox SUID cannot be set).
-  const allowNoOsSandbox = process.env.BEATBAX_ELECTRON_NO_SANDBOX === '1';
-  const electronArgs = allowNoOsSandbox
-    ? ['--no-sandbox', '--disable-setuid-sandbox', entry]
-    : [entry];
+  // takes this path.
+  // - BEATBAX_ELECTRON_NO_SANDBOX=1: CI opt-in when chrome-sandbox SUID cannot be set.
+  // - No $DISPLAY on Linux: use ozone headless so BrowserWindow can start without Xvfb.
+  const electronArgs: string[] = [];
+  if (process.env.BEATBAX_ELECTRON_NO_SANDBOX === '1') {
+    electronArgs.push('--no-sandbox', '--disable-setuid-sandbox');
+  }
+  if (
+    process.env.BEATBAX_ELECTRON_HEADLESS === '1' ||
+    (process.platform === 'linux' && !process.env.DISPLAY)
+  ) {
+    electronArgs.push('--ozone-platform=headless');
+  }
+  electronArgs.push(entry);
   const child = spawn(electronBinary(), electronArgs, {
     env,
     stdio: ['ignore', 'ignore', 'pipe'],
