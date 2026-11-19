@@ -31,6 +31,9 @@ jobs:
       - name: Build packages
         run: npm run build-all
 
+      - name: Bundle validation engine host
+        run: npm -w @beatbax/desktop run bundle-validation-host
+
       - name: Run package tests
         env:
           # Jest spawns a throwaway Electron for user-chip plugin shape checks.

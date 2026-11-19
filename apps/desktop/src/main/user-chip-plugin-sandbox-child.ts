@@ -13,6 +13,7 @@ interface ValidatorChild {
   dir: string;
   child: ChildProcess;
   chain: Promise<void>;
+  stderr: string[];
 }
 
 let starting: Promise<ValidatorChild> | null = null;
@@ -71,9 +72,15 @@ function sleep(ms: number): Promise<void> {
 async function startValidator(): Promise<ValidatorChild> {
   const dir = mkdtempSync(path.join(tmpdir(), 'bb-chip-sandbox-'));
   const entry = await bundledEntry();
+  // Prebuild the engine-host browser bundle in this Node/Jest process. Doing it
+  // inside the Electron child during the first protocol request blocks the main
+  // loop so the validation watchdog cannot fire and requests time out on CI.
+  const { ensureValidationEngineHostFile } = await import('./user-chip-plugin-validation-host-build');
+  const hostFile = await ensureValidationEngineHostFile();
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   env.BEATBAX_VALIDATE_DIR = dir;
+  env.BEATBAX_VALIDATION_ENGINE_HOST = hostFile;
   // This helper only spawns Electron for Jest. Production install validation runs
   // inside the already-running Desktop app (loadPluginShapeInSandbox) and never
   // takes this path.
@@ -110,7 +117,7 @@ async function startValidator(): Promise<ValidatorChild> {
       );
     }
     if (existsSync(ready)) {
-      return { dir, child, chain: Promise.resolve() };
+      return { dir, child, chain: Promise.resolve(), stderr };
     }
     await sleep(25);
   }
@@ -182,7 +189,8 @@ export async function loadPluginShapeInSandboxChild(options: {
     session.child.kill();
     activeChild = null;
     starting = null;
-    throw new Error('Sandboxed plugin validation timed out.');
+    const detail = session.stderr.length ? ` ${session.stderr.join('').slice(-2000)}` : '';
+    throw new Error(`Sandboxed plugin validation timed out.${detail}`);
   });
   session.chain = run.then(
     () => undefined,

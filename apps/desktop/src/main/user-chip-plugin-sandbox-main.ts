@@ -9,6 +9,7 @@ import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 
 import path from 'node:path';
 import { handleUserChipPluginProtocols, registerUserChipPluginSchemes } from './user-chip-plugin-protocol';
 import { loadPluginShapeInSandbox } from './user-chip-plugin-sandbox';
+import { getValidationEngineHostSource } from './user-chip-plugin-validation-host';
 
 const dir = process.env.BEATBAX_VALIDATE_DIR;
 if (!dir) {
@@ -32,8 +33,17 @@ app.on('window-all-closed', () => {
   // Stay alive between validation requests.
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   handleUserChipPluginProtocols(() => dir);
+  // Warm the host bundle from BEATBAX_VALIDATION_ENGINE_HOST / resources before
+  // accepting requests so the first BrowserWindow import does not block main.
+  try {
+    await getValidationEngineHostSource();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`Failed to load validation engine host: ${message}\n`);
+    process.exit(1);
+  }
   writeFileSync(path.join(dir, 'ready'), '1');
   let busy = false;
   setInterval(() => {

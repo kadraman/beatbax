@@ -94,6 +94,9 @@ jobs:
       - name: Build shared packages
         run: npm run build-all
 
+      - name: Bundle validation engine host
+        run: npm -w @beatbax/desktop run bundle-validation-host
+
       - name: Run desktop unit tests
         env:
           # See ci.yml — Jest Electron spawn only; not used by production validation.
