@@ -8,7 +8,7 @@
 - The `ChipRegistry` API now includes `listCanonical()` (returns only canonical plugin names) and `aliasesFor(canonical)` (returns all aliases for a chip). The CLI and web UI use these for correct chip/plugin listing and alias handling.
 - The web UI Plugins panel now groups chips as Built-in (always-on, e.g. Game Boy) and Optional (toggleable plugins), showing version info from the plugin’s `version` field.
 - The Channel Mixer in the web UI now displays a chip-aware instrument volume reference column, using the plugin’s `instrumentVolumeRange` (or defaulting to `{ min: 0, max: 15 }`).
-- **Dual rendering:** Melodic channels should implement both `render()` (PCM, for CLI/headless) and `createPlaybackNodes()` (Web Audio, for browser/Electron) for full compatibility and effects support.
+- **Dual rendering:** Every voice you care about in Desktop should implement both `render()` (PCM, for CLI/headless/export) and `createPlaybackNodes()` (Web Audio, for browser/Electron live playback). Omitting Web Audio leaves that voice on ScriptProcessor PCM fallback and can diverge from CLI even when WAV export matches.
 - For sample-based plugins, implement `resolveSampleAsset()` and follow the import security model for asset resolution.
 - See the NES plugin for a canonical example of dual-path rendering and UI contributions.
 - **Effect dispatch changed (2026-05):** Plugin `effects` are **no longer auto-registered into the global effect registry** when the plugin is registered. Instead, they are resolved at playback/PCM-render time for the active chip only — preventing one chip's effect handlers from silently overriding another chip's behavior. If you previously relied on global override behavior, move your logic into the per-chip resolution path (handled automatically by the engine when your plugin declares `effects`).
@@ -706,11 +706,19 @@ BeatBax uses two audio rendering paths depending on the runtime environment:
 | **PCM** (`render()`) | CLI, headless, Node.js | None (no AudioParam automation) |
 | **Web Audio** (`createPlaybackNodes()`) | Browser / Electron | Full (arp, vib, portamento, retrigger, echo…) |
 
-**Melodic channels** (pulse, triangle) should implement **both** so that:
-- The CLI produces audio via the `render()` PCM loop.
-- The web-ui uses `createPlaybackNodes()` and gets the full effects system for free.
+**Implement both paths for every live Desktop voice** (including percussion):
+- The CLI and Desktop WAV export use the `render()` PCM loop.
+- Desktop / web-ui **live** playback prefers `createPlaybackNodes()` for effects
+  (arp, vib, portamento, …). A voice without it falls back to ScriptProcessor
+  PCM while other voices use Web Audio — timing/routing can diverge even when
+  exported WAVs match CLI.
 
-**Percussion/sample channels** (noise, DMC) only need `render()` since they don't use melodic effects.
+**Wavetable / `AudioBufferSourceNode`:** set `src.loop = true` and set
+`playbackRate.value` immediately. One cycle without looping is a click, then
+silence for the rest of the note on Desktop.
+
+**Sample channels** (e.g. NES DMC) may still be PCM-oriented; if Desktop live
+playback should match CLI, prefer a Web Audio path (or accept the fallback).
 
 ### Implementing `createPlaybackNodes()`
 
