@@ -17,6 +17,7 @@ import {
   buildSandboxValidationScript,
   hostBridgeSources,
 } from './user-chip-plugin-engine-api';
+import { getValidationEngineHostSource } from './user-chip-plugin-validation-host';
 
 export const USER_CHIP_PLUGIN_SCHEME = 'beatbax-plugin';
 export const USER_CHIP_HOST_SCHEME = 'beatbax-host';
@@ -160,6 +161,13 @@ export function handleUserChipPluginProtocols(getUserDataPath: () => string = ()
       if (key === SANDBOX_VALIDATE_HOST) {
         const entry = url.searchParams.get('entry') ?? '';
         const pathname = url.pathname.replace(/\/+$/, '');
+        if (pathname === '/engine-host.js') {
+          const body = await getValidationEngineHostSource();
+          return new Response(body, {
+            status: 200,
+            headers: USER_CHIP_MODULE_RESPONSE_HEADERS,
+          });
+        }
         if (pathname === '/run.js') {
           return new Response(buildSandboxValidationScript(), {
             status: 200,

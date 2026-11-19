@@ -242,6 +242,37 @@ describe('user-chip-plugin-install', () => {
     expect(result.entry.chipName).toBe('named');
   });
 
+  it('validates a plugin that uses an engine helper in a module-level numeric initializer', async () => {
+    writeValidPluginPackage(source, { chipName: 'freqinit', name: 'beatbax-plugin-chip-freqinit' });
+    writeFileSync(
+      path.join(source, 'dist', 'index.js'),
+      `import { midiToFreq } from '@beatbax/engine/util/music';\nconst period = 1 / midiToFreq(69);\nexport default { name: 'freqinit', createChannel() { return { period }; } };\n`,
+      'utf8'
+    );
+    const result = await installUserChipPluginFromFolder(userData, source, '0.27.0');
+    expect(result.entry.chipName).toBe('freqinit');
+  });
+
+  it('times out when plugin top-level code never finishes', async () => {
+    stopSandboxValidator();
+    process.env.BEATBAX_PLUGIN_VALIDATE_TIMEOUT_MS = '1500';
+    try {
+      writeValidPluginPackage(source, { chipName: 'hang', name: 'beatbax-plugin-chip-hang' });
+      writeFileSync(
+        path.join(source, 'dist', 'index.js'),
+        `while (true) {}\nexport default { name: 'hang', createChannel() { return {}; } };\n`,
+        'utf8'
+      );
+      await expect(installUserChipPluginFromFolder(userData, source, '0.27.0')).rejects.toThrow(
+        /timed out/
+      );
+      expect(await listManifestEntries(userData)).toHaveLength(0);
+    } finally {
+      delete process.env.BEATBAX_PLUGIN_VALIDATE_TIMEOUT_MS;
+      stopSandboxValidator();
+    }
+  }, 30_000);
+
   it('does not give archive code Node builtins during validation', async () => {
     const sentinel = path.join(source, 'pwned.txt');
     writeValidPluginPackage(source, { chipName: 'evil' });

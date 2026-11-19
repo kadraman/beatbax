@@ -261,25 +261,15 @@ export function buildSandboxValidationHtml(entryUrl: string, pluginScheme: strin
 `;
 }
 
-/** Runs inside the sandboxed validation window. Stubs satisfy named engine imports. */
+/**
+ * Runs inside the sandboxed validation window.
+ * Loads the real browser-safe host engine APIs, then imports the plugin entry.
+ */
 export function buildSandboxValidationScript(): string {
-  const keys = ENGINE_BRIDGE_MODULES.map((mod) => mod.namespaceKey);
-  return `const keys = ${JSON.stringify(keys)};
-const stubFn = function beatbaxEngineStub() { return stub; };
-let stub;
-stub = new Proxy(stubFn, {
-  get(_target, prop) {
-    if (prop === 'then') return undefined;
-    return stub;
-  },
-  apply() { return stub; },
-  construct() { return stub; },
-});
-const host = Object.create(null);
-for (const key of keys) host[key] = stub;
-globalThis.__BEATBAX_ENGINE_HOST__ = host;
-const entry = new URL(import.meta.url).searchParams.get('entry');
-try {
+  const engineHostUrl = `beatbax-host://${SANDBOX_VALIDATE_HOST}/engine-host.js`;
+  return `try {
+  await import(${JSON.stringify(engineHostUrl)});
+  const entry = new URL(import.meta.url).searchParams.get('entry');
   if (!entry || !entry.startsWith('beatbax-plugin:')) {
     throw new Error('Validation entry must use the plugin scheme.');
   }

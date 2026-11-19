@@ -11,7 +11,7 @@ import {
   USER_CHIP_MODULE_RESPONSE_HEADERS,
   USER_CHIP_PLUGIN_SCHEME,
 } from '../src/main/user-chip-plugin-protocol';
-import { hostBridgeSources } from '../src/main/user-chip-plugin-engine-api';
+import { buildSandboxValidationScript, hostBridgeSources } from '../src/main/user-chip-plugin-engine-api';
 import { chipPluginsRoot } from '../src/main/user-chip-plugin-manifest';
 
 describe('user-chip-plugin-protocol', () => {
@@ -32,6 +32,13 @@ describe('user-chip-plugin-protocol', () => {
     expect(buildUserChipPluginEntryUrl('beatbax-plugin-chip-demo', 'dist/index.js')).toBe(
       `${USER_CHIP_PLUGIN_SCHEME}://beatbax-plugin-chip-demo/dist/index.js`
     );
+  });
+
+  it('validation script loads the real engine host bundle instead of stubs', () => {
+    const script = buildSandboxValidationScript();
+    expect(script).toContain('beatbax-host://sandbox-validate/engine-host.js');
+    expect(script).not.toContain('beatbaxEngineStub');
+    expect(script).not.toContain('new Proxy');
   });
 
   it('resolves safe paths under chip-plugins', () => {

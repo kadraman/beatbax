@@ -57,7 +57,7 @@ async function bundledEntry(): Promise<string> {
     platform: 'node',
     format: 'cjs',
     outfile,
-    external: ['electron'],
+    external: ['electron', 'esbuild'],
     logLevel: 'silent',
   });
   bundlePath = outfile;
@@ -74,7 +74,13 @@ async function startValidator(): Promise<ValidatorChild> {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   env.BEATBAX_VALIDATE_DIR = dir;
-  const child = spawn(electronBinary(), [entry], {
+  // GitHub-hosted Linux runners cannot configure chrome-sandbox (SUID). Without these
+  // flags Electron aborts before the validator writes the ready file.
+  const electronArgs =
+    process.platform === 'linux'
+      ? ['--no-sandbox', '--disable-setuid-sandbox', entry]
+      : [entry];
+  const child = spawn(electronBinary(), electronArgs, {
     env,
     stdio: ['ignore', 'ignore', 'pipe'],
     windowsHide: true,
