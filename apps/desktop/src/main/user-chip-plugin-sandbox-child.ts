@@ -85,16 +85,16 @@ async function startValidator(): Promise<ValidatorChild> {
   // inside the already-running Desktop app (loadPluginShapeInSandbox) and never
   // takes this path.
   // - BEATBAX_ELECTRON_NO_SANDBOX=1: CI opt-in when chrome-sandbox SUID cannot be set.
-  // - No $DISPLAY on Linux: use ozone headless so BrowserWindow can start without Xvfb.
+  // - Linux needs a real $DISPLAY (Xvfb in CI). Ozone headless writes ready but
+  //   never finishes sandboxed BrowserWindow validation.
+  if (process.platform === 'linux' && !process.env.DISPLAY) {
+    throw new Error(
+      'Sandboxed plugin validation needs a display on Linux. Run under Xvfb (e.g. xvfb-run) or set $DISPLAY.'
+    );
+  }
   const electronArgs: string[] = [];
   if (process.env.BEATBAX_ELECTRON_NO_SANDBOX === '1') {
     electronArgs.push('--no-sandbox', '--disable-setuid-sandbox');
-  }
-  if (
-    process.env.BEATBAX_ELECTRON_HEADLESS === '1' ||
-    (process.platform === 'linux' && !process.env.DISPLAY)
-  ) {
-    electronArgs.push('--ozone-platform=headless');
   }
   electronArgs.push(entry);
   const child = spawn(electronBinary(), electronArgs, {

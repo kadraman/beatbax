@@ -34,16 +34,24 @@ jobs:
       - name: Bundle validation engine host
         run: npm -w @beatbax/desktop run bundle-validation-host
 
+      - name: Install Linux GUI dependencies for Electron
+        if: runner.os == 'Linux'
+        run: bash .github/scripts/install-linux-electron-deps.sh
+
       - name: Run package tests
+        if: runner.os != 'Linux'
+        run: npm test
+
+      - name: Run package tests (Linux)
+        if: runner.os == 'Linux'
         env:
           # Jest spawns a throwaway Electron for user-chip plugin shape checks.
           # GitHub Linux runners cannot set chrome-sandbox SUID (4755/root), so the
           # test helper may opt out of Chromium's OS sandbox only when this is set.
           # Production Desktop validation does not use this spawn path.
-          BEATBAX_ELECTRON_NO_SANDBOX: ${{ runner.os == 'Linux' && '1' || '' }}
-          # Unit-test jobs have no Xvfb/$DISPLAY; force ozone headless for the spawn.
-          BEATBAX_ELECTRON_HEADLESS: ${{ runner.os == 'Linux' && '1' || '' }}
-        run: npm test
+          # Needs Xvfb/$DISPLAY; ozone headless cannot finish a sandboxed BrowserWindow.
+          BEATBAX_ELECTRON_NO_SANDBOX: '1'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" npm test
 
       - name: Lint (optional)
         if: ${{ runner.os == 'Linux' }}

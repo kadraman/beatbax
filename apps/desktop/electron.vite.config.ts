@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { allowImportMapCspPlugin } from './scripts/allow-importmap-csp';
 
 const webUiRoot = resolve(__dirname, '../web-ui');
 
@@ -66,6 +67,6 @@ export default defineConfig({
       include: ['monaco-editor', 'buffer', 'marked', 'dompurify'],
       exclude: ['@beatbax/engine', '@beatbax/plugin-chip-sms'],
     },
-    plugins: [react(), tailwindcss()],
+    plugins: [allowImportMapCspPlugin(), react(), tailwindcss()],
   },
 });

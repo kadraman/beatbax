@@ -21,11 +21,11 @@ app.setName('beatbax-plugin-sandbox-validate');
 app.setPath('userData', path.join(dir, 'userData'));
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('disable-gpu');
-if (
-  process.env.BEATBAX_ELECTRON_HEADLESS === '1' ||
-  (process.platform === 'linux' && !process.env.DISPLAY)
-) {
-  app.commandLine.appendSwitch('ozone-platform', 'headless');
+if (process.platform === 'linux' && !process.env.DISPLAY) {
+  process.stderr.write(
+    'Sandboxed plugin validation needs a display on Linux. Run under Xvfb (e.g. xvfb-run) or set $DISPLAY.\n'
+  );
+  process.exit(1);
 }
 registerUserChipPluginSchemes();
 
