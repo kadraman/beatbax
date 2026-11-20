@@ -3,6 +3,7 @@ import {
   CUSTOM_MODEL_VALUE,
   defaultContextWindowTokens,
   filterChatModels,
+  formatModelOptionLabel,
   getDefaultAIModel,
   getProviderByEndpoint,
   getProviderSubtitle,
@@ -44,6 +45,12 @@ describe('ai-models', () => {
     expect(resolveModelSelectValue('gpt-4.1', 'openai')).toBe(CUSTOM_MODEL_VALUE);
     expect(resolveModelSelectValue('gpt-4o-mini', 'openai')).toBe(CUSTOM_MODEL_VALUE);
     expect(resolveModelSelectValue('llama3.2', 'ollama')).toBe(CUSTOM_MODEL_VALUE);
+  });
+
+  it('labels the curated default model in the Settings picker', () => {
+    expect(formatModelOptionLabel('gpt-5.6-terra', 'openai')).toBe('gpt-5.6-terra (default)');
+    expect(formatModelOptionLabel('gpt-5.6-sol', 'openai')).toBe('gpt-5.6-sol');
+    expect(formatModelOptionLabel('qwen2.5-coder:7b', 'ollama')).toBe('qwen2.5-coder:7b');
   });
 
   it('builds provider subtitles', () => {

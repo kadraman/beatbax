@@ -108,6 +108,20 @@ export function getModelsForProvider(key: AIProviderKey): string[] {
   return AI_PROVIDERS[key].models;
 }
 
+/**
+ * Label for a model `<option>`. Marks the provider's curated default so Settings
+ * can show e.g. `gpt-5.6-terra (default)` without listing every model as recommended.
+ */
+export function formatModelOptionLabel(modelId: string, providerKey: AIProviderKey): string {
+  const trimmed = typeof modelId === 'string' ? modelId.trim() : '';
+  if (!trimmed) return '';
+  const config = AI_PROVIDERS[providerKey];
+  if (config.models.length > 0 && trimmed === config.defaultModel) {
+    return `${trimmed} (default)`;
+  }
+  return trimmed;
+}
+
 /** Whether the provider exposes a curated model dropdown (vs free-text only). */
 export function providerUsesModelPicker(key: AIProviderKey): boolean {
   return AI_PROVIDERS[key].models.length > 0;

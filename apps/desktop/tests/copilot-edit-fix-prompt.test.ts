@@ -1,4 +1,39 @@
-import { buildMinimalEditFixPrompt } from '../src/renderer/src/lib/copilot-edit-fix-prompt';
+import {
+  buildMinimalEditFixPrompt,
+  shouldOfferAskFixInEditMode,
+} from '../src/renderer/src/lib/copilot-edit-fix-prompt';
+
+describe('shouldOfferAskFixInEditMode', () => {
+  it('hides the fix CTA for pure explain / Q&A replies', () => {
+    expect(
+      shouldOfferAskFixInEditMode(
+        [
+          '### Overview',
+          'This song uses four Game Boy channels.',
+          '',
+          '### Playback',
+          'The final `play` command starts all four channels together.',
+        ].join('\n')
+      )
+    ).toBe(false);
+  });
+
+  it('offers the fix CTA when the reply includes section markers to add', () => {
+    expect(
+      shouldOfferAskFixInEditMode(
+        [
+          'Add section markers for clearer focus:',
+          '# --- Section 1: Intro ---',
+          '# --- Section 2: Verse ---',
+        ].join('\n')
+      )
+    ).toBe(true);
+  });
+
+  it('offers the fix CTA for arrangement layout fix language', () => {
+    expect(shouldOfferAskFixInEditMode('Apply the suggested fix to improve section focus.')).toBe(true);
+  });
+});
 
 describe('buildMinimalEditFixPrompt', () => {
   it('builds a marker-only edit prompt for section comments', () => {
