@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from 'react';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import {
   AVAILABLE_PLUGINS,
@@ -14,6 +15,7 @@ import {
 } from '@beatbax/app-core/plugins/exporter-registry-config';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { gameboyPlugin, nesPlugin } from '@beatbax/engine/chips';
+import type { DesktopUserChipPluginInfo } from '../../../../shared/electron-api';
 import { NoteText, SectionHeading, SettingsFeatureRow } from './form';
 
 const BADGE_CLASS: Record<string, string> = {
@@ -40,6 +42,131 @@ function VersionedTitle({
       <span>{label}</span>
       <span className="bb-settings-plugin-version">v{version}</span>
       <span className={`bb-settings-badge ${BADGE_CLASS[badge] ?? ''}`}>{badge}</span>
+    </>
+  );
+}
+
+function UserPluginsSettings(): React.JSX.Element {
+  const [plugins, setPlugins] = useState<DesktopUserChipPluginInfo[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const list = await window.electronAPI.listUserChipPlugins();
+      setPlugins(list);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const runAndReload = useCallback(async (action: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+      window.location.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setBusy(false);
+      await refresh();
+    }
+  }, [refresh]);
+
+  const installFromArchive = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const installed = await window.electronAPI.installUserChipPluginFromArchive();
+      if (!installed) {
+        setBusy(false);
+        return;
+      }
+      window.location.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setBusy(false);
+      await refresh();
+    }
+  }, [refresh]);
+
+  return (
+    <>
+      <BuiltinSubheading>User plugins</BuiltinSubheading>
+      <NoteText>
+        Add a chip plugin from a packed <code>.zip</code> or <code>.tgz</code>. The app reloads after
+        install.
+      </NoteText>
+
+      <div className="bb-settings-user-plugins">
+        <div className="bb-settings-row">
+          <button
+            className="bb-settings-btn-secondary"
+            disabled={busy}
+            onClick={() => void installFromArchive()}
+            type="button"
+          >
+            Install
+          </button>
+        </div>
+
+        {error ? <div className="bb-settings-inline-warning">{error}</div> : null}
+
+        {plugins.length === 0 ? (
+          <NoteText>No user chip plugins installed yet.</NoteText>
+        ) : (
+          plugins.map((entry) => (
+            <SettingsFeatureRow
+              description={
+                entry.missingOnDisk
+                  ? `Chip \`${entry.chipName}\` — on-disk package missing; remove or reinstall.`
+                  : `Chip \`${entry.chipName}\`${entry.aliases.length ? ` (aliases: ${entry.aliases.join(', ')})` : ''} — package ${entry.packageName}`
+              }
+              key={entry.packageName}
+              title={
+                <VersionedTitle
+                  badge="Experimental"
+                  label={entry.chipName}
+                  version={entry.version}
+                />
+              }
+            >
+              <input
+                checked={entry.enabled}
+                className="bb-settings-toggle"
+                disabled={busy || Boolean(entry.missingOnDisk)}
+                onChange={(event) =>
+                  void runAndReload(() =>
+                    window.electronAPI.setUserChipPluginEnabled(
+                      entry.packageName,
+                      event.currentTarget.checked
+                    )
+                  )
+                }
+                title={entry.enabled ? 'Disable user chip plugin' : 'Enable user chip plugin'}
+                type="checkbox"
+              />
+              <button
+                className="bb-settings-btn-danger"
+                disabled={busy}
+                onClick={() => {
+                  if (!window.confirm(`Remove user chip plugin ${entry.packageName}?`)) return;
+                  void runAndReload(() =>
+                    window.electronAPI.removeUserChipPlugin(entry.packageName)
+                  );
+                }}
+                type="button"
+              >
+                Remove
+              </button>
+            </SettingsFeatureRow>
+          ))
+        )}
+      </div>
     </>
   );
 }
@@ -103,6 +230,8 @@ export function PluginsSettingsSection(): React.JSX.Element {
           />
         </SettingsFeatureRow>
       ))}
+
+      <UserPluginsSettings />
 
       <SectionHeading>Export Plugins</SectionHeading>
       <NoteText>Enable or disable optional exporter plugins. Built-in exporters are always available.</NoteText>

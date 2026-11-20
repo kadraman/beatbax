@@ -40,4 +40,8 @@ export const IPC_CHANNELS = {
   WATCH_DOCUMENT: 'desktop:watch-document',
   UNWATCH_DOCUMENT: 'desktop:unwatch-document',
   DOCUMENT_CHANGED: 'desktop:document-changed',
+  USER_CHIP_PLUGINS_LIST: 'desktop:user-chip-plugins-list',
+  USER_CHIP_PLUGINS_INSTALL_ARCHIVE: 'desktop:user-chip-plugins-install-archive',
+  USER_CHIP_PLUGINS_SET_ENABLED: 'desktop:user-chip-plugins-set-enabled',
+  USER_CHIP_PLUGINS_REMOVE: 'desktop:user-chip-plugins-remove',
 } as const;

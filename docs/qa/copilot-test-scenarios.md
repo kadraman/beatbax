@@ -428,7 +428,7 @@ Starting file: desktop app, Settings → AI, OpenAI preset with valid key.
 Steps:
 
 1. Open Settings → AI and confirm the **Model** dropdown lists curated OpenAI models.
-2. Select `gpt-5.5` (or another curated entry) and close Settings.
+2. Select `gpt-5.6-terra` (or another curated entry) and close Settings.
 3. Open Copilot and confirm the footer shows the selected model name.
 
 Expected behavior:

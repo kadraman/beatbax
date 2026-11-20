@@ -37,7 +37,7 @@ Copilot is available in the **desktop app only** (`desktop-full` profile). The h
 
 | Preset label | Endpoint | Default model | Curated models (dropdown) |
 |---|---|---|---|
-| OpenAI | `https://api.openai.com/v1` | `gpt-5.4-mini` | `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `o3` |
+| OpenAI | `https://api.openai.com/v1` | `gpt-5.6-terra` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini` (as of Nov 2026; older IDs via Custom / Refresh) |
 | Ollama (local) | `http://localhost:11434/v1` | `qwen2.5-coder:7b` | Free-text (installed model name); see [Local Ollama guide](../copilot-local-ollama.md) |
 | LM Studio (local) | `http://localhost:1234/v1` | `local-model` | Free-text (loaded model name) |
 
@@ -490,7 +490,7 @@ See **[CoPilot test scenarios](../../copilot-test-scenarios.md)** for the full r
 
 - Confirm "Insert at cursor" inserts generated `pat` at cursor position
 - Confirm diagnostics appear verbatim in assembled context
-- Test with OpenAI `gpt-5.4-mini` (default)
+- Test with OpenAI `gpt-5.6-terra` (default)
 - Switch curated models in Settings → AI and confirm the Copilot footer label updates
 - Choose **Custom...** and enter an arbitrary model ID; confirm it persists across restart
 - Test with local Ollama (`qwen2.5-coder:7b`, `num_ctx` ≥ 16k; no API key)

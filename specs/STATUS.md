@@ -4,13 +4,11 @@ Assign the next feature id as **112** (one past the highest id below). Process: 
 
 ## Active (`specs/features/`)
 
-- **111** `desktop-user-chip-plugins` (Desktop Install from folder / npm for standalone chip plugins under userData; web-lite stays pre-bundled; CLI discovery unchanged) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/270 — [specs/features/111-desktop-user-chip-plugins/](specs/features/111-desktop-user-chip-plugins/)
 - **106** `cli-standalone-executable` (no-Node cross-platform CLI executables; stable assets on `desktop-v*`; rolling `cli-dev`) — planned — cli — issue: https://github.com/kadraman/beatbax/issues/244 — [specs/features/106-cli-standalone-executable/](specs/features/106-cli-standalone-executable/)
 - **105** `tracker-pattern-editor` (Desktop tracker for one `pat` + Pattern Grid arrangement grips; flatten-on-edit; `.bax` text remains source of truth) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/239 — [specs/features/105-tracker-pattern-editor/](specs/features/105-tracker-pattern-editor/)
 - **001** `hot-reload` — specified — engine — issue: https://github.com/kadraman/beatbax/issues/6 — [specs/features/001-hot-reload/](specs/features/001-hot-reload/)
 - **002** `vscode-plugin` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/21 — [specs/features/002-vscode-plugin/](specs/features/002-vscode-plugin/)
 - **003** `ai-chatbot-rag` — specified — desktop — issue: https://github.com/kadraman/beatbax/issues/66 — [specs/features/003-ai-chatbot-rag/](specs/features/003-ai-chatbot-rag/)
-- **005** `plugin-starter-template` — in-progress — plugin — issue: https://github.com/kadraman/beatbax/issues/86 — [specs/features/005-plugin-starter-template/](specs/features/005-plugin-starter-template/)
 - **009** `c64-sid-chip-plugin` — specified — plugin — issue: https://github.com/kadraman/beatbax/issues/199 — [specs/features/009-c64-sid-chip-plugin/](specs/features/009-c64-sid-chip-plugin/)
 - **010** `c64-sid-goattracker-exporter` — specified — export — issue: https://github.com/kadraman/beatbax/issues/200 — [specs/features/010-c64-sid-goattracker-exporter/](specs/features/010-c64-sid-goattracker-exporter/)
 - **011** `c64-sid-psid-rsid-exporter` — specified — export — issue: https://github.com/kadraman/beatbax/issues/201 — [specs/features/011-c64-sid-psid-rsid-exporter/](specs/features/011-c64-sid-psid-rsid-exporter/)
@@ -31,6 +29,8 @@ Assign the next feature id as **112** (one past the highest id below). Process: 
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
 
+- **111** `desktop-user-chip-plugins` (Desktop Install from package archive `.zip`/`.tgz` for standalone chip plugins under userData; no Desktop registry install; web-lite stays pre-bundled; CLI discovery unchanged) — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/270 — [specs/complete/111-desktop-user-chip-plugins/](specs/complete/111-desktop-user-chip-plugins/)
+- **005** `plugin-starter-template` (public GitHub chip-plugin template repo) — complete — plugin — issue: https://github.com/kadraman/beatbax/issues/86 — [specs/complete/005-plugin-starter-template/](specs/complete/005-plugin-starter-template/)
 - **103** `instrument-editor-workspace` (Instrument Editor Settings-style modal + toolbar picker; Game Boy `subpat` rows; NES DMC Browse/Check; absorbs 101/102) — complete (shipped in #266) — desktop — issue: https://github.com/kadraman/beatbax/issues/236 — [specs/complete/103-instrument-editor-workspace/](specs/complete/103-instrument-editor-workspace/)
 - **107** `web-lite-pattern-grid-zoom` (web-lite Pattern Grid Auto / Fit / zoom / horizontal scroll; reuse app-core helpers from 100) — complete (shipped in #261) — web — issue: https://github.com/kadraman/beatbax/issues/245 — [specs/complete/107-web-lite-pattern-grid-zoom/](specs/complete/107-web-lite-pattern-grid-zoom/)
 - **110** `gameboy-pulse-portamento` (one pulse voice across contiguous `port` notes; no per-step fade; re-attack when the chain ends) — complete (shipped in #253) — engine — issue: https://github.com/kadraman/beatbax/issues/246 — [specs/complete/110-gameboy-pulse-portamento/](specs/complete/110-gameboy-pulse-portamento/)

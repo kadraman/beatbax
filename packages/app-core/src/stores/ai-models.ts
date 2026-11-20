@@ -22,16 +22,17 @@ export const AI_PROVIDERS: Record<AIProviderKey, AIProviderConfig> = {
   openai: {
     label: 'OpenAI',
     endpoint: 'https://api.openai.com/v1',
-    // Curated models verified against the OpenAI API catalog (July 2026).
-    // gpt-4o / gpt-4o-mini / o3-mini are deprecated and intentionally omitted.
-    defaultModel: 'gpt-5.4-mini',
+    // Curated models verified against the OpenAI API catalog (November 2026).
+    // Default is GPT-5.6 Terra (mini-tier successor). gpt-4.1* / o3 remain available
+    // via Custom / live Refresh until their documented shutdown dates.
+    defaultModel: 'gpt-5.6-terra',
     models: [
+      'gpt-5.6-sol',
+      'gpt-5.6-terra',
+      'gpt-5.6-luna',
       'gpt-5.5',
       'gpt-5.4',
       'gpt-5.4-mini',
-      'gpt-4.1',
-      'gpt-4.1-mini',
-      'o3',
     ],
   },
   ollama: {
@@ -77,9 +78,13 @@ export const DEFAULT_CONTEXT_WINDOW_TOKENS: Record<AIProviderKey, number> = {
   custom: 16384,
 };
 
+/** OpenAI GPT-5.6 family documented context window (tokens). */
+export const OPENAI_GPT56_CONTEXT_WINDOW_TOKENS = 1_050_000;
+
 /** Resolve a context-window size for the current endpoint/model. */
 export function defaultContextWindowTokens(endpoint: string, model = ''): number {
   const key = getProviderByEndpoint(endpoint);
+  if (key === 'openai' && /\bgpt-5\.6\b/i.test(model)) return OPENAI_GPT56_CONTEXT_WINDOW_TOKENS;
   if (key === 'openai' && /\bo3\b/i.test(model)) return 200000;
   return DEFAULT_CONTEXT_WINDOW_TOKENS[key];
 }
@@ -101,6 +106,20 @@ export function getProviderConfig(key: AIProviderKey): AIProviderConfig {
 /** Curated models for a provider preset. Empty for local/custom providers. */
 export function getModelsForProvider(key: AIProviderKey): string[] {
   return AI_PROVIDERS[key].models;
+}
+
+/**
+ * Label for a model `<option>`. Marks the provider's curated default so Settings
+ * can show e.g. `gpt-5.6-terra (default)` without listing every model as recommended.
+ */
+export function formatModelOptionLabel(modelId: string, providerKey: AIProviderKey): string {
+  const trimmed = typeof modelId === 'string' ? modelId.trim() : '';
+  if (!trimmed) return '';
+  const config = AI_PROVIDERS[providerKey];
+  if (config.models.length > 0 && trimmed === config.defaultModel) {
+    return `${trimmed} (default)`;
+  }
+  return trimmed;
 }
 
 /** Whether the provider exposes a curated model dropdown (vs free-text only). */

@@ -25,6 +25,7 @@ import {
   CUSTOM_MODEL_VALUE,
   defaultContextWindowTokens,
   filterChatModels,
+  formatModelOptionLabel,
   getModelsForProvider,
   getProviderByEndpoint,
   mergeModelLists,
@@ -377,7 +378,10 @@ function ModelField({
     : model;
   const showCustomInput = selectValue === CUSTOM_MODEL_VALUE;
   const options = [
-    ...available.map((entry) => ({ value: entry, label: entry })),
+    ...available.map((entry) => ({
+      value: entry,
+      label: formatModelOptionLabel(entry, providerKey),
+    })),
     { value: CUSTOM_MODEL_VALUE, label: 'Custom...' },
   ];
 

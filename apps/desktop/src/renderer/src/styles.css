@@ -2820,6 +2820,31 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
 }
 .bb-settings-btn-danger:hover { background: #481f1f; }
 
+.bb-settings-user-plugins {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.bb-settings-user-plugins-npm {
+  margin-top: 4px;
+}
+.bb-settings-user-plugins-npm-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.bb-settings-user-plugins-npm-row .bb-settings-text {
+  flex: 1 1 14rem;
+  min-width: 12rem;
+}
+.bb-settings-btn-secondary:disabled,
+.bb-settings-btn-danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* Footer */
 .bb-settings-modal-footer {
   display: flex;

@@ -4,7 +4,7 @@
 
 ## Summary
 
-Add a Desktop-only user chip plugin pipeline: main process acquires packages (folder copy or npm tarball), stores them under `userData/chip-plugins/`, validates naming / peer / import graph, and exposes them to the sandboxed renderer through a privileged protocol plus a host `@beatbax/engine` import map. Settings → Plugins gains Install from folder / Install from npm, and enable / disable / remove with full reload. Web-lite and CLI discovery stay as today. Docs and the public starter-template README update when the UI ships.
+Add a Desktop-only user chip plugin pipeline: main process acquires packages from a local `.zip`/`.tgz` archive, stores them under `userData/chip-plugins/`, validates naming / peer / import graph, and exposes them to the sandboxed renderer through a privileged protocol plus a host `@beatbax/engine` import map. Settings → Plugins gains Install from package, and enable / disable / remove with full reload (no Desktop Install from npm). Web-lite and CLI discovery stay as today. Docs and the public starter-template README update when the UI ships.
 
 ## Technical context
 

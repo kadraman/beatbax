@@ -8,7 +8,7 @@
 - The `ChipRegistry` API now includes `listCanonical()` (returns only canonical plugin names) and `aliasesFor(canonical)` (returns all aliases for a chip). The CLI and web UI use these for correct chip/plugin listing and alias handling.
 - The web UI Plugins panel now groups chips as Built-in (always-on, e.g. Game Boy) and Optional (toggleable plugins), showing version info from the plugin’s `version` field.
 - The Channel Mixer in the web UI now displays a chip-aware instrument volume reference column, using the plugin’s `instrumentVolumeRange` (or defaulting to `{ min: 0, max: 15 }`).
-- **Dual rendering:** Melodic channels should implement both `render()` (PCM, for CLI/headless) and `createPlaybackNodes()` (Web Audio, for browser/Electron) for full compatibility and effects support.
+- **Dual rendering:** Every voice you care about in Desktop should implement both `render()` (PCM, for CLI/headless/export) and `createPlaybackNodes()` (Web Audio, for browser/Electron live playback). Omitting Web Audio leaves that voice on ScriptProcessor PCM fallback and can diverge from CLI even when WAV export matches.
 - For sample-based plugins, implement `resolveSampleAsset()` and follow the import security model for asset resolution.
 - See the NES plugin for a canonical example of dual-path rendering and UI contributions.
 - **Effect dispatch changed (2026-05):** Plugin `effects` are **no longer auto-registered into the global effect registry** when the plugin is registered. Instead, they are resolved at playback/PCM-render time for the active chip only — preventing one chip's effect handlers from silently overriding another chip's behavior. If you previously relied on global override behavior, move your logic into the per-chip resolution path (handled automatically by the engine when your plugin declares `effects`).
@@ -454,6 +454,27 @@ play
 
 ---
 
+## Desktop install (BeatBax Desktop)
+
+BeatBax Desktop can install standalone chip plugins at runtime without rebuilding the app (spec 111). Settings → Plugins → **User plugins** → **Install from package** accepts a `.zip` or `.tgz` / `.tar.gz` of the built package (same files `npm pack` would publish). Local loop: `npm run pack:desktop` (or `npm run build && npm pack`), then choose the `.tgz`. For GitHub Releases, attach that tarball or an equivalent zip of the packed package — not a source-checkout zip. Desktop unpacks into `userData/chip-plugins/` and does **not** keep a source `node_modules`. Desktop does not install from the npm registry; publish for CLI/`npm install`, pack for Desktop.
+
+After install, Desktop reloads. Enable / disable / Remove are available on each User plugins row; enable and disable also reload so `chipRegistry` rebuilds cleanly.
+
+**Requirements and validation**
+
+- Package name must match `@beatbax/plugin-chip-[a-z0-9-]+` or `beatbax-plugin-chip-[a-z0-9-]+`.
+- `peerDependencies["@beatbax/engine"]` must accept the host Desktop engine version. A caret on `0.0.z` (for example `^0.0.1`) accepts only that patch.
+- The import graph may use relative files and these host specifiers only: `@beatbax/engine`, `@beatbax/engine/chips`, `@beatbax/engine/parser`, `@beatbax/engine/util/music`, `@beatbax/engine/audio`, `@beatbax/engine/export`, `@beatbax/engine/instruments`, `@beatbax/engine/patterns`, `@beatbax/engine/sequences`, `@beatbax/engine/scheduler`, and `@beatbax/engine/song`. Named imports from those specifiers resolve to the host engine. `node:`, `fs`, `@beatbax/engine/node`, and other engine subpaths (including `@beatbax/engine/audio/playback`) are rejected.
+- Chip `name` / aliases must not collide with built-in chips (Game Boy, NES), pre-bundled optional chips (SMS, Spectrum 128), or another installed user chip. Reinstalling the **same package name** replaces that install.
+
+**Trust model:** installing a plugin is the same trust decision as `npm install` for the CLI. Install-time shape checks and later plugin execution both run in the sandboxed renderer (no Node integration) and share the host `@beatbax/engine` instance.
+
+**CLI vs Desktop:** a Desktop install does not appear in the CLI, and a CLI `node_modules` / `npm link` install does not appear in Desktop. Treat them as separate copies. Web-lite does not install user plugins.
+
+Starter template: [beatbax-plugin-chip-template](https://github.com/kadraman/beatbax-plugin-chip-template).
+
+---
+
 ## CLI Auto-Discovery
 
 The BeatBax CLI automatically discovers installed plugins matching:
@@ -685,11 +706,19 @@ BeatBax uses two audio rendering paths depending on the runtime environment:
 | **PCM** (`render()`) | CLI, headless, Node.js | None (no AudioParam automation) |
 | **Web Audio** (`createPlaybackNodes()`) | Browser / Electron | Full (arp, vib, portamento, retrigger, echo…) |
 
-**Melodic channels** (pulse, triangle) should implement **both** so that:
-- The CLI produces audio via the `render()` PCM loop.
-- The web-ui uses `createPlaybackNodes()` and gets the full effects system for free.
+**Implement both paths for every live Desktop voice** (including percussion):
+- The CLI and Desktop WAV export use the `render()` PCM loop.
+- Desktop / web-ui **live** playback prefers `createPlaybackNodes()` for effects
+  (arp, vib, portamento, …). A voice without it falls back to ScriptProcessor
+  PCM while other voices use Web Audio — timing/routing can diverge even when
+  exported WAVs match CLI.
 
-**Percussion/sample channels** (noise, DMC) only need `render()` since they don't use melodic effects.
+**Wavetable / `AudioBufferSourceNode`:** set `src.loop = true` and set
+`playbackRate.value` immediately. One cycle without looping is a click, then
+silence for the rest of the note on Desktop.
+
+**Sample channels** (e.g. NES DMC) may still be PCM-oriented; if Desktop live
+playback should match CLI, prefer a Web Audio path (or accept the fallback).
 
 ### Implementing `createPlaybackNodes()`
 

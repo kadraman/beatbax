@@ -94,19 +94,18 @@ jobs:
       - name: Build shared packages
         run: npm run build-all
 
-      - name: Run desktop unit tests
-        run: npm run desktop:test
+      - name: Bundle validation engine host
+        run: npm -w @beatbax/desktop run bundle-validation-host
 
       - name: Install Linux GUI dependencies for Electron
-        run: |
-          # ubuntu-latest ships google-chrome.list; dl.google.com occasionally
-          # serves inconsistent Packages.gz (Hash Sum mismatch) and fails the job.
-          # BeatBax only needs Ubuntu archive packages for Electron/Xvfb.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
-            /etc/apt/sources.list.d/google-chrome.sources \
-            /etc/apt/sources.list.d/google-chrome*.list
-          sudo apt-get update
-          sudo apt-get install -y xvfb libgtk-3-0 libnotify4 libnss3 libxss1 libasound2t64 libgbm1
+        run: bash .github/scripts/install-linux-electron-deps.sh
+
+      - name: Run desktop unit tests
+        env:
+          # See ci.yml — Jest Electron spawn only; not used by production validation.
+          # Needs Xvfb/$DISPLAY; ozone headless cannot finish a sandboxed BrowserWindow.
+          BEATBAX_ELECTRON_NO_SANDBOX: '1'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" npm run desktop:test
 
       - name: Run desktop Electron smoke test
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" npm -w @beatbax/desktop run test:e2e

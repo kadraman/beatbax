@@ -68,7 +68,7 @@ import {
 } from '../../../../shared/ai-chat-completion';
 import type { AIChatCompletionResult } from '../../../../shared/electron-api';
 import { stripIpcErrorPrefix } from '../../../../shared/ipc-error';
-import { buildMinimalEditFixPrompt } from '../../lib/copilot-edit-fix-prompt';
+import { buildMinimalEditFixPrompt, shouldOfferAskFixInEditMode } from '../../lib/copilot-edit-fix-prompt';
 import {
   type ArrangementLayoutFixAction,
   type ArrangementLayoutFixResult,
@@ -1177,7 +1177,10 @@ function ChatMessageView({
           </span>
         </div>
       ) : null}
-      {actionMode === 'ask' && !hasCodeBlocks && !message.layoutFixAction ? (
+      {actionMode === 'ask'
+        && !hasCodeBlocks
+        && !message.layoutFixAction
+        && shouldOfferAskFixInEditMode(message.content) ? (
         <div className="bb-chat-ask-actions">
           <button
             className="bb-chat-action-btn bb-chat-action-btn--primary"
