@@ -74,7 +74,7 @@ Confirm these remain covered (or note gaps):
 | Pattern Grid zoom / scroll (spec 100) | Pass (unit) | app-core Auto/Fit/clamp/anchor/autoscroll helpers covered; desktop UI shipped. Spot-check long song + seek/loop overlays after installers build |
 | Copilot smoke (panel, Settings AI, Ask prompt) | | See [copilot-test-scenarios.md](../copilot-test-scenarios.md). Include Discard remaining after a partial Keep (#218): editor matches baseline + kept defs only |
 | Copilot Discard remaining (issue #218) | Pass (unit) | `discardRemainingCopilotEditChanges` rebuilds from baseline + kept defs; CRLF residue cases in `copilot-edit-changes.test.ts` |
-| User chip plugins (spec 111) | | Settings → Plugins → User plugins: Install from package (`.tgz` from `npm pack` / release zip), enable/disable/remove + reload; `chip <name>` plays; web-lite unchanged |
+| User chip plugins (spec 111) | | Settings → Plugins → User plugins: Install (`.tgz` from `npm pack` / release zip), enable/disable/remove + reload; `chip <name>` plays; web-lite unchanged |
 | New Song Wizard (chip cards, metadata, audible preview) | | |
 | Export smoke: JSON and WAV | | |
 | Export smoke: UGE and/or Arkos (`.aks`/`.aki`) when relevant | | Skip if out of scope for this cut |
