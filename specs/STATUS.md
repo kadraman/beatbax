@@ -1,9 +1,10 @@
 # Specification status index
 
-Assign the next feature id as **112** (one past the highest id below). Process: [README.md](README.md).
+Assign the next feature id as **113** (one past the highest id below). Process: [README.md](README.md).
 
 ## Active (`specs/features/`)
 
+- **112** `webaudio-pcm-effect-parity` (PCM CLI play / WAV export match Desktop WebAudio effects; shared modulation kernel; closes #42 echo/retrig gap) — planned — engine — issue: https://github.com/kadraman/beatbax/issues/276 — [specs/features/112-webaudio-pcm-effect-parity/](specs/features/112-webaudio-pcm-effect-parity/)
 - **106** `cli-standalone-executable` (no-Node cross-platform CLI executables; stable assets on `desktop-v*`; rolling `cli-dev`) — planned — cli — issue: https://github.com/kadraman/beatbax/issues/244 — [specs/features/106-cli-standalone-executable/](specs/features/106-cli-standalone-executable/)
 - **105** `tracker-pattern-editor` (Desktop tracker for one `pat` + Pattern Grid arrangement grips; flatten-on-edit; `.bax` text remains source of truth) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/239 — [specs/features/105-tracker-pattern-editor/](specs/features/105-tracker-pattern-editor/)
 - **001** `hot-reload` — specified — engine — issue: https://github.com/kadraman/beatbax/issues/6 — [specs/features/001-hot-reload/](specs/features/001-hot-reload/)
