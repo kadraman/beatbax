@@ -67,5 +67,5 @@
 
 - [x] T900 [P] Update dual-rendering section in `docs/contributing/creating-plugins.md` (PCM effects ≠ “None”).
 - [x] T901 [P] Note in `specs/STATUS.md` and the completed 110 entry that FR-004 supersedes the PCM carve-out. Recorded 2026-11-22 with T057. The folder stays under `specs/features/` until T903.
-- [ ] T902 Regenerate `songs/gameboy/tutorial_groove.wav` and `songs/gameboy/tutorial_groove-channel-*.wav` from the PCM renderer after this checkpoint. The files on disk predate the effect-parity path and are not the sign-off fixtures.
+- [x] T902 Regenerate `songs/gameboy/tutorial_groove.wav` and `songs/gameboy/tutorial_groove-channel-*.wav` from the PCM renderer after this checkpoint. The files on disk predate the effect-parity path and are not the sign-off fixtures.
 - [ ] T903 Move this folder to `specs/complete/112-webaudio-pcm-effect-parity/` and update `specs/STATUS.md` when the remaining polish ships. Comment completion on https://github.com/kadraman/beatbax/issues/276. Leave https://github.com/kadraman/beatbax/issues/42 open: echo's remaining measured gap is https://github.com/kadraman/beatbax/issues/279, and the retrigger channel-2 frame is an accepted residual in plan.md.
