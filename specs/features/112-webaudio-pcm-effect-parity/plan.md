@@ -105,6 +105,9 @@ None.
   - portamento demos from 110
   - `songs/effects/echo.bax`, `songs/effects/retrigger.bax`, vib/arp fixtures
 - Gates are SC-001 / SC-002 (per-note level, pitch track, envelope including 25 ms after the nominal end, band energy through 16 kHz, full-mix RMS). The same gates must pass for WebAudio real-time vs WebAudio offline.
+- Noise note effects stay on https://github.com/kadraman/beatbax/issues/277. Spec edge case and T040 allow PCM to warn instead of rendering them. For the seven `songs/gameboy/effects/` demos, SC-002 applies to pulse and wave channels at the SC-001 numbers (0.5 dB note RMS, 3 / 10 cents, 1 dB envelope, 1 dB band energy). A noise-channel miss, and a full-mix miss that is only that noise channel, is recorded here and does not fail T057. Songs whose pulse and wave channels carry the mix, including portamento, still pass full-mix RMS and band energy.
+- Echo is not a hUGETracker effect, so a remaining PCM vs WebAudio band or pitch gap on `gb_echo_demo.bax` does not block T057. That gap is https://github.com/kadraman/beatbax/issues/279. Implementation stays with #42.
+- Accepted SC-002 residuals (2026-11-22). The SC-001 numbers stay in force for every other frame. Note cut on pulse: one handoff frame is 4.9 dB where an E5 joins the next E5, and the waveform there still matches; other joins are 1.1–2.5 dB. Retrigger channel 2: one envelope frame, 2.1 dB. Wave portamento channel 3: 12–18 cents during the glide (limit 10) and 1.4–3 dB on tail frames; the full mix passes. The author listen matches, and what remains is a few milliseconds of tail overlap or a glide the mix already passes.
 - Envelope frames where both sides are below −40 dB are not compared. Two WebAudio renders of the same release sit there and still differ by more than 1 dB, and that difference is not audible against the note. A missing release still fails: one side is at the note's level while the other is silent.
 - Windowed correlation from the 2026-11-21 harness is not an acceptance metric. It stays in `research.md` as a discarded measurement.
 
@@ -116,7 +119,7 @@ None.
 ## Migration and compatibility
 
 - Audible change for CLI/WAV is intentional (toward Desktop).
-- Spec 110’s “PCM stays as they are” is superseded by FR-004; when this feature completes, update the completed 110 spec note or add a one-line amendment in STATUS.
+- Spec 110’s “PCM stays as they are” is superseded by FR-004. The STATUS entry and the completed 110 summary note that (T901, 2026-11-22). Moving this folder to `specs/complete/` waits for T903.
 - UGE export mappings unchanged.
 
 ## Open implementation questions

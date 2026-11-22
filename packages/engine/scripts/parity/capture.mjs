@@ -5,7 +5,10 @@
  * PCM vs offline WebAudio is the T055 report. Real-time is the self-check
  * reference only: its note onsets can sit a fraction of a dB off the offline render.
  *
- *   node packages/engine/scripts/parity/capture.mjs [song.bax]
+ *   node packages/engine/scripts/parity/capture.mjs [song.bax] [--offline-only] [--pcm-gate]
+ *
+ * --offline-only skips the real-time self-check and compares PCM to offline WebAudio.
+ * --pcm-gate exits 1 when that PCM comparison fails. SC-002 uses both flags.
  */
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { dirname, join, resolve } from 'path';
@@ -174,19 +177,25 @@ if (process.argv.includes('--limiter-check')) {
   await browser.close();
   process.exit(0);
 }
-console.log('Warming up the audio thread…');
-await page.evaluate(({ song, opts }) => globalThis.BeatBaxParityGates.captureRealtime(song, { ...opts, durationSec: 1 }), { song, opts });
-console.log(`Capturing real-time and offline @ ${sampleRate} Hz, ${durationSec.toFixed(2)}s…`);
+const offlineOnly = process.argv.includes('--offline-only');
+const pcmGate = process.argv.includes('--pcm-gate');
 let rt = null;
-for (let attempt = 1; attempt <= 3; attempt++) {
-  rt = await page.evaluate(({ song, opts }) => globalThis.BeatBaxParityGates.captureRealtime(song, opts), { song, opts });
-  if (rt.gaps === 0) break;
-  console.warn(`Real-time capture dropped ${rt.gaps} audio blocks at frames ${rt.gapAt} (attempt ${attempt})`);
+if (!offlineOnly) {
+  console.log('Warming up the audio thread…');
+  await page.evaluate(({ song, opts }) => globalThis.BeatBaxParityGates.captureRealtime(song, { ...opts, durationSec: 1 }), { song, opts });
+  console.log(`Capturing real-time and offline @ ${sampleRate} Hz, ${durationSec.toFixed(2)}s…`);
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    rt = await page.evaluate(({ song, opts }) => globalThis.BeatBaxParityGates.captureRealtime(song, opts), { song, opts });
+    if (rt.gaps === 0) break;
+    console.warn(`Real-time capture dropped ${rt.gaps} audio blocks at frames ${rt.gapAt} (attempt ${attempt})`);
+  }
+} else {
+  console.log(`Capturing offline @ ${sampleRate} Hz, ${durationSec.toFixed(2)}s…`);
 }
 const off = await page.evaluate(({ song, opts }) => globalThis.BeatBaxParityGates.captureOffline(song, opts), { song, opts });
 await browser.close();
 if (errs.length) console.warn('page errors:', errs.slice(0, 8));
-if (rt.gaps > 0) {
+if (rt && rt.gaps > 0) {
   console.error(`Real-time capture dropped ${rt.gaps} audio blocks`);
   process.exit(1);
 }
@@ -200,27 +209,41 @@ function peakOf(buf) {
 const labels = ['full', 'ch1', 'ch2', 'ch3', 'ch4'];
 const report = { song: songPath, sampleRate, durationSec, songEndSec, self: {}, pcm: {} };
 let selfPass = true;
+let pcmPass = true;
 for (let i = 0; i < labels.length; i++) {
   const label = labels[i];
-  const rtBuf = fromB64(rt.buffers[i]);
   const offBuf = fromB64(off.buffers[i]);
-  console.log(`${label} peak rt ${peakOf(rtBuf).toFixed(4)} offline ${peakOf(offBuf).toFixed(4)}`);
   const notes = label === 'full' ? [] : noteWindows(i);
-  const self = compareSc001(rtBuf, offBuf, sampleRate, notes, songEndSec, label === 'full');
-  report.self[label] = self;
-  selfPass &&= self.pass;
-  console.log(`WA self ${label}: ${self.pass ? 'pass' : 'FAIL'} ${self.failures.slice(0, 6).join(' | ')}`);
+  if (rt) {
+    const rtBuf = fromB64(rt.buffers[i]);
+    console.log(`${label} peak rt ${peakOf(rtBuf).toFixed(4)} offline ${peakOf(offBuf).toFixed(4)}`);
+    const self = compareSc001(rtBuf, offBuf, sampleRate, notes, songEndSec, label === 'full');
+    report.self[label] = self;
+    selfPass &&= self.pass;
+    console.log(`WA self ${label}: ${self.pass ? 'pass' : 'FAIL'} ${self.failures.slice(0, 6).join(' | ')}`);
+  } else {
+    console.log(`${label} peak offline ${peakOf(offBuf).toFixed(4)}`);
+  }
 
   const renderChannels = label === 'full' ? undefined : [i];
   const pcm = renderSongToPCM(song, { sampleRate, channels: 2, bpm, duration: durationSec, renderChannels });
+  // Channel buses are mono. A stereo panner downmixes as (L+R)/2 before the tap.
+  // PCM center pan is dual-mono, so the average matches the left channel there.
   const pcmMono = new Float32Array(pcm.length / 2);
-  for (let s = 0; s < pcmMono.length; s++) pcmMono[s] = pcm[s * 2];
+  for (let s = 0; s < pcmMono.length; s++) pcmMono[s] = 0.5 * (pcm[s * 2] + (pcm[s * 2 + 1] || 0));
   const pcmReport = compareSc001(offBuf, pcmMono, sampleRate, notes, songEndSec, label === 'full');
-  const rtPcm = compareSc001(rtBuf, pcmMono, sampleRate, notes, songEndSec, label === 'full');
   report.pcm[label] = { pass: pcmReport.pass, failures: pcmReport.failures.slice(0, 12), mixRmsDb: pcmReport.mixRmsDb };
+  pcmPass &&= pcmReport.pass;
   console.log(`PCM ${label}: ${pcmReport.pass ? 'pass' : 'not yet'} (${pcmReport.failures.length} failures, T055)`);
-  if (!rtPcm.pass) {
-    console.log(`  real-time differs: ${rtPcm.failures.slice(0, 4).join(' | ')}`);
+  if (!pcmReport.pass) {
+    console.log(`  pcm: ${pcmReport.failures.slice(0, 8).join(' | ')}`);
+  }
+  if (rt) {
+    const rtBuf = fromB64(rt.buffers[i]);
+    const rtPcm = compareSc001(rtBuf, pcmMono, sampleRate, notes, songEndSec, label === 'full');
+    if (!rtPcm.pass) {
+      console.log(`  real-time differs: ${rtPcm.failures.slice(0, 4).join(' | ')}`);
+    }
   }
 }
 
@@ -228,3 +251,4 @@ const outDir = join(engineRoot, 'dist-parity');
 writeFileSync(join(outDir, 'sc001-report.json'), JSON.stringify(report, null, 2));
 console.log('Wrote', join(outDir, 'sc001-report.json'));
 if (!selfPass) process.exit(1);
+if (pcmGate && !pcmPass) process.exit(1);

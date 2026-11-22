@@ -22,7 +22,7 @@ import { get as getEffect, clearEffectState } from '../effects/index.js';
 import { createLogger } from '../util/logger.js';
 import { chipRegistry } from '../chips/index.js';
 import type { ChipWarning } from '../chips/types.js';
-import { applyInlineRenderEffects } from './inlineMacroEffects.js';
+import { applyInlineRenderEffects, resetPluginPcmEffectWarnings, warnDroppedPluginPcmEffects } from './inlineMacroEffects.js';
 
 const log = createLogger('player');
 
@@ -348,6 +348,8 @@ export class Player {
         } catch (e) {}
       }
     } catch (e) {}
+
+    resetPluginPcmEffectWarnings();
 
     // ensure a clean slate for each playback run
     // Note: stop() clears _currentAST, so we restore it immediately after
@@ -886,10 +888,11 @@ export class Player {
               }
               if (this.solo !== null && this.solo !== capturedChId) return;
               if (this.muted.has(capturedChId)) return;
-              const { effectiveInst } = applyInlineRenderEffects(
+              const { effectiveInst, remainingEffects } = applyInlineRenderEffects(
                 capturedInst,
                 capturedToken?.effects,
               );
+              warnDroppedPluginPcmEffects(remainingEffects);
               backend.noteOn(capturedFreq, effectiveInst);
             });
             this.scheduler.schedule(time + capturedDur, () => { backend.noteOff(); });
@@ -1218,6 +1221,9 @@ export class Player {
       const wetLevel = mix;
       const dryLevel = 1 - mix;
 
+      // A feedback loop whose delay is still the default 0 makes OfflineAudioContext
+      // render silence for the whole graph. Set the delay before connecting.
+      try { delayNode.delayTime.value = Math.max(0.001, delayTime); } catch (_) { /* ignore */ }
       try {
         delayNode.delayTime.setValueAtTime(delayTime, start);
         feedbackGain.gain.setValueAtTime(feedback, start);
@@ -1230,8 +1236,9 @@ export class Player {
         dryGain.gain.value = dryLevel;
       }
 
-      // Find the destination (use masterGain if available)
-      const destination = this.masterGain || (this.ctx as any).destination;
+      // Stay on the channel bus the voice was using. Jumping to masterGain
+      // skips that bus, so a per-channel tap hears silence.
+      const destination = (gainNode as any).__beatbaxDest || this.masterGain || (this.ctx as any).destination;
 
       // Disconnect gainNode from its current destination to avoid double-routing
       try {
@@ -1286,12 +1293,16 @@ export class Player {
       }
       const cleanupTime = start + dur + tailDuration;
 
-      // Schedule proper cleanup: ramp gain to zero, then disconnect all nodes
+      // Schedule proper cleanup: ramp gain to zero, then disconnect all nodes.
+      // Offline capture runs every callback immediately via flushAll, while
+      // currentTime is still 0. Automate on the note's cleanup time, and do
+      // not disconnect a graph that has not reached that time yet.
       this.scheduler.schedule(cleanupTime - 0.1, () => {
         try {
-          // Ramp feedback to zero over 100ms to avoid clicks
-          feedbackGain.gain.setValueAtTime(feedback, (this.ctx as any).currentTime);
-          feedbackGain.gain.linearRampToValueAtTime(0, (this.ctx as any).currentTime + 0.1);
+          const now = Number((this.ctx as any).currentTime) || 0;
+          const t = Math.max(now, cleanupTime - 0.1);
+          feedbackGain.gain.setValueAtTime(feedback, t);
+          feedbackGain.gain.linearRampToValueAtTime(0, t + 0.1);
         } catch (_) {
           // Scheduling failed, proceed to disconnect anyway
         }
@@ -1299,6 +1310,8 @@ export class Player {
 
       // Schedule node disconnection after fade-out completes
       this.scheduler.schedule(cleanupTime, () => {
+        const now = Number((this.ctx as any).currentTime) || 0;
+        if (now + 0.05 < cleanupTime) return;
         try {
           delayNode.disconnect();
           feedbackGain.disconnect();

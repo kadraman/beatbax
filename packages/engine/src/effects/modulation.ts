@@ -74,19 +74,18 @@ export function portamentoDurationSec(speed: number, noteDurSec: number, duratio
 }
 
 /**
- * WebAudio pulse uses exponentialRamp (fallback linear); wave uses linearRamp.
- * For PCM we approximate exponential with a power curve and linear with t.
+ * Progress of a portamento glide, 0 at the start and 1 at `portDur`.
+ * Pulse WebAudio uses `exponentialRampToValueAtTime`, which is linear in
+ * log-frequency, so both curves share this time base. The curve selects
+ * geometric frequency (`exponential`) or linear Hz (`linear`, wave playbackRate).
  */
 export function portamentoProgress(
   t: number,
   portDur: number,
-  curve: 'exponential' | 'linear' = 'exponential'
+  _curve: 'exponential' | 'linear' = 'exponential'
 ): number {
   if (portDur <= 0) return 1;
-  const u = Math.min(1, Math.max(0, t / portDur));
-  if (curve === 'linear') return u;
-  // Approximate audio-rate exponential glide (closer to exponentialRampToValueAtTime)
-  return u * u;
+  return Math.min(1, Math.max(0, t / portDur));
 }
 
 export function portamentoFreqAt(
@@ -151,52 +150,98 @@ export function applyBendToFreq(
   return baseFreq * Math.pow(2, (semitones * p) / 12);
 }
 
+/**
+ * One sample of the vibrato LFO. Matches `createPhaseLockedLfo` in effects/index.ts:
+ * phase 0 is the start of the stored cycle (square high, triangle at −1, sine at 0).
+ */
+export function lfoSample(phase: number, waveform: string | undefined): number {
+  const cycle = ((phase % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const p = cycle / (2 * Math.PI);
+  switch ((waveform || 'sine').toLowerCase()) {
+    case 'square':
+      return p < 0.5 ? 1 : -1;
+    case 'sawtooth':
+    case 'saw':
+      return 2 * p - 1;
+    case 'triangle':
+    case 'tri':
+      return p < 0.5 ? 4 * p - 1 : 3 - 4 * p;
+    default:
+      return Math.sin(cycle);
+  }
+}
+
+/**
+ * One sample of an OscillatorNode, the LFO Desktop tremolo starts with `lfo.start()`.
+ * Phase 0 is sine at 0, square high, saw at 0, and triangle at −1.
+ */
+export function oscillatorSample(phase: number, waveform: string | undefined): number {
+  const p = ((phase / (2 * Math.PI)) % 1 + 1) % 1;
+  switch ((waveform || 'sine').toLowerCase()) {
+    case 'square':
+      return p < 0.5 ? 1 : -1;
+    case 'sawtooth':
+    case 'saw':
+      return 2 * (p - Math.floor(p + 0.5));
+    case 'triangle':
+    case 'tri': {
+      // OscillatorNode triangle starts at 0 and rises. A ramp from −1 is a quarter-cycle early.
+      const x = (p + 0.25) % 1;
+      return 1 - 4 * Math.abs(x - 0.5);
+    }
+    default:
+      return Math.sin(phase);
+  }
+}
+
 export function tremoloGain(
   t: number,
   depth: number,
   rate: number,
   waveform: string | undefined,
   durationSec?: number,
-  delaySec?: number
+  delaySec?: number,
+  noteDurSec?: number,
 ): number {
   if (!(depth > 0) || !(rate > 0)) return 1;
-  if (typeof delaySec === 'number' && t < delaySec) return 1;
-  if (typeof durationSec === 'number' && t >= durationSec) return 1;
+  const delay = typeof delaySec === 'number' && delaySec > 0 ? delaySec : 0;
+  // Desktop clamps lfo.start() to 75% of the note so a long delay still plays.
+  const lfoAt = typeof noteDurSec === 'number' && noteDurSec > 0
+    ? Math.min(delay, noteDurSec * 0.75)
+    : delay;
+  if (t < lfoAt) return 1;
+  // A duration of 0 means the whole note, matching the WebAudio handler.
+  if (typeof durationSec === 'number' && durationSec > 0 && t >= durationSec) return 1;
+  const lfo = oscillatorSample((t - lfoAt) * rate * 2 * Math.PI, waveform);
   const modulationDepth = (depth / 15) * 0.5;
-  const tremPhase = t * rate * 2 * Math.PI;
-  let lfo = 0;
-  switch ((waveform || 'sine').toLowerCase()) {
-    case 'square':
-      lfo = Math.sin(tremPhase) >= 0 ? 1 : -1;
-      break;
-    case 'sawtooth':
-    case 'saw':
-      lfo = 2 * ((tremPhase / (2 * Math.PI)) % 1) - 1;
-      break;
-    case 'triangle': {
-      const sawLfo = 2 * ((tremPhase / (2 * Math.PI)) % 1) - 1;
-      lfo = 2 * Math.abs(sawLfo) - 1;
-      break;
-    }
-    default:
-      lfo = Math.sin(tremPhase);
-  }
   return 1.0 + lfo * modulationDepth;
 }
 
-export function noteCutGain(t: number, cutTicks: number, tickSeconds: number): number {
+export function noteCutGain(
+  t: number,
+  cutTicks: number,
+  tickSeconds: number,
+  voiceGain = 1,
+  noteDurSec?: number,
+): number {
   if (!(cutTicks > 0) || !(tickSeconds > 0)) return 1;
   const cutTimeSec = cutTicks * tickSeconds;
+  // A cut at the note end is the voice release, same as Desktop.
+  if (typeof noteDurSec === 'number' && cutTimeSec >= noteDurSec - 1e-6) return 1;
   if (t < cutTimeSec) return 1;
   const fadeDuration = 0.005;
   const fadeTime = t - cutTimeSec;
   if (fadeTime >= fadeDuration) return 0;
-  return Math.pow(0.0001, fadeTime / fadeDuration);
+  // Desktop exponentialRampToValueAtTime(0.0001) from the current voice gain.
+  // A ramp that assumes the gain is 1 reaches silence on a steeper curve.
+  const g = Math.max(Math.abs(voiceGain), 1e-8);
+  return Math.pow(0.0001 / g, fadeTime / fadeDuration);
 }
 
 export interface ParsedNoteEffects {
   vibDepth: number;
   vibRate: number;
+  vibWaveform?: string;
   vibDurationSec?: number;
   vibDelaySec?: number;
   tremDepth: number;
@@ -263,7 +308,10 @@ export function parseNoteEffects(
       switch (fx.type) {
         case 'vib': {
           out.vibDepth = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
-          out.vibRate = Number(typeof p[1] !== 'undefined' ? p[1] : 0);
+          // WebAudio uses `params[1] || 4`. An omitted or zero rate is 4 Hz, not silence.
+          const rateRaw = typeof p[1] !== 'undefined' ? Number(p[1]) : 4;
+          out.vibRate = Number.isFinite(rateRaw) && rateRaw > 0 ? Math.max(0.1, rateRaw) : 4;
+          if (typeof p[2] === 'string' && p[2].trim()) out.vibWaveform = p[2].toLowerCase().trim();
           if (typeof fx.durationSec === 'number') out.vibDurationSec = Number(fx.durationSec);
           else if (typeof p[3] !== 'undefined' && typeof tickSeconds === 'number') {
             const durRows = Number(p[3]);
@@ -407,6 +455,8 @@ export function modulatePitchHz(opts: {
   vibDepthScale?: number;
   vibratoPhase: number;
   portCurve?: 'exponential' | 'linear';
+  /** When set, the glide uses this time instead of `t`. Wave playbackRate is held for a render quantum. */
+  portAtSec?: number;
 }): { freq: number; nextVibratoPhase: number } {
   const {
     t,
@@ -418,6 +468,7 @@ export function modulatePitchHz(opts: {
     vibDepthScale = VIB_DEPTH_SCALE,
     vibratoPhase,
     portCurve = 'exponential',
+    portAtSec,
   } = opts;
 
   // Order matches typical WebAudio scheduling: port sets the carrier, arp steps
@@ -426,7 +477,7 @@ export function modulatePitchHz(opts: {
 
   if (fx.portSpeed > 0 && typeof lastFreq === 'number' && lastFreq > 0) {
     const portDur = portamentoDurationSec(fx.portSpeed, noteDurSec, fx.portDurationSec);
-    freq = portamentoFreqAt(t, lastFreq, baseFreq, portDur, portCurve);
+    freq = portamentoFreqAt(typeof portAtSec === 'number' ? portAtSec : t, lastFreq, baseFreq, portDur, portCurve);
   }
 
   if (fx.arpOffsets.length > 0 && freq > 0) {
@@ -443,7 +494,7 @@ export function modulatePitchHz(opts: {
   if (fx.vibDepth !== 0 && fx.vibRate > 0 && freq > 0 && afterVibDelay && withinVibDur) {
     // WebAudio sets LFO gain once from the note frequency at schedule time.
     const amp = vibratoAmplitudeHz(fx.vibDepth, baseFreq, vibDepthScale);
-    freq = freq + Math.sin(vibratoPhase) * amp;
+    freq = freq + lfoSample(vibratoPhase, fx.vibWaveform) * amp;
   }
 
   return { freq, nextVibratoPhase: vibratoPhase };

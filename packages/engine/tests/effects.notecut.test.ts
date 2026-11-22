@@ -85,13 +85,10 @@ describe('Note Cut Effect', () => {
 
     handler({}, nodes, params, start, dur, 1, tickSeconds);
 
-    // Should cap at note end time (start + dur = 1.5s)
-    const expectedCutTime = start + dur; // 1.5s
-
+    // A cut that would land at or after the note end leaves the voice release
+    // in place. Scheduling another ramp there jumps the gain.
     const cancelCalls = gainCalls.filter(c => c.method === 'cancelScheduledValues');
-    expect(cancelCalls.length).toBe(1);
-    expect(cancelCalls[0].time).toBeLessThanOrEqual(start + dur);
-    expect(cancelCalls[0].time).toBeCloseTo(expectedCutTime, 3);
+    expect(cancelCalls.length).toBe(0);
   });
 
   it('should handle zero or negative ticks gracefully', () => {

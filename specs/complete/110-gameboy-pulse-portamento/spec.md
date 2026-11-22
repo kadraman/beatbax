@@ -6,7 +6,7 @@ status: "complete"
 authors:
   - "kadraman"
 created: "2026-11-08"
-updated: "2026-11-09"
+updated: "2026-11-22"
 issue: "https://github.com/kadraman/beatbax/issues/246"
 area: "engine"
 related:
@@ -17,7 +17,7 @@ related:
 
 ## Summary
 
-A contiguous run of Game Boy pulse notes linked by `port` is one sounding voice. The voice does not fade out or start a new oscillator at each step, and it does not restart the envelope on the joined notes. A note without `port` attacks as its own voice. This is the WebAudio playback of the legato already required by [spec 033](../../complete/033-effects-system/spec.md). `port` syntax, speed, UGE `3xx` export, and PCM rendering stay as they are.
+A contiguous run of Game Boy pulse notes linked by `port` is one sounding voice. The voice does not fade out or start a new oscillator at each step, and it does not restart the envelope on the joined notes. A note without `port` attacks as its own voice. This is the WebAudio playback of the legato already required by [spec 033](../../complete/033-effects-system/spec.md). `port` syntax, speed, and UGE `3xx` export stay as they are. Spec 112 FR-004 (2026-11-22) supersedes the PCM clause: CLI play and WAV use the same continuous portamento voice.
 
 ## Problem
 

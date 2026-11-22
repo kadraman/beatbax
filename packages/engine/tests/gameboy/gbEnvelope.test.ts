@@ -124,8 +124,11 @@ describe('GB-style envelope parsing and scheduling', () => {
     const { ctx, gainParam } = makePulseCtx();
     playPulse(ctx, 440, 0.5, 0, 0.25, { env: '8,flat' });
 
-    expect(gainParam.setValueAtTime).toHaveBeenCalledWith((8 / 15) * PULSE_OUTPUT_GAIN, 0);
+    const flat = (8 / 15) * PULSE_OUTPUT_GAIN;
+    expect(gainParam.setValueAtTime).toHaveBeenCalledWith(flat, 0);
     expect(gainParam.exponentialRampToValueAtTime).not.toHaveBeenCalled();
+    const scheduled = (gainParam as unknown as { __beatbaxGainSchedule: { constantGain: number } }).__beatbaxGainSchedule;
+    expect(scheduled.constantGain).toBeCloseTo(flat, 6);
   });
 
   test('playNoise uses initial GB volume when period is 0 (flat)', () => {

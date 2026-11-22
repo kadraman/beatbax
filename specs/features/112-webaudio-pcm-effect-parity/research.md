@@ -53,6 +53,10 @@ Authority at the time: Chromium `OfflineAudioContext` + `Player` via `packages/e
 
 - The windowed-correlation residuals (including ch2 arp at ~0.74) are not open defects. Re-measure with SC-001. CLI play and WAV stay on PCM.
 
+### SC-002 effect demos (2026-11-22)
+
+Arpeggio, vibrato, and tremolo pass full mix and channels. Portamento passes pulse and full mix. Retrigger passes channel 1, channel 3, and full mix. Accepted residuals, recorded in `plan.md`: note-cut pulse handoffs (worst 4.9 dB), one retrigger channel-2 frame (2.1 dB), and wave portamento channel 3 (12–18 cents, 1.4–3 dB on tail frames). Echo’s remaining gap is issue 279. Noise note effects stay issue 277.
+
 **Offline path:** There is no Node Offline WebAudio WAV export. Node `node-web-audio-api` is not the parity oracle.
 
 ## Channel 1 bass (2026-11-22)

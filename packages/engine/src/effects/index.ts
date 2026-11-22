@@ -124,7 +124,8 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
 
   // If resolver provided a normalized duration in params[3] (seconds), prefer it
   const vibDurSec = (Array.isArray(params) && typeof params[3] === 'number') ? Number(params[3]) : undefined;
-  const stopAt = (typeof vibDurSec === 'number' && vibDurSec > 0) ? (start + vibDurSec + 0.05) : (start + dur + 0.05);
+  // Stop on fx.durationSec. An extra 50 ms kept the LFO inside the note after PCM had ended.
+  const stopAt = (typeof vibDurSec === 'number' && vibDurSec > 0) ? (start + vibDurSec) : (start + dur + 0.05);
 
   // Onset delay: params[4] (seconds, normalized by resolver via tryApplyEffects).
   // Game Boy vibrato typically starts after a short delay (2–6 frames ≈ 30–100 ms)
@@ -714,7 +715,8 @@ register('trem', (ctx: any, nodes: any[], params: any[], start: number, dur: num
   // Duration from params[3] (seconds, resolver-normalised), else full note duration.
   // params[3]=0 means "no duration limit" — use full note.
   const tremDurSec = (Array.isArray(params) && typeof params[3] === 'number') ? Number(params[3]) : undefined;
-  const stopAt = (typeof tremDurSec === 'number' && tremDurSec > 0) ? (start + tremDurSec + 0.05) : (start + dur + 0.05);
+  // Same durationSec end as PCM. The extra 50 ms kept tremolo going after the row window.
+  const stopAt = (typeof tremDurSec === 'number' && tremDurSec > 0) ? (start + tremDurSec) : (start + dur + 0.05);
 
   // Safety: if the delay would push lfoStart past the note end, clamp it so the LFO
   // still plays for at least the last portion of the note rather than never playing.
@@ -821,7 +823,9 @@ register('cut', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   const tickDuration = tickSeconds || 0.03125;
   const cutDelay = ticks * tickDuration;
 
-  // Ensure cut time doesn't exceed note duration
+  // A cut at the note end is the release the voice already scheduled.
+  if (cutDelay >= dur - 1e-6) return;
+
   const cutTime = Math.min(start + cutDelay, start + dur);
 
   // Cut by ramping gain to zero - this works even though oscillator.stop() was already called

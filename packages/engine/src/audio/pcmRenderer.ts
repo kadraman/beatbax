@@ -24,7 +24,7 @@ import { registerFromFreq, freqFromRegister } from '../chips/gameboy/periodTable
 import { InstMap, InstrumentNode } from '../parser/ast.js';
 import { chipRegistry } from '../chips/registry.js';
 import type { ChipChannelBackend } from '../chips/types.js';
-import { applyInlineRenderEffects } from './inlineMacroEffects.js';
+import { applyInlineRenderEffects, resetPluginPcmEffectWarnings, warnDroppedPluginPcmEffects } from './inlineMacroEffects.js';
 import { peakLimitForPlayback, PLAYBACK_PEAK_CEILING } from './playbackLimiter.js';
 import {
   parseNoteEffects,
@@ -237,14 +237,17 @@ function applyPcmEcho(
   const wetLen = (durationSamples + tailSamples) * channels;
   const wet = new Float32Array(wetLen);
 
+  // Delay line matches WebAudio: the wet signal is the delayed output, not the
+  // current dry sample. Mixing the dry into wet was keeping the note at full
+  // level and adding the echo on top.
+  const line = new Float32Array(wetLen);
   for (let s = 0; s < durationSamples + tailSamples; s++) {
     for (let c = 0; c < channels; c++) {
-      const idx = s * channels + c;
       const delayedIdx = (s - delaySamples) * channels + c;
-      let delayed = 0;
-      if (delayedIdx >= 0 && delayedIdx < wet.length) delayed = wet[delayedIdx];
+      const delayed = delayedIdx >= 0 ? line[delayedIdx] : 0;
       const drySample = s < durationSamples ? dry[s * channels + c] : 0;
-      wet[idx] = drySample + delayed * feedback;
+      line[s * channels + c] = drySample + delayed * feedback;
+      wet[s * channels + c] = delayed;
     }
   }
 
@@ -254,7 +257,6 @@ function applyPcmEcho(
       if (bufIdx >= buffer.length) continue;
       const drySample = s < durationSamples ? dry[s * channels + c] : 0;
       const wetSample = wet[s * channels + c];
-      // Replace dry region with dry*(1-mix) + wet*mix; for tail, only add wet*mix
       if (s < durationSamples) {
         buffer[bufIdx] = drySample * (1 - mix) + wetSample * mix;
       } else {
@@ -335,6 +337,7 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
 
   // Clear portamento state before rendering
   clearPCMEffectState();
+  resetPluginPcmEffectWarnings();
 
   // Calculate duration from song events
   const secondsPerBeat = 60 / bpm;
@@ -634,7 +637,8 @@ function renderNoteEvent(
   if (!isGameBoy && pluginBackend) {
     const panSpec = resolveEventPan(ev, inst);
     const gains = panToGains(panSpec);
-    const { effectiveInst } = applyInlineRenderEffects(inst, ev.effects);
+    const { effectiveInst, remainingEffects } = applyInlineRenderEffects(inst, ev.effects);
+    warnDroppedPluginPcmEffects(remainingEffects);
     renderWithPluginBackend(pluginBackend, freq, effectiveInst, buffer, startSample, durationSamples, sampleRate, channels, gains);
     return;
   }
@@ -651,16 +655,21 @@ function renderNoteEvent(
   // Retrigger: expand into multiple note onsets (spec 112 / #42)
   const retrigTimes: { offsetSamples: number; volMul: number }[] = [{ offsetSamples: 0, volMul: 1 }];
   if (parsedFx.retrig && tickSeconds > 0) {
+    // Match Desktop: onsets at k*interval while that time is still inside the
+    // note. Flooring each step to samples walks backward and was starting one
+    // more slice in the last few samples, with a fresh envelope.
     const intervalSec = parsedFx.retrig.interval * tickSeconds;
-    const intervalSamples = Math.max(1, Math.floor(intervalSec * sampleRate));
+    const durSec = durationSamples / sampleRate;
     let volMul = 1;
-    let t = intervalSamples;
-    while (t < durationSamples) {
+    let tSec = intervalSec;
+    while (tSec < durSec - 0.5 / sampleRate) {
       if (parsedFx.retrig.volumeDelta !== 0) {
         volMul = Math.max(0, Math.min(1, volMul + (parsedFx.retrig.volumeDelta / 15)));
       }
-      retrigTimes.push({ offsetSamples: t, volMul });
-      t += intervalSamples;
+      const offsetSamples = Math.round(tSec * sampleRate);
+      if (offsetSamples <= 0 || offsetSamples >= durationSamples) break;
+      retrigTimes.push({ offsetSamples, volMul });
+      tSec += intervalSec;
     }
   }
 
@@ -725,7 +734,7 @@ function renderNoteEvent(
         regPerTrackerBaseFactor,
         regPerTrackerUnit,
         channelId,
-        (ev.legato || false) && r === 0,
+        (ev.legato || false) && r === 0 && !noteHasPort(ev),
         freq
       );
     } else if (inst.type && inst.type.toLowerCase().includes('noise')) {
@@ -783,7 +792,8 @@ function renderNamedEvent(
         if (midi !== null) freq = midiToFreq(midi);
       }
     }
-    const { effectiveInst } = applyInlineRenderEffects(inst, ev.effects);
+    const { effectiveInst, remainingEffects } = applyInlineRenderEffects(inst, ev.effects);
+    warnDroppedPluginPcmEffects(remainingEffects);
     renderWithPluginBackend(pluginBackend, freq, effectiveInst, buffer, startSample, durationSamples, sampleRate, channels, gains);
     return;
   }
@@ -1075,8 +1085,10 @@ function renderPulse(
     const activeDuty = useGbProgram ? programDuty : duty;
     pulseCache = getPulseFourierCache(activeDuty, 200, pulseCache);
     let sample = 0;
+    let synthesized = false;
     const oscFreq = i < chromeDefaultHzSamples ? OSCILLATOR_DEFAULT_HZ : effFreq;
     if (oscFreq > 0 && oscFreq < sampleRate / 2) {
+      synthesized = true;
       // OscillatorNode outputs phase 0 on the first sample, then advances.
       // Advancing first skipped that zero crossing and shifted every pulse note.
       sample = bandLimitedPulseSample(phase, pulseCache, oscFreq, sampleRate);
@@ -1096,6 +1108,22 @@ function renderPulse(
         ? programVolScale
         : ((envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(envT, envelope, durSec)));
     const release = portHold ? 1 : linearReleaseGain(t, durSec, GB_NOTE_RELEASE_SEC);
+    // Desktop tremolo sits on the oscillator only. The pulse DC constant
+    // reaches the envelope gain directly, so a 25% duty keeps its offset
+    // while the AC dips.
+    const trem = tremoloGain(
+      t,
+      noteFx.tremDepth,
+      noteFx.tremRate,
+      noteFx.tremWaveform,
+      noteFx.tremDurationSec,
+      noteFx.tremDelaySec,
+      durSec,
+    );
+    if (synthesized && trem !== 1) {
+      const dc = pulseCache.dc;
+      sample = (sample - dc) * trem + dc;
+    }
     const slideBaseline = (envelope && envelope.mode === 'gb' && typeof envelope.initial === 'number')
       ? Math.max(0, Math.min(1, envelope.initial / 15))
       : 1;
@@ -1110,17 +1138,8 @@ function renderPulse(
     sample *= level * release;
 
     if (noteFx.cutEnabled && typeof tickSeconds === 'number') {
-      sample *= noteCutGain(t, noteFx.cutTicks, tickSeconds);
+      sample *= noteCutGain(t, noteFx.cutTicks, tickSeconds, level * release * PULSE_OUTPUT_GAIN, durSec);
     }
-
-    sample *= tremoloGain(
-      t,
-      noteFx.tremDepth,
-      noteFx.tremRate,
-      noteFx.tremWaveform,
-      noteFx.tremDurationSec,
-      noteFx.tremDelaySec
-    );
 
     sample *= PULSE_OUTPUT_GAIN;
 
@@ -1198,8 +1217,9 @@ function renderWave(
     noteFx.portDurationSec = portamentoDurationSec(noteFx.portSpeed, durSec);
   }
 
-  // WebAudio starts a new BufferSource (phase 0) and a new vibrato LFO on every
-  // wave note, including portamento. Only legato keeps the previous phase.
+  // WebAudio starts a new BufferSource (phase 0) on every wave note, including
+  // portamento. The resolver marks port notes legato so the pulse envelope does
+  // not re-attack; that flag must not keep the wave phase.
   const continueWavePhase = !!legato;
   let phase = (continueWavePhase && typeof channelId === 'number')
     ? (channelPhaseState.get(channelId) ?? 0)
@@ -1284,6 +1304,12 @@ function renderWave(
       ? (channelPortamentoState.get(channelId) ?? baseForMod)
       : baseForMod;
 
+    // Chromium holds AudioBufferSourceNode playbackRate for the 128-frame
+    // quantum and reads it at the quantum start. A per-sample ramp runs ahead.
+    const quantum = 128;
+    const absSample = start + i;
+    const quantumStart = absSample - ((absSample % quantum) + quantum) % quantum;
+    const portAtSec = Math.max(0, (quantumStart - start) / sampleRate);
     const pitched = modulatePitchHz({
       t,
       noteDurSec: durSec,
@@ -1294,6 +1320,7 @@ function renderWave(
       vibDepthScale: vibDepthScale ?? VIB_DEPTH_SCALE,
       vibratoPhase,
       portCurve: 'linear',
+      portAtSec,
     });
     let effFreq = pitched.freq;
     const waveVibActive =
@@ -1357,7 +1384,8 @@ function renderWave(
       noteFx.tremRate,
       noteFx.tremWaveform,
       noteFx.tremDurationSec,
-      noteFx.tremDelaySec
+      noteFx.tremDelaySec,
+      durSec,
     );
 
     if (noteFx.cutEnabled && typeof tickSeconds === 'number') {

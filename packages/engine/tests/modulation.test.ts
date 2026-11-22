@@ -1,4 +1,9 @@
 import {
+  lfoSample,
+  modulatePitchHz,
+  noteCutGain,
+  oscillatorSample,
+  tremoloGain,
   vibratoAmplitudeHz,
   portamentoDurationSec,
   portamentoFreqAt,
@@ -28,8 +33,8 @@ describe('modulation kernel (112)', () => {
     expect(portamentoFreqAt(0, 220, 440, 0.2, 'exponential')).toBeCloseTo(220, 0);
     expect(portamentoFreqAt(0.2, 220, 440, 0.2, 'exponential')).toBeCloseTo(440, 0);
     const mid = portamentoFreqAt(0.1, 220, 440, 0.2, 'exponential');
-    expect(mid).toBeGreaterThan(220);
-    expect(mid).toBeLessThan(440);
+    // Halfway on exponentialRamp is the geometric mean, matching WebAudio.
+    expect(mid).toBeCloseTo(Math.sqrt(220 * 440), 3);
   });
 
   test('arp cycle includes root then offsets at 60 Hz', () => {
@@ -57,11 +62,46 @@ describe('modulation kernel (112)', () => {
     );
     expect(fx.vibDepth).toBe(6);
     expect(fx.vibRate).toBe(4);
+    const rateOmitted = parseNoteEffects([{ type: 'vib', params: [4] }], 0.5, 0.1);
+    expect(rateOmitted.vibRate).toBe(4);
     expect(fx.arpOffsets).toEqual([4, 7]);
     expect(fx.portSpeed).toBe(16);
     expect(fx.echo?.delayTimeRaw).toBe(0.25);
     expect(fx.retrig?.interval).toBe(2);
     expect(fx.cutEnabled).toBe(true);
+  });
+
+  test('square vibrato starts high, matching the WebAudio LFO buffer', () => {
+    expect(lfoSample(0, 'square')).toBe(1);
+    expect(lfoSample(0, 'sine')).toBeCloseTo(0, 6);
+    const fx = parseNoteEffects([{ type: 'vib', params: [6, 5, 'square'] }], 1, 0.1);
+    const amp = vibratoAmplitudeHz(6, 440);
+    const at0 = modulatePitchHz({ t: 0, noteDurSec: 1, baseFreq: 440, fx, vibratoPhase: 0 });
+    expect(at0.freq).toBeCloseTo(440 + amp, 4);
+  });
+
+  test('tremolo phase starts when the delay ends', () => {
+    const depth = 15;
+    const rate = 6;
+    const delay = 0.1;
+    expect(tremoloGain(delay - 0.001, depth, rate, 'sine', undefined, delay, 0.5)).toBe(1);
+    // OscillatorNode sine is 0 at lfo.start(), then rises.
+    expect(tremoloGain(delay, depth, rate, 'sine', undefined, delay, 0.5)).toBeCloseTo(1, 5);
+    const quarter = delay + 1 / (4 * rate);
+    expect(tremoloGain(quarter, depth, rate, 'sine', undefined, delay, 0.5)).toBeCloseTo(1.5, 4);
+    expect(oscillatorSample(0, 'saw')).toBeCloseTo(0, 5);
+    expect(oscillatorSample(0, 'triangle')).toBeCloseTo(0, 5);
+    expect(oscillatorSample(Math.PI / 2, 'triangle')).toBeCloseTo(1, 5);
+  });
+
+  test('note cut ramps from the current voice gain to 0.0001', () => {
+    const tick = 0.1;
+    const g = 0.2;
+    expect(noteCutGain(0.2 - 0.001, 2, tick, g)).toBe(1);
+    expect(noteCutGain(0.2, 2, tick, g)).toBeCloseTo(1, 5);
+    expect(noteCutGain(0.2 + 0.0025, 2, tick, g)).toBeCloseTo(Math.sqrt(0.0001 / g), 4);
+    expect(noteCutGain(0.2 + 0.005, 2, tick, g)).toBe(0);
+    expect(noteCutGain(0.4, 8, tick, g, 0.4)).toBe(1);
   });
 
   test('resolveEchoDelaySec treats values under 10 as beat fractions', () => {

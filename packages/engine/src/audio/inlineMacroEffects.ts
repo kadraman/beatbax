@@ -8,6 +8,40 @@ export const BAKED_INLINE_MACRO_EFFECT_TYPES = [
 
 const BAKED_SET = new Set<string>(BAKED_INLINE_MACRO_EFFECT_TYPES);
 
+/** Effect types already reported for the current PCM render or Desktop play. */
+const warnedPluginPcmEffectTypes = new Set<string>();
+
+/** Allow the next render or play to warn again. */
+export function resetPluginPcmEffectWarnings(): void {
+  warnedPluginPcmEffectTypes.clear();
+}
+
+/**
+ * Plugin PCM bakes instrument macros and `volSlide` into the instrument.
+ * Any other note effect has no PCM handler. Say so once per effect type
+ * instead of dropping it silently (spec 112, T041).
+ */
+export function warnDroppedPluginPcmEffects(effects: any[] | undefined): void {
+  if (!Array.isArray(effects) || effects.length === 0) return;
+  const fresh: string[] = [];
+  for (const fx of effects) {
+    const type = fx && fx.type ? String(fx.type).trim() : '';
+    const key = type.toLowerCase();
+    if (!key || warnedPluginPcmEffectTypes.has(key)) continue;
+    warnedPluginPcmEffectTypes.add(key);
+    fresh.push(type);
+  }
+  if (fresh.length === 0) return;
+  try {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[pcm] Note effects not applied in plugin-chip PCM render: ${fresh.join(', ')}. Desktop live playback still applies them when the chip provides Web Audio nodes.`,
+    );
+  } catch {
+    // ignore
+  }
+}
+
 /** Inline `volSlide` payload attached to an instrument for chip PCM baking. */
 export interface InlineVolSlideSpec {
   delta: number;

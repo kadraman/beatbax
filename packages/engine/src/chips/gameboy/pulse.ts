@@ -539,6 +539,17 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
       g.setValueAtTime(flat, start + dur);
       voice.level = flat;
       if (!link?.hold) g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+      // Cut runs before the audio thread, when getValueAtTime still returns
+      // the default 1. Record the flat level so the ramp starts here.
+      (g as any).__beatbaxGainSchedule = {
+        start,
+        dur,
+        attack: 0,
+        release: 0,
+        constantGain: flat,
+        initialGain: flat,
+        finalGain: flat,
+      };
     }
   } else {
     const peak = Math.max(0.0001, (env.attackLevel || 1.0) * PULSE_OUTPUT_GAIN);

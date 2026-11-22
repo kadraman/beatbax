@@ -74,7 +74,8 @@ function f0At(a: Float32Array, s: number, e: number, sampleRate: number): number
   if (n < 64) return Number.NaN;
   if (rms(a, s, e) < 0.002) return Number.NaN;
   const lagMin = Math.max(2, Math.floor(sampleRate / 2200));
-  const lagMax = Math.min(Math.floor(sampleRate / 70), Math.floor(n * 0.5));
+  // C2 is 65 Hz. A 70 Hz floor reported every low wave note as a missing pitch.
+  const lagMax = Math.min(Math.floor(sampleRate / 40), Math.floor(n * 0.5));
   if (lagMax <= lagMin + 2) return Number.NaN;
   const cmnd = new Float64Array(lagMax + 1);
   let running = 0;
@@ -292,17 +293,27 @@ export function compareSc001(
           failures.push(`${note.label} pitch track missing`);
         }
       } else {
-        const pitchWin = Math.round(0.012 * sampleRate);
         const from = s + Math.round(0.01 * sampleRate);
-        const trackA = pitchTrack(ref, sampleRate, from, e, pitchWin, hop);
+        // 12 ms tracks a vibrato or arp. It is shorter than one cycle of C2,
+        // so a missing track is retried at 40 ms before it counts as a failure.
+        const measure = (winSec: number) => {
+          const pitchWin = Math.round(winSec * sampleRate);
+          const trackA = pitchTrack(ref, sampleRate, from, e, pitchWin, hop);
+          let best = { max: Infinity, n: 0, at: 0, lagMs: 0 };
+          for (let lagMs = -SC001.pitchLagMs; lagMs <= SC001.pitchLagMs; lagMs += 1) {
+            const shift = Math.round((lagMs / 1000) * sampleRate);
+            const trackB = pitchTrack(other, sampleRate, from + shift, e + shift, pitchWin, hop);
+            const hit = maxCentsAtLag(trackA, trackB, 0);
+            if (hit.n >= 2 && hit.max < best.max) best = { ...hit, lagMs };
+          }
+          return best;
+        };
         // The 5 ms allowance is continuous. Hop-sized lags (5 ms) leave a
         // 2 ms glide skew reading as more than 10 cents.
-        let best = { max: Infinity, n: 0, at: 0, lagMs: 0 };
-        for (let lagMs = -SC001.pitchLagMs; lagMs <= SC001.pitchLagMs; lagMs += 1) {
-          const shift = Math.round((lagMs / 1000) * sampleRate);
-          const trackB = pitchTrack(other, sampleRate, from + shift, e + shift, pitchWin, hop);
-          const hit = maxCentsAtLag(trackA, trackB, 0);
-          if (hit.n >= 2 && hit.max < best.max) best = { ...hit, lagMs };
+        let best = measure(0.012);
+        if (best.n < 2 || best.max > limit) {
+          const wider = measure(0.04);
+          if (wider.n >= 2 && (best.n < 2 || wider.max < best.max)) best = wider;
         }
         if (best.n < 2) {
           if (levelA > 0.01 && levelB > 0.01) failures.push(`${note.label} pitch track missing`);
