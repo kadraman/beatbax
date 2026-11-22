@@ -1,12 +1,14 @@
 import { EffectHandler, EffectRegistry } from './types.js';
 import { warn } from '../util/diag.js';
-import { parseEnvelope } from '../chips/gameboy/pulse.js';
+import { parseEnvelope, PULSE_OUTPUT_GAIN } from '../chips/gameboy/pulse.js';
+import { resolveWaveVolumeMultiplier, WAVE_PLAYBACK_GAIN } from '../chips/gameboy/wave.js';
 import { arpCycleOffsets } from '../util/arpOffsets.js';
 import {
   vibratoAmplitudeHz,
   portamentoDurationSec,
   VIB_DEPTH_SCALE,
   chipFrameRate,
+  volSlideLevel01,
 } from './modulation.js';
 
 const registry = new Map<string, EffectHandler>();
@@ -538,30 +540,23 @@ register('pitch_env', (ctx: any, nodes: any[], params: any[], start: number, dur
   }
 });
 
-// Volume Slide effect: smoothly increase or decrease volume over time.
+// Volume Slide effect: move the voice's 0–1 level by delta × 0.1 over the note.
+// The envelope automation and the chip output gain stay on the voice GainNode.
+// This stage multiplies that voice so a +12 slide from env=4 ends at a full
+// pulse (level 1 × 0.25) instead of replacing the gain with a 0–1.5 value.
+//
 // Parameters:
-//  - params[0]: delta per tick or step (+N = fade in, -N = fade out)
-//  - params[1]: (optional) number of steps/ticks for the slide
-//
-// hUGETracker's Axy effect: x = slide up speed (0-15), y = slide down speed (0-15)
-// BeatBax uses signed delta: positive = slide up, negative = slide down
-//
-// Implementation: Apply linear gain ramp from instrument's envelope initial volume
-// to target volume over the note duration. For per-tick slides, apply stepped automation.
-// The baseline is derived from the instrument's envelope initial volume (0-15 on Game Boy).
-//
-// ARCHITECTURAL LIMITATION: This implementation cancels existing gain automation on the
-// same GainNode used for envelope automation, effectively disabling instrument envelopes
-// when volume slide is active. To properly support stacking with envelopes, this should
-// use a separate gain stage (additional GainNode in the audio graph after envelope gain)
-// or apply volume slide via an independent parameter/node without canceling automation.
-register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number, inst?: any) => {
+//  - params[0]: delta (+N fade in, -N fade out). One unit is ±10% of full scale.
+//  - params[1]: optional step count. Omit for a linear ramp.
+register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, _tickSeconds?: number, inst?: any) => {
   if (!nodes || nodes.length < 2) return;
   const gain = nodes[1];
   if (!gain || !gain.gain) {
     warn('effects', `Volume slide: gain node is missing or invalid for channel ${chId || '?'}`);
     return;
   }
+  // A joined portamento step shares the opening note's voice. That note owns the slide.
+  if ((gain as any).__portamento_voice_joined__) return;
 
   const gainParam = gain.gain;
   if (!gainParam || typeof gainParam.setValueAtTime !== 'function') {
@@ -573,81 +568,106 @@ register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur:
   const stepsRaw = params && params.length > 1 ? Number(params[1]) : undefined;
   const delta = Number.isFinite(deltaRaw) ? deltaRaw : 0;
   const steps = (stepsRaw !== undefined && Number.isFinite(stepsRaw)) ? Math.max(1, Math.round(stepsRaw)) : undefined;
+  if (delta === 0) return;
 
-  if (delta === 0) return; // No volume change
+  const { baseline, zeroScale } = volSlideVoice(inst);
 
-  // Extract instrument envelope initial volume.
-  // Most chips use 0-15 volume where 0=silent, 15=loudest (normalized to [0, 1]).
-  // Chip-specific plugins (e.g. SMS) can override this effect for their volume conventions.
-  // If no instrument or envelope data available, fall back to 1.0 (full volume).
-  let baselineGain = 1.0;
-
-  if (inst && inst.env) {
+  const levelAt = (progress: number) => volSlideLevel01(baseline, delta, progress);
+  const scheduleOn = (param: any, ratio: boolean) => {
+    const valueAt = (progress: number) => {
+      const level = levelAt(progress);
+      if (!ratio) return Math.max(0, zeroScale * level);
+      return baseline > 1e-4 ? level / baseline : 1;
+    };
     try {
-      // Parse envelope to get initial volume (handles both string and object formats)
-      // Default: env.initial is 0-15 where 15=loudest, so normalize by /15
-      const env = parseEnvelope(inst.env);
-      if (env && env.mode === 'gb' && typeof env.initial === 'number') {
-        baselineGain = Math.max(0, Math.min(1, env.initial / 15));
-      } else if (env && typeof env.initial === 'number') {
-        // Generic fallback: assume 0-15 volume range, 15=loudest
-        baselineGain = Math.max(0, Math.min(1, env.initial / 15));
+      if (!ratio && typeof param.cancelScheduledValues === 'function') param.cancelScheduledValues(start);
+      param.setValueAtTime(valueAt(0), start);
+      if (steps !== undefined && steps > 0 && dur > 0) {
+        const stepDuration = dur / steps;
+        for (let i = 1; i <= steps; i++) {
+          const stepTime = start + i * stepDuration;
+          param.setValueAtTime(valueAt((i - 1) / steps), Math.max(start, stepTime - 0.00001));
+          param.setValueAtTime(valueAt(i / steps), stepTime);
+        }
+      } else if (typeof param.linearRampToValueAtTime === 'function') {
+        param.linearRampToValueAtTime(valueAt(1), start + dur);
+      }
+      if (!ratio && !(gain as any).__portamento_hold__ && typeof param.linearRampToValueAtTime === 'function') {
+        param.setValueAtTime(valueAt(1), start + dur);
+        param.linearRampToValueAtTime(0.0001, start + dur + 0.005);
       }
     } catch (e) {
-      // Fall back to 1.0 if parsing fails
-      warn('effects', `Volume slide: envelope parsing failed for channel ${chId || '?'}, using default baseline`);
-      baselineGain = 1.0;
+      warn('effects', `Volume slide failed for channel ${chId || '?'}: ${e}`);
     }
+  };
+
+  // A silent baseline cannot be scaled. Write the chip-scaled level onto the voice.
+  if (!(baseline > 1e-4)) {
+    scheduleOn(gainParam, false);
+    return;
   }
 
-  try {
-    // LIMITATION: Canceling scheduled values wipes envelope automation on this GainNode.
-    // Volume slides currently REPLACE envelopes rather than stacking with them.
-    // To fix: use a separate gain stage or avoid cancelScheduledValues.
-    if (typeof gainParam.cancelScheduledValues === 'function') {
-      gainParam.cancelScheduledValues(start);
-    }
-    gainParam.setValueAtTime(baselineGain, start);
-
-    if (steps !== undefined && tickSeconds !== undefined) {
-      // Stepped volume slide: apply delta at each step interval with hard transitions
-      // For truly discrete steps in WebAudio, we need to hold each value constant
-      // until the next step boundary
-      // NOTE: Use larger scaling factor (÷3 instead of ÷5) for stepped slides to make
-      // steps more audible in WebAudio which has inherent smoothing
-      const stepDuration = dur / steps;
-      const scaleFactor = 15;  // 4-bit volume units (0-15) // More aggressive scaling for stepped slides
-
-      // Set initial value and hold it until first step
-      gainParam.setValueAtTime(baselineGain, start);
-
-      for (let i = 1; i <= steps; i++) {
-        const stepTime = start + (i * stepDuration);
-        // Calculate volume for this step: evenly distribute delta across steps
-        const stepGain = Math.max(0.001, Math.min(1.5, baselineGain + (delta * i / steps / scaleFactor)));
-
-        // Hold previous value right up to step boundary
-        const prevGain = i === 1 ? baselineGain : Math.max(0.001, Math.min(1.5, baselineGain + (delta * (i-1) / steps / scaleFactor)));
-        gainParam.setValueAtTime(prevGain, stepTime - 0.00001);
-
-        // Jump to new value at step boundary
-        gainParam.setValueAtTime(stepGain, stepTime);
-      }
-
-      // Hold final value until note end
-      const finalGain = Math.max(0.001, Math.min(1.5, baselineGain + (delta / scaleFactor)));
-      gainParam.setValueAtTime(finalGain, start + dur);
-    } else {
-      // Smooth volume slide: linear ramp over note duration
-      // Scale delta to reasonable range: delta ±1 = ±0.2 gain change per note (more audible)
-      // Allow volume to increase above baseline up to 1.5x (some headroom for boosts)
-      const targetGain = Math.max(0, Math.min(1.5, baselineGain + (delta / 5)));
-      gainParam.linearRampToValueAtTime(targetGain, start + dur);
-    }
-  } catch (e) {
-    warn('effects', `Volume slide failed for channel ${chId || '?'}: ${e}`);
+  const slide = insertVolSlideNode(ctx, gain, nodes);
+  if (!slide || !slide.gain || typeof slide.gain.setValueAtTime !== 'function') {
+    scheduleOn(gainParam, false);
+    return;
   }
+  scheduleOn(slide.gain, true);
 });
+
+/**
+ * Starting 0–1 level, and the chip gain used when that level is silence
+ * (a multiplier cannot raise a zero voice).
+ */
+function volSlideVoice(inst: any): { baseline: number; zeroScale: number } {
+  const type = String(inst?.type || '').toLowerCase();
+  let env: ReturnType<typeof parseEnvelope> = null;
+  try {
+    env = inst?.env ? parseEnvelope(inst.env) : null;
+  } catch {
+    env = null;
+  }
+  const gb = !!(env && env.mode === 'gb' && typeof env.initial === 'number');
+  const initial = gb ? Math.max(0, Math.min(1, (env!.initial ?? 0) / 15)) : 1;
+  if (type.includes('wave')) {
+    const vol = resolveWaveVolumeMultiplier(inst);
+    const moving = gb && (env!.period ?? 0) > 0;
+    if (moving) return { baseline: initial, zeroScale: 0.9 * vol };
+    return { baseline: vol, zeroScale: WAVE_PLAYBACK_GAIN };
+  }
+  if (type.includes('noise')) {
+    return { baseline: gb ? initial : 1, zeroScale: 1 };
+  }
+  return { baseline: gb ? initial : 1, zeroScale: PULSE_OUTPUT_GAIN };
+}
+
+/** GainNode after the voice so the envelope and chip gain stay scheduled. */
+function insertVolSlideNode(ctx: any, gain: any, nodes: any[]): any | null {
+  const dest = gain.__beatbaxDest;
+  if (!dest || typeof ctx?.createGain !== 'function') return null;
+  let slide: any;
+  try {
+    slide = ctx.createGain();
+  } catch {
+    return null;
+  }
+  if (!slide) return null;
+  try {
+    gain.disconnect(dest);
+  } catch {
+    try { gain.disconnect(); } catch { return null; }
+  }
+  try {
+    gain.connect(slide);
+    slide.connect(dest);
+  } catch {
+    try { gain.connect(dest); } catch { /* leave the voice connected if we can */ }
+    return null;
+  }
+  slide.__beatbaxDest = dest;
+  (nodes as any).__tail = slide;
+  return slide;
+}
 // Tremolo effect: create a low-frequency oscillator (LFO) and modulate the gain
 // (amplitude) to create volume oscillation. Parameters:
 //  - params[0]: depth (0-15, where 15 = maximum amplitude modulation)

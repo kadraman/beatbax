@@ -331,7 +331,9 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
     (src as any)._baseFreq = aligned;
     const gain = (ctx as any).createGain();
     src.connect(gain);
-    gain.connect(destination || (ctx as any).destination);
+    const pulseDest = destination || (ctx as any).destination;
+    (gain as any).__beatbaxDest = pulseDest;
+    gain.connect(pulseDest);
 
     const g = gain.gain;
     if (useProgramVolume) {
@@ -441,7 +443,9 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
   }
 
   osc.connect(gain);
-  gain.connect(destination || (ctx as any).destination);
+  const pulseDest = destination || (ctx as any).destination;
+  (gain as any).__beatbaxDest = pulseDest;
+  gain.connect(pulseDest);
   const stopAt = (link?.voiceStopAt ?? (start + dur)) + 0.02;
   const dc = attachBipolarPulseDc(ctx, gain, duty, start, stopAt);
 
@@ -458,6 +462,7 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
   if (link) {
     (gain as any).__portamento_voice_joined__ = false;
     (gain as any).__portamento_voice_attack__ = true;
+    (gain as any).__portamento_hold__ = !!link?.hold;
     heldPulseVoices.set(link.channelId, voice);
   }
   if (env && env.mode === 'gb') {

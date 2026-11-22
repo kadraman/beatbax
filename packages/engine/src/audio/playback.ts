@@ -1204,7 +1204,7 @@ export class Player {
 
     try {
       // Find the gain node (typically nodes[1])
-      const gainNode = nodes.length > 1 ? nodes[1] : nodes[0];
+      const gainNode = (nodes as any).__tail || (nodes.length > 1 ? nodes[1] : nodes[0]);
       if (!gainNode || !gainNode.connect) return;
 
       // Create delay effect nodes
@@ -1333,7 +1333,7 @@ export class Player {
     if (p === undefined) return;
 
     try {
-      const gain = nodes && nodes.length >= 2 ? nodes[1] : null;
+      const gain = (nodes as any).__tail || (nodes && nodes.length >= 2 ? nodes[1] : null);
       if (!gain || typeof gain.connect !== 'function') return;
       // Determine the actual destination (channel bus when analyser enabled, otherwise masterGain)
       const dest = channelDest || this.masterGain || (ctx as any).destination;

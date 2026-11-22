@@ -1382,11 +1382,10 @@ pat compare = inst(lead_in,2) C4<volSlide:+4>:8 . C4<volSlide:+4,16>:8  # Rest f
 - Demo: `songs/effects/volume_slide.bax`
 
 **Known behaviors:**
-- **Volume slides REPLACE existing gain automation** (calls `cancelScheduledValues` which wipes envelope automation on the same GainNode). Volume slide and envelope cannot currently coexist - volume slide disables the envelope.
-  - **Architectural fix needed**: Use a separate gain stage (additional GainNode) for volume slides to stack with envelopes properly.
-- Start volume (baseline) is derived from instrument envelope initial volume (0-15 GB range → 0.0-1.0), defaults to 1.0 (full volume) if no envelope
-- Target gain clamped to [0.001, 1.5] allowing volume boosts above baseline up to 1.5x (headroom for fade-ins)
-- Stepped slides require `tickSeconds` parameter (provided by resolver)
+- The slide is its own gain stage in the 0–1 voice level. One delta unit moves that level by ±0.1 over the note (smooth, or split evenly across the step count). The result is clamped to 0–1.
+- The envelope and the chip output gain stay in place. A pulse `env=4` with `volSlide:+12` ends at a full pulse (`1 × 0.25`), not at an unscaled gain of 1.5. A wave with `volume=50` slides around that volume fraction and keeps the 0.6 playback gain.
+- A moving envelope is scaled by the slide, so the envelope shape is kept. A silent starting level cannot be scaled, so the slide writes `chipGain × level` onto the voice instead.
+- Stepped slides hold the previous level until each step boundary.
 
 ---
 

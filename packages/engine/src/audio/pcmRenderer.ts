@@ -1,6 +1,13 @@
 import { SongModel, NoteEvent } from '../song/songModel.js';
 import { midiToFreq, noteNameToMidi } from '../chips/gameboy/apu.js';
 import { parseSweep, parseEnvelope as parsePulseEnvelope, PULSE_OUTPUT_GAIN } from '../chips/gameboy/pulse.js';
+import {
+  contiguousPulsePortChainEnd,
+  noteHasPort,
+  planPulsePortamentoLink,
+  pulseUsesSharedPortamentoVoice,
+  type PulsePortamentoLink,
+} from '../chips/gameboy/pulsePortamento.js';
 import { WAVE_PLAYBACK_GAIN } from '../chips/gameboy/wave.js';
 import { getPulseFourierCache, bandLimitedPulseSample, type PulseFourierCache } from '../chips/pulseDc.js';
 import { noiseClockToLfsrHz, resolveNoiseClock, resolveNoisePlayDurationSec, resolveNoiseWidth, gameBoyNoiseSample, NOISE_OUTPUT_GAIN, stepGameBoyLfsr, triggerGameBoyLfsr } from '../chips/gameboy/noiseNote.js';
@@ -27,6 +34,8 @@ import {
   noteCutGain,
   portamentoDurationSec,
   resolveEchoDelaySec,
+  volSlideLevel01,
+  volSlideProgress,
   VIB_DEPTH_SCALE,
   type ParsedNoteEffects,
 } from '../effects/modulation.js';
@@ -45,6 +54,21 @@ function linearReleaseGain(t: number, durSec: number, releaseSec: number): numbe
   const u = (t - durSec) / releaseSec;
   if (u >= 1) return 0;
   return 1 - u;
+}
+
+/**
+ * 0–1 level of a `volSlide` multiplied onto the live envelope.
+ * A zero baseline cannot scale, so the slide level is used directly.
+ */
+function volSlideEnvelopeScale(
+  envelope01: number,
+  baseline01: number,
+  delta: number,
+  progress: number,
+): number {
+  const level = volSlideLevel01(baseline01, delta, progress);
+  if (baseline01 > 1e-4) return envelope01 * (level / baseline01);
+  return level;
 }
 
 /**
@@ -419,6 +443,7 @@ function renderChannel(
   let currentInstName: string | undefined = ch.defaultInstrument;
   let tempInstName: string | undefined = undefined;
   let tempRemaining = 0;
+  let portHoldUntil: number | null = null;
 
   for (let i = 0; i < ch.events.length; i++) {
     const ev = ch.events[i];
@@ -478,7 +503,21 @@ function renderChannel(
     }
 
     if (ev.type === 'note') {
-      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, chipType, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id, pluginBackend);
+      const pulsePort = !!(inst.type && String(inst.type).toLowerCase().includes('pulse') && pulseUsesSharedPortamentoVoice(inst));
+      const chainEnd = pulsePort
+        ? contiguousPulsePortChainEnd({ tokens: ch.events, index: i, originTime: 0, tickSeconds, noteTime: time, noteDur: dur })
+        : time + dur;
+      const planned = planPulsePortamentoLink({
+        eligible: pulsePort,
+        hasPort: noteHasPort(ev),
+        holdUntil: portHoldUntil,
+        time,
+        dur,
+        chainEnd,
+        channelId: ch.id,
+      });
+      portHoldUntil = planned.nextHoldUntil;
+      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, chipType, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id, pluginBackend, planned.link);
 
       if (tempRemaining > 0) {
         tempRemaining--;
@@ -574,7 +613,8 @@ function renderNoteEvent(
   regPerTrackerBaseFactor: number,
   regPerTrackerUnit: number,
   channelId: number,
-  pluginBackend: ChipChannelBackend | null = null
+  pluginBackend: ChipChannelBackend | null = null,
+  portLink?: PulsePortamentoLink,
 ) {
   try {
     // removed debug logging
@@ -665,7 +705,8 @@ function renderNoteEvent(
         regPerTrackerBaseFactor,
         regPerTrackerUnit,
         channelId,
-        (ev.legato || false) && r === 0
+        (ev.legato || false) && r === 0,
+        r === 0 ? portLink : undefined,
       );
     } else if (inst.type && inst.type.toLowerCase().includes('wave')) {
       renderWave(
@@ -850,7 +891,8 @@ function renderPulse(
   regPerTrackerBaseFactor?: number,
   regPerTrackerUnit?: number,
   channelId?: number,
-  legato?: boolean
+  legato?: boolean,
+  portLink?: PulsePortamentoLink,
 ) {
   // removed debug logging
   // Parse duty - handle various formats
@@ -877,10 +919,12 @@ function renderPulse(
     noteFx.portDurationSec = portamentoDurationSec(noteFx.portSpeed, durSec);
   }
 
-  // Initialize per-channel phase state for continuous phase across notes
-  // WebAudio starts a new OscillatorNode + vib LFO per note (phase restart) unless
-  // a held portamento voice is reused. Keep carrier/LFO phase only for legato/port.
-  const continuePhase = !!(legato || (noteFx.portSpeed > 0));
+  // A portamento run holds one oscillator. The opening note starts at phase 0.
+  // Later notes in the run join that voice. A port note that does not join
+  // still glides, but it is a new oscillator, same as Desktop.
+  const portJoin = !!portLink?.join;
+  const portHold = !!portLink?.hold;
+  const continuePhase = !!(legato || portJoin);
   let phase = (continuePhase && typeof channelId === 'number')
     ? (channelPhaseState.get(channelId) ?? 0)
     : 0;
@@ -938,9 +982,10 @@ function renderPulse(
     ? 0
     : Math.min(startQuantum, RENDER_QUANTUM - startQuantum);
 
-  // 5 ms tail past the nominal end. Phase handed to the next note is the
-  // phase at that end, so a portamento join is not shifted by the tail.
-  const renderLength = duration + Math.round(GB_NOTE_RELEASE_SEC * sampleRate);
+  // 5 ms tail past the nominal end, unless this note holds the voice for the
+  // next portamento step. A tail here would overlap that step and re-attack.
+  // Phase handed to the next note is the phase at the nominal end.
+  const renderLength = portHold ? duration : duration + Math.round(GB_NOTE_RELEASE_SEC * sampleRate);
   let phaseAtNominalEnd = phase;
   let vibratoPhaseAtNominalEnd = vibratoPhase;
 
@@ -1040,10 +1085,29 @@ function renderPulse(
     }
 
     const envT = Math.min(t, durSec);
-    const envVal = useGbProgramVolume
-      ? programVolScale
-      : ((envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(envT, envelope, durSec));
-    sample = sample * envVal * linearReleaseGain(t, durSec, GB_NOTE_RELEASE_SEC);
+    // A held or joined portamento voice stays at the opening envelope level.
+    // Desktop cancels the per-note curve and does not fade until the run ends.
+    const portFlat = portHold || portJoin;
+    const envVal = portFlat
+      ? ((envelope && envelope.mode === 'gb' && typeof envelope.initial === 'number')
+        ? Math.max(0, Math.min(1, envelope.initial / 15))
+        : 1)
+      : (useGbProgramVolume
+        ? programVolScale
+        : ((envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(envT, envelope, durSec)));
+    const release = portHold ? 1 : linearReleaseGain(t, durSec, GB_NOTE_RELEASE_SEC);
+    const slideBaseline = (envelope && envelope.mode === 'gb' && typeof envelope.initial === 'number')
+      ? Math.max(0, Math.min(1, envelope.initial / 15))
+      : 1;
+    const level = noteFx.volDelta !== 0
+      ? volSlideEnvelopeScale(
+        envVal,
+        slideBaseline,
+        noteFx.volDelta,
+        volSlideProgress(Math.min(t, durSec), durSec, noteFx.volSteps),
+      )
+      : envVal;
+    sample *= level * release;
 
     if (noteFx.cutEnabled && typeof tickSeconds === 'number') {
       sample *= noteCutGain(t, noteFx.cutTicks, tickSeconds);
@@ -1057,23 +1121,6 @@ function renderPulse(
       noteFx.tremDurationSec,
       noteFx.tremDelaySec
     );
-
-    if (noteFx.volDelta !== 0) {
-      let baseline = 1.0;
-      let volSlideGain: number;
-      if (envelope && envelope.mode === 'gb' && typeof envelope.initial === 'number') {
-        baseline = Math.max(0, Math.min(1, envelope.initial / 15));
-      }
-      if (noteFx.volSteps !== undefined && typeof tickSeconds === 'number') {
-        const stepDuration = durSec / noteFx.volSteps;
-        const currentStep = Math.min(noteFx.volSteps, Math.floor(t / stepDuration));
-        volSlideGain = Math.max(0, Math.min(1.5, baseline + (noteFx.volDelta * currentStep / noteFx.volSteps / 5)));
-      } else {
-        const progress = Math.min(1, t / durSec);
-        volSlideGain = Math.max(0, Math.min(1.5, baseline + (noteFx.volDelta * progress / 5)));
-      }
-      sample = sample * volSlideGain;
-    }
 
     sample *= PULSE_OUTPUT_GAIN;
 
@@ -1283,8 +1330,26 @@ function renderWave(
       phase = (readPos % bufLen) / bufLen;
     }
     const effectiveVolMul = (volumeSustainValue !== undefined) ? volumeSustainValue : volMul;
-    // WebAudio: buffer (*0.9) × gain (WAVE_PLAYBACK_GAIN × volMul)
-    let sample = v * effectiveVolMul * WAVE_PLAYBACK_GAIN * (useGbProgramVolume ? programVolScale : 1);
+    const programScale = useGbProgramVolume ? programVolScale : 1;
+    // WebAudio: buffer (*0.9) × gain (WAVE_PLAYBACK_GAIN × volMul), unless a
+    // moving GB envelope is already on the gain node as (env/15) × 0.9 × volMul.
+    // volSlide scales that voice in the 0–1 level and leaves the chip gain in place.
+    let sample: number;
+    if (noteFx.volDelta !== 0) {
+      const baseline = gbCurve
+        ? Math.max(0, Math.min(1, (waveEnv!.initial ?? 0) / 15))
+        : effectiveVolMul;
+      const progress = volSlideProgress(Math.min(t, durSec), durSec, noteFx.volSteps);
+      const level = volSlideLevel01(baseline, noteFx.volDelta, progress);
+      if (gbCurve && baseline > 1e-4) {
+        const envNow = getEnvelopeValue(Math.min(t, durSec), waveEnv, durSec);
+        sample = v * envNow * WAVE_OUTPUT_SCALE * effectiveVolMul * (level / baseline) * programScale;
+      } else {
+        sample = v * WAVE_PLAYBACK_GAIN * level * programScale;
+      }
+    } else {
+      sample = v * effectiveVolMul * WAVE_PLAYBACK_GAIN * programScale;
+    }
 
     sample *= tremoloGain(
       t,
@@ -1297,20 +1362,6 @@ function renderWave(
 
     if (noteFx.cutEnabled && typeof tickSeconds === 'number') {
       sample *= noteCutGain(t, noteFx.cutTicks, tickSeconds);
-    }
-
-    if (noteFx.volDelta !== 0) {
-      const baseline = Math.max(0, Math.min(1, volMul));
-      let volSlideGain: number;
-      if (noteFx.volSteps !== undefined) {
-        const stepDuration = durSec / noteFx.volSteps;
-        const currentStep = Math.min(noteFx.volSteps, Math.floor(t / stepDuration));
-        volSlideGain = Math.max(0, Math.min(1.5, baseline + (noteFx.volDelta * currentStep / noteFx.volSteps / 5)));
-      } else {
-        const progress = Math.min(1, t / durSec);
-        volSlideGain = Math.max(0, Math.min(1.5, baseline + (noteFx.volDelta * progress / 5)));
-      }
-      sample *= volSlideGain;
     }
 
     sample *= linearWaveRelease

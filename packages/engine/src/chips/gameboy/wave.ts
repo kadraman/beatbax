@@ -85,7 +85,9 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
 
   const gain = ctx.createGain();
   src.connect(gain);
-  gain.connect(destination || ctx.destination);
+  const waveDest = destination || ctx.destination;
+  (gain as any).__beatbaxDest = waveDest;
+  gain.connect(waveDest);
 
   const program = lowerGameBoyInstrumentProgram(inst ?? {});
   const useProgram = program.enabled;

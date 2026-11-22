@@ -87,7 +87,9 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
   src.buffer = buf;
   const gain = ctx.createGain();
   src.connect(gain);
-  gain.connect(destination || ctx.destination);
+  const noiseDest = destination || ctx.destination;
+  (gain as any).__beatbaxDest = noiseDest;
+  gain.connect(noiseDest);
 
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;

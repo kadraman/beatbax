@@ -32,6 +32,39 @@ export function vibratoAmplitudeHz(depth: number, baseFreq: number, depthScale =
   return Number.isFinite(amp) && amp > 0 ? amp : 0;
 }
 
+/**
+ * Spec 033: one `volSlide` delta unit is ±10% of the 0–1 voice level.
+ * The result is clamped to 0–1; the chip output gain stays outside this stage.
+ */
+export const VOL_SLIDE_UNIT = 0.1;
+
+export function clampUnitInterval(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+}
+
+/**
+ * How far a slide has moved, from 0 at the note start to 1 at the end.
+ * Stepped slides hold each value until the next step boundary, so step 0
+ * is the baseline until the first boundary.
+ */
+export function volSlideProgress(t: number, durSec: number, steps?: number): number {
+  if (steps !== undefined && steps > 0 && durSec > 0) {
+    const current = Math.min(steps, Math.floor(Math.max(0, t) / (durSec / steps)));
+    return current / steps;
+  }
+  if (!(durSec > 0)) return 1;
+  return Math.min(1, Math.max(0, t / durSec));
+}
+
+/** Envelope-domain level after adding `delta` × 0.1 × `progress`, clamped to 0–1. */
+export function volSlideLevel01(baseline01: number, delta: number, progress: number): number {
+  const base = clampUnitInterval(baseline01);
+  const p = clampUnitInterval(progress);
+  const d = Number.isFinite(delta) ? delta : 0;
+  return clampUnitInterval(base + d * VOL_SLIDE_UNIT * p);
+}
+
 export function portamentoDurationSec(speed: number, noteDurSec: number, durationSecOverride?: number): number {
   if (typeof durationSecOverride === 'number' && durationSecOverride > 0) {
     return durationSecOverride;
