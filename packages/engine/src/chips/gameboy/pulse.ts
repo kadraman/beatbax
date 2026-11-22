@@ -69,6 +69,23 @@ function createPulsePeriodicWave(ctx: BaseAudioContext, duty = 0.5) {
   return createBipolarPulsePeriodicWave(ctx, duty);
 }
 
+/**
+ * Hold `level` from before `start` so a GainNode's default of 1 cannot play
+ * on the first samples. The envelope curve is still written at `start`.
+ */
+export function primeGain(ctx: any, gain: AudioParam, level: number, start: number): void {
+  const now = typeof ctx?.currentTime === 'number' ? ctx.currentTime : 0;
+  const sample = typeof ctx?.sampleRate === 'number' && ctx.sampleRate > 0 ? 1 / ctx.sampleRate : 1 / 44100;
+  const at = start - sample;
+  if (at >= now - 1e-9) {
+    try {
+      gain.setValueAtTime(level, Math.max(now, at));
+      return;
+    } catch { /* fall through */ }
+  }
+  try { (gain as any).value = level; } catch { /* ignore */ }
+}
+
 export function parseEnvelope(envStr: any) {
   if (!envStr) {
     return { mode: 'adsr', attack: 0.001, decay: 0.05, sustainLevel: 0.6, release: 0.02 };
@@ -387,9 +404,9 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
           held.gain.linearRampToValueAtTime(0.0001, fadeAt + 0.005);
         } catch (_) {}
       };
-      if (scheduler && typeof scheduler.scheduleAligned === 'function') scheduler.scheduleAligned(fadeAt, fade);
-      else if (scheduler && typeof scheduler.schedule === 'function') scheduler.schedule(fadeAt, fade);
-      else fade();
+      // Write the release at schedule time. A later tick can miss `fadeAt` and
+      // leave the voice at its held level (or at the default gain of 1).
+      fade();
     }
     return [held.osc, held.gainNode];
   }
@@ -504,20 +521,15 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
         } catch (e) {}
       }
 
-      if (scheduler && typeof scheduler.scheduleAligned === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
-        scheduler.scheduleAligned(start, applyGainStart);
-        scheduler.scheduleAligned(start + dur, applyGainEnd);
-      } else if (scheduler && typeof scheduler.schedule === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
-        scheduler.schedule(start, applyGainStart);
-        scheduler.schedule(start + dur, applyGainEnd);
-      } else {
-        // Direct (no scheduler): flags already set, apply immediately.
-        applyGainStart();
-        applyGainEnd();
-      }
+      // Write the curve before osc.start. Deferring it to a scheduler tick lets
+      // the audio thread pass `start` while gain is still the default 1.
+      primeGain(ctx, g, Math.max(0.0001, initialVol), start);
+      applyGainStart();
+      applyGainEnd();
     } else {
       // GB envelope period 0 means constant volume at the initial level.
       const flat = Math.max(0.0001, initialVol);
+      primeGain(ctx, g, flat, start);
       g.setValueAtTime(flat, start);
       g.setValueAtTime(flat, start + dur);
       voice.level = flat;
@@ -531,6 +543,7 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
       voice.level = peak;
     } else {
       const sustain = (env.sustainLevel ?? 0.5) * PULSE_OUTPUT_GAIN;
+      primeGain(ctx, g, 0.0001, start);
       g.setValueAtTime(0.0001, start);
       g.exponentialRampToValueAtTime((env.attackLevel || 1.0) * PULSE_OUTPUT_GAIN, start + (env.attack || 0.001));
       g.setTargetAtTime(sustain, start + (env.attack || 0.001), env.decay || 0.1);

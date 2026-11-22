@@ -105,6 +105,7 @@ None.
   - portamento demos from 110
   - `songs/effects/echo.bax`, `songs/effects/retrigger.bax`, vib/arp fixtures
 - Gates are SC-001 / SC-002 (per-note level, pitch track, envelope including 25 ms after the nominal end, band energy through 16 kHz, full-mix RMS). The same gates must pass for WebAudio real-time vs WebAudio offline.
+- Envelope frames where both sides are below −40 dB are not compared. Two WebAudio renders of the same release sit there and still differ by more than 1 dB, and that difference is not audible against the note. A missing release still fails: one side is at the note's level while the other is silent.
 - Windowed correlation from the 2026-11-21 harness is not an acceptance metric. It stays in `research.md` as a discarded measurement.
 
 ### Manual / QA

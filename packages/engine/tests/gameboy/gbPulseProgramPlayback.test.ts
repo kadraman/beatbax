@@ -3,6 +3,7 @@
  */
 
 import { fillPulseBufferFromProgram, playPulse, PULSE_OUTPUT_GAIN } from '../../src/chips/gameboy/pulse';
+import { bandLimitedPulseSample, getPulseFourierCache } from '../../src/chips/pulseDc';
 import {
   applyPortamentoToRegister,
   applyTickOffsetToFreq,
@@ -146,8 +147,15 @@ describe('GB pulse tick-program playback', () => {
     expect(drumCli / drumHuge).toBeLessThan(1.2);
     expect(wahCli / wahHuge).toBeGreaterThan(0.85);
     expect(wahCli / wahHuge).toBeLessThan(1.2);
-    // Held env=12 should land near 12/15 × PULSE_OUTPUT_GAIN
-    expect(wahCli).toBeCloseTo((12 / 15) * PULSE_OUTPUT_GAIN, 2);
+    // env=12,flat on a band-limited pulse. The wah duty_env reaches 12.5%, and
+    // the Fourier series of that pulse peaks above the ideal ±1 square.
+    const cache = getPulseFourierCache(0.125, 200);
+    let wavePeak = 0;
+    const freq = 523.251;
+    for (let i = 0; i < 44100 / freq; i++) {
+      wavePeak = Math.max(wavePeak, Math.abs(bandLimitedPulseSample(i * freq / 44100, cache, freq, 44100)));
+    }
+    expect(wahCli).toBeCloseTo(wavePeak * (12 / 15) * PULSE_OUTPUT_GAIN, 3);
   });
 
   test('1xx/2xx adjust the period register and do not count as duty motion', () => {

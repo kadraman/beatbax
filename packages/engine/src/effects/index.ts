@@ -11,6 +11,41 @@ import {
 
 const registry = new Map<string, EffectHandler>();
 
+/**
+ * One-cycle looping buffer so the LFO is phase 0 at `start` on both live and
+ * offline contexts. An OscillatorNode's phase is not the same in those two.
+ */
+function createPhaseLockedLfo(ctx: any, type: string, rate: number, start: number, stop: number): any {
+  const shape = type === 'square' || type === 'sawtooth' || type === 'triangle' ? type : 'sine';
+  if (typeof ctx.createBuffer === 'function' && typeof ctx.createBufferSource === 'function') {
+    const sr = typeof ctx.sampleRate === 'number' && ctx.sampleRate > 0 ? ctx.sampleRate : 44100;
+    const len = Math.max(8, Math.round(sr / rate));
+    const buf = ctx.createBuffer(1, len, sr);
+    const data = buf.getChannelData(0) as Float32Array;
+    for (let i = 0; i < len; i++) {
+      const p = i / len;
+      if (shape === 'square') data[i] = p < 0.5 ? 1 : -1;
+      else if (shape === 'sawtooth') data[i] = 2 * p - 1;
+      else if (shape === 'triangle') data[i] = p < 0.5 ? 4 * p - 1 : 3 - 4 * p;
+      else data[i] = Math.sin(2 * Math.PI * p);
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const hz = sr / len;
+    try { src.playbackRate.setValueAtTime(rate / hz, start); } catch (_) { src.playbackRate.value = rate / hz; }
+    try { src.start(start); } catch (_) { /* already started or a mock */ }
+    try { src.stop(stop); } catch (_) { /* ignore */ }
+    return src;
+  }
+  const lfo = ctx.createOscillator();
+  lfo.type = shape;
+  try { lfo.frequency.setValueAtTime(rate, start); } catch (_) { lfo.frequency.value = rate; }
+  try { lfo.start(start); } catch (_) { try { lfo.start(); } catch (_) { /* ignore */ } }
+  try { lfo.stop(stop); } catch (_) { /* ignore */ }
+  return lfo;
+}
+
 export const register = (name: string, handler: EffectHandler) => {
   registry.set(name.toLowerCase(), handler);
 };
@@ -101,10 +136,8 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   const lfoStart = Math.min(start + vibDelaySec, start + dur * 0.75);
 
   try {
-    const lfo = (ctx as any).createOscillator();
+    const lfo = createPhaseLockedLfo(ctx, lfoType, rate, lfoStart, stopAt);
     const lfoGain = (ctx as any).createGain();
-    lfo.type = lfoType;
-    try { lfo.frequency.setValueAtTime(rate, lfoStart); } catch (_) { lfo.frequency.value = rate; }
 
     if (hasFrequency) {
       // OscillatorNode path (pulse channels): modulate osc.frequency directly
@@ -117,7 +150,10 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
       if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = osc.frequency.value || 440;
 
       const amplitudeHz = vibratoAmplitudeHz(depth, baseFreq, VIB_DEPTH_SCALE);
-      if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
+      if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) {
+        try { lfo.stop(); } catch (_) { /* ignore */ }
+        return;
+      }
 
       try { lfoGain.gain.setValueAtTime(amplitudeHz, lfoStart); } catch (_) { lfoGain.gain.value = amplitudeHz; }
       lfo.connect(lfoGain);
@@ -132,7 +168,10 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
 
       // Convert Hz amplitude to playbackRate amplitude: Δrate = (Δf / f) * baseRate
       const amplitudeHz = vibratoAmplitudeHz(depth, baseFreq, VIB_DEPTH_SCALE);
-      if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
+      if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) {
+        try { lfo.stop(); } catch (_) { /* ignore */ }
+        return;
+      }
       const amplitudeRate = (amplitudeHz / baseFreq) * baseRate;
 
       try { lfoGain.gain.setValueAtTime(amplitudeRate, lfoStart); } catch (_) { lfoGain.gain.value = amplitudeRate; }
@@ -142,8 +181,6 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
       }
     }
 
-    try { lfo.start(lfoStart); } catch (e) { try { lfo.start(); } catch (_) {} }
-    try { lfo.stop(stopAt); } catch (e) {}
   } catch (e) {
     // Best-effort only; if the environment doesn't support oscillator-based modulation
     // or connections fail, silently skip vibrato.

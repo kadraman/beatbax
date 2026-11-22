@@ -1,5 +1,5 @@
 /** Noise channel helper implementing an LFSR-like buffer generator. */
-import { parseEnvelope } from './pulse.js';
+import { parseEnvelope, primeGain } from './pulse.js';
 import { GB_CLOCK } from './periodTables.js';
 import {
   createTickProgramCursor,
@@ -113,34 +113,21 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
       const curve = new Float32Array(vals);
       const curveDuration = (vals.length - 1) * stepPeriod;
       const gainAtDur = vals[vals.length - 1];
-      if (scheduler && typeof scheduler.scheduleAligned === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
-        scheduler.scheduleAligned(start, () => {
-          try { (g as any).setValueCurveAtTime(curve, start, curveDuration); } catch (e) { try { g.setValueAtTime(vals[0], start); } catch (_) {} }
-        });
-        scheduler.scheduleAligned(start + playDur, () => { try { g.setValueAtTime(gainAtDur, start + playDur); g.linearRampToValueAtTime(0.0001, start + playDur + 0.005); } catch (e) {} });
-      } else if (scheduler && typeof scheduler.schedule === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
-        scheduler.schedule(start, () => {
-          try { (g as any).setValueCurveAtTime(curve, start, curveDuration); } catch (e) { try { g.setValueAtTime(vals[0], start); } catch (_) {} }
-        });
-        scheduler.schedule(start + playDur, () => { try { g.setValueAtTime(gainAtDur, start + playDur); g.linearRampToValueAtTime(0.0001, start + playDur + 0.005); } catch (e) {} });
-      } else {
-        try {
-          if (typeof (g as any).setValueCurveAtTime === 'function') {
-            (g as any).setValueCurveAtTime(curve, start, curveDuration);
-            g.setValueAtTime(gainAtDur, start + playDur);
-            g.linearRampToValueAtTime(0.0001, start + playDur + 0.005);
-          } else {
-            g.setValueAtTime(vals[0], start);
-            let t = start + stepPeriod;
-            for (let vi = 1; vi < vals.length; vi++) { g.setValueAtTime(vals[vi], t); t += stepPeriod; }
-            g.setValueAtTime(gainAtDur, start + playDur);
-            g.linearRampToValueAtTime(0.0001, start + playDur + 0.005);
-          }
-        } catch (e) {
+      primeGain(ctx, g, vals[0], start);
+      try {
+        if (typeof (g as any).setValueCurveAtTime === 'function') {
+          (g as any).setValueCurveAtTime(curve, start, curveDuration);
+        } else {
           g.setValueAtTime(vals[0], start);
-          g.setValueAtTime(gainAtDur, start + playDur);
-          g.linearRampToValueAtTime(0.0001, start + playDur + 0.005);
+          let t = start + stepPeriod;
+          for (let vi = 1; vi < vals.length; vi++) { g.setValueAtTime(vals[vi], t); t += stepPeriod; }
         }
+        g.setValueAtTime(gainAtDur, start + playDur);
+        g.linearRampToValueAtTime(0.0001, start + playDur + 0.005);
+      } catch (e) {
+        g.setValueAtTime(vals[0], start);
+        g.setValueAtTime(gainAtDur, start + playDur);
+        g.linearRampToValueAtTime(0.0001, start + playDur + 0.005);
       }
     } else {
       const hold = Math.max(0.0001, initialVol);

@@ -1,5 +1,5 @@
 import { freqFromRegister, registerFromFreq, GB_CLOCK } from './periodTables.js';
-import { parseEnvelope } from './pulse.js';
+import { parseEnvelope, primeGain } from './pulse.js';
 import {
   applyTickOffsetToFreq,
   createTickProgramCursor,
@@ -147,40 +147,29 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
       }
       const curve = new Float32Array(vals);
       const curveDuration = (vals.length - 1) * stepPeriod;
-      if (scheduler && typeof scheduler.scheduleAligned === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
-        scheduler.scheduleAligned(start, () => {
-          try { (g as any).setValueCurveAtTime(curve, start, curveDuration); } catch (e) { try { g.setValueAtTime(vals[0], start); } catch (_) {} }
-        });
-        scheduler.scheduleAligned(start + dur, () => { try { g.setValueAtTime(g.value, start + dur); g.linearRampToValueAtTime(0.0001, start + dur + 0.005); } catch (e) {} });
-      } else if (scheduler && typeof scheduler.schedule === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
-        scheduler.schedule(start, () => {
-          try { (g as any).setValueCurveAtTime(curve, start, curveDuration); } catch (e) { try { g.setValueAtTime(vals[0], start); } catch (_) {} }
-        });
-        scheduler.schedule(start + dur, () => { try { g.setValueAtTime(g.value, start + dur); g.linearRampToValueAtTime(0.0001, start + dur + 0.005); } catch (e) {} });
-      } else {
-        try {
-          if (typeof (g as any).setValueCurveAtTime === 'function') {
-            (g as any).setValueCurveAtTime(curve, start, curveDuration);
-            g.setValueAtTime(g.value, start + dur);
-            g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
-          } else {
-            g.setValueAtTime(vals[0], start);
-            let t = start + stepPeriod;
-            for (let vi = 1; vi < vals.length; vi++) { g.setValueAtTime(vals[vi], t); t += stepPeriod; }
-            g.setValueAtTime(g.value, start + dur);
-            g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
-          }
-        } catch (e) {
+      primeGain(ctx, g, vals[0], start);
+      try {
+        if (typeof (g as any).setValueCurveAtTime === 'function') {
+          (g as any).setValueCurveAtTime(curve, start, curveDuration);
+        } else {
           g.setValueAtTime(vals[0], start);
-          g.setValueAtTime(g.value, start + dur);
-          g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+          let t = start + stepPeriod;
+          for (let vi = 1; vi < vals.length; vi++) { g.setValueAtTime(vals[vi], t); t += stepPeriod; }
         }
+        g.setValueAtTime(vals[vals.length - 1], start + dur);
+        g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+      } catch (e) {
+        g.setValueAtTime(vals[0], start);
+        g.setValueAtTime(vals[vals.length - 1], start + dur);
+        g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
       }
     } else {
+      primeGain(ctx, g, baseGain, start);
       g.setValueAtTime(baseGain, start);
       g.setTargetAtTime(0.0001, start + dur - 0.02, 0.02);
     }
   } else {
+    primeGain(ctx, g, baseGain, start);
     g.setValueAtTime(baseGain, start);
     g.setTargetAtTime(0.0001, start + dur - 0.02, 0.02);
   }

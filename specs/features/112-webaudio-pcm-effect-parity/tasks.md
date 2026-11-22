@@ -54,10 +54,10 @@
 
 ## Phase 5: Revised gates (spec 2026-11-22)
 
-- [ ] T050 [US1] Replace the correlation gate in `packages/engine/tests/parity.tutorial_groove.test.ts` with the SC-001 feature gates. Capture helper lives under `packages/engine/scripts/parity/` and records Chromium real-time WebAudio and OfflineAudioContext. WebAudio real-time vs WebAudio offline (limiter bypassed) MUST pass the same gates.
-- [ ] T051 [US1] Fix Desktop vibrato in `packages/engine/src/effects/index.ts`: depth from the note's frequency (Δf = depth × f² / 131072) and LFO phase 0. A probe at C4, C5, and C6 stays within 2% of that deviation.
+- [x] T050 [US1] Replace the correlation gate in `packages/engine/tests/parity.tutorial_groove.test.ts` with the SC-001 feature gates. Capture helper lives under `packages/engine/scripts/parity/` and records Chromium real-time WebAudio and OfflineAudioContext. WebAudio real-time vs WebAudio offline (limiter bypassed) passes. PCM is reported and does not fail this task.
+- [ ] T051 [US1] Fix Desktop vibrato in `packages/engine/src/effects/index.ts`: depth from the note's frequency (Δf = depth × f² / 131072) and LFO phase 0. A probe at C4, C5, and C6 stays within 2% of that deviation. Phase 0 is already locked with a one-cycle buffer so real-time and offline match; depth is still taken from the oscillator's live frequency.
 - [ ] T052 [US1] Fix Desktop portamento in `packages/engine/src/effects/index.ts`: glide from the previous note on the channel, including a note that did not use `port`.
-- [ ] T053 [US2] Apply envelope gain before the first voice sample in `packages/engine/src/chips/gameboy/pulse.ts`, `wave.ts`, and `noise.ts`. Repeated real-time captures show no unity-gain sample at note start.
+- [ ] T053 [US2] Apply envelope gain before the first voice sample in `packages/engine/src/chips/gameboy/pulse.ts`, `wave.ts`, and `noise.ts`. The curve is now written before the voice starts, and the T050 capture no longer shows a unity-gain peak. Confirm that on a repeated real-time capture before closing this task.
 - [ ] T054 [US1] Make the master limiter in `packages/engine/src/audio/playback.ts` transparent per FR-013 and the spec 077 amendment. On `tutorial_groove.bax` at master 1.0, post-limiter level stays within 0.2 dB of pre-limiter. If the compressor cannot hold that, stop and record options in `plan.md`.
 - [ ] T055 [US1] Match FR-011 releases and note-start alignment in `packages/engine/src/audio/pcmRenderer.ts`. SC-001 passes for channels 1–4 and the full mix against WebAudio captured after T051–T054.
 - [ ] T056 [US1] Author listen of Desktop (after T051–T054) and of the PCM export (after T055) for `songs/gameboy/tutorial_groove.bax`. Record the result in `docs/qa/webaudio-pcm-parity-qa.md`.

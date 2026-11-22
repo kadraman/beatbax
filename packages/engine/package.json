@@ -81,7 +81,7 @@
     "dev": "tsc --watch",
     "pretest": "npm run build --if-present",
     "test": "jest --config ./jest.config.cjs --passWithNoTests",
-    "parity:capture": "node ./scripts/capture-webaudio-ref.mjs --compare"
+    "parity:capture": "node ./scripts/parity/capture.mjs"
   },
   "dependencies": {
     "@tonejs/midi": "^2.0.28",
