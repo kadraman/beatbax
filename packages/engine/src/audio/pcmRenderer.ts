@@ -34,6 +34,31 @@ import {
 /** Wave buffer scale — matches WebAudio playWavetable sample fill (`* 0.9`). */
 const WAVE_OUTPUT_SCALE = 0.9;
 
+/** FR-011: pulse and noise linear ramp to silence after the nominal end. */
+const GB_NOTE_RELEASE_SEC = 0.005;
+/** FR-011: wave without a GB envelope fades with this time constant, starting one constant before the end. */
+const WAVE_TAIL_SEC = 0.02;
+
+/** 1 during the note, then a linear ramp to 0 over `releaseSec`. */
+function linearReleaseGain(t: number, durSec: number, releaseSec: number): number {
+  if (t <= durSec || releaseSec <= 0) return 1;
+  const u = (t - durSec) / releaseSec;
+  if (u >= 1) return 0;
+  return 1 - u;
+}
+
+/**
+ * WebAudio `setTargetAtTime(0.0001, start + dur - tau, tau)` relative to the
+ * held gain. The source keeps running until `dur + tau`.
+ */
+function waveExponentialReleaseGain(t: number, durSec: number, baseGain: number): number {
+  const fadeStart = durSec - WAVE_TAIL_SEC;
+  if (t < fadeStart) return 1;
+  const floor = baseGain > 1e-8 ? 0.0001 / baseGain : 0;
+  const elapsed = t - fadeStart;
+  return floor + (1 - floor) * Math.exp(-elapsed / WAVE_TAIL_SEC);
+}
+
 // How many GB period-register units correspond to one tracker vibrato depth unit (y).
 // hUGE appears to treat the tracker `y` as raw register offset units; tune this
 // multiplier to convert tracker depth (0..15) into GB register steps.
@@ -427,8 +452,11 @@ function renderChannel(
 
     if (!inst) continue;
 
-    const startSample = Math.floor(time * sampleRate);
-    let durationSamples = Math.floor(dur * sampleRate);
+    // WebAudio starts a note on the nearest sample frame. Tick grids that
+    // land on an integer (tutorial_groove at 44100 Hz) are unchanged.
+    const startSample = Math.round(time * sampleRate);
+    const endSample = Math.round((time + dur) * sampleRate);
+    let durationSamples = Math.max(0, endSample - startSample);
 
     // For sample-based (DMC) instruments, extend the render window to the
     // time of the next non-rest event so the sample rings out naturally,
@@ -656,7 +684,8 @@ function renderNoteEvent(
         regPerTrackerBaseFactor,
         regPerTrackerUnit,
         channelId,
-        (ev.legato || false) && r === 0
+        (ev.legato || false) && r === 0,
+        freq
       );
     } else if (inst.type && inst.type.toLowerCase().includes('noise')) {
       if (r === 0 && Array.isArray(ev.effects) && ev.effects.length > 0) {
@@ -896,13 +925,19 @@ function renderPulse(
   // Band-limited pulse cache — matches WebAudio PeriodicWave (#271 / spec 112)
   let pulseCache: PulseFourierCache = getPulseFourierCache(programDuty);
 
-  for (let i = 0; i < duration; i++) {
+  // 5 ms tail past the nominal end. Phase handed to the next note is the
+  // phase at that end, so a portamento join is not shifted by the tail.
+  const renderLength = duration + Math.round(GB_NOTE_RELEASE_SEC * sampleRate);
+  let phaseAtNominalEnd = phase;
+  let vibratoPhaseAtNominalEnd = vibratoPhase;
+
+  for (let i = 0; i < renderLength; i++) {
     const t = i / sampleRate;
 
     // normal rendering loop
 
     if (gbCursor) {
-      const tick = Math.floor(t * 60);
+      const tick = Math.floor(Math.min(t, durSec) * 60);
       if (tick !== lastProgramTick) {
         lastProgramTick = tick;
         const row = gbCursor.rowAt(tick);
@@ -989,10 +1024,11 @@ function renderPulse(
       sample = bandLimitedPulseSample(phase, pulseCache, effFreq, sampleRate);
     }
 
+    const envT = Math.min(t, durSec);
     const envVal = useGbProgramVolume
       ? programVolScale
-      : ((envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(t, envelope, durSec));
-    sample = sample * envVal;
+      : ((envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(envT, envelope, durSec));
+    sample = sample * envVal * linearReleaseGain(t, durSec, GB_NOTE_RELEASE_SEC);
 
     if (noteFx.cutEnabled && typeof tickSeconds === 'number') {
       sample *= noteCutGain(t, noteFx.cutTicks, tickSeconds);
@@ -1026,6 +1062,11 @@ function renderPulse(
 
     sample *= PULSE_OUTPUT_GAIN;
 
+    if (i === duration - 1) {
+      phaseAtNominalEnd = phase;
+      vibratoPhaseAtNominalEnd = vibratoPhase;
+    }
+
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
       if (channels === 2) {
@@ -1044,8 +1085,8 @@ function renderPulse(
 
   // Save phase and vibrato state for next note on this channel
   if (typeof channelId === 'number') {
-    channelPhaseState.set(channelId, phase);
-    channelVibratoPhase.set(channelId, vibratoPhase);
+    channelPhaseState.set(channelId, phaseAtNominalEnd);
+    channelVibratoPhase.set(channelId, vibratoPhaseAtNominalEnd);
 
     // Save envelope state for potential legato continuation
     // Use sustained value if this was a legato note, otherwise compute final value
@@ -1079,7 +1120,9 @@ function renderWave(
   regPerTrackerBaseFactor?: number,
   regPerTrackerUnit?: number,
   channelId?: number,
-  legato?: boolean
+  legato?: boolean,
+  /** Pitch remembered for the next portamento. WebAudio stores midiToFreq, not the register-aligned frequency. */
+  portOriginHz?: number
 ) {
   const _parsedWave = inst.wave ? parseWaveTable(inst.wave) : null;
   const DEFAULT_WAVE = [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15, 0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
@@ -1093,8 +1136,9 @@ function renderWave(
     noteFx.portDurationSec = portamentoDurationSec(noteFx.portSpeed, durSec);
   }
 
-  // WebAudio creates a new BufferSource + vib LFO per wave note (unless port-held).
-  const continueWavePhase = !!(legato || (noteFx.portSpeed > 0));
+  // WebAudio starts a new BufferSource (phase 0) and a new vibrato LFO on every
+  // wave note, including portamento. Only legato keeps the previous phase.
+  const continueWavePhase = !!legato;
   let phase = (continueWavePhase && typeof channelId === 'number')
     ? (channelPhaseState.get(channelId) ?? 0)
     : 0;
@@ -1127,11 +1171,36 @@ function renderWave(
     }
   }
 
-  for (let i = 0; i < duration; i++) {
+  const waveEnv = parsePulseEnvelope((inst as { env?: unknown }).env);
+  const gbCurve = !!(waveEnv && waveEnv.mode === 'gb' && (waveEnv.period ?? 0) > 0);
+  const linearWaveRelease = useGbProgramVolume || gbCurve;
+  const waveTailSec = linearWaveRelease ? GB_NOTE_RELEASE_SEC : WAVE_TAIL_SEC;
+  const renderLength = duration + Math.round(waveTailSec * sampleRate);
+  const waveBaseGain = Math.max(
+    1e-8,
+    WAVE_PLAYBACK_GAIN * ((volumeSustainValue !== undefined) ? volumeSustainValue : volMul)
+  );
+  let phaseAtNominalEnd = phase;
+  let vibratoPhaseAtNominalEnd = vibratoPhase;
+
+  // One-cycle zero-order-hold buffer, same construction as playWavetable.
+  // playbackRate scales with the gliding frequency; linear interpolation matches
+  // AudioBufferSourceNode.
+  const cycleLen = waveTable.length;
+  const bufLen = Math.max(cycleLen, Math.round(sampleRate / Math.max(freq, 1)));
+  const baseRate = (freq * bufLen) / sampleRate;
+  const waveBuf = new Float32Array(bufLen);
+  for (let s = 0; s < bufLen; s++) {
+    const step = Math.floor((s * cycleLen) / bufLen) % cycleLen;
+    waveBuf[s] = ((waveTable[step] - waveMean) / 15.0) * WAVE_OUTPUT_SCALE;
+  }
+  let readPos = phase * bufLen;
+
+  for (let i = 0; i < renderLength; i++) {
     const t = i / sampleRate;
 
     if (gbCursor) {
-      const tick = Math.floor(t * 60);
+      const tick = Math.floor(Math.min(t, durSec) * 60);
       if (tick !== lastProgramTick) {
         lastProgramTick = tick;
         const row = gbCursor.rowAt(tick);
@@ -1175,7 +1244,7 @@ function renderWave(
     }
 
     if (typeof channelId === 'number' && i === duration - 1) {
-      channelPortamentoState.set(channelId, freq);
+      channelPortamentoState.set(channelId, portOriginHz ?? freq);
     }
 
     effFreq = applySweepToFrequency(
@@ -1187,13 +1256,17 @@ function renderWave(
       noteFx.sweepDirection
     );
 
-    if (effFreq > 0 && effFreq < sampleRate / 2) {
-      phase += effFreq / sampleRate;
-      phase = phase % 1.0;
+    let v = 0;
+    if (effFreq > 0 && effFreq < sampleRate / 2 && freq > 0) {
+      const rate = (effFreq / freq) * baseRate;
+      const wrapped = readPos % bufLen;
+      const i0 = Math.floor(wrapped) % bufLen;
+      const frac = wrapped - Math.floor(wrapped);
+      const i1 = (i0 + 1) % bufLen;
+      v = waveBuf[i0] * (1 - frac) + waveBuf[i1] * frac;
+      readPos += rate;
+      phase = (readPos % bufLen) / bufLen;
     }
-    const tablePos = phase * waveTable.length;
-    const i0 = Math.floor(tablePos) % waveTable.length;
-    const v = ((waveTable[i0] - waveMean) / 15.0) * WAVE_OUTPUT_SCALE;
     const effectiveVolMul = (volumeSustainValue !== undefined) ? volumeSustainValue : volMul;
     // WebAudio: buffer (*0.9) × gain (WAVE_PLAYBACK_GAIN × volMul)
     let sample = v * effectiveVolMul * WAVE_PLAYBACK_GAIN * (useGbProgramVolume ? programVolScale : 1);
@@ -1225,6 +1298,15 @@ function renderWave(
       sample *= volSlideGain;
     }
 
+    sample *= linearWaveRelease
+      ? linearReleaseGain(t, durSec, GB_NOTE_RELEASE_SEC)
+      : waveExponentialReleaseGain(t, durSec, waveBaseGain);
+
+    if (i === duration - 1) {
+      phaseAtNominalEnd = phase;
+      vibratoPhaseAtNominalEnd = vibratoPhase;
+    }
+
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
       if (channels === 2) {
@@ -1241,8 +1323,8 @@ function renderWave(
   }
 
   if (typeof channelId === 'number') {
-    channelPhaseState.set(channelId, phase);
-    channelVibratoPhase.set(channelId, vibratoPhase);
+    channelPhaseState.set(channelId, phaseAtNominalEnd);
+    channelVibratoPhase.set(channelId, vibratoPhaseAtNominalEnd);
     const finalVol = (volumeSustainValue !== undefined) ? volumeSustainValue : volMul;
     channelEnvelopeState.set(channelId, {
       time: durSec,
@@ -1296,11 +1378,12 @@ function renderNoise(
   let phase = 0;
   let lfsr = triggerGameBoyLfsr(width7);
 
-  for (let i = 0; i < duration; i++) {
+  const renderLength = duration + Math.round(GB_NOTE_RELEASE_SEC * sampleRate);
+  for (let i = 0; i < renderLength; i++) {
     const t = i / sampleRate;
 
     if (cursor) {
-      const tick = Math.floor(t * 60);
+      const tick = Math.floor(Math.min(t, durSec) * 60);
       if (tick !== lastTick) {
         lastTick = tick;
         const row = cursor.rowAt(tick);
@@ -1329,8 +1412,9 @@ function renderNoise(
     }
 
     const noise = gameBoyNoiseSample(lfsr) * NOISE_OUTPUT_GAIN;
-    const envVal = useProgramVolume ? volScale : getEnvelopeValue(t, envelope, durSec);
-    const sample = noise * envVal;
+    const envT = Math.min(t, durSec);
+    const envVal = useProgramVolume ? volScale : getEnvelopeValue(envT, envelope, durSec);
+    const sample = noise * envVal * linearReleaseGain(t, durSec, GB_NOTE_RELEASE_SEC);
 
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
@@ -1360,20 +1444,31 @@ function getEnvelopeValue(t: number, envObj: any, dur?: number): number {
     const initial = envObj.initial ?? envObj.level ?? 15;
     const period = envObj.period ?? envObj.step ?? 1;
     if (period === 0) return Math.max(0, Math.min(1, (initial / 15)));
-    // Match WebAudio pulse.ts: stepPeriod = period * (65536 / GB_CLOCK) = period/64
+    // Match WebAudio setValueCurveAtTime: linear between GB steps for
+    // (steps × stepPeriod), then hold the last step until the note ends.
+    // Continuing the ramp past the curve made the last frames ~1 dB quiet.
     const stepDuration = period * (65536 / 4194304);
-    // setValueCurveAtTime linearly interpolates between discrete GB levels —
-    // staircase holds made short notes diverge badly from Desktop (spec 112).
-    const stepF = Math.max(0, t / stepDuration);
-    const i0 = Math.floor(stepF);
-    const frac = stepF - i0;
-    const levelAt = (step: number) => {
-      if (envObj.direction === 'up') return Math.min(15, initial + step);
-      return Math.max(0, initial - step);
-    };
-    const v0 = levelAt(i0);
-    const v1 = levelAt(i0 + 1);
-    const volume = v0 + (v1 - v0) * frac;
+    const noteDur = typeof dur === 'number' && dur > 0 ? dur : t;
+    const maxSteps = Math.max(1, Math.floor(noteDur / stepDuration));
+    const levels: number[] = [initial];
+    let cur = initial;
+    for (let s = 1; s <= maxSteps; s++) {
+      if (envObj.direction === 'up') cur = Math.min(15, cur + 1);
+      else cur = Math.max(0, cur - 1);
+      levels.push(cur);
+      if (cur === 0 || cur === 15) break;
+    }
+    const curveDuration = (levels.length - 1) * stepDuration;
+    const te = Math.min(Math.max(t, 0), noteDur);
+    let volume: number;
+    if (te >= curveDuration || levels.length < 2) {
+      volume = levels[levels.length - 1];
+    } else {
+      const stepF = te / stepDuration;
+      const i0 = Math.min(levels.length - 2, Math.floor(stepF));
+      const frac = stepF - i0;
+      volume = levels[i0] + (levels[i0 + 1] - levels[i0]) * frac;
+    }
     return Math.max(0, Math.min(1, volume / 15));
   }
 

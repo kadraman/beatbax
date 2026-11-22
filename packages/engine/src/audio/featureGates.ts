@@ -207,17 +207,22 @@ function pitchTrack(a: Float32Array, sampleRate: number, s0: number, s1: number,
   return out;
 }
 
-function maxCentsAtLag(a: number[], b: number[], lag: number): { max: number; n: number } {
+function maxCentsAtLag(a: number[], b: number[], lag: number): { max: number; n: number; at: number } {
   let max = 0;
   let n = 0;
+  let at = 0;
   for (let i = 0; i < a.length; i++) {
     const j = i + lag;
     if (j < 0 || j >= b.length) continue;
     if (!Number.isFinite(a[i]) || !Number.isFinite(b[j]) || a[i] <= 0 || b[j] <= 0) continue;
-    max = Math.max(max, Math.abs(cents(a[i], b[j])));
+    const c = Math.abs(cents(a[i], b[j]));
     n++;
+    if (c >= max) {
+      max = c;
+      at = i;
+    }
   }
-  return { max, n };
+  return { max, n, at };
 }
 
 /**
@@ -234,7 +239,6 @@ export function compareSc001(
 ): GateReport {
   const failures: string[] = [];
   const hop = Math.round((SC001.envelopeFrameMs / 1000) * sampleRate);
-  const lagSteps = Math.max(1, Math.round(SC001.pitchLagMs / SC001.envelopeFrameMs));
 
   for (const note of notes) {
     const s = Math.round(note.startSec * sampleRate);
@@ -291,16 +295,20 @@ export function compareSc001(
         const pitchWin = Math.round(0.012 * sampleRate);
         const from = s + Math.round(0.01 * sampleRate);
         const trackA = pitchTrack(ref, sampleRate, from, e, pitchWin, hop);
-        const trackB = pitchTrack(other, sampleRate, from, e, pitchWin, hop);
-        let best = { max: Infinity, n: 0 };
-        for (let lag = -lagSteps; lag <= lagSteps; lag++) {
-          const hit = maxCentsAtLag(trackA, trackB, lag);
-          if (hit.n >= 2 && hit.max < best.max) best = hit;
+        // The 5 ms allowance is continuous. Hop-sized lags (5 ms) leave a
+        // 2 ms glide skew reading as more than 10 cents.
+        let best = { max: Infinity, n: 0, at: 0, lagMs: 0 };
+        for (let lagMs = -SC001.pitchLagMs; lagMs <= SC001.pitchLagMs; lagMs += 1) {
+          const shift = Math.round((lagMs / 1000) * sampleRate);
+          const trackB = pitchTrack(other, sampleRate, from + shift, e + shift, pitchWin, hop);
+          const hit = maxCentsAtLag(trackA, trackB, 0);
+          if (hit.n >= 2 && hit.max < best.max) best = { ...hit, lagMs };
         }
         if (best.n < 2) {
           if (levelA > 0.01 && levelB > 0.01) failures.push(`${note.label} pitch track missing`);
         } else if (best.max > limit) {
-          failures.push(`${note.label} pitch ${best.max.toFixed(1)} cents (limit ${limit})`);
+          const atMs = ((from + best.at * hop) / sampleRate - note.startSec) * 1000;
+          failures.push(`${note.label} pitch ${best.max.toFixed(1)} cents at +${atMs.toFixed(0)} ms lag ${best.lagMs} ms (limit ${limit})`);
         }
       }
     }
@@ -313,9 +321,11 @@ export function compareSc001(
   for (let i = 0; i < bandsA.length; i++) loudest = Math.max(loudest, bandsA[i], bandsB[i]);
   for (let i = 0; i < bandsA.length; i++) {
     if (loudest - Math.max(bandsA[i], bandsB[i]) > SC001.bandFloorDb) continue;
-    const diff = Math.abs(bandsB[i] - bandsA[i]);
+    const signed = bandsB[i] - bandsA[i];
+    const diff = Math.abs(signed);
     if (diff > SC001.bandDb) {
-      failures.push(`band ${BAND_EDGES[i]}-${BAND_EDGES[i + 1]} Hz ${diff.toFixed(2)} dB (limit ${SC001.bandDb})`);
+      const sign = signed >= 0 ? '+' : '';
+      failures.push(`band ${BAND_EDGES[i]}-${BAND_EDGES[i + 1]} Hz ${diff.toFixed(2)} dB (ref ${bandsA[i].toFixed(1)} other ${sign}${bandsB[i].toFixed(1)}, limit ${SC001.bandDb})`);
     }
   }
 
