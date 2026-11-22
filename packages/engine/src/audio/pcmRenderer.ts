@@ -925,6 +925,19 @@ function renderPulse(
   // Band-limited pulse cache — matches WebAudio PeriodicWave (#271 / spec 112)
   let pulseCache: PulseFourierCache = getPulseFourierCache(programDuty);
 
+  // Chrome's OscillatorNode reads phase increments from the start of the
+  // 128-frame quantum, while frequency.setValueAtTime(f, noteStart) only
+  // changes the frames at and after the note. The frames before that event
+  // stay at the default 440 Hz and are played as the note's first samples.
+  // A note that starts at context time 0 is already on a quantum boundary,
+  // so it does not do this. A held portamento voice is not a new oscillator.
+  const RENDER_QUANTUM = 128;
+  const OSCILLATOR_DEFAULT_HZ = 440;
+  const startQuantum = ((start % RENDER_QUANTUM) + RENDER_QUANTUM) % RENDER_QUANTUM;
+  const chromeDefaultHzSamples = continuePhase
+    ? 0
+    : Math.min(startQuantum, RENDER_QUANTUM - startQuantum);
+
   // 5 ms tail past the nominal end. Phase handed to the next note is the
   // phase at that end, so a portamento join is not shifted by the tail.
   const renderLength = duration + Math.round(GB_NOTE_RELEASE_SEC * sampleRate);
@@ -1017,11 +1030,13 @@ function renderPulse(
     const activeDuty = useGbProgram ? programDuty : duty;
     pulseCache = getPulseFourierCache(activeDuty, 200, pulseCache);
     let sample = 0;
-    if (effFreq > 0 && effFreq < sampleRate / 2) {
-      phase += effFreq / sampleRate;
+    const oscFreq = i < chromeDefaultHzSamples ? OSCILLATOR_DEFAULT_HZ : effFreq;
+    if (oscFreq > 0 && oscFreq < sampleRate / 2) {
+      // OscillatorNode outputs phase 0 on the first sample, then advances.
+      // Advancing first skipped that zero crossing and shifted every pulse note.
+      sample = bandLimitedPulseSample(phase, pulseCache, oscFreq, sampleRate);
+      phase += oscFreq / sampleRate;
       phase = phase % 1.0;
-      // Cap harmonics at Nyquist (matches WebAudio oscillator band-limiting).
-      sample = bandLimitedPulseSample(phase, pulseCache, effFreq, sampleRate);
     }
 
     const envT = Math.min(t, durSec);

@@ -54,3 +54,7 @@ Authority at the time: Chromium `OfflineAudioContext` + `Player` via `packages/e
 - The windowed-correlation residuals (including ch2 arp at ~0.74) are not open defects. Re-measure with SC-001. CLI play and WAV stay on PCM.
 
 **Offline path:** There is no Node Offline WebAudio WAV export. Node `node-web-audio-api` is not the parity oracle.
+
+## Channel 1 bass (2026-11-22)
+
+Chromium's `OscillatorNode` reads phase increments from the start of the 128-frame render quantum. `frequency.setValueAtTime` at the note start leaves the default 440 Hz in the earlier frames of that quantum, and those frames are played as the note's first samples. The first half-cycle is stretched, which adds a positive low-frequency transient. Notes that start at context time 0 are on a quantum boundary and do not do this. PCM pulse now does the same, and the 20 Hz–250 Hz bands on channel 1 fall inside 1 dB. The T055 reference is the offline render: one real-time envelope frame (channel 1, step 18, +105 ms) stays 1.03 dB louder in PCM, while real-time vs offline still passes.

@@ -2,7 +2,7 @@
  * T050 — SC-001 feature gates for tutorial_groove (spec 112).
  *
  * WebAudio real-time vs WebAudio offline (limiter bypassed) must pass.
- * The capture command also prints PCM vs real-time; that comparison is T055
+ * The capture command also prints PCM vs offline WebAudio; that comparison is T055
  * and does not fail this test.
  *
  * Requires Playwright Chromium (`npx playwright install chromium`).

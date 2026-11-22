@@ -14,6 +14,46 @@ function rms(buf: Float32Array, a: number, b: number): number {
 }
 
 describe('PCM FR-011 releases', () => {
+  test('a 50% pulse starts at phase 0', () => {
+    const src = `
+chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=gb:15,flat
+pat p = E5:4
+channel 1 => inst lead pat p
+`;
+    const song = resolveSong(parse(src));
+    const buf = renderSongToPCM(song, { sampleRate: 44100, channels: 1, bpm: 120 });
+    expect(Math.abs(buf[0])).toBeLessThan(0.02);
+    expect(Math.abs(buf[1])).toBeGreaterThan(0.05);
+  });
+
+  test('a pulse that starts off a render quantum begins at 440 Hz', () => {
+    const songFor = (pat: string) => resolveSong(parse(`
+chip gameboy
+bpm 140
+inst lead type=pulse1 duty=50 env=gb:15,flat
+pat p = ${pat}
+channel 1 => inst lead pat p
+`));
+    const sr = 44100;
+    const atZero = renderSongToPCM(songFor('G5'), { sampleRate: sr, channels: 1, bpm: 140 });
+    const shifted = renderSongToPCM(songFor('. G5'), { sampleRate: sr, channels: 1, bpm: 140 });
+    const tick = Math.round(((60 / 140) / 4) * sr);
+    const positiveRun = (buf: Float32Array, start: number) => {
+      let i = start;
+      while (i < start + 8 && buf[i] <= 0) i++;
+      const from = i;
+      while (i < start + 200 && buf[i] > 0) i++;
+      return i - from;
+    };
+    const aligned = positiveRun(atZero, 0);
+    const offQuantum = positiveRun(shifted, tick);
+    expect(tick % 128).not.toBe(0);
+    expect(aligned).toBeGreaterThan(20);
+    expect(offQuantum).toBeGreaterThan(aligned + 3);
+  });
+
   test('pulse keeps a 5 ms tail after the nominal end', () => {
     const src = `
 chip gameboy

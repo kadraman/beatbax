@@ -2,7 +2,8 @@
 /**
  * SC-001 capture (spec 112 T050).
  * WebAudio real-time vs WebAudio offline, limiter bypassed, must pass the feature gates.
- * PCM vs real-time is reported and does not fail this command (that is T055).
+ * PCM vs offline WebAudio is the T055 report. Real-time is the self-check
+ * reference only: its note onsets can sit a fraction of a dB off the offline render.
  *
  *   node packages/engine/scripts/parity/capture.mjs [song.bax]
  */
@@ -214,9 +215,13 @@ for (let i = 0; i < labels.length; i++) {
   const pcm = renderSongToPCM(song, { sampleRate, channels: 2, bpm, duration: durationSec, renderChannels });
   const pcmMono = new Float32Array(pcm.length / 2);
   for (let s = 0; s < pcmMono.length; s++) pcmMono[s] = pcm[s * 2];
-  const pcmReport = compareSc001(rtBuf, pcmMono, sampleRate, notes, songEndSec, label === 'full');
+  const pcmReport = compareSc001(offBuf, pcmMono, sampleRate, notes, songEndSec, label === 'full');
+  const rtPcm = compareSc001(rtBuf, pcmMono, sampleRate, notes, songEndSec, label === 'full');
   report.pcm[label] = { pass: pcmReport.pass, failures: pcmReport.failures.slice(0, 12), mixRmsDb: pcmReport.mixRmsDb };
   console.log(`PCM ${label}: ${pcmReport.pass ? 'pass' : 'not yet'} (${pcmReport.failures.length} failures, T055)`);
+  if (!rtPcm.pass) {
+    console.log(`  real-time differs: ${rtPcm.failures.slice(0, 4).join(' | ')}`);
+  }
 }
 
 const outDir = join(engineRoot, 'dist-parity');
