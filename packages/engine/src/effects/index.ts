@@ -2,6 +2,12 @@ import { EffectHandler, EffectRegistry } from './types.js';
 import { warn } from '../util/diag.js';
 import { parseEnvelope } from '../chips/gameboy/pulse.js';
 import { arpCycleOffsets } from '../util/arpOffsets.js';
+import {
+  vibratoAmplitudeHz,
+  portamentoDurationSec,
+  VIB_DEPTH_SCALE,
+  chipFrameRate,
+} from './modulation.js';
 
 const registry = new Map<string, EffectHandler>();
 
@@ -94,12 +100,6 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   // default parameters during any gap between safeLfoStart and lfoStart.
   const lfoStart = Math.min(start + vibDelaySec, start + dur * 0.75);
 
-  // Game Boy-accurate vibrato depth calculation:
-  // hUGETracker applies the depth nibble as a period-register offset.
-  // Hz deviation: Δf = trackerDepth * f² / 131072
-  const VIB_DEPTH_SCALE = 1.0; // Must match ugeWriter.ts
-  const trackerDepth = Math.max(0, Math.min(15, Math.round(depth * VIB_DEPTH_SCALE)));
-
   try {
     const lfo = (ctx as any).createOscillator();
     const lfoGain = (ctx as any).createGain();
@@ -116,7 +116,7 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
       } catch (e) {}
       if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = osc.frequency.value || 440;
 
-      const amplitudeHz = trackerDepth * baseFreq * baseFreq / 131072;
+      const amplitudeHz = vibratoAmplitudeHz(depth, baseFreq, VIB_DEPTH_SCALE);
       if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
 
       try { lfoGain.gain.setValueAtTime(amplitudeHz, lfoStart); } catch (_) { lfoGain.gain.value = amplitudeHz; }
@@ -131,7 +131,7 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
       const baseRate: number = (osc as any).__basePlaybackRate || osc.playbackRate.value;
 
       // Convert Hz amplitude to playbackRate amplitude: Δrate = (Δf / f) * baseRate
-      const amplitudeHz = trackerDepth * baseFreq * baseFreq / 131072;
+      const amplitudeHz = vibratoAmplitudeHz(depth, baseFreq, VIB_DEPTH_SCALE);
       if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
       const amplitudeRate = (amplitudeHz / baseFreq) * baseRate;
 
@@ -197,8 +197,8 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
   const speed = Number.isFinite(speedRaw) ? Math.max(1, Math.min(255, speedRaw)) : 16;
 
   const channelKey = chId ?? 0;
-  // Speed scaling: higher speed = shorter portamento time
-  const portDuration = Math.max(0.001, (256 - speed) / 256 * dur * 0.6);
+  // Speed scaling: higher speed = shorter portamento time (shared with PCM — spec 112)
+  const portDuration = portamentoDurationSec(speed, dur);
 
   if (hasFreq) {
     // OscillatorNode path (pulse channels)
@@ -332,17 +332,8 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   // Note: Defaults reflect the dominant market/scene for each chip:
   // - C64: 50 Hz (PAL) because the European demoscene/SID music community was dominant
   // - Others: 60 Hz (NTSC) due to Japanese/North American market dominance or global standard
-  const CHIP_FRAME_RATES: Record<string, number> = {
-    'gameboy': 60,      // Game Boy: ~59.73 Hz (global standard, not TV-dependent)
-    'nes': 60,          // NES: ~60 Hz NTSC (North American market dominant)
-    'c64': 50,          // C64 SID: 50 Hz PAL (European demoscene/music dominant)
-    'genesis': 60,      // Sega Genesis: ~60 Hz NTSC (NA/Japan markets)
-    'megadrive': 60,    // Alias for Genesis
-    'pcengine': 60,     // PC Engine: ~60 Hz (Japan/NA markets)
-  };
-
   const chipType = ((ctx as any)._chipType || 'gameboy').toLowerCase();
-  const frameRate = CHIP_FRAME_RATES[chipType] || 60; // Default to 60 Hz
+  const frameRate = chipFrameRate(chipType);
   const stepDuration = 1 / frameRate;
 
   // hUGETracker arpeggio always includes the root note first

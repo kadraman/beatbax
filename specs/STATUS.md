@@ -4,7 +4,7 @@ Assign the next feature id as **113** (one past the highest id below). Process: 
 
 ## Active (`specs/features/`)
 
-- **112** `webaudio-pcm-effect-parity` (PCM CLI play / WAV export match Desktop WebAudio effects; shared modulation kernel; closes #42 echo/retrig gap) — planned — engine — issue: https://github.com/kadraman/beatbax/issues/276 — [specs/features/112-webaudio-pcm-effect-parity/](specs/features/112-webaudio-pcm-effect-parity/)
+- **112** `webaudio-pcm-effect-parity` (PCM CLI play / WAV export match the written effect contract; Desktop vibrato, portamento, note-start gain, and the spec 077 limiter are corrected to that contract; feature gates replace correlation; closes #42 echo/retrig gap) — in-progress — engine — issue: https://github.com/kadraman/beatbax/issues/276 — [specs/features/112-webaudio-pcm-effect-parity/](specs/features/112-webaudio-pcm-effect-parity/)
 - **106** `cli-standalone-executable` (no-Node cross-platform CLI executables; stable assets on `desktop-v*`; rolling `cli-dev`) — planned — cli — issue: https://github.com/kadraman/beatbax/issues/244 — [specs/features/106-cli-standalone-executable/](specs/features/106-cli-standalone-executable/)
 - **105** `tracker-pattern-editor` (Desktop tracker for one `pat` + Pattern Grid arrangement grips; flatten-on-edit; `.bax` text remains source of truth) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/239 — [specs/features/105-tracker-pattern-editor/](specs/features/105-tracker-pattern-editor/)
 - **001** `hot-reload` — specified — engine — issue: https://github.com/kadraman/beatbax/issues/6 — [specs/features/001-hot-reload/](specs/features/001-hot-reload/)
@@ -106,7 +106,7 @@ Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this e
 - **074** `builtin-nes-chip-plugin` — complete — plugin — issue: https://github.com/kadraman/beatbax/issues/127 — [specs/complete/074-builtin-nes-chip-plugin/](specs/complete/074-builtin-nes-chip-plugin/)
 - **075** `spectrum-cpc-arkos-exporter` — complete — export — issue: https://github.com/kadraman/beatbax/issues/130 — [specs/complete/075-spectrum-cpc-arkos-exporter/](specs/complete/075-spectrum-cpc-arkos-exporter/)
 - **076** `desktop-first-client-split` — complete — cli — issue: https://github.com/kadraman/beatbax/issues/136 — [specs/complete/076-desktop-first-client-split/](specs/complete/076-desktop-first-client-split/)
-- **077** `web-audio-loudness-and-meter-display` — complete — cli — issue: https://github.com/kadraman/beatbax/issues/135 — [specs/complete/077-web-audio-loudness-and-meter-display/](specs/complete/077-web-audio-loudness-and-meter-display/)
+- **077** `web-audio-loudness-and-meter-display` — complete (limiter threshold amended by spec 112, 2026-11-22: transparent at and below full scale) — cli — issue: https://github.com/kadraman/beatbax/issues/135 — [specs/complete/077-web-audio-loudness-and-meter-display/](specs/complete/077-web-audio-loudness-and-meter-display/)
 - **078** `desktop-client-enhancements` — complete — cli — issue: _none_ — [specs/complete/078-desktop-client-enhancements/](specs/complete/078-desktop-client-enhancements/)
 - **079** `desktop-web-ui-retirement` — complete — web — issue: _none_ — [specs/complete/079-desktop-web-ui-retirement/](specs/complete/079-desktop-web-ui-retirement/)
 - **080** `exporter-buffer-return-cleanup` — complete — export — issue: https://github.com/kadraman/beatbax/issues/152 — [specs/complete/080-exporter-buffer-return-cleanup/](specs/complete/080-exporter-buffer-return-cleanup/)

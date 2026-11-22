@@ -1,7 +1,7 @@
 # WAV Export Usage Guide
 
 ## Overview
-BeatBax supports exporting songs to WAV audio files using a direct PCM renderer that generates sample-accurate Game Boy audio without browser dependencies. WAV export is available through the CLI and can be used for archival, distribution, or integration with DAWs and audio editing tools.
+BeatBax exports songs to WAV for archival, distribution, and DAW use using the PCM renderer (same path as `beatbax play`).
 
 ## Quick Start
 

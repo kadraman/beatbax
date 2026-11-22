@@ -703,11 +703,11 @@ BeatBax uses two audio rendering paths depending on the runtime environment:
 
 | Path | Used when | Effects support |
 |------|-----------|-----------------|
-| **PCM** (`render()`) | CLI, headless, Node.js | None (no AudioParam automation) |
-| **Web Audio** (`createPlaybackNodes()`) | Browser / Electron | Full (arp, vib, portamento, retrigger, echo…) |
+| **Web Audio** (`createPlaybackNodes()`) | Desktop/web **live** playback | AudioParam automation — audible reference (spec 112) |
+| **PCM** (`render()`) | CLI play, WAV export (default), FM-1, headless | Shared modulation kernel (arp, vib, port, trem, bend, sweep, volSlide, cut, echo, retrig) |
 
 **Implement both paths for every live Desktop voice** (including percussion):
-- The CLI and Desktop WAV export use the `render()` PCM loop.
+- CLI play and WAV use the PCM `render()` loop by default.
 - Desktop / web-ui **live** playback prefers `createPlaybackNodes()` for effects
   (arp, vib, portamento, …). A voice without it falls back to ScriptProcessor
   PCM while other voices use Web Audio — timing/routing can diverge even when

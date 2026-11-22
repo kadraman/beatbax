@@ -9,6 +9,13 @@ import {
 } from './instrumentProgram.js';
 
 /**
+ * Extra gain applied after the ±0.9 AC-coupled wave buffer in WebAudio
+ * (`playWavetable` sets `gain = 0.6 * volMul` when no GB env). PCM must use
+ * the same factor so CLI/WAV match Desktop (spec 112).
+ */
+export const WAVE_PLAYBACK_GAIN = 0.6;
+
+/**
  * Map wave instrument `volume=` / `vol=` (0 | 25 | 50 | 100) to a linear gain.
  * Matches NR32 output-level semantics and the PCM renderer.
  */
@@ -124,7 +131,7 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;
   // NR32 output level (volume=0/25/50/100) scales WebAudio gain to match PCM/UGE.
-  const baseGain = 0.6 * volMul;
+  const baseGain = WAVE_PLAYBACK_GAIN * volMul;
   if (env && env.mode === 'gb') {
     const stepPeriod = (env.period ?? 1) * (65536 / GB_CLOCK);
     if (env.period && env.period > 0) {

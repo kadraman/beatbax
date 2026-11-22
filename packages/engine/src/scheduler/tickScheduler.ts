@@ -71,6 +71,30 @@ export class TickScheduler {
     this.queue = [];
   }
 
+  /**
+   * Immediately run every queued callback (OfflineAudioContext export).
+   * Callbacks still schedule AudioNodes at absolute `time` on the offline
+   * timeline; OfflineAudioContext.currentTime stays 0 until startRendering(),
+   * so the normal lookahead tick would never drain the queue.
+   *
+   * Loops until empty so nested `schedule()` calls (retrig, echo cleanup, …)
+   * are drained too.
+   */
+  flushAll() {
+    let guard = 0;
+    while (this.queue.length > 0 && guard++ < 100000) {
+      const pending = this.queue.slice().sort((a, b) => a.time - b.time);
+      this.queue = [];
+      for (const ev of pending) {
+        try { ev.fn(); } catch (e) { error('scheduler', 'Scheduled function error: ' + (e && (e as any).message ? (e as any).message : String(e))); }
+      }
+    }
+    if (this.queue.length > 0) {
+      error('scheduler', `flushAll aborted with ${this.queue.length} events still queued`);
+      this.queue = [];
+    }
+  }
+
   private tick() {
     const now = (this.ctx && typeof this.ctx.currentTime === 'number') ? this.ctx.currentTime : (Date.now() / 1000);
     const cutoff = now + this.lookahead;

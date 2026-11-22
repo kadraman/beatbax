@@ -128,32 +128,6 @@ export async function playFile(path: string, options: PlayOptions = {}) {
 
       const song = await resolveSongAsync(ast, { filename: path, searchPaths: [process.cwd()] });
 
-      // Check for echo effects and warn (PCM renderer doesn't support echo yet)
-      let hasEchoEffects = false;
-      if (song && song.channels) {
-        for (const ch of song.channels) {
-          if (ch && ch.events) {
-            for (const evt of ch.events) {
-              if (evt.type === 'note' && evt.effects && Array.isArray(evt.effects)) {
-                for (const fx of evt.effects) {
-                  const fxName = fx && fx.type ? fx.type : fx;
-                  if (fxName === 'echo') {
-                    hasEchoEffects = true;
-                    break;
-                  }
-                }
-              }
-              if (hasEchoEffects) break;
-            }
-          }
-          if (hasEchoEffects) break;
-        }
-      }
-
-      if (hasEchoEffects) {
-        warn('play', 'Echo/delay effects detected in song but are not supported in PCM renderer (CLI playback). Echo effects will be ignored. Use --browser flag for echo support.');
-      }
-
       // Pre-load any async samples (e.g. NES DMC local:/https:// refs) so the
       // synchronous PCM render path finds cached data from the first noteOn().
       const chipType = chipRegistry.resolve((ast.chip || 'gameboy').toLowerCase());

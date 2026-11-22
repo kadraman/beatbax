@@ -22,18 +22,12 @@ describe('collectPcmWavExportWarnings', () => {
     expect(warnings).toHaveLength(0);
   });
 
-  it('warns about echo on any chip', () => {
+  it('does not warn about echo/retrig on Game Boy (PCM supports them — spec 112)', () => {
     const warnings = collectPcmWavExportWarnings(songWithEffects('gameboy', [
       { type: 'echo', params: [0.25, 50, 30] },
-    ]));
-    expect(warnings.some((w) => /echo\/delay/i.test(w))).toBe(true);
-  });
-
-  it('warns about retrigger on any chip', () => {
-    const warnings = collectPcmWavExportWarnings(songWithEffects('gameboy', [
       { type: 'retrig', params: [4, -2] },
     ]));
-    expect(warnings.some((w) => /retrigger/i.test(w))).toBe(true);
+    expect(warnings).toHaveLength(0);
   });
 
   it('warns about unsupported per-note effects on NES', () => {

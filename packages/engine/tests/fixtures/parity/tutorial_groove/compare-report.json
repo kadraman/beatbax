@@ -1,0 +1,77 @@
+{
+  "song": "C:\\Users\\kadraman\\repos\\beatbax.main\\songs\\gameboy\\tutorial_groove.bax",
+  "sampleRate": 44100,
+  "durationSec": 8,
+  "report": [
+    {
+      "label": "full",
+      "correlation": 0.6778014237242002,
+      "bestLagSamples": -5,
+      "bestCorrelation": 0.5547164805242909,
+      "windowedCorrelation": 0.678970132186208,
+      "peakA": 0.917995274066925,
+      "peakB": 0.8557948470115662,
+      "rmsA": 0.16138762412382224,
+      "rmsB": 0.16856506879103497,
+      "lengthA": 352800,
+      "lengthB": 352800,
+      "ms": 3670
+    },
+    {
+      "label": "ch1",
+      "correlation": 0.2866345088149788,
+      "bestLagSamples": -665,
+      "bestCorrelation": 0.3909903253465353,
+      "windowedCorrelation": 0.8984812429233566,
+      "peakA": 0.3224720358848572,
+      "peakB": 0.22077909111976624,
+      "rmsA": 0.10267225701740258,
+      "rmsB": 0.10180115432781084,
+      "lengthA": 352800,
+      "lengthB": 352800,
+      "ms": 2824
+    },
+    {
+      "label": "ch2",
+      "correlation": 0.7260737448526519,
+      "bestLagSamples": -5,
+      "bestCorrelation": 0.7876173606702325,
+      "windowedCorrelation": 0.7433988834265938,
+      "peakA": 0.19649481773376465,
+      "peakB": 0.1960182934999466,
+      "rmsA": 0.06551093003141947,
+      "rmsB": 0.06556070622749374,
+      "lengthA": 352800,
+      "lengthB": 352800,
+      "ms": 3081
+    },
+    {
+      "label": "ch3",
+      "correlation": 0.9623169348496001,
+      "bestLagSamples": -5,
+      "bestCorrelation": 0.9380973606330253,
+      "windowedCorrelation": 0.9407783639943218,
+      "peakA": 0.3726392090320587,
+      "peakB": 0.3218121826648712,
+      "rmsA": 0.10173170142892962,
+      "rmsB": 0.10629436492227565,
+      "lengthA": 352800,
+      "lengthB": 352800,
+      "ms": 2431
+    },
+    {
+      "label": "ch4",
+      "correlation": 0.9965826591147899,
+      "bestLagSamples": -5,
+      "bestCorrelation": 0.8573969069068974,
+      "windowedCorrelation": 0.615276796458606,
+      "peakA": 0.2538657784461975,
+      "peakB": 0.2538459300994873,
+      "rmsA": 0.05509188310632316,
+      "rmsB": 0.055091886093020265,
+      "lengthA": 352800,
+      "lengthB": 352800,
+      "ms": 2385
+    }
+  ]
+}

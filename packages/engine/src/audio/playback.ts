@@ -118,6 +118,12 @@ export interface PlayASTOptions {
    * passes a few milliseconds so a key is not a tenth of a second late.
    */
   scheduleLeadSeconds?: number;
+  /**
+   * Connect masterGain straight to destination (no DynamicsCompressor).
+   * Used by Chromium Offline parity capture so WA↔PCM correlation is not
+   * dominated by the live-preview limiter (spec 112).
+   */
+  bypassMasterLimiter?: boolean;
 }
 
 function scheduleLeadSeconds(options: PlayASTOptions): number {
@@ -291,13 +297,19 @@ export class Player {
     try { this.masterLimiter.disconnect(this.ctx.destination); } catch (_) {}
   }
 
+  private _bypassMasterLimiter = false;
+
   private _ensureMasterOutputChain(): GainNode {
     if (!this.masterGain) {
       this.masterGain = this.ctx.createGain();
     }
     const destination = this.ctx.destination;
-    if (typeof (this.ctx as any).createDynamicsCompressor !== 'function') {
+    if (
+      this._bypassMasterLimiter ||
+      typeof (this.ctx as any).createDynamicsCompressor !== 'function'
+    ) {
       this._disconnectMasterGainFromOutputSinks();
+      this._disconnectLimiterFromDestination();
       this.masterGain.connect(destination);
       return this.masterGain;
     }
@@ -323,8 +335,11 @@ export class Player {
 
     this._isPaused = false; // Reset paused state
 
+    // OfflineAudioContext stays "suspended" until startRendering(); calling
+    // resume() can hang. Only resume live AudioContexts.
     try {
-      if (this.ctx && typeof (this.ctx as any).resume === 'function') {
+      const isOffline = typeof (this.ctx as any)?.startRendering === 'function';
+      if (!isOffline && this.ctx && typeof (this.ctx as any).resume === 'function') {
         try {
           const st = (this.ctx as any).state;
           if (st === 'suspended') await (this.ctx as any).resume();
@@ -352,6 +367,7 @@ export class Player {
       ? this._userMasterVolumeOverride
       : astVolume;
 
+    this._bypassMasterLimiter = options.bypassMasterLimiter === true;
     this._ensureMasterOutputChain();
     this.masterGain!.gain.setValueAtTime(effectiveMasterVolume, this.ctx.currentTime);
 
