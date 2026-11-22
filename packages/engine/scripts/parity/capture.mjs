@@ -131,6 +131,48 @@ if (!isolated) {
 await page.addScriptTag({ path: bundle });
 
 const opts = { sampleRate, durationSec };
+if (process.argv.includes('--limiter-check')) {
+  const sets = [
+    { name: 'shipped threshold 0 knee 6 ratio 12', threshold: 0, knee: 6, ratio: 12, attack: 0.003, release: 0.1 },
+  ];
+  const decode = (s) => {
+    const buf = Buffer.from(s, 'base64');
+    return new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+  };
+  const rms = (a, s, e) => {
+    let x = 0;
+    const n = Math.max(1, e - s);
+    for (let i = s; i < e && i < a.length; i++) x += a[i] * a[i];
+    return Math.sqrt(x / n);
+  };
+  for (const params of sets) {
+    const raw = await page.evaluate(({ song, opts, params }) => globalThis.BeatBaxParityGates.measureLimiter(song, opts, params), { song, opts, params });
+    const pre = decode(raw.pre);
+    const post = decode(raw.post);
+    let bestLag = 0;
+    let best = -1;
+    const lagMax = Math.round(0.02 * sampleRate);
+    for (let lag = 0; lag <= lagMax; lag += 8) {
+      let c = 0;
+      const n = Math.min(pre.length, post.length) - lag;
+      for (let i = 0; i < n; i += 16) c += pre[i] * post[i + lag];
+      if (c > best) { best = c; bestLag = lag; }
+    }
+    const n = Math.min(pre.length, post.length - bestLag);
+    const mix = 20 * Math.log10(rms(post, bestLag, bestLag + n) / Math.max(rms(pre, 0, n), 1e-12));
+    const hop = Math.round(0.05 * sampleRate);
+    let win = 0;
+    for (let i = 0; i + hop <= n; i += hop) {
+      const a = rms(pre, i, i + hop);
+      const b = rms(post, i + bestLag, i + bestLag + hop);
+      if (a < 0.01 && b < 0.01) continue;
+      win = Math.max(win, Math.abs(20 * Math.log10(Math.max(b, 1e-12) / Math.max(a, 1e-12))));
+    }
+    console.log(`${params.name}: mix ${mix.toFixed(2)} dB, worst 50 ms ${win.toFixed(2)} dB, lag ${bestLag} samples`);
+  }
+  await browser.close();
+  process.exit(0);
+}
 console.log('Warming up the audio thread…');
 await page.evaluate(({ song, opts }) => globalThis.BeatBaxParityGates.captureRealtime(song, { ...opts, durationSec: 1 }), { song, opts });
 console.log(`Capturing real-time and offline @ ${sampleRate} Hz, ${durationSec.toFixed(2)}s…`);

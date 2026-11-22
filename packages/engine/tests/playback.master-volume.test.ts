@@ -55,7 +55,7 @@ describe('Player master volume override', () => {
 
     expect(gainNode.connect).toHaveBeenCalledWith(limiterNode);
     expect(limiterNode.connect).toHaveBeenCalledWith(destination);
-    expect(limiterNode.threshold.setValueAtTime).toHaveBeenCalledWith(-6, ctx.currentTime);
+    expect(limiterNode.threshold.setValueAtTime).toHaveBeenCalledWith(0, ctx.currentTime);
   });
 
   test('setMasterVolume creates masterGain immediately and stores override', () => {

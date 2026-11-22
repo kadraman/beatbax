@@ -315,7 +315,9 @@ export class Player {
     }
     if (!this.masterLimiter) {
       this.masterLimiter = this.ctx.createDynamicsCompressor();
-      this.masterLimiter.threshold.setValueAtTime(-6, this.ctx.currentTime);
+      // 0 dB: Chromium's compressor adds makeup from a negative threshold.
+      // At 0 dB, knee 6, ratio 12, tutorial_groove stays within 0.2 dB (FR-013).
+      this.masterLimiter.threshold.setValueAtTime(0, this.ctx.currentTime);
       this.masterLimiter.knee.setValueAtTime(6, this.ctx.currentTime);
       this.masterLimiter.ratio.setValueAtTime(12, this.ctx.currentTime);
       this.masterLimiter.attack.setValueAtTime(0.003, this.ctx.currentTime);

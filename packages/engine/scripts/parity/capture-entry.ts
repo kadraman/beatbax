@@ -160,4 +160,58 @@ export async function captureOffline(playable: any, opts: { sampleRate: number; 
   return { buffers: buffers.map(b64) };
 }
 
-(globalThis as any).BeatBaxParityGates = { captureRealtime, captureOffline };
+/** Real-time pre-limiter vs post-limiter, for the FR-013 probe. */
+export async function measureLimiter(
+  playable: any,
+  opts: { sampleRate: number; durationSec: number },
+  params: { threshold: number; knee: number; ratio: number; attack: number; release: number },
+): Promise<{ pre: string; post: string }> {
+  const ctx = new AudioContext({ sampleRate: opts.sampleRate, latencyHint: 'playback' });
+  const url = URL.createObjectURL(new Blob([RECORDER_SRC], { type: 'application/javascript' }));
+  await ctx.audioWorklet.addModule(url);
+  await ctx.resume();
+  const total = Math.ceil(opts.durationSec * opts.sampleRate);
+  const cap = total + opts.sampleRate;
+  const { rec, store, marks } = makeRecorder(ctx, cap);
+  const sink = ctx.createGain();
+  sink.gain.value = 0;
+  rec.connect(sink);
+  sink.connect(ctx.destination);
+  await armRecorder(rec, store, marks, cap);
+  const player: any = new Player(ctx);
+  let loopStart = Number.NaN;
+  const origSchedule = player._scheduleAllChannels.bind(player);
+  player._scheduleAllChannels = (ast: any, startTime: number) => {
+    if (Number.isNaN(loopStart)) loopStart = startTime;
+    return origSchedule(ast, startTime);
+  };
+  await player.playAST(playable, { bypassMasterLimiter: false });
+  const lim = player.masterLimiter;
+  if (lim) {
+    const now = ctx.currentTime;
+    lim.threshold.setValueAtTime(params.threshold, now);
+    lim.knee.setValueAtTime(params.knee, now);
+    lim.ratio.setValueAtTime(params.ratio, now);
+    lim.attack.setValueAtTime(params.attack, now);
+    lim.release.setValueAtTime(params.release, now);
+  }
+  try { player.masterGain.connect(rec, 0, 0); } catch { /* already */ }
+  try { player.masterLimiter.connect(rec, 0, 1); } catch { /* already */ }
+  const startFrame = Math.round(loopStart * opts.sampleRate);
+  const endBlock = Math.min(marks.length - 1, Math.floor((startFrame + total) / 128));
+  await new Promise<void>((resolve) => {
+    const iv = setInterval(() => {
+      if (Atomics.load(marks, endBlock) > 0) {
+        clearInterval(iv);
+        resolve();
+      }
+    }, 40);
+  });
+  const pre = store.slice(startFrame, startFrame + total);
+  const post = store.slice(cap + startFrame, cap + startFrame + total);
+  try { player.stop(); } catch { /* ignore */ }
+  await ctx.close();
+  return { pre: b64(pre), post: b64(post) };
+}
+
+(globalThis as any).BeatBaxParityGates = { captureRealtime, captureOffline, measureLimiter };

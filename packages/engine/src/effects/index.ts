@@ -95,11 +95,12 @@ export default registryAPI;
 
 // Vibrato effect: create a low-frequency oscillator (LFO) and modulate
 // the primary oscillator's frequency AudioParam. Parameters:
-//  - params[0]: depth (BeatBax units, scaled to match Game Boy hardware)
+//  - params[0]: depth (BeatBax units, 0–15)
 //  - params[1]: rate (Hz, default 4)
 //
-// For Game Boy parity: depth is scaled by VIB_DEPTH_SCALE (4.0) to match
-// the UGE exporter, then converted to Hz deviation matching hUGETracker behavior.
+// Depth is Δf = depth × f² / 131072, where f is this note's frequency
+// (`_baseFreq` / `__freq`). OscillatorNode.frequency.value is still 440 until
+// the scheduled note time, so it must not be the depth base.
 register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: number) => {
   if (!nodes || nodes.length === 0) return;
   const osc = nodes[0];
@@ -140,14 +141,18 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
     const lfoGain = (ctx as any).createGain();
 
     if (hasFrequency) {
-      // OscillatorNode path (pulse channels): modulate osc.frequency directly
-      let baseFreq = (osc.frequency && typeof (osc.frequency.value) === 'number') ? osc.frequency.value as number : NaN;
-      try {
-        if (typeof (osc.frequency.getValueAtTime) === 'function') {
-          baseFreq = osc.frequency.getValueAtTime(start);
-        }
-      } catch (e) {}
-      if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = osc.frequency.value || 440;
+      // OscillatorNode path (pulse channels): modulate osc.frequency directly.
+      // _baseFreq is the note. getValueAtTime / .value are still the 440 Hz
+      // default when this callback runs before the note's start time.
+      let baseFreq = Number((osc as any)._baseFreq);
+      if (!(baseFreq > 0)) {
+        try {
+          if (typeof osc.frequency.getValueAtTime === 'function') {
+            baseFreq = osc.frequency.getValueAtTime(start);
+          }
+        } catch (e) {}
+      }
+      if (!(baseFreq > 0)) baseFreq = Number(osc.frequency.value);
 
       const amplitudeHz = vibratoAmplitudeHz(depth, baseFreq, VIB_DEPTH_SCALE);
       if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) {
@@ -249,9 +254,12 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
     if (!Number.isFinite(targetFreq) || targetFreq <= 0) targetFreq = 440;
 
     const seededPrevFreq = Number((osc as any)._prevFreq);
-    const lastFreq = portamentoLastFreq.get(channelKey)
-      || (Number.isFinite(seededPrevFreq) && seededPrevFreq > 0 ? seededPrevFreq : 0)
-      || targetFreq;
+    // _prevFreq is the previous note on this channel, including a note that
+    // had no port. The map only recorded port targets, so preferring it made
+    // a later port skip the notes in between.
+    const lastFreq = (Number.isFinite(seededPrevFreq) && seededPrevFreq > 0)
+      ? seededPrevFreq
+      : (portamentoLastFreq.get(channelKey) || targetFreq);
 
     try {
       osc.frequency.cancelScheduledValues(start);
@@ -305,9 +313,9 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
     const targetRate: number = (osc as any).__basePlaybackRate || osc.playbackRate.value;
 
     const seededPrevFreq = Number((osc as any)._prevFreq);
-    const lastFreq = portamentoLastFreq.get(channelKey)
-      || (Number.isFinite(seededPrevFreq) && seededPrevFreq > 0 ? seededPrevFreq : 0)
-      || targetFreq;
+    const lastFreq = (Number.isFinite(seededPrevFreq) && seededPrevFreq > 0)
+      ? seededPrevFreq
+      : (portamentoLastFreq.get(channelKey) || targetFreq);
 
     if (Math.abs(targetFreq - lastFreq) > 1) {
       // Scale playbackRate proportionally: rate(f) = (f / targetFreq) * targetRate
