@@ -7,7 +7,7 @@ authors:
   - "kadraman"
   - "GitHub Copilot"
 created: "2026-05-30"
-updated: "2026-09-03"
+updated: "2026-11-23"
 issue: "https://github.com/kadraman/beatbax/issues/199"
 area: "plugin"
 ---
@@ -23,7 +23,7 @@ Primary target profiles:
 
 Primary output intent:
 
-- Deterministic live playback in CLI and Web UI
+- Deterministic live playback in CLI and Desktop from one PCM synthesizer
 - Deterministic **register-log** generation as the canonical artifact for regression and future exporters
 - Export integration hooks for PSID/RSID, GoatTracker-oriented data, register dumps, and rendered WAV/OGG (exporter implementation is separate)
 
@@ -48,7 +48,7 @@ A naive per-channel backend would sound plausible in isolation but fail export a
 - Package `@beatbax/plugin-chip-sid`
 - Explicit profiles: **6581** / **8580** × **PAL** / **NTSC**
 - One shared SID chip instance per song/session
-- CLI and Web UI playback
+- CLI and Desktop playback from the same register-log PCM synthesizer
 - Deterministic register-log output
 - `songWizard.ts` and `ui-contributions.ts` for SID starter songs
 
@@ -78,12 +78,13 @@ A naive per-channel backend would sound plausible in isolation but fail export a
 - Volume-register sample tricks (digi / `$D418` manipulation)
 - Bit-exact undocumented revision quirks
 - TEST-bit manipulation
+- Bundling a GPL SID emulator (reSID, reSIDfp, or a WebAssembly build of either) as a plugin dependency. An external listening reference is allowed. A `.sid` file player belongs to the PSID/RSID feature.
 
 ## Technical Notes
 
 - **One shared SID chip per song** — filter, master volume, sync, and ring-mod require a song-scoped simulator.
 - **Profiles are explicit** — `chipModel` (**6581** | **8580**) and `chipRegion` (**pal** | **ntsc**) must be named; missing model is an error.
-- **Register log is the source of truth** — PCM preview and future exporters consume the same per-tick frame stream.
+- **Register log is the source of truth** — one shipped PCM synthesizer renders that log for CLI play, WAV export, and Desktop. Future exporters consume the same per-tick frame stream.
 - **Sync/ring sources are hardware-fixed** — not arbitrary “pick any voice” relationships.
 - **Filter globals conflict hard in v1** — incompatible cutoff/resonance/mode on the same tick is an error, not silent last-writer-wins.
 - **Determinism over analog mystique** — v1 uses stable, testable 6581/8580 approximations.
@@ -122,7 +123,7 @@ Reference docs to add (authoritative for composition):
 
 1. **Shared chip state is mandatory** — filter, master volume, sync, and ring-mod are chip-scoped.
 2. **Profiles are part of the contract** — 6581 and 8580 are named targets with deterministic differences.
-3. **Preview and export must agree** — register logs drive both; no WebAudio-only shortcuts.
+3. **Preview and export must agree** — CLI, WAV, and Desktop all render the register log with the synthesizer shipped in this plugin. Desktop Web Audio is the speaker for that PCM. SID voices are not a separate `OscillatorNode` graph.
 4. **Fail visibly on ambiguity** — filter global conflicts are **errors** in v1; sync/ring violations are **errors**.
 5. **Minimal core changes only** — add `chipModel` (+ extend region validation for `chip sid`); no SID-specific AST nodes.
 
@@ -389,6 +390,15 @@ interface SidSongSession {
 
 Either way, **never** allocate three standalone `SidChipSimulator` instances.
 
+#### Playback
+
+`renderPreviewPcm` is the only SID synthesizer. It walks the register log and returns PCM.
+
+- **CLI** play and WAV export use that buffer directly.
+- **Desktop** posts register frames to an AudioWorklet. The worklet runs the same synthesizer module and writes the samples to the `AudioContext` destination. Web Audio does not model the three voices, the filter, sync, or ring mod.
+
+The synthesizer is TypeScript in this package and stays under the plugin's MIT license. reSID and reSIDfp, including WebAssembly builds, are GPL-2.0-or-later and MUST NOT be dependencies. They MAY be used outside the package as a listening reference. A later optional high-fidelity renderer MUST read the same register log and MUST NOT replace this synthesizer as the test oracle. A `.sid` tune player (6510 plus SID) is the PSID/RSID feature, not this chip.
+
 ### Instrument fields
 
 #### Voice types
@@ -613,6 +623,7 @@ Use φ₂ clocks from profile table (985,248 Hz PAL / 1,022,730 Hz NTSC). `confi
 3. **Voice 3 is symmetric** in plugin core for v1.
 4. **Combined waveforms** — phase 2; v1 single-wave only.
 5. **BeatBax syntax** — top-level `chip sid`, `chipModel`, `chipRegion`; not block assignment.
+6. **One PCM synthesizer** (2026-11-23) — CLI and Desktop render the register log with the TypeScript synthesizer in this plugin. Desktop plays that PCM through an AudioWorklet. A GPL reSID WebAssembly build is not a dependency; it may be an external listening reference only.
 
 ---
 
@@ -625,7 +636,7 @@ Use φ₂ clocks from profile table (985,248 Hz PAL / 1,022,730 Hz NTSC). `confi
 | GoatTracker exporter | Separate feature |
 | Multi-SID | Explicit multi-chip authoring model |
 | Volume-register digi | Specialist workflow; out of v1 |
-| Deeper 6581 analog modeling | After deterministic baseline |
+| Deeper 6581 analog modeling | After deterministic baseline. Optional external renderer behind the same register log; the shipped synthesizer stays the test oracle. A GPL core such as reSID stays outside the MIT package. |
 | Strict master-volume mode | Warn → error escalation |
 
 ---
@@ -644,6 +655,6 @@ A contributor can author and play a simple SID song such that:
 
 - `chip sid` + `chipModel` + `chipRegion` select the plugin and profile
 - Register log is deterministic and test-covered
-- Preview PCM is generated from that log
+- CLI and Desktop playback are PCM generated from that log by the shipped synthesizer
 - Filter conflicts and invalid sync/ring usage surface as **errors**
 - 6581 vs 8580 produce expected profile differences on `model-contrast-demo.bax`

@@ -1,6 +1,6 @@
 # Implementation Plan: C64 SID Chip Plugin
 
-**Spec**: [spec.md](spec.md) | **Migrated**: 2026-09-03
+**Spec**: [spec.md](spec.md) | **Migrated**: 2026-09-03 | **Playback decision**: 2026-11-23
 
 ## Constitution Check
 
@@ -19,7 +19,7 @@ GATE: complete before implementation. Re-check after design changes.
 3. Implement channel backends as **intent emitters** into a song-scoped session (requires engine `beginSongSession` wiring — see Architecture).
 4. Implement register-intent collection, arbitration, and deterministic register log.
 5. Add instrument + song-level validation for filter conflicts and sync/ring rules.
-6. Render preview PCM from the register log.
+6. Render preview PCM from the register log with one TypeScript synthesizer shared by CLI and Desktop.
 7. Add chip docs, wizard presets, and sample songs teaching real SID constraints.
 
 ## Testing Requirements
@@ -62,12 +62,14 @@ GATE: complete before implementation. Re-check after design changes.
 
 ### Phase 3: Preview audio + UI
 
-1. Implement `audio-from-registers.ts`
-2. Implement `ui-contributions.ts` — teach filter globals and sync/ring chain
-3. Implement `songWizard.ts` — always emits `chipModel` + `chipRegion`
-4. Wire UI contributions
+1. Implement `audio-from-registers.ts` as the only SID synthesizer. It walks the register log and returns a `Float32Array`. CLI play and WAV export use that buffer directly.
+2. Desktop playback posts register frames to an AudioWorklet. Bundle the same synthesizer module into the worklet; the worklet writes PCM to the `AudioContext` destination. Do not build SID voices, the filter, sync, or ring mod from `OscillatorNode`s.
+3. Do not depend on reSID, reSIDfp, or a WebAssembly build of either. They are GPL-2.0-or-later. A `.sid` player such as `libsidplayfp-wasm` emulates the 6510 and is the PSID/RSID feature, not this renderer. reSID may be used outside the package as a listening reference. A later high-fidelity renderer must consume the same register log and must leave this synthesizer as the test oracle.
+4. Implement `ui-contributions.ts` — teach filter globals and sync/ring chain
+5. Implement `songWizard.ts` — always emits `chipModel` + `chipRegion`
+6. Wire UI contributions
 
-**Gate:** CLI + Web UI play `sid-smoke-test.bax` with non-zero audio.
+**Gate:** CLI and Desktop play `sid-smoke-test.bax` with non-zero audio from the same synthesizer.
 
 ### Phase 4: Macros + filter effects
 

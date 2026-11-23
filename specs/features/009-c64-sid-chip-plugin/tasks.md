@@ -27,9 +27,9 @@
 
 ## Phase 3: Preview audio + UI
 
-- [ ] T030 Implement audio-from-registers preview
+- [ ] T030 Implement `packages/plugins/chip-sid/src/audio-from-registers.ts` as the only SID synthesizer (register log to PCM). CLI play and WAV use that buffer. Desktop bundles the same module in an AudioWorklet and plays the PCM. No `OscillatorNode` SID graph. No reSID / reSIDfp / WebAssembly dependency (GPL-2.0-or-later); those stay external listening references.
 - [ ] T031 [P] `ui-contributions.ts` + `songWizard.ts` (always emit model + region)
-- [ ] T032 CLI + Desktop/Web play smoke song with non-zero audio
+- [ ] T032 CLI and Desktop play `songs/c64-sid/sid-smoke-test.bax` with non-zero audio from that synthesizer
 
 ## Phase 4: Macros + filter effects
 
