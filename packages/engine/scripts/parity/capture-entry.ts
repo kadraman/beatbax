@@ -113,6 +113,15 @@ export async function captureRealtime(playable: any, opts: { sampleRate: number;
   let loopStart = Number.NaN;
   armTaps(player, rec, (t) => { if (Number.isNaN(loopStart)) loopStart = t; });
   await player.playAST(playable, { bypassMasterLimiter: true });
+  // One-shot playback arms a wall-clock timer (song length + 100 ms) that calls
+  // stop(). The recorder follows the audio clock, which lags wall time when the
+  // machine is busy, so that timer was silencing the last notes (channel 1's
+  // final C5) before this window contained them. Offline capture already clears
+  // the timer; this path stops the player after the samples are copied.
+  if (player._completionTimer) {
+    clearTimeout(player._completionTimer);
+    player._completionTimer = null;
+  }
   const startFrame = Math.round(loopStart * sampleRate);
   const endBlock = Math.min(marks.length - 1, Math.floor((startFrame + total) / 128));
   await new Promise<void>((resolve) => {
