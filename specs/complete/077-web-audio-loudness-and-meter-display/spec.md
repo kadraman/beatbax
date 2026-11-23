@@ -6,7 +6,7 @@ status: "complete"
 authors:
   - "kadraman"
 created: "2026-06-06"
-updated: "2026-09-03"
+updated: "2026-11-22"
 issue: "https://github.com/kadraman/beatbax/issues/135"
 area: "cli"
 ---
@@ -67,6 +67,15 @@ flowchart TB
   end
 ```
 
+### Amendment (spec 112, 2026-11-22)
+
+The threshold of −6 dB below is not transparent. Chromium's dynamics compressor adds make-up gain at that setting (about +2.13 dB on `tutorial_groove.bax`) and ducks peaks. [Spec 112](../../features/112-webaudio-pcm-effect-parity/spec.md) FR-013 supersedes that setting:
+
+- At and below full scale the limiter MUST NOT change level. On `tutorial_groove.bax` at master gain 1.0, post-limiter RMS and active 50 ms windows stay within 0.2 dB of the pre-limiter signal.
+- The limiter MAY reduce gain only while the signal would exceed full scale, and MUST return to unity when the signal falls back.
+- CLI play and WAV export do not run this limiter. They stay on PCM. The sentence below that says WAV export benefits from the limiter is superseded.
+- When PCM scales a whole buffer down because the peak exceeds the playback ceiling, export warns. That whole-file scale is the specified difference for overs.
+
 ### Part 1 — Master soft limiter (engine)
 
 Insert a `DynamicsCompressorNode` in `packages/engine/src/audio/playback.ts`:
@@ -75,7 +84,7 @@ Insert a `DynamicsCompressorNode` in `packages/engine/src/audio/playback.ts`:
 channelBuses → masterGain → limiter → destination
 ```
 
-Suggested settings (transparent limiting):
+Original settings (superseded for threshold by the amendment above; knee, ratio, attack, and release stay unless a transparent threshold cannot be held):
 
 | Parameter | Value |
 |-----------|-------|

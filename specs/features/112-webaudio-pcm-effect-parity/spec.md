@@ -2,11 +2,11 @@
 title: "WebAudio ↔ PCM effect parity"
 id: 112
 slug: "webaudio-pcm-effect-parity"
-status: "planned"
+status: "in-progress"
 authors:
   - "kadraman"
 created: "2026-11-21"
-updated: "2026-11-21"
+updated: "2026-11-22"
 issue: "https://github.com/kadraman/beatbax/issues/276"
 area: "engine"
 related:
@@ -27,9 +27,9 @@ related:
 
 ## Summary
 
-CLI play and WAV export MUST sound like Desktop live playback for the same `.bax` song. Live Desktop uses the WebAudio graph and effect handlers; CLI play and all WAV exports use the offline PCM renderer. This feature makes PCM the distribution-faithful twin of WebAudio effect semantics for Game Boy (and documents/plugin-pass-through rules for other chips), so distributed WAVs and hardware ports that clone PCM (e.g. beatbax-fm1) match what authors hear in Desktop.
+CLI play and WAV export MUST sound like Desktop live playback for the same `.bax` song, after Desktop is corrected to the written contracts. Live Desktop uses the WebAudio graph and effect handlers; CLI play and all WAV exports use the offline PCM renderer. The written contracts in this spec and in [033](../../complete/033-effects-system/spec.md), [110](../../complete/110-gameboy-pulse-portamento/spec.md), and [025](../../complete/025-arpeggio-effect/spec.md) win where today's Desktop disagrees with them. Both paths then follow that contract, so distributed WAVs and hardware ports that clone PCM (e.g. beatbax-fm1) match what authors hear.
 
-No new language syntax. Effect contracts in [033](../../complete/033-effects-system/spec.md) remain authoritative; this feature closes the dual-path implementation gap that [110](../../complete/110-gameboy-pulse-portamento/spec.md) left explicit for PCM.
+No new language syntax. This feature closes the dual-path gap that [110](../../complete/110-gameboy-pulse-portamento/spec.md) left explicit for PCM, and it amends the master limiter in [077](../../complete/077-web-audio-loudness-and-meter-display/spec.md) so live playback does not add level that WAV export does not have.
 
 ## Problem
 
@@ -47,14 +47,14 @@ An author opens `songs/gameboy/tutorial_groove.bax`, plays it in Desktop (hears 
 
 **Why this priority**: This is the reported distribution blocker and the FM-1 clone reference song family.
 
-**Independent test**: Export WAV (or `renderSongToPCM`) for the full song and for channels 1–4; compare to an Offline WebAudio capture of the same song at the same sample rate; correlation/RMS gates pass for the mix and for effect-bearing channels.
+**Independent test**: Export WAV (or render PCM) for the full song and for channels 1–4 at 44100 Hz stereo. Compare each note's level, pitch track, and envelope, plus band energy and full-mix level, against a WebAudio render of the same song. The feature gates in Success criteria pass. Whole-buffer correlation is not the test: oscillator phase is unspecified, and two WebAudio renders of this song fail a correlation gate while sounding the same.
 
 **Acceptance scenarios**:
 
-1. **Given** `tutorial_groove.bax` at 44100 Hz stereo, **When** PCM render and Offline WebAudio render are compared, **Then** normalized correlation for the full mix meets the gate in Success criteria, and channels 1–3 (vib / arp / port) each meet the per-channel gate.
-2. **Given** channel 1 lead notes with `vib` (`wobble`), **When** rendered via PCM, **Then** vibrato depth, rate, and onset match WebAudio (same Δf = depth × f² / 131072 model and timing).
-3. **Given** channel 2 harmony notes with `arp` (`spark`), **When** rendered via PCM, **Then** the arpeggio cycle (root + offsets at chip frame rate) matches WebAudio.
-4. **Given** channel 3 bass notes with `port` (`slide`), **When** rendered via PCM, **Then** the glide is continuous in pitch and does not introduce a per-step fade or phase restart that WebAudio does not have for that voice type.
+1. **Given** `tutorial_groove.bax` at 44100 Hz stereo, **When** PCM and corrected WebAudio are compared, **Then** the feature gates in SC-001 pass for the full mix and for channels 1–4.
+2. **Given** channel 1 lead notes with `vib` (`wobble`), **When** rendered on Desktop and via PCM, **Then** both use Δf = depth × f² / 131072, where f is that note's frequency when the LFO starts, the LFO starts at phase 0, and depth, rate, and onset match.
+3. **Given** channel 2 harmony notes with `arp` (`spark`), **When** rendered via PCM, **Then** the arpeggio cycle (root + offsets at chip frame rate) matches the written arp contract.
+4. **Given** channel 3 bass notes with `port` (`slide`), **When** rendered on Desktop and via PCM, **Then** the glide starts from the previous note on that channel, stays continuous in pitch, and does not add a per-step fade or phase restart.
 
 ### User Story 2 — Shared effect semantics cannot drift (Priority: P1)
 
@@ -98,20 +98,22 @@ PCM uses the same wave-table parsing and output level conventions as WebAudio/UG
 
 ### Edge cases
 
-- What happens when `port` appears on the first note of a channel (no prior pitch)? PCM MUST match WebAudio (no spurious glide).
-- What happens when `vib` duration/delay rows are zero or omitted? Same defaults as WebAudio / resolver `durationSec` / `delaySec`.
+- What happens when `port` appears on the first note of a channel (no prior pitch)? Both paths MUST hold the written pitch (no spurious glide).
+- What happens when a `port` note follows a note that did not use `port`? Both paths MUST glide from that previous note's pitch. Gliding from an older `port` note and skipping the note in between is a defect.
+- What happens when `vib` duration/delay rows are zero or omitted? Same defaults as the resolver `durationSec` / `delaySec`.
 - What happens when multiple effects stack on one note? Modulation order matches the WebAudio application order for that voice.
 - What happens for noise with note effects? Either apply the shared contract where meaningful or fail/warn consistently — MUST NOT silently ignore while WebAudio applies.
 - What happens for non–Game Boy plugin chips? Remaining effects after inline macros MUST be applied when the backend can express them, or warned as unsupported — MUST NOT silent-drop without a warning.
-- Band-limited PeriodicWave vs naive PCM square may still differ in high harmonics; the parity gate is correlation/RMS after optional mild low-pass, not bit-identical waveforms.
+- Oscillator start phase is unspecified. Gates compare level, pitch, envelope, and spectrum. They do not require matching samples or a correlation score.
+- Energy above 16 kHz may differ between band-limited WebAudio and PCM. That band is outside SC-001.
 
 ## Requirements
 
 ### Functional requirements
 
-- **FR-001**: System MUST use Desktop WebAudio effect semantics as the audible reference for Game Boy note effects when comparing to PCM.
+- **FR-001**: System MUST use the written effect and voice contracts as the audible reference. Where Desktop WebAudio disagrees with those contracts, Desktop MUST be corrected. PCM MUST match the corrected behavior. Today's uncorrected Desktop output is not the reference for a behavior this spec marks as a defect.
 - **FR-002**: System MUST provide a shared sample-domain modulation contract for `vib`, `arp`, `port`, `trem`, `bend`, `sweep`, `volSlide`, and `cut` consumed by PCM rendering.
-- **FR-003**: PCM Game Boy pulse and wave rendering MUST apply that contract so CLI play and WAV export match Offline WebAudio within Success criteria.
+- **FR-003**: PCM Game Boy pulse and wave rendering MUST apply that contract so CLI play and WAV export match corrected WebAudio within Success criteria.
 - **FR-004**: PCM MUST implement continuous `port` voice behavior for Game Boy pulse and wave consistent with WebAudio (no per-step silence gap; phase continuous across contiguous `port` notes). This supersedes the “PCM stays as they are” clause of [110](../../complete/110-gameboy-pulse-portamento/spec.md) for PCM only.
 - **FR-005**: PCM wave rendering MUST support `arp` and `cut` and MUST use continuous vibrato matching WebAudio.
 - **FR-006**: PCM MUST implement `echo` and `retrig` per [#42](https://github.com/kadraman/beatbax/issues/42) and remove them from WebAudio-only export warnings when done.
@@ -119,6 +121,9 @@ PCM uses the same wave-table parsing and output level conventions as WebAudio/UG
 - **FR-008**: System MUST ship automated Offline WebAudio vs PCM parity tests for `tutorial_groove` (full + per-channel) and core effect fixtures.
 - **FR-009**: Dual-rendering docs MUST describe PCM effect support accurately (not “None”).
 - **FR-010**: CLI MUST NOT warn that echo/retrig are unsupported once FR-006 is met.
+- **FR-011**: Game Boy pulse and noise MUST end a note with a 5 ms linear ramp to silence. Game Boy wave without a GB envelope MUST start a 20 ms exponential fade 20 ms before the nominal note end and MUST render that tail past the note end. PCM and WebAudio MUST use the same release. A hard cut at the nominal end is a defect.
+- **FR-012**: A voice MUST be at its envelope's initial gain before it produces a sample. A sample at unity gain before the envelope is applied is a defect on every path.
+- **FR-013**: The Desktop master limiter MUST be transparent at and below full scale, per the amendment to [077](../../complete/077-web-audio-loudness-and-meter-display/spec.md). On `tutorial_groove.bax` at master gain 1.0, post-limiter level stays within 0.2 dB of the pre-limiter signal in RMS and in active 50 ms windows. CLI play and WAV export MUST NOT run this limiter. When a mix's peak exceeds full scale, Desktop MAY reduce gain only while the signal is over full scale; PCM MAY scale the whole buffer down so the peak fits the playback ceiling. That whole-file scale is the specified difference for overs, and export MUST warn when it is applied.
 
 ### Non-goals
 
@@ -132,21 +137,27 @@ PCM uses the same wave-table parsing and output level conventions as WebAudio/UG
 
 ## Success criteria
 
-- **SC-001**: For `songs/gameboy/tutorial_groove.bax` at 44100 Hz stereo, Offline WebAudio vs PCM normalized correlation ≥ 0.95 for the full mix and for each of channels 1–3; channel 4 (noise) remains ≥ 0.95 as today for non-effect content.
-- **SC-002**: Effect fixture songs under `songs/effects/` that use vib/arp/port/trem/cut/echo/retrig pass the same gate (or a documented per-fixture threshold no lower than 0.90 with justification).
+- **SC-001**: For `songs/gameboy/tutorial_groove.bax` at 44100 Hz stereo, corrected WebAudio vs PCM meets all of the following. The same gates pass for WebAudio real-time vs WebAudio offline (limiter bypassed), which shows the gates are reachable. Whole-buffer correlation is not a gate.
+  - Each note's RMS level within 0.5 dB.
+  - Plain-note pitch within 3 cents. A modulated pitch track (vib, arp, port) within 10 cents and 5 ms.
+  - Envelope within 1 dB on 5 ms frames across the note and the 25 ms after the nominal end.
+  - Band energy within 1 dB in each band from 20 Hz through 16 kHz, per channel and for the full mix.
+  - Full-mix RMS within 0.3 dB, compared at master gain 1.0 against the pre-limiter WebAudio signal (post-limiter once FR-013 holds).
+- **SC-002**: Effect fixture songs under `songs/effects/` that use vib/arp/port/trem/cut/echo/retrig pass the same feature gates (or a documented per-fixture threshold no looser than these, with justification in `plan.md`).
 - **SC-003**: `beatbax play` and `beatbax export wav` for `tutorial_groove.bax` produce audio authors accept as matching Desktop live (manual QA sign-off).
 - **SC-004**: Export/CLI no longer list `echo`/`retrig` as WebAudio-only after those land.
 - **SC-005**: Contributing dual-render docs and the instruments wave-table discrepancy note are updated.
 
 ## Assumptions
 
-- Desktop WebAudio behavior after specs 033, 077, 081, 110, and 271 is the correct reference.
+- Specs 033, 081, 110, and 271 stay authoritative except where this spec names a defect and corrects it. Spec 077's limiter threshold of −6 dB is amended here (FR-013).
+- Vibrato depth uses the note's own frequency. Computing it from a fixed 440 Hz, and starting the LFO at an arbitrary phase, are defects.
 - Sample rate for parity tests defaults to 44100 Hz stereo unless a fixture specifies otherwise.
-- Mild low-pass or DC-block pre-processing before correlation is allowed to ignore PeriodicWave vs naive-square harmonic differences, provided pitch/effect timing is preserved.
+- Author master-volume settings are outside the gate. Comparisons use master gain 1.0.
 
 ## Open questions
 
-None blocking specification. Gate thresholds may be tuned during plan/test harness work if band-limiting makes 0.95 unreachable without low-pass; any change MUST be recorded in `plan.md`.
+None blocking specification. A gate number may be tightened in `plan.md` after measurement. It may not be loosened without a justification recorded there.
 
 ## References
 

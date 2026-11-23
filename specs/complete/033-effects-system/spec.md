@@ -6,7 +6,7 @@ status: "complete"
 authors:
   - "kadraman"
 created: "2025-12-12"
-updated: "2026-09-03"
+updated: "2026-11-22"
 issue: "https://github.com/kadraman/beatbax/issues/5"
 area: "language"
 ---
@@ -490,7 +490,7 @@ pat vib_demo = C4<vib:3,6> D4<vib:4,8,sine,4> E4<vib:2,5,triangle,8>
     - This single normalization point keeps scheduling deterministic and avoids duplicate row→time conversions in audio code and exporters.
 
   - Backend usage:
-    - WebAudio path: `src/effects/index.ts` implements vibrato by modulating `OscillatorNode.frequency` (or equivalent frequency target) using an LFO; it uses `fx.durationSec` to stop/decay the LFO at the correct end-of-note time.
+    - WebAudio path: `src/effects/index.ts` implements vibrato by modulating `OscillatorNode.frequency` (or equivalent frequency target) using an LFO; it uses `fx.durationSec` to stop/decay the LFO at the correct end-of-note time. Amended by [spec 112](../../features/112-webaudio-pcm-effect-parity/spec.md): depth is Δf = depth × f² / 131072 where f is that note's frequency when the LFO starts, and the LFO starts at phase 0. A depth computed from a fixed 440 Hz is a defect. The historical `vibDepthScale=4.0` calibration note below is not the live formula.
     - Headless/PCM renderer: `src/audio/pcmRenderer.ts` applies the same `fx.durationSec` window when synthesizing per-sample frequency modulation so rendered WAVs match live playback.
 
   - UGE/hUGETracker export behavior:
@@ -539,7 +539,7 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
   - Runtime/Resolver semantics:
     - WebAudio path: `src/effects/index.ts` implements portamento by scheduling exponential frequency ramps on `OscillatorNode.frequency` (or equivalent). State is tracked per-channel (Map<channelId, lastFreq>) to support slides across rests.
     - State management: `clearEffectState()` is called on playback stop to prevent frequency state from persisting across playback sessions.
-    - Headless/PCM renderer: `src/audio/pcmRenderer.ts` applies portamento with cubic smoothstep easing and tracks per-channel state for seamless slides across rests.
+    - Headless/PCM renderer: `src/audio/pcmRenderer.ts` tracks per-channel state for slides across rests. Amended by [spec 112](../../features/112-webaudio-pcm-effect-parity/spec.md): both paths glide from the previous note on the channel, including a note that did not use `port`. The cubic-smoothstep PCM curve is superseded by the WebAudio ramp (exponential on pulse, linear on wave).
 
   - UGE/hUGETracker export behavior:
     - BeatBax maps `speed` directly to the tracker's `xx` parameter (0-255) and emits `3xx` on note rows.
@@ -1382,11 +1382,10 @@ pat compare = inst(lead_in,2) C4<volSlide:+4>:8 . C4<volSlide:+4,16>:8  # Rest f
 - Demo: `songs/effects/volume_slide.bax`
 
 **Known behaviors:**
-- **Volume slides REPLACE existing gain automation** (calls `cancelScheduledValues` which wipes envelope automation on the same GainNode). Volume slide and envelope cannot currently coexist - volume slide disables the envelope.
-  - **Architectural fix needed**: Use a separate gain stage (additional GainNode) for volume slides to stack with envelopes properly.
-- Start volume (baseline) is derived from instrument envelope initial volume (0-15 GB range → 0.0-1.0), defaults to 1.0 (full volume) if no envelope
-- Target gain clamped to [0.001, 1.5] allowing volume boosts above baseline up to 1.5x (headroom for fade-ins)
-- Stepped slides require `tickSeconds` parameter (provided by resolver)
+- The slide is its own gain stage in the 0–1 voice level. One delta unit moves that level by ±0.1 over the note (smooth, or split evenly across the step count). The result is clamped to 0–1.
+- The envelope and the chip output gain stay in place. A pulse `env=4` with `volSlide:+12` ends at a full pulse (`1 × 0.25`), not at an unscaled gain of 1.5. A wave with `volume=50` slides around that volume fraction and keeps the 0.6 playback gain.
+- A moving envelope is scaled by the slide, so the envelope shape is kept. A silent starting level cannot be scaled, so the slide writes `chipGain × level` onto the voice instead.
+- Stepped slides hold the previous level until each step boundary.
 
 ---
 

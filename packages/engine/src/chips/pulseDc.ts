@@ -61,6 +61,54 @@ export function createBipolarPulsePeriodicWave(
   return (ctx as any).createPeriodicWave(real, imag, { disableNormalization: true });
 }
 
+/** Cached Fourier coeffs for PCM band-limited pulse (spec 112 parity with PeriodicWave). */
+export interface PulseFourierCache {
+  duty: number;
+  dc: number;
+  real: Float32Array;
+  imag: Float32Array;
+  maxHarmonic: number;
+}
+
+/** Build / refresh a Fourier coeff cache for a duty cycle (default 200 harmonics like PeriodicWave). */
+export function getPulseFourierCache(
+  duty: number,
+  maxHarmonic = 200,
+  prev?: PulseFourierCache | null,
+): PulseFourierCache {
+  const d = clampPulseDuty(duty);
+  if (prev && prev.duty === d && prev.maxHarmonic === maxHarmonic) return prev;
+  const real = new Float32Array(maxHarmonic + 1);
+  const imag = new Float32Array(maxHarmonic + 1);
+  fillBipolarPulseFourierCoeffs(real, imag, d, maxHarmonic);
+  return { duty: d, dc: bipolarPulseDcOffset(d), real, imag, maxHarmonic };
+}
+
+/**
+ * Sample a bipolar band-limited pulse at phase ∈ [0, 1).
+ * Caps harmonics by Nyquist when `freqHz` and `sampleRate` are provided
+ * (mirrors Web Audio oscillator band-limiting).
+ */
+export function bandLimitedPulseSample(
+  phase: number,
+  cache: PulseFourierCache,
+  freqHz?: number,
+  sampleRate?: number,
+): number {
+  let nMax = cache.maxHarmonic;
+  if (typeof freqHz === 'number' && freqHz > 0 && typeof sampleRate === 'number' && sampleRate > 0) {
+    nMax = Math.min(nMax, Math.max(0, Math.ceil((sampleRate * 0.5) / freqHz) - 1));
+  }
+  let x = cache.dc;
+  const twoPi = 2 * Math.PI;
+  const ph = phase - Math.floor(phase);
+  for (let n = 1; n <= nMax; n++) {
+    const theta = twoPi * n * ph;
+    x += cache.real[n] * Math.cos(theta) + cache.imag[n] * Math.sin(theta);
+  }
+  return x;
+}
+
 /**
  * Reconstruct one period of bipolar pulse (AC Fourier + DC) for parity tests.
  * Uses the same a_n/b_n as {@link fillBipolarPulseFourierCoeffs}.

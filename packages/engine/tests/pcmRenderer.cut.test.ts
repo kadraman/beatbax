@@ -186,4 +186,37 @@ channel 1 => inst lead pat p`;
     
     expect(afterFadeAvg).toBeLessThan(0.01); // Cut should override envelope
   });
+
+  test('wave cut at note duration keeps the normal release', () => {
+    const wave = 'wave=[0,2,4,6,8,10,12,14,15,14,12,10,8,6,4,2]';
+    const withCut = resolveSong(parse(`
+chip gameboy
+bpm 120
+inst bass type=wave volume=100 ${wave}
+pat p = C3<cut:4>:4
+channel 3 => inst bass pat p
+`));
+    const plain = resolveSong(parse(`
+chip gameboy
+bpm 120
+inst bass type=wave volume=100 ${wave}
+pat p = C3:4
+channel 3 => inst bass pat p
+`));
+    const sr = 22050;
+    const opts = { sampleRate: sr, channels: 1 as const, bpm: 120 };
+    const cutBuf = renderSongToPCM(withCut, opts);
+    const plainBuf = renderSongToPCM(plain, opts);
+    const noteEnd = Math.floor(0.5 * sr);
+    // Compare the first few ms of the normal release; a mistaken cut fade would dip hard.
+    let cutE = 0;
+    let plainE = 0;
+    for (let i = noteEnd; i < noteEnd + Math.floor(0.004 * sr); i++) {
+      cutE += cutBuf[i] * cutBuf[i];
+      plainE += plainBuf[i] * plainBuf[i];
+    }
+    expect(plainE).toBeGreaterThan(1e-8);
+    expect(cutE / plainE).toBeGreaterThan(0.85);
+    expect(cutE / plainE).toBeLessThan(1.15);
+  });
 });

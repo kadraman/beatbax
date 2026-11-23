@@ -1,6 +1,6 @@
 # Implementation Plan: WebAudio ↔ PCM effect parity
 
-**Spec**: [spec.md](spec.md) | **Date**: 2026-11-21 | **Branch**: `feat/112-webaudio-pcm-effect-parity`
+**Spec**: [spec.md](spec.md) | **Date**: 2026-11-22 | **Branch**: `feat/112-webaudio-pcm-effect-parity`
 
 ## Summary
 
@@ -10,7 +10,7 @@ Bring offline PCM (`renderSongToPCM`) up to Desktop WebAudio effect semantics so
 
 - **Packages / surfaces**: `packages/engine` (PCM renderer, effects, Game Boy chips, node play, WAV export), `packages/app-core` (PCM export warnings), `packages/cli` (play/export entry), docs under `docs/contributing/` and `docs/grammar/`
 - **Language**: TypeScript (strict), ESM
-- **Testing**: Jest via `npm test`; OfflineAudioContext / `node-webaudio` capture vs `renderSongToPCM`
+- **Testing**: Jest via `npm test`; Chromium WebAudio (real-time and offline) vs `renderSongToPCM` on the SC-001 feature gates. Whole-buffer correlation is not a gate.
 - **Client profile**: engine-only (behavior shared by Desktop export, CLI, FM-1 oracle)
 - **Performance / constraints**: Offline render must stay deterministic; delay buffers for echo capped (e.g. ≤ 2 s) as in #42
 
@@ -22,7 +22,7 @@ GATE: must pass before implementation. Re-check after design changes.
 - [x] AST / ISM / scheduler / expansion impact identified (or N/A) — N/A for AST/ISM/scheduler; resolver `legato` / `durationSec` already exist
 - [x] Plugins remain isolated; core does not gain plugin dependencies — shared kernel lives in engine; plugins keep dual `render` / `createPlaybackNodes`
 - [x] Determinism and compatibility preserved (or migration documented) — PCM output will change toward WebAudio (intentional audible fix); document as playback/export fidelity improvement, not a language break
-- [x] Tests planned for new behavior — Offline WebAudio vs PCM gates; unit tests for modulation kernel; echo/retrig PCM tests from #42
+- [x] Tests planned for new behavior — SC-001 feature gates (level, pitch track, envelope, spectrum, full-mix RMS), including WebAudio real-time vs WebAudio offline; unit tests for modulation kernel; echo/retrig PCM tests from #42
 
 **Exceptions**: none
 
@@ -71,7 +71,14 @@ None.
 ### WebAudio path
 
 - Prefer generating AudioParam automation from the same schedule tables the kernel exposes, or keep handlers and add schedule-equivalence tests against the kernel.
-- Do not regress live Desktop (spec 110 pulse held-voice remains).
+- Correct the defects named in the spec: vibrato depth from the note's frequency with LFO phase 0; portamento from the previous note on the channel; envelope gain applied before the first sample.
+- Spec 110 pulse held-voice remains.
+- Make the master limiter transparent per FR-013 (amended spec 077). It must not add make-up gain at or below full scale.
+
+### PCM releases
+
+- Share the FR-011 release with WebAudio: 5 ms linear ramp on pulse and noise; 20 ms exponential fade on wave, starting 20 ms before the nominal end and rendered past that end.
+- Align note-start sample rounding with WebAudio. Energy above 16 kHz is outside SC-001.
 
 ### CLI / Desktop export
 
@@ -93,11 +100,16 @@ None.
 
 ### Integration tests
 
-- Offline WebAudio capture helper (Node) vs `renderSongToPCM` for:
-  - `songs/gameboy/tutorial_groove.bax` full + `-c 1..4`
+- Chromium capture (real-time WebAudio and OfflineAudioContext) vs `renderSongToPCM` for:
+  - `songs/gameboy/tutorial_groove.bax` full + channels 1–4
   - portamento demos from 110
   - `songs/effects/echo.bax`, `songs/effects/retrigger.bax`, vib/arp fixtures
-- Correlation + peak/RMS gates per SC-001 / SC-002; optional mild low-pass before compare.
+- Gates are SC-001 / SC-002 (per-note level, pitch track, envelope including 25 ms after the nominal end, band energy through 16 kHz, full-mix RMS). The same gates must pass for WebAudio real-time vs WebAudio offline.
+- Noise note effects stay on https://github.com/kadraman/beatbax/issues/277. Spec edge case and T040 allow PCM to warn instead of rendering them. For the seven `songs/gameboy/effects/` demos, SC-002 applies to pulse and wave channels at the SC-001 numbers (0.5 dB note RMS, 3 / 10 cents, 1 dB envelope, 1 dB band energy). A noise-channel miss, and a full-mix miss that is only that noise channel, is recorded here and does not fail T057. Songs whose pulse and wave channels carry the mix, including portamento, still pass full-mix RMS and band energy.
+- Echo is not a hUGETracker effect, so a remaining PCM vs WebAudio band or pitch gap on `gb_echo_demo.bax` does not block T057. That gap is https://github.com/kadraman/beatbax/issues/279. Implementation stays with #42.
+- Accepted SC-002 residuals (2026-11-22). The SC-001 numbers stay in force for every other frame. Note cut on pulse: one handoff frame is 4.9 dB where an E5 joins the next E5, and the waveform there still matches; other joins are 1.1–2.5 dB. Retrigger channel 2: one envelope frame, 2.1 dB. Wave portamento channel 3: 12–18 cents during the glide (limit 10) and 1.4–3 dB on tail frames; the full mix passes. The author listen matches, and what remains is a few milliseconds of tail overlap or a glide the mix already passes.
+- Envelope frames where both sides are below −40 dB are not compared. Two WebAudio renders of the same release sit there and still differ by more than 1 dB, and that difference is not audible against the note. A missing release still fails: one side is at the note's level while the other is silent.
+- Windowed correlation from the 2026-11-21 harness is not an acceptance metric. It stays in `research.md` as a discarded measurement.
 
 ### Manual / QA
 
@@ -107,10 +119,11 @@ None.
 ## Migration and compatibility
 
 - Audible change for CLI/WAV is intentional (toward Desktop).
-- Spec 110’s “PCM stays as they are” is superseded by FR-004; when this feature completes, update the completed 110 spec note or add a one-line amendment in STATUS.
+- Spec 110’s “PCM stays as they are” is superseded by FR-004. The STATUS entry and the completed 110 summary note that (T901, 2026-11-22). Moving this folder to `specs/complete/` waits for T903.
 - UGE export mappings unchanged.
 
 ## Open implementation questions
 
-- Exact correlation preprocess (DC-block / low-pass cutoff) if naive-square vs PeriodicWave blocks SC-001 — decide in T001 harness spike and record here.
+- Correlation preprocess is closed. SC-001 does not use correlation. Content above 16 kHz is outside the gate.
 - Whether plugin chips get full kernel application in this feature or warn-only for P1 (spec allows warn; prefer apply when `createPlaybackNodes` exists for schedule parity tests).
+- If Chromium's compressor cannot hold FR-013 (post-limiter within 0.2 dB of pre-limiter on `tutorial_groove`), stop and record the options here before picking a different limiter.

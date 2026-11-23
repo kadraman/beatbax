@@ -179,6 +179,7 @@ tools
 *.wav
 !samples/wav/*.wav
 !samples/wav/nes_kit/*.wav
+!packages/engine/tests/fixtures/parity/**/*.wav
 samples/wav/nes_kit/_dl/
 samples/dmc/audition-results-*.txt
 output.*
@@ -205,3 +206,8 @@ docs/keys/beatbax-release-private.asc
 
 # Local clone of beatbax-covers (no longer a submodule)
 songs/covers/
+
+# Parity capture scratch
+packages/engine/dist-parity/
+packages/engine/tests/fixtures/parity/_baselines/
+

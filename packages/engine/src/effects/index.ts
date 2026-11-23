@@ -1,9 +1,53 @@
 import { EffectHandler, EffectRegistry } from './types.js';
 import { warn } from '../util/diag.js';
-import { parseEnvelope } from '../chips/gameboy/pulse.js';
+import { parseEnvelope, PULSE_OUTPUT_GAIN } from '../chips/gameboy/pulse.js';
+import { resolveWaveVolumeMultiplier, WAVE_PLAYBACK_GAIN } from '../chips/gameboy/wave.js';
 import { arpCycleOffsets } from '../util/arpOffsets.js';
+import {
+  vibratoAmplitudeHz,
+  portamentoDurationSec,
+  VIB_DEPTH_SCALE,
+  chipFrameRate,
+  volSlideLevel01,
+  volSlideSaturationProgress,
+} from './modulation.js';
 
 const registry = new Map<string, EffectHandler>();
+
+/**
+ * One-cycle looping buffer so the LFO is phase 0 at `start` on both live and
+ * offline contexts. An OscillatorNode's phase is not the same in those two.
+ */
+function createPhaseLockedLfo(ctx: any, type: string, rate: number, start: number, stop: number): any {
+  const shape = type === 'square' || type === 'sawtooth' || type === 'triangle' ? type : 'sine';
+  if (typeof ctx.createBuffer === 'function' && typeof ctx.createBufferSource === 'function') {
+    const sr = typeof ctx.sampleRate === 'number' && ctx.sampleRate > 0 ? ctx.sampleRate : 44100;
+    const len = Math.max(8, Math.round(sr / rate));
+    const buf = ctx.createBuffer(1, len, sr);
+    const data = buf.getChannelData(0) as Float32Array;
+    for (let i = 0; i < len; i++) {
+      const p = i / len;
+      if (shape === 'square') data[i] = p < 0.5 ? 1 : -1;
+      else if (shape === 'sawtooth') data[i] = 2 * p - 1;
+      else if (shape === 'triangle') data[i] = p < 0.5 ? 4 * p - 1 : 3 - 4 * p;
+      else data[i] = Math.sin(2 * Math.PI * p);
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const hz = sr / len;
+    try { src.playbackRate.setValueAtTime(rate / hz, start); } catch (_) { src.playbackRate.value = rate / hz; }
+    try { src.start(start); } catch (_) { /* already started or a mock */ }
+    try { src.stop(stop); } catch (_) { /* ignore */ }
+    return src;
+  }
+  const lfo = ctx.createOscillator();
+  lfo.type = shape;
+  try { lfo.frequency.setValueAtTime(rate, start); } catch (_) { lfo.frequency.value = rate; }
+  try { lfo.start(start); } catch (_) { try { lfo.start(); } catch (_) { /* ignore */ } }
+  try { lfo.stop(stop); } catch (_) { /* ignore */ }
+  return lfo;
+}
 
 export const register = (name: string, handler: EffectHandler) => {
   registry.set(name.toLowerCase(), handler);
@@ -54,11 +98,12 @@ export default registryAPI;
 
 // Vibrato effect: create a low-frequency oscillator (LFO) and modulate
 // the primary oscillator's frequency AudioParam. Parameters:
-//  - params[0]: depth (BeatBax units, scaled to match Game Boy hardware)
+//  - params[0]: depth (BeatBax units, 0–15)
 //  - params[1]: rate (Hz, default 4)
 //
-// For Game Boy parity: depth is scaled by VIB_DEPTH_SCALE (4.0) to match
-// the UGE exporter, then converted to Hz deviation matching hUGETracker behavior.
+// Depth is Δf = depth × f² / 131072, where f is this note's frequency
+// (`_baseFreq` / `__freq`). OscillatorNode.frequency.value is still 440 until
+// the scheduled note time, so it must not be the depth base.
 register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: number) => {
   if (!nodes || nodes.length === 0) return;
   const osc = nodes[0];
@@ -80,7 +125,8 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
 
   // If resolver provided a normalized duration in params[3] (seconds), prefer it
   const vibDurSec = (Array.isArray(params) && typeof params[3] === 'number') ? Number(params[3]) : undefined;
-  const stopAt = (typeof vibDurSec === 'number' && vibDurSec > 0) ? (start + vibDurSec + 0.05) : (start + dur + 0.05);
+  // Stop on fx.durationSec. An extra 50 ms kept the LFO inside the note after PCM had ended.
+  const stopAt = (typeof vibDurSec === 'number' && vibDurSec > 0) ? (start + vibDurSec) : (start + dur + 0.05);
 
   // Onset delay: params[4] (seconds, normalized by resolver via tryApplyEffects).
   // Game Boy vibrato typically starts after a short delay (2–6 frames ≈ 30–100 ms)
@@ -94,30 +140,29 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   // default parameters during any gap between safeLfoStart and lfoStart.
   const lfoStart = Math.min(start + vibDelaySec, start + dur * 0.75);
 
-  // Game Boy-accurate vibrato depth calculation:
-  // hUGETracker applies the depth nibble as a period-register offset.
-  // Hz deviation: Δf = trackerDepth * f² / 131072
-  const VIB_DEPTH_SCALE = 1.0; // Must match ugeWriter.ts
-  const trackerDepth = Math.max(0, Math.min(15, Math.round(depth * VIB_DEPTH_SCALE)));
-
   try {
-    const lfo = (ctx as any).createOscillator();
+    const lfo = createPhaseLockedLfo(ctx, lfoType, rate, lfoStart, stopAt);
     const lfoGain = (ctx as any).createGain();
-    lfo.type = lfoType;
-    try { lfo.frequency.setValueAtTime(rate, lfoStart); } catch (_) { lfo.frequency.value = rate; }
 
     if (hasFrequency) {
-      // OscillatorNode path (pulse channels): modulate osc.frequency directly
-      let baseFreq = (osc.frequency && typeof (osc.frequency.value) === 'number') ? osc.frequency.value as number : NaN;
-      try {
-        if (typeof (osc.frequency.getValueAtTime) === 'function') {
-          baseFreq = osc.frequency.getValueAtTime(start);
-        }
-      } catch (e) {}
-      if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = osc.frequency.value || 440;
+      // OscillatorNode path (pulse channels): modulate osc.frequency directly.
+      // _baseFreq is the note. getValueAtTime / .value are still the 440 Hz
+      // default when this callback runs before the note's start time.
+      let baseFreq = Number((osc as any)._baseFreq);
+      if (!(baseFreq > 0)) {
+        try {
+          if (typeof osc.frequency.getValueAtTime === 'function') {
+            baseFreq = osc.frequency.getValueAtTime(start);
+          }
+        } catch (e) {}
+      }
+      if (!(baseFreq > 0)) baseFreq = Number(osc.frequency.value);
 
-      const amplitudeHz = trackerDepth * baseFreq * baseFreq / 131072;
-      if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
+      const amplitudeHz = vibratoAmplitudeHz(depth, baseFreq, VIB_DEPTH_SCALE);
+      if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) {
+        try { lfo.stop(); } catch (_) { /* ignore */ }
+        return;
+      }
 
       try { lfoGain.gain.setValueAtTime(amplitudeHz, lfoStart); } catch (_) { lfoGain.gain.value = amplitudeHz; }
       lfo.connect(lfoGain);
@@ -131,8 +176,11 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
       const baseRate: number = (osc as any).__basePlaybackRate || osc.playbackRate.value;
 
       // Convert Hz amplitude to playbackRate amplitude: Δrate = (Δf / f) * baseRate
-      const amplitudeHz = trackerDepth * baseFreq * baseFreq / 131072;
-      if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
+      const amplitudeHz = vibratoAmplitudeHz(depth, baseFreq, VIB_DEPTH_SCALE);
+      if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) {
+        try { lfo.stop(); } catch (_) { /* ignore */ }
+        return;
+      }
       const amplitudeRate = (amplitudeHz / baseFreq) * baseRate;
 
       try { lfoGain.gain.setValueAtTime(amplitudeRate, lfoStart); } catch (_) { lfoGain.gain.value = amplitudeRate; }
@@ -142,8 +190,6 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
       }
     }
 
-    try { lfo.start(lfoStart); } catch (e) { try { lfo.start(); } catch (_) {} }
-    try { lfo.stop(stopAt); } catch (e) {}
   } catch (e) {
     // Best-effort only; if the environment doesn't support oscillator-based modulation
     // or connections fail, silently skip vibrato.
@@ -197,8 +243,8 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
   const speed = Number.isFinite(speedRaw) ? Math.max(1, Math.min(255, speedRaw)) : 16;
 
   const channelKey = chId ?? 0;
-  // Speed scaling: higher speed = shorter portamento time
-  const portDuration = Math.max(0.001, (256 - speed) / 256 * dur * 0.6);
+  // Speed scaling: higher speed = shorter portamento time (shared with PCM — spec 112)
+  const portDuration = portamentoDurationSec(speed, dur);
 
   if (hasFreq) {
     // OscillatorNode path (pulse channels)
@@ -212,9 +258,12 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
     if (!Number.isFinite(targetFreq) || targetFreq <= 0) targetFreq = 440;
 
     const seededPrevFreq = Number((osc as any)._prevFreq);
-    const lastFreq = portamentoLastFreq.get(channelKey)
-      || (Number.isFinite(seededPrevFreq) && seededPrevFreq > 0 ? seededPrevFreq : 0)
-      || targetFreq;
+    // _prevFreq is the previous note on this channel, including a note that
+    // had no port. The map only recorded port targets, so preferring it made
+    // a later port skip the notes in between.
+    const lastFreq = (Number.isFinite(seededPrevFreq) && seededPrevFreq > 0)
+      ? seededPrevFreq
+      : (portamentoLastFreq.get(channelKey) || targetFreq);
 
     try {
       osc.frequency.cancelScheduledValues(start);
@@ -268,9 +317,9 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
     const targetRate: number = (osc as any).__basePlaybackRate || osc.playbackRate.value;
 
     const seededPrevFreq = Number((osc as any)._prevFreq);
-    const lastFreq = portamentoLastFreq.get(channelKey)
-      || (Number.isFinite(seededPrevFreq) && seededPrevFreq > 0 ? seededPrevFreq : 0)
-      || targetFreq;
+    const lastFreq = (Number.isFinite(seededPrevFreq) && seededPrevFreq > 0)
+      ? seededPrevFreq
+      : (portamentoLastFreq.get(channelKey) || targetFreq);
 
     if (Math.abs(targetFreq - lastFreq) > 1) {
       // Scale playbackRate proportionally: rate(f) = (f / targetFreq) * targetRate
@@ -332,17 +381,8 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   // Note: Defaults reflect the dominant market/scene for each chip:
   // - C64: 50 Hz (PAL) because the European demoscene/SID music community was dominant
   // - Others: 60 Hz (NTSC) due to Japanese/North American market dominance or global standard
-  const CHIP_FRAME_RATES: Record<string, number> = {
-    'gameboy': 60,      // Game Boy: ~59.73 Hz (global standard, not TV-dependent)
-    'nes': 60,          // NES: ~60 Hz NTSC (North American market dominant)
-    'c64': 50,          // C64 SID: 50 Hz PAL (European demoscene/music dominant)
-    'genesis': 60,      // Sega Genesis: ~60 Hz NTSC (NA/Japan markets)
-    'megadrive': 60,    // Alias for Genesis
-    'pcengine': 60,     // PC Engine: ~60 Hz (Japan/NA markets)
-  };
-
   const chipType = ((ctx as any)._chipType || 'gameboy').toLowerCase();
-  const frameRate = CHIP_FRAME_RATES[chipType] || 60; // Default to 60 Hz
+  const frameRate = chipFrameRate(chipType);
   const stepDuration = 1 / frameRate;
 
   // hUGETracker arpeggio always includes the root note first
@@ -502,30 +542,23 @@ register('pitch_env', (ctx: any, nodes: any[], params: any[], start: number, dur
   }
 });
 
-// Volume Slide effect: smoothly increase or decrease volume over time.
+// Volume Slide effect: move the voice's 0–1 level by delta × 0.1 over the note.
+// The envelope automation and the chip output gain stay on the voice GainNode.
+// This stage multiplies that voice so a +12 slide from env=4 ends at a full
+// pulse (level 1 × 0.25) instead of replacing the gain with a 0–1.5 value.
+//
 // Parameters:
-//  - params[0]: delta per tick or step (+N = fade in, -N = fade out)
-//  - params[1]: (optional) number of steps/ticks for the slide
-//
-// hUGETracker's Axy effect: x = slide up speed (0-15), y = slide down speed (0-15)
-// BeatBax uses signed delta: positive = slide up, negative = slide down
-//
-// Implementation: Apply linear gain ramp from instrument's envelope initial volume
-// to target volume over the note duration. For per-tick slides, apply stepped automation.
-// The baseline is derived from the instrument's envelope initial volume (0-15 on Game Boy).
-//
-// ARCHITECTURAL LIMITATION: This implementation cancels existing gain automation on the
-// same GainNode used for envelope automation, effectively disabling instrument envelopes
-// when volume slide is active. To properly support stacking with envelopes, this should
-// use a separate gain stage (additional GainNode in the audio graph after envelope gain)
-// or apply volume slide via an independent parameter/node without canceling automation.
-register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number, inst?: any) => {
+//  - params[0]: delta (+N fade in, -N fade out). One unit is ±10% of full scale.
+//  - params[1]: optional step count. Omit for a linear ramp.
+register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, _tickSeconds?: number, inst?: any) => {
   if (!nodes || nodes.length < 2) return;
   const gain = nodes[1];
   if (!gain || !gain.gain) {
     warn('effects', `Volume slide: gain node is missing or invalid for channel ${chId || '?'}`);
     return;
   }
+  // A joined portamento step shares the opening note's voice. That note owns the slide.
+  if ((gain as any).__portamento_voice_joined__) return;
 
   const gainParam = gain.gain;
   if (!gainParam || typeof gainParam.setValueAtTime !== 'function') {
@@ -537,81 +570,113 @@ register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur:
   const stepsRaw = params && params.length > 1 ? Number(params[1]) : undefined;
   const delta = Number.isFinite(deltaRaw) ? deltaRaw : 0;
   const steps = (stepsRaw !== undefined && Number.isFinite(stepsRaw)) ? Math.max(1, Math.round(stepsRaw)) : undefined;
+  if (delta === 0) return;
 
-  if (delta === 0) return; // No volume change
+  const { baseline, zeroScale } = volSlideVoice(inst);
 
-  // Extract instrument envelope initial volume.
-  // Most chips use 0-15 volume where 0=silent, 15=loudest (normalized to [0, 1]).
-  // Chip-specific plugins (e.g. SMS) can override this effect for their volume conventions.
-  // If no instrument or envelope data available, fall back to 1.0 (full volume).
-  let baselineGain = 1.0;
-
-  if (inst && inst.env) {
+  const levelAt = (progress: number) => volSlideLevel01(baseline, delta, progress);
+  const scheduleOn = (param: any, ratio: boolean) => {
+    const valueAt = (progress: number) => {
+      const level = levelAt(progress);
+      if (!ratio) return Math.max(0, zeroScale * level);
+      return baseline > 1e-4 ? level / baseline : 1;
+    };
     try {
-      // Parse envelope to get initial volume (handles both string and object formats)
-      // Default: env.initial is 0-15 where 15=loudest, so normalize by /15
-      const env = parseEnvelope(inst.env);
-      if (env && env.mode === 'gb' && typeof env.initial === 'number') {
-        baselineGain = Math.max(0, Math.min(1, env.initial / 15));
-      } else if (env && typeof env.initial === 'number') {
-        // Generic fallback: assume 0-15 volume range, 15=loudest
-        baselineGain = Math.max(0, Math.min(1, env.initial / 15));
+      if (!ratio && typeof param.cancelScheduledValues === 'function') param.cancelScheduledValues(start);
+      param.setValueAtTime(valueAt(0), start);
+      if (steps !== undefined && steps > 0 && dur > 0) {
+        const stepDuration = dur / steps;
+        for (let i = 1; i <= steps; i++) {
+          const stepTime = start + i * stepDuration;
+          param.setValueAtTime(valueAt((i - 1) / steps), Math.max(start, stepTime - 0.00001));
+          param.setValueAtTime(valueAt(i / steps), stepTime);
+        }
+      } else if (typeof param.linearRampToValueAtTime === 'function') {
+        const sat = volSlideSaturationProgress(baseline, delta);
+        if (sat !== null) {
+          const boundary = valueAt(sat);
+          param.linearRampToValueAtTime(boundary, start + dur * sat);
+          param.setValueAtTime(boundary, start + dur * sat);
+        } else {
+          param.linearRampToValueAtTime(valueAt(1), start + dur);
+        }
+      }
+      if (!ratio && !(gain as any).__portamento_hold__ && typeof param.linearRampToValueAtTime === 'function') {
+        param.setValueAtTime(valueAt(1), start + dur);
+        param.linearRampToValueAtTime(0.0001, start + dur + 0.005);
       }
     } catch (e) {
-      // Fall back to 1.0 if parsing fails
-      warn('effects', `Volume slide: envelope parsing failed for channel ${chId || '?'}, using default baseline`);
-      baselineGain = 1.0;
+      warn('effects', `Volume slide failed for channel ${chId || '?'}: ${e}`);
     }
+  };
+
+  // A silent baseline cannot be scaled. Write the chip-scaled level onto the voice.
+  if (!(baseline > 1e-4)) {
+    scheduleOn(gainParam, false);
+    return;
   }
 
-  try {
-    // LIMITATION: Canceling scheduled values wipes envelope automation on this GainNode.
-    // Volume slides currently REPLACE envelopes rather than stacking with them.
-    // To fix: use a separate gain stage or avoid cancelScheduledValues.
-    if (typeof gainParam.cancelScheduledValues === 'function') {
-      gainParam.cancelScheduledValues(start);
-    }
-    gainParam.setValueAtTime(baselineGain, start);
-
-    if (steps !== undefined && tickSeconds !== undefined) {
-      // Stepped volume slide: apply delta at each step interval with hard transitions
-      // For truly discrete steps in WebAudio, we need to hold each value constant
-      // until the next step boundary
-      // NOTE: Use larger scaling factor (÷3 instead of ÷5) for stepped slides to make
-      // steps more audible in WebAudio which has inherent smoothing
-      const stepDuration = dur / steps;
-      const scaleFactor = 15;  // 4-bit volume units (0-15) // More aggressive scaling for stepped slides
-
-      // Set initial value and hold it until first step
-      gainParam.setValueAtTime(baselineGain, start);
-
-      for (let i = 1; i <= steps; i++) {
-        const stepTime = start + (i * stepDuration);
-        // Calculate volume for this step: evenly distribute delta across steps
-        const stepGain = Math.max(0.001, Math.min(1.5, baselineGain + (delta * i / steps / scaleFactor)));
-
-        // Hold previous value right up to step boundary
-        const prevGain = i === 1 ? baselineGain : Math.max(0.001, Math.min(1.5, baselineGain + (delta * (i-1) / steps / scaleFactor)));
-        gainParam.setValueAtTime(prevGain, stepTime - 0.00001);
-
-        // Jump to new value at step boundary
-        gainParam.setValueAtTime(stepGain, stepTime);
-      }
-
-      // Hold final value until note end
-      const finalGain = Math.max(0.001, Math.min(1.5, baselineGain + (delta / scaleFactor)));
-      gainParam.setValueAtTime(finalGain, start + dur);
-    } else {
-      // Smooth volume slide: linear ramp over note duration
-      // Scale delta to reasonable range: delta ±1 = ±0.2 gain change per note (more audible)
-      // Allow volume to increase above baseline up to 1.5x (some headroom for boosts)
-      const targetGain = Math.max(0, Math.min(1.5, baselineGain + (delta / 5)));
-      gainParam.linearRampToValueAtTime(targetGain, start + dur);
-    }
-  } catch (e) {
-    warn('effects', `Volume slide failed for channel ${chId || '?'}: ${e}`);
+  const slide = insertVolSlideNode(ctx, gain, nodes);
+  if (!slide || !slide.gain || typeof slide.gain.setValueAtTime !== 'function') {
+    scheduleOn(gainParam, false);
+    return;
   }
+  scheduleOn(slide.gain, true);
 });
+
+/**
+ * Starting 0–1 level, and the chip gain used when that level is silence
+ * (a multiplier cannot raise a zero voice).
+ */
+function volSlideVoice(inst: any): { baseline: number; zeroScale: number } {
+  const type = String(inst?.type || '').toLowerCase();
+  let env: ReturnType<typeof parseEnvelope> = null;
+  try {
+    env = inst?.env ? parseEnvelope(inst.env) : null;
+  } catch {
+    env = null;
+  }
+  const gb = !!(env && env.mode === 'gb' && typeof env.initial === 'number');
+  const initial = gb ? Math.max(0, Math.min(1, (env!.initial ?? 0) / 15)) : 1;
+  if (type.includes('wave')) {
+    const vol = resolveWaveVolumeMultiplier(inst);
+    const moving = gb && (env!.period ?? 0) > 0;
+    if (moving) return { baseline: initial, zeroScale: 0.9 * vol };
+    return { baseline: vol, zeroScale: WAVE_PLAYBACK_GAIN };
+  }
+  if (type.includes('noise')) {
+    return { baseline: gb ? initial : 1, zeroScale: 1 };
+  }
+  return { baseline: gb ? initial : 1, zeroScale: PULSE_OUTPUT_GAIN };
+}
+
+/** GainNode after the voice so the envelope and chip gain stay scheduled. */
+function insertVolSlideNode(ctx: any, gain: any, nodes: any[]): any | null {
+  const dest = gain.__beatbaxDest;
+  if (!dest || typeof ctx?.createGain !== 'function') return null;
+  let slide: any;
+  try {
+    slide = ctx.createGain();
+  } catch {
+    return null;
+  }
+  if (!slide) return null;
+  try {
+    gain.disconnect(dest);
+  } catch {
+    try { gain.disconnect(); } catch { return null; }
+  }
+  try {
+    gain.connect(slide);
+    slide.connect(dest);
+  } catch {
+    try { gain.connect(dest); } catch { /* leave the voice connected if we can */ }
+    return null;
+  }
+  slide.__beatbaxDest = dest;
+  (nodes as any).__tail = slide;
+  return slide;
+}
 // Tremolo effect: create a low-frequency oscillator (LFO) and modulate the gain
 // (amplitude) to create volume oscillation. Parameters:
 //  - params[0]: depth (0-15, where 15 = maximum amplitude modulation)
@@ -658,7 +723,8 @@ register('trem', (ctx: any, nodes: any[], params: any[], start: number, dur: num
   // Duration from params[3] (seconds, resolver-normalised), else full note duration.
   // params[3]=0 means "no duration limit" — use full note.
   const tremDurSec = (Array.isArray(params) && typeof params[3] === 'number') ? Number(params[3]) : undefined;
-  const stopAt = (typeof tremDurSec === 'number' && tremDurSec > 0) ? (start + tremDurSec + 0.05) : (start + dur + 0.05);
+  // Same durationSec end as PCM. The extra 50 ms kept tremolo going after the row window.
+  const stopAt = (typeof tremDurSec === 'number' && tremDurSec > 0) ? (start + tremDurSec) : (start + dur + 0.05);
 
   // Safety: if the delay would push lfoStart past the note end, clamp it so the LFO
   // still plays for at least the last portion of the note rather than never playing.
@@ -765,7 +831,9 @@ register('cut', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   const tickDuration = tickSeconds || 0.03125;
   const cutDelay = ticks * tickDuration;
 
-  // Ensure cut time doesn't exceed note duration
+  // A cut at the note end is the release the voice already scheduled.
+  if (cutDelay >= dur - 1e-6) return;
+
   const cutTime = Math.min(start + cutDelay, start + dur);
 
   // Cut by ramping gain to zero - this works even though oscillator.stop() was already called

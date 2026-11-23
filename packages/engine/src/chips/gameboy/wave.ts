@@ -1,5 +1,5 @@
 import { freqFromRegister, registerFromFreq, GB_CLOCK } from './periodTables.js';
-import { parseEnvelope } from './pulse.js';
+import { parseEnvelope, primeGain } from './pulse.js';
 import {
   applyTickOffsetToFreq,
   createTickProgramCursor,
@@ -7,6 +7,13 @@ import {
   lowerGameBoyInstrumentProgram,
   tickRowVolume,
 } from './instrumentProgram.js';
+
+/**
+ * Extra gain applied after the ±0.9 AC-coupled wave buffer in WebAudio
+ * (`playWavetable` sets `gain = 0.6 * volMul` when no GB env). PCM must use
+ * the same factor so CLI/WAV match Desktop (spec 112).
+ */
+export const WAVE_PLAYBACK_GAIN = 0.6;
 
 /**
  * Map wave instrument `volume=` / `vol=` (0 | 25 | 50 | 100) to a linear gain.
@@ -78,7 +85,9 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
 
   const gain = ctx.createGain();
   src.connect(gain);
-  gain.connect(destination || ctx.destination);
+  const waveDest = destination || ctx.destination;
+  (gain as any).__beatbaxDest = waveDest;
+  gain.connect(waveDest);
 
   const program = lowerGameBoyInstrumentProgram(inst ?? {});
   const useProgram = program.enabled;
@@ -124,7 +133,7 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;
   // NR32 output level (volume=0/25/50/100) scales WebAudio gain to match PCM/UGE.
-  const baseGain = 0.6 * volMul;
+  const baseGain = WAVE_PLAYBACK_GAIN * volMul;
   if (env && env.mode === 'gb') {
     const stepPeriod = (env.period ?? 1) * (65536 / GB_CLOCK);
     if (env.period && env.period > 0) {
@@ -140,40 +149,29 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
       }
       const curve = new Float32Array(vals);
       const curveDuration = (vals.length - 1) * stepPeriod;
-      if (scheduler && typeof scheduler.scheduleAligned === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
-        scheduler.scheduleAligned(start, () => {
-          try { (g as any).setValueCurveAtTime(curve, start, curveDuration); } catch (e) { try { g.setValueAtTime(vals[0], start); } catch (_) {} }
-        });
-        scheduler.scheduleAligned(start + dur, () => { try { g.setValueAtTime(g.value, start + dur); g.linearRampToValueAtTime(0.0001, start + dur + 0.005); } catch (e) {} });
-      } else if (scheduler && typeof scheduler.schedule === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
-        scheduler.schedule(start, () => {
-          try { (g as any).setValueCurveAtTime(curve, start, curveDuration); } catch (e) { try { g.setValueAtTime(vals[0], start); } catch (_) {} }
-        });
-        scheduler.schedule(start + dur, () => { try { g.setValueAtTime(g.value, start + dur); g.linearRampToValueAtTime(0.0001, start + dur + 0.005); } catch (e) {} });
-      } else {
-        try {
-          if (typeof (g as any).setValueCurveAtTime === 'function') {
-            (g as any).setValueCurveAtTime(curve, start, curveDuration);
-            g.setValueAtTime(g.value, start + dur);
-            g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
-          } else {
-            g.setValueAtTime(vals[0], start);
-            let t = start + stepPeriod;
-            for (let vi = 1; vi < vals.length; vi++) { g.setValueAtTime(vals[vi], t); t += stepPeriod; }
-            g.setValueAtTime(g.value, start + dur);
-            g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
-          }
-        } catch (e) {
+      primeGain(ctx, g, vals[0], start);
+      try {
+        if (typeof (g as any).setValueCurveAtTime === 'function') {
+          (g as any).setValueCurveAtTime(curve, start, curveDuration);
+        } else {
           g.setValueAtTime(vals[0], start);
-          g.setValueAtTime(g.value, start + dur);
-          g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+          let t = start + stepPeriod;
+          for (let vi = 1; vi < vals.length; vi++) { g.setValueAtTime(vals[vi], t); t += stepPeriod; }
         }
+        g.setValueAtTime(vals[vals.length - 1], start + dur);
+        g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+      } catch (e) {
+        g.setValueAtTime(vals[0], start);
+        g.setValueAtTime(vals[vals.length - 1], start + dur);
+        g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
       }
     } else {
+      primeGain(ctx, g, baseGain, start);
       g.setValueAtTime(baseGain, start);
       g.setTargetAtTime(0.0001, start + dur - 0.02, 0.02);
     }
   } else {
+    primeGain(ctx, g, baseGain, start);
     g.setValueAtTime(baseGain, start);
     g.setTargetAtTime(0.0001, start + dur - 0.02, 0.02);
   }

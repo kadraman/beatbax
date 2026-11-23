@@ -237,6 +237,6 @@ When exporting to hUGETracker, BeatBax maps `bpm` to integer ticks per row (`rou
 - See `songs/instrument_demo.bax` and the added tutorial example for quick demos.
 - Test suggestions: validate `parseWaveTable()` clamps values, that 16-value input tiles correctly to 32, that 32-value input is used as-is, that 32-nibble hex strings are parsed correctly, envelope parsing edge cases, and noise frequency mapping under unit tests.
 
-> **Note — rendering path discrepancy**: The PCM renderer (`pcmRenderer.ts`) contains a separate local `parseWaveTable` that does not tile 16-value inputs to 32; it returns the values as-is and uses a 16-value fallback. The WebAudio path (`chips/gameboy/wave.ts`) and UGE exporter (`ugeWriter.ts`) both use 32 as the native size. If you rely on PCM/WAV export, providing all 32 values explicitly gives identical results across both paths.
+> **Note**: PCM, WebAudio, and UGE all use the shared `parseWaveTable` in `chips/gameboy/wave.ts` (16-value inputs tile to 32). Wave PCM also applies the same `0.9` output scale as WebAudio (`spec 112`).
 
 For other instrument details, consult the respective sections (pulse, noise) in this document or the individual feature pages in `/docs/features/`.

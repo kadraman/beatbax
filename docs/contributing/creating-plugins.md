@@ -703,11 +703,11 @@ BeatBax uses two audio rendering paths depending on the runtime environment:
 
 | Path | Used when | Effects support |
 |------|-----------|-----------------|
-| **PCM** (`render()`) | CLI, headless, Node.js | None (no AudioParam automation) |
-| **Web Audio** (`createPlaybackNodes()`) | Browser / Electron | Full (arp, vib, portamento, retrigger, echo…) |
+| **Web Audio** (`createPlaybackNodes()`) | Desktop/web **live** playback | AudioParam automation — audible reference (spec 112) |
+| **PCM** (`render()`) | CLI play, WAV export (default), FM-1, headless | Game Boy uses the shared modulation kernel (arp, vib, port, trem, bend, sweep, volSlide, cut, echo, retrig). Plugin chips bake instrument macros and `volSlide` into the voice. Any other note effect is not applied, and PCM warns once per effect type. |
 
 **Implement both paths for every live Desktop voice** (including percussion):
-- The CLI and Desktop WAV export use the `render()` PCM loop.
+- CLI play and WAV use the PCM `render()` loop by default.
 - Desktop / web-ui **live** playback prefers `createPlaybackNodes()` for effects
   (arp, vib, portamento, …). A voice without it falls back to ScriptProcessor
   PCM while other voices use Web Audio — timing/routing can diverge even when
@@ -719,6 +719,13 @@ silence for the rest of the note on Desktop.
 
 **Sample channels** (e.g. NES DMC) may still be PCM-oriented; if Desktop live
 playback should match CLI, prefer a Web Audio path (or accept the fallback).
+
+**Plugin note effects on PCM.** `createPlaybackNodes()` receives the effects
+that are left after instrument macros and `volSlide` are baked, and Desktop
+live playback schedules them. The PCM `render()` path does not. CLI play and
+WAV export warn, for example `[pcm] Note effects not applied in plugin-chip PCM
+render: vib, port.` A chip that can express one of those effects in `render()`
+should bake it the same way `volSlide` is baked, instead of relying on the warning.
 
 ### Implementing `createPlaybackNodes()`
 

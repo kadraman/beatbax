@@ -1,6 +1,13 @@
 import { renderSongToPCM } from '../src/audio/pcmRenderer';
 import { SongModel } from '../src/song/songModel';
 
+function peakAbs(buf: Float32Array, a: number, b: number): number {
+  let m = 0;
+  const end = Math.min(b, buf.length);
+  for (let i = Math.max(0, a); i < end; i++) m = Math.max(m, Math.abs(buf[i]));
+  return m;
+}
+
 describe('pcmRenderer', () => {
   test('renderSongToPCM handles very small sweep time without division by zero', () => {
     const song: SongModel = {
@@ -121,5 +128,44 @@ describe('pcmRenderer', () => {
     const frames128 = at128.length / 2;
     expect(frames155 / 44100).toBeCloseTo(23, 0);
     expect(frames128 / 44100).toBeCloseTo(28, 0);
+  });
+
+  test('retrigger that lands on the note end does not restart the envelope', () => {
+    const song: SongModel = {
+      pats: {},
+      seqs: {},
+      bpm: 128,
+      insts: {
+        lead: { type: 'pulse1', duty: '50', env: '15,down' },
+      },
+      channels: [
+        {
+          id: 1,
+          defaultInstrument: 'lead',
+          events: [
+            {
+              type: 'note',
+              token: 'C4',
+              instrument: 'lead',
+              effects: [{ type: 'retrig', params: [2] }],
+            },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+          ],
+        },
+      ],
+    };
+    const sr = 44100;
+    const buf = renderSongToPCM(song, { sampleRate: sr, channels: 1, bpm: 128 });
+    const noteEnd = Math.round((60 / 128 / 4) * 8 * sr);
+    const attack = peakAbs(buf, 0, Math.round(0.01 * sr));
+    const tail = peakAbs(buf, noteEnd - Math.round(0.01 * sr), noteEnd + Math.round(0.01 * sr));
+    expect(attack).toBeGreaterThan(0.05);
+    expect(tail).toBeLessThan(attack * 0.25);
   });
 });

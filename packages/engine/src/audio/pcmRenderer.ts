@@ -1,6 +1,15 @@
 import { SongModel, NoteEvent } from '../song/songModel.js';
 import { midiToFreq, noteNameToMidi } from '../chips/gameboy/apu.js';
 import { parseSweep, parseEnvelope as parsePulseEnvelope, PULSE_OUTPUT_GAIN } from '../chips/gameboy/pulse.js';
+import {
+  contiguousPulsePortChainEnd,
+  noteHasPort,
+  planPulsePortamentoLink,
+  pulseUsesSharedPortamentoVoice,
+  type PulsePortamentoLink,
+} from '../chips/gameboy/pulsePortamento.js';
+import { WAVE_PLAYBACK_GAIN } from '../chips/gameboy/wave.js';
+import { getPulseFourierCache, bandLimitedPulseSample, type PulseFourierCache } from '../chips/pulseDc.js';
 import { noiseClockToLfsrHz, resolveNoiseClock, resolveNoisePlayDurationSec, resolveNoiseWidth, gameBoyNoiseSample, NOISE_OUTPUT_GAIN, stepGameBoyLfsr, triggerGameBoyLfsr } from '../chips/gameboy/noiseNote.js';
 import {
   applyTickOffsetToFreq,
@@ -10,14 +19,69 @@ import {
   tickRowDutyFraction,
   tickRowVolume,
 } from '../chips/gameboy/instrumentProgram.js';
-import { resolveWaveVolumeMultiplier } from '../chips/gameboy/wave.js';
+import { resolveWaveVolumeMultiplier, parseWaveTable } from '../chips/gameboy/wave.js';
 import { registerFromFreq, freqFromRegister } from '../chips/gameboy/periodTables.js';
 import { InstMap, InstrumentNode } from '../parser/ast.js';
 import { chipRegistry } from '../chips/registry.js';
 import type { ChipChannelBackend } from '../chips/types.js';
-import { arpCycleOffsets } from '../util/arpOffsets.js';
-import { applyInlineRenderEffects } from './inlineMacroEffects.js';
+import { applyInlineRenderEffects, resetPluginPcmEffectWarnings, warnDroppedPluginPcmEffects } from './inlineMacroEffects.js';
 import { peakLimitForPlayback, PLAYBACK_PEAK_CEILING } from './playbackLimiter.js';
+import {
+  parseNoteEffects,
+  modulatePitchHz,
+  advanceVibratoPhase,
+  tremoloGain,
+  noteCutGain,
+  portamentoDurationSec,
+  resolveEchoDelaySec,
+  volSlideLevel01,
+  volSlideProgress,
+  VIB_DEPTH_SCALE,
+  type ParsedNoteEffects,
+} from '../effects/modulation.js';
+
+/** Wave buffer scale — matches WebAudio playWavetable sample fill (`* 0.9`). */
+const WAVE_OUTPUT_SCALE = 0.9;
+
+/** FR-011: pulse and noise linear ramp to silence after the nominal end. */
+const GB_NOTE_RELEASE_SEC = 0.005;
+/** FR-011: wave without a GB envelope fades with this time constant, starting one constant before the end. */
+const WAVE_TAIL_SEC = 0.02;
+
+/** 1 during the note, then a linear ramp to 0 over `releaseSec`. */
+function linearReleaseGain(t: number, durSec: number, releaseSec: number): number {
+  if (t <= durSec || releaseSec <= 0) return 1;
+  const u = (t - durSec) / releaseSec;
+  if (u >= 1) return 0;
+  return 1 - u;
+}
+
+/**
+ * 0–1 level of a `volSlide` multiplied onto the live envelope.
+ * A zero baseline cannot scale, so the slide level is used directly.
+ */
+function volSlideEnvelopeScale(
+  envelope01: number,
+  baseline01: number,
+  delta: number,
+  progress: number,
+): number {
+  const level = volSlideLevel01(baseline01, delta, progress);
+  if (baseline01 > 1e-4) return envelope01 * (level / baseline01);
+  return level;
+}
+
+/**
+ * WebAudio `setTargetAtTime(0.0001, start + dur - tau, tau)` relative to the
+ * held gain. The source keeps running until `dur + tau`.
+ */
+function waveExponentialReleaseGain(t: number, durSec: number, baseGain: number): number {
+  const fadeStart = durSec - WAVE_TAIL_SEC;
+  if (t < fadeStart) return 1;
+  const floor = baseGain > 1e-8 ? 0.0001 / baseGain : 0;
+  const elapsed = t - fadeStart;
+  return floor + (1 - floor) * Math.exp(-elapsed / WAVE_TAIL_SEC);
+}
 
 // How many GB period-register units correspond to one tracker vibrato depth unit (y).
 // hUGE appears to treat the tracker `y` as raw register offset units; tune this
@@ -30,15 +94,6 @@ const RENDER_REG_PER_TRACKER_BASE_FACTOR = 0.04;
 // Exporter-side vibrato depth scaling (used when exporting to UGE).
 // Keep in sync with packages/engine/src/export/ugeWriter.ts VIB_DEPTH_SCALE
 const EXPORTER_VIB_DEPTH_SCALE = 1.0;
-
-// Apply hUGEDriver-style period modification: add `offset` to the low 8 bits
-// of the GB period register (NR13 low byte), clamp to valid 11-bit range.
-function applyHugeDriverOffset(baseReg: number, offset: number): number {
-  // hUGEDriver adds the low-nibble depth to the 16-bit period value.
-  const sum = baseReg + offset;
-  // Clamp to 11-bit GB period range (0..2047)
-  return Math.max(0, Math.min(2047, Math.round(sum)));
-}
 
 /**
  * Apply pitch sweep (GB NR10) - hardware-accurate frequency sweep
@@ -151,6 +206,67 @@ function clearPCMEffectState() {
 }
 
 /**
+ * Apply echo/delay with feedback to a note region already mixed into `buffer`.
+ * Spec 112 / issue #42 — matches WebAudio DelayNode wet/dry + feedback semantics.
+ */
+function applyPcmEcho(
+  buffer: Float32Array,
+  startSample: number,
+  durationSamples: number,
+  sampleRate: number,
+  channels: number,
+  echo: { delayTimeRaw: number; feedback: number; mix: number },
+  tickSeconds?: number
+): void {
+  const delaySec = Math.min(2, Math.max(0.001, resolveEchoDelaySec(echo.delayTimeRaw, tickSeconds)));
+  const delaySamples = Math.max(1, Math.floor(delaySec * sampleRate));
+  const feedback = Math.max(0, Math.min(0.95, echo.feedback));
+  const mix = Math.max(0, Math.min(1, echo.mix));
+  if (mix <= 0) return;
+
+  // Work on a dry copy of the note region so feedback reads are stable
+  const regionLen = durationSamples * channels;
+  const dry = new Float32Array(regionLen);
+  const outStart = startSample * channels;
+  for (let i = 0; i < regionLen && outStart + i < buffer.length; i++) {
+    dry[i] = buffer[outStart + i];
+  }
+
+  // Extend wet writes past the note so echoes are heard (up to ~4 delay periods, capped)
+  const tailSamples = Math.min(delaySamples * 4, Math.floor(sampleRate * 2));
+  const wetLen = (durationSamples + tailSamples) * channels;
+  const wet = new Float32Array(wetLen);
+
+  // Delay line matches WebAudio: the wet signal is the delayed output, not the
+  // current dry sample. Mixing the dry into wet was keeping the note at full
+  // level and adding the echo on top.
+  const line = new Float32Array(wetLen);
+  for (let s = 0; s < durationSamples + tailSamples; s++) {
+    for (let c = 0; c < channels; c++) {
+      const delayedIdx = (s - delaySamples) * channels + c;
+      const delayed = delayedIdx >= 0 ? line[delayedIdx] : 0;
+      const drySample = s < durationSamples ? dry[s * channels + c] : 0;
+      line[s * channels + c] = drySample + delayed * feedback;
+      wet[s * channels + c] = delayed;
+    }
+  }
+
+  for (let s = 0; s < durationSamples + tailSamples; s++) {
+    for (let c = 0; c < channels; c++) {
+      const bufIdx = (startSample + s) * channels + c;
+      if (bufIdx >= buffer.length) continue;
+      const drySample = s < durationSamples ? dry[s * channels + c] : 0;
+      const wetSample = wet[s * channels + c];
+      if (s < durationSamples) {
+        buffer[bufIdx] = drySample * (1 - mix) + wetSample * mix;
+      } else {
+        buffer[bufIdx] += wetSample * mix;
+      }
+    }
+  }
+}
+
+/**
  * Renders a complete song to a PCM buffer.
  *
  * @param song The song model containing channels and events.
@@ -221,6 +337,7 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
 
   // Clear portamento state before rendering
   clearPCMEffectState();
+  resetPluginPcmEffectWarnings();
 
   // Calculate duration from song events
   const secondsPerBeat = 60 / bpm;
@@ -329,6 +446,7 @@ function renderChannel(
   let currentInstName: string | undefined = ch.defaultInstrument;
   let tempInstName: string | undefined = undefined;
   let tempRemaining = 0;
+  let portHoldUntil: number | null = null;
 
   for (let i = 0; i < ch.events.length; i++) {
     const ev = ch.events[i];
@@ -362,8 +480,11 @@ function renderChannel(
 
     if (!inst) continue;
 
-    const startSample = Math.floor(time * sampleRate);
-    let durationSamples = Math.floor(dur * sampleRate);
+    // WebAudio starts a note on the nearest sample frame. Tick grids that
+    // land on an integer (tutorial_groove at 44100 Hz) are unchanged.
+    const startSample = Math.round(time * sampleRate);
+    const endSample = Math.round((time + dur) * sampleRate);
+    let durationSamples = Math.max(0, endSample - startSample);
 
     // For sample-based (DMC) instruments, extend the render window to the
     // time of the next non-rest event so the sample rings out naturally,
@@ -385,7 +506,21 @@ function renderChannel(
     }
 
     if (ev.type === 'note') {
-      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, chipType, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id, pluginBackend);
+      const pulsePort = !!(inst.type && String(inst.type).toLowerCase().includes('pulse') && pulseUsesSharedPortamentoVoice(inst));
+      const chainEnd = pulsePort
+        ? contiguousPulsePortChainEnd({ tokens: ch.events, index: i, originTime: 0, tickSeconds, noteTime: time, noteDur: dur })
+        : time + dur;
+      const planned = planPulsePortamentoLink({
+        eligible: pulsePort,
+        hasPort: noteHasPort(ev),
+        holdUntil: portHoldUntil,
+        time,
+        dur,
+        chainEnd,
+        channelId: ch.id,
+      });
+      portHoldUntil = planned.nextHoldUntil;
+      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, chipType, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id, pluginBackend, planned.link);
 
       if (tempRemaining > 0) {
         tempRemaining--;
@@ -481,7 +616,8 @@ function renderNoteEvent(
   regPerTrackerBaseFactor: number,
   regPerTrackerUnit: number,
   channelId: number,
-  pluginBackend: ChipChannelBackend | null = null
+  pluginBackend: ChipChannelBackend | null = null,
+  portLink?: PulsePortamentoLink,
 ) {
   try {
     // removed debug logging
@@ -501,7 +637,8 @@ function renderNoteEvent(
   if (!isGameBoy && pluginBackend) {
     const panSpec = resolveEventPan(ev, inst);
     const gains = panToGains(panSpec);
-    const { effectiveInst } = applyInlineRenderEffects(inst, ev.effects);
+    const { effectiveInst, remainingEffects } = applyInlineRenderEffects(inst, ev.effects);
+    warnDroppedPluginPcmEffects(remainingEffects);
     renderWithPluginBackend(pluginBackend, freq, effectiveInst, buffer, startSample, durationSamples, sampleRate, channels, gains);
     return;
   }
@@ -513,47 +650,106 @@ function renderNoteEvent(
   let panSpec = resolveEventPan(ev, inst);
   const gains = panToGains(panSpec);
 
-  if (inst.type && inst.type.toLowerCase().includes('pulse')) {
-    renderPulse(
-      buffer,
-      startSample,
-      durationSamples,
-      alignedFreq,
-      inst,
-      sampleRate,
-      channels,
-      gains,
-      ev.effects,
-      tickSeconds,
-      chipType,
-      isGameBoy,
-      vibDepthScale,
-      regPerTrackerBaseFactor,
-      regPerTrackerUnit,
-      channelId,
-      ev.legato || false
-    );
-  } else if (inst.type && inst.type.toLowerCase().includes('wave')) {
-    renderWave(
-      buffer,
-      startSample,
-      durationSamples,
-      alignedFreq,
-      inst,
-      sampleRate,
-      channels,
-      gains,
-      ev.effects,
-      tickSeconds,
-      isGameBoy,
-      vibDepthScale,
-      regPerTrackerBaseFactor,
-      regPerTrackerUnit,
-      channelId,
-      ev.legato || false
-    );
-  } else if (inst.type && inst.type.toLowerCase().includes('noise')) {
-    renderNoise(buffer, startSample, durationSamples, inst, sampleRate, channels, gains);
+  const parsedFx = parseNoteEffects(ev.effects, durationSamples / sampleRate, tickSeconds);
+
+  // Retrigger: expand into multiple note onsets (spec 112 / #42)
+  const retrigTimes: { offsetSamples: number; volMul: number }[] = [{ offsetSamples: 0, volMul: 1 }];
+  if (parsedFx.retrig && tickSeconds > 0) {
+    // Match Desktop: onsets at k*interval while that time is still inside the
+    // note. Flooring each step to samples walks backward and was starting one
+    // more slice in the last few samples, with a fresh envelope.
+    const intervalSec = parsedFx.retrig.interval * tickSeconds;
+    const durSec = durationSamples / sampleRate;
+    // Spec 033: newLevel = baseLevel × (1 + cumulative_delta/15), then clamp 0–15.
+    // Do not cap the multiplier at 1 or positive deltas never raise a sub-max env.
+    let volMul = 1;
+    let tSec = intervalSec;
+    while (tSec < durSec - 0.5 / sampleRate) {
+      if (parsedFx.retrig.volumeDelta !== 0) {
+        volMul = Math.max(0, volMul + (parsedFx.retrig.volumeDelta / 15));
+      }
+      const offsetSamples = Math.round(tSec * sampleRate);
+      if (offsetSamples <= 0 || offsetSamples >= durationSamples) break;
+      retrigTimes.push({ offsetSamples, volMul });
+      tSec += intervalSec;
+    }
+  }
+
+  // Strip retrig from effects passed to voice renderers (already expanded)
+  const voiceEffects = Array.isArray(ev.effects)
+    ? ev.effects.filter((fx: any) => fx && fx.type !== 'retrig')
+    : ev.effects;
+
+  for (let r = 0; r < retrigTimes.length; r++) {
+    const { offsetSamples, volMul } = retrigTimes[r];
+    const remaining = durationSamples - offsetSamples;
+    if (remaining <= 0) break;
+    // Each retrig plays until the next retrig (or note end)
+    const nextOffset = r + 1 < retrigTimes.length ? retrigTimes[r + 1].offsetSamples : durationSamples;
+    const sliceDur = Math.max(1, nextOffset - offsetSamples);
+
+    let renderInst = inst;
+    if (volMul !== 1 && inst.env) {
+      const envParts = String(inst.env).split(',');
+      if (envParts.length > 0) {
+        const envLevel = Math.max(0, Math.min(15, Math.round(parseFloat(envParts[0]) * volMul)));
+        renderInst = { ...inst, env: `${envLevel},${envParts.slice(1).join(',')}` };
+      }
+    }
+
+    const at = startSample + offsetSamples;
+    if (inst.type && inst.type.toLowerCase().includes('pulse')) {
+      renderPulse(
+        buffer,
+        at,
+        sliceDur,
+        alignedFreq,
+        renderInst,
+        sampleRate,
+        channels,
+        gains,
+        voiceEffects,
+        tickSeconds,
+        chipType,
+        isGameBoy,
+        vibDepthScale,
+        regPerTrackerBaseFactor,
+        regPerTrackerUnit,
+        channelId,
+        (ev.legato || false) && r === 0,
+        r === 0 ? portLink : undefined,
+      );
+    } else if (inst.type && inst.type.toLowerCase().includes('wave')) {
+      renderWave(
+        buffer,
+        at,
+        sliceDur,
+        alignedFreq,
+        renderInst,
+        sampleRate,
+        channels,
+        gains,
+        voiceEffects,
+        tickSeconds,
+        isGameBoy,
+        vibDepthScale,
+        regPerTrackerBaseFactor,
+        regPerTrackerUnit,
+        channelId,
+        (ev.legato || false) && r === 0 && !noteHasPort(ev),
+        freq
+      );
+    } else if (inst.type && inst.type.toLowerCase().includes('noise')) {
+      if (r === 0 && Array.isArray(ev.effects) && ev.effects.length > 0) {
+        // Noise PCM currently supports instrument programs only; warn once via console for note effects
+        // (Desktop WebAudio still applies them). Silent drop is forbidden by FR noise edge-case.
+        try {
+          // eslint-disable-next-line no-console
+          console.warn('[pcm] Note effects on noise are not applied in PCM render; use instrument envelopes/programs.');
+        } catch (_) {}
+      }
+      renderNoise(buffer, at, sliceDur, renderInst, sampleRate, channels, gains);
+    }
   }
 }
 
@@ -598,7 +794,8 @@ function renderNamedEvent(
         if (midi !== null) freq = midiToFreq(midi);
       }
     }
-    const { effectiveInst } = applyInlineRenderEffects(inst, ev.effects);
+    const { effectiveInst, remainingEffects } = applyInlineRenderEffects(inst, ev.effects);
+    warnDroppedPluginPcmEffects(remainingEffects);
     renderWithPluginBackend(pluginBackend, freq, effectiveInst, buffer, startSample, durationSamples, sampleRate, channels, gains);
     return;
   }
@@ -706,7 +903,8 @@ function renderPulse(
   regPerTrackerBaseFactor?: number,
   regPerTrackerUnit?: number,
   channelId?: number,
-  legato?: boolean
+  legato?: boolean,
+  portLink?: PulsePortamentoLink,
 ) {
   // removed debug logging
   // Parse duty - handle various formats
@@ -726,154 +924,25 @@ function renderPulse(
   let currentReg = registerFromFreq(freq);
   const sweepIntervalSamples = sweep ? (sweep.time / 128) * sampleRate : 0;
 
-  // Generate simple square wave (harmonics were making it sound worse)
-  // Vibrato params (depth in register-units, rate in Hz). Support 4th param = duration in rows.
-  let vibDepth = 0;
-  let vibRate = 0;
-  let vibDurationSec: number | undefined = undefined;
-  // Tremolo params (depth 0-15, rate in Hz, waveform, duration, delay onset)
-  let tremDepth = 0;
-  let tremRate = 0;
-  let tremWaveform: string | undefined = undefined;
-  let tremDurationSec: number | undefined = undefined;
-  let tremDelaySec: number | undefined = undefined;
-  // Note cut params (ticks after which to cut the note)
-  let cutTicks = 0;
-  let cutEnabled = false;
-  // Portamento params
-  let portSpeed = 0;
-  let portDurationSec: number | undefined = undefined;
-  // Arpeggio params - semitone offsets
-  let arpOffsets: number[] = [];
-  // Pitch bend params
-  let bendSemitones = 0;
-  let bendCurve = 'linear';
-  let bendDelay = 0;
-  let bendTime = 0;
-  // Pitch sweep params (GB NR10)
-  let sweepTime = 0;
-  let sweepDirection: 'up' | 'down' = 'down';
-  let sweepShift = 0;
-  // Volume slide params
-  let volDelta = 0;
-  let volSteps: number | undefined = undefined;
-  if (Array.isArray(effects)) {
-    for (const fx of effects) {
-      try {
-        if (fx && fx.type === 'vib') {
-          const p = fx.params || [];
-          vibDepth = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
-          vibRate = Number(typeof p[1] !== 'undefined' ? p[1] : 0);
-          // Prefer resolver-provided durationSec, else fall back to 4th param as rows
-          if (typeof fx.durationSec === 'number') {
-            vibDurationSec = Number(fx.durationSec);
-          } else {
-            const durRows = typeof p[3] !== 'undefined' ? Number(p[3]) : undefined;
-            if (typeof durRows === 'number' && !Number.isNaN(durRows) && typeof tickSeconds === 'number') {
-              vibDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
-            }
-          }
-        } else if (fx && fx.type === 'port') {
-          const p = fx.params || [];
-          portSpeed = Number(typeof p[0] !== 'undefined' ? p[0] : 16);
-          // Prefer resolver-provided durationSec for portamento duration
-          if (typeof fx.durationSec === 'number') {
-            portDurationSec = Number(fx.durationSec);
-          } else {
-            const durRows = typeof p[1] !== 'undefined' ? Number(p[1]) : undefined;
-            if (typeof durRows === 'number' && !Number.isNaN(durRows) && typeof tickSeconds === 'number') {
-              portDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
-            }
-          }
-        } else if (fx && fx.type === 'trem') {
-          const p = fx.params || [];
-          tremDepth = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
-          tremRate = Number(typeof p[1] !== 'undefined' ? p[1] : 6);
-          tremWaveform = typeof p[2] !== 'undefined' ? String(p[2]).toLowerCase() : 'sine';
-          // Prefer resolver-provided durationSec, else fall back to 4th param as rows.
-          // IMPORTANT: durRows=0 means "no duration limit" (not 0 seconds).
-          if (typeof fx.durationSec === 'number' && fx.durationSec > 0) {
-            tremDurationSec = Number(fx.durationSec);
-          } else {
-            const durRows = typeof p[3] !== 'undefined' ? Number(p[3]) : undefined;
-            if (typeof durRows === 'number' && !Number.isNaN(durRows) && durRows > 0 && typeof tickSeconds === 'number') {
-              tremDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
-            }
-            // durRows===0 (or undefined) → tremDurationSec stays undefined = unlimited
-          }
-          // Onset delay: resolver stores delayRows→delaySec on fx.delaySec; raw rows in p[4].
-          if (typeof fx.delaySec === 'number' && fx.delaySec > 0) {
-            tremDelaySec = fx.delaySec;
-          } else {
-            const delayRows = typeof p[4] !== 'undefined' ? Number(p[4]) : undefined;
-            if (typeof delayRows === 'number' && !Number.isNaN(delayRows) && delayRows > 0 && typeof tickSeconds === 'number') {
-              tremDelaySec = delayRows * tickSeconds; // rows → seconds
-            }
-          }
-        } else if (fx && fx.type === 'arp') {
-          const p = fx.params || [];
-          // Parse semitone offsets - filter out non-numeric values
-          arpOffsets = p
-            .map((x: any) => Number(x))
-            .filter((n: number) => Number.isFinite(n) && n >= 0);
-        } else if (fx && fx.type === 'bend') {
-          const p = fx.params || [];
-          bendSemitones = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
-          if (Number.isFinite(bendSemitones)) {
-            bendCurve = typeof p[1] !== 'undefined' ? String(p[1]).toLowerCase() : 'linear';
-            // params[2] is delay (default: 50% of note)
-            bendDelay = typeof p[2] !== 'undefined' ? Number(p[2]) : (durSec * 0.5);
-            if (!Number.isFinite(bendDelay) || bendDelay < 0) bendDelay = durSec * 0.5;
-            bendDelay = Math.min(bendDelay, durSec);
-            // params[3] is bend time (default: remaining time after delay)
-            bendTime = typeof p[3] !== 'undefined' ? Number(p[3]) : (durSec - bendDelay);
-            if (!Number.isFinite(bendTime) || bendTime <= 0) bendTime = durSec - bendDelay;
-            bendTime = Math.min(bendTime, durSec - bendDelay);
-          } else {
-            bendSemitones = 0;
-          }
-        } else if (fx && fx.type === 'sweep') {
-          const p = fx.params || [];
-          const timeVal = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
-          if (Number.isFinite(timeVal) && timeVal >= 0 && timeVal <= 7) {
-            sweepTime = Math.round(timeVal);
-
-            // Parse direction
-            const dirRaw = typeof p[1] !== 'undefined' ? p[1] : 'down';
-            if (typeof dirRaw === 'number') {
-              sweepDirection = dirRaw > 0 ? 'up' : 'down';
-            } else if (typeof dirRaw === 'string') {
-              const dirStr = String(dirRaw).toLowerCase().trim();
-              sweepDirection = (dirStr === 'up' || dirStr === '+' || dirStr === '1') ? 'up' : 'down';
-            }
-
-            // Parse shift
-            const shiftVal = Number(typeof p[2] !== 'undefined' ? p[2] : 0);
-            if (Number.isFinite(shiftVal) && shiftVal >= 0 && shiftVal <= 7) {
-              sweepShift = Math.round(shiftVal);
-            }
-          }
-        } else if (fx && fx.type === 'volSlide') {
-          const p = fx.params || [];
-          volDelta = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
-          volSteps = typeof p[1] !== 'undefined' ? Number(p[1]) : undefined;
-          if (!Number.isFinite(volDelta)) volDelta = 0;
-          if (volSteps !== undefined && !Number.isFinite(volSteps)) volSteps = undefined;
-        } else if (fx && fx.type === 'cut') {
-          const p = fx.params || [];
-          const ticks = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
-          if (Number.isFinite(ticks) && ticks > 0) {
-            cutTicks = Math.max(0, ticks);
-            cutEnabled = true;
-          }
-        }
-      } catch (e) {}
-    }
+  // Shared modulation parse (spec 112) — same contract as WebAudio effect handlers
+  const noteFx: ParsedNoteEffects = parseNoteEffects(effects, durSec, tickSeconds);
+  // Ensure port duration uses note length when resolver did not supply durationSec
+  if (noteFx.portSpeed > 0 && !(typeof noteFx.portDurationSec === 'number' && noteFx.portDurationSec > 0)) {
+    noteFx.portDurationSec = portamentoDurationSec(noteFx.portSpeed, durSec);
   }
 
-  // Initialize per-channel phase state for continuous phase across notes
-  let phase = (typeof channelId === 'number') ? (channelPhaseState.get(channelId) ?? 0) : 0;
-  let vibratoPhase = (typeof channelId === 'number') ? (channelVibratoPhase.get(channelId) ?? 0) : 0;
+  // A portamento run holds one oscillator. The opening note starts at phase 0.
+  // Later notes in the run join that voice. A port note that does not join
+  // still glides, but it is a new oscillator, same as Desktop.
+  const portJoin = !!portLink?.join;
+  const portHold = !!portLink?.hold;
+  const continuePhase = !!(legato || portJoin);
+  let phase = (continuePhase && typeof channelId === 'number')
+    ? (channelPhaseState.get(channelId) ?? 0)
+    : 0;
+  let vibratoPhase = (continuePhase && typeof channelId === 'number')
+    ? (channelVibratoPhase.get(channelId) ?? 0)
+    : 0;
 
   // For legato notes, retrieve envelope state to sustain at previous level (no decay)
   let envelopeSustainValue: number | undefined = undefined;
@@ -909,13 +978,36 @@ function renderPulse(
     }
   }
 
-  for (let i = 0; i < duration; i++) {
+  // Band-limited pulse cache — matches WebAudio PeriodicWave (#271 / spec 112)
+  let pulseCache: PulseFourierCache = getPulseFourierCache(programDuty);
+
+  // Chrome's OscillatorNode reads phase increments from the start of the
+  // 128-frame quantum, while frequency.setValueAtTime(f, noteStart) only
+  // changes the frames at and after the note. The frames before that event
+  // stay at the default 440 Hz and are played as the note's first samples.
+  // A note that starts at context time 0 is already on a quantum boundary,
+  // so it does not do this. A held portamento voice is not a new oscillator.
+  const RENDER_QUANTUM = 128;
+  const OSCILLATOR_DEFAULT_HZ = 440;
+  const startQuantum = ((start % RENDER_QUANTUM) + RENDER_QUANTUM) % RENDER_QUANTUM;
+  const chromeDefaultHzSamples = continuePhase
+    ? 0
+    : Math.min(startQuantum, RENDER_QUANTUM - startQuantum);
+
+  // 5 ms tail past the nominal end, unless this note holds the voice for the
+  // next portamento step. A tail here would overlap that step and re-attack.
+  // Phase handed to the next note is the phase at the nominal end.
+  const renderLength = portHold ? duration : duration + Math.round(GB_NOTE_RELEASE_SEC * sampleRate);
+  let phaseAtNominalEnd = phase;
+  let vibratoPhaseAtNominalEnd = vibratoPhase;
+
+  for (let i = 0; i < renderLength; i++) {
     const t = i / sampleRate;
 
     // normal rendering loop
 
     if (gbCursor) {
-      const tick = Math.floor(t * 60);
+      const tick = Math.floor(Math.min(t, durSec) * 60);
       if (tick !== lastProgramTick) {
         lastProgramTick = tick;
         const row = gbCursor.rowAt(tick);
@@ -946,204 +1038,117 @@ function renderPulse(
       }
     }
 
-    // Apply vibrato. If rendering for a Game Boy target, emulate hUGEDriver's
-    // step-based vibrato: on discrete tracker ticks, add/subtract the depth
-    // nibble (converted to register units) to the period register. Otherwise
-    // fall back to the smoother, phase-LFO approach used historically.
-    let effFreq = useGbProgram
+    let baseForMod = useGbProgram
       ? applyTickOffsetToFreq(currentFreq, programOffset)
       : currentFreq;
 
-    // Apply portamento if enabled
-    if (portSpeed > 0 && typeof channelId === 'number') {
-      // Get last frequency for this channel from the per-channel state map
-      const lastFreq = channelPortamentoState.get(channelId) ?? currentFreq;
+    const lastFreq = (typeof channelId === 'number')
+      ? (channelPortamentoState.get(channelId) ?? baseForMod)
+      : baseForMod;
 
-      // Calculate portamento progress: speed maps inversely to duration
-      // Higher speed = faster transition = shorter duration
-      const portDur = typeof portDurationSec === 'number' && portDurationSec > 0
-        ? portDurationSec
-        : Math.max(0.001, (256 - Math.min(portSpeed, 255)) / 256 * durSec * 0.6);
-
-      if (portDur > 0 && t <= portDur && Math.abs(currentFreq - lastFreq) > 1) {
-        // Smooth cubic ease for natural portamento
-        const progress = Math.min(1, t / portDur);
-        const easedProgress = progress * progress * (3 - 2 * progress); // smoothstep
-        effFreq = lastFreq + (currentFreq - lastFreq) * easedProgress;
-      }
+    const pitched = modulatePitchHz({
+      t,
+      noteDurSec: durSec,
+      baseFreq: baseForMod,
+      lastFreq: noteFx.portSpeed > 0 ? lastFreq : undefined,
+      fx: noteFx,
+      chipType,
+      vibDepthScale: vibDepthScale ?? VIB_DEPTH_SCALE,
+      vibratoPhase,
+      portCurve: 'exponential',
+    });
+    let effFreq = pitched.freq;
+    // Advance LFO only while vib is audible — matches WebAudio lfo.start(lfoStart)
+    // (phase must not run during vibDelaySec).
+    const vibActive =
+      noteFx.vibDepth !== 0 &&
+      noteFx.vibRate > 0 &&
+      (typeof noteFx.vibDelaySec !== 'number' || t >= noteFx.vibDelaySec) &&
+      (typeof noteFx.vibDurationSec === 'undefined' || t < noteFx.vibDurationSec);
+    if (vibActive) {
+      vibratoPhase = advanceVibratoPhase(vibratoPhase, noteFx.vibRate, sampleRate);
     }
 
-    // Save current frequency for next note's portamento (do this for ALL notes, not just portamento notes)
+    // Save current frequency for next note's portamento (all notes)
     if (typeof channelId === 'number' && i === duration - 1) {
       channelPortamentoState.set(channelId, currentFreq);
     }
 
-    // Apply vibrato - use per-channel LFO phase for smooth, continuous vibrato
-    if (vibDepth !== 0 && vibRate > 0 && effFreq > 0) {
-      if (typeof vibDurationSec === 'undefined' || (i / sampleRate) < vibDurationSec) {
-        // GB-accurate Hz deviation: period-register offset N at frequency f = N * f^2 / 131072
-        const trackerDepth = Math.max(0, Math.min(15, Math.round((vibDepth || 0) * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
-        const amplitudeHz = trackerDepth * effFreq * effFreq / 131072;
-        const lfo = Math.sin(vibratoPhase);
-        effFreq = effFreq + (lfo * amplitudeHz);
+    // Apply pitch sweep (GB NR10) — hardware sweep after note effects
+    effFreq = applySweepToFrequency(
+      freq,
+      effFreq,
+      t,
+      noteFx.sweepTime,
+      noteFx.sweepShift,
+      noteFx.sweepDirection
+    );
 
-        // Advance vibrato phase
-        vibratoPhase += (2 * Math.PI * vibRate) / sampleRate;
-      }
-    }
-
-    // Apply arpeggio - rapid pitch cycling
-    if (arpOffsets.length > 0 && effFreq > 0) {
-      // Chip-specific frame rates (Hz) - must match effects/index.ts CHIP_FRAME_RATES
-      // C64: 50 Hz (PAL), Game Boy/NES/Genesis: 60 Hz (NTSC or global standard)
-      const CHIP_FRAME_RATES: Record<string, number> = {
-        'gameboy': 60,
-        'nes': 60,
-        'c64': 50,
-        'genesis': 60,
-        'megadrive': 60,
-        'pcengine': 60,
-      };
-      const frameRate = CHIP_FRAME_RATES[chipType || 'gameboy'] || 60; // Default to 60 Hz
-      const cycleDuration = 1 / frameRate; // e.g., ~16.667ms at 60Hz, ~20ms at 50Hz
-
-      // Build arpeggio cycle: root (0) plus upper partials (leading 0 in list is redundant)
-      const allOffsets = arpCycleOffsets(arpOffsets);
-
-      const offsetIndex = Math.floor((t % (cycleDuration * allOffsets.length)) / cycleDuration);
-      const semitoneOffset = allOffsets[offsetIndex % allOffsets.length] || 0;
-      // Apply frequency shift: freq * 2^(semitones / 12)
-      effFreq = effFreq * Math.pow(2, semitoneOffset / 12);
-    }
-
-    // Apply pitch sweep (GB NR10) - hardware-accurate frequency sweep
-    effFreq = applySweepToFrequency(freq, effFreq, t, sweepTime, sweepShift, sweepDirection);
-
-    // Apply pitch bend - smooth pitch bend over time with curve shaping
-    // Holds base pitch during delay period, then bends to target
-    if (bendSemitones !== 0 && bendTime > 0 && effFreq > 0) {
-      if (t >= bendDelay && t <= (bendDelay + bendTime)) {
-        // Calculate progress within the bend period (0 to 1)
-        let bendProgress = Math.min(1, (t - bendDelay) / bendTime);
-
-        // Apply curve shaping
-        if (bendCurve === 'exp' || bendCurve === 'exponential') {
-          // Exponential: slow start, fast end (y = x^2)
-          bendProgress = bendProgress * bendProgress;
-        } else if (bendCurve === 'log' || bendCurve === 'logarithmic') {
-          // Logarithmic: fast start, slow end (y = 1 - (1 - x)^2)
-          bendProgress = 1 - Math.pow(1 - bendProgress, 2);
-        } else if (bendCurve === 'sine' || bendCurve === 'sin') {
-          // Sine: smooth S-curve (y = (1 - cos(π * x)) / 2)
-          bendProgress = (1 - Math.cos(Math.PI * bendProgress)) / 2;
-        }
-        // else: linear (default) - no transformation
-
-        // Calculate bend frequency: freq * 2^(semitones * progress / 12)
-        const bendMultiplier = Math.pow(2, (bendSemitones * bendProgress) / 12);
-        effFreq = effFreq * bendMultiplier;
-      }
-    }
-
-    // Simple, efficient band-limited pulse wave synthesis using naive square wave
-    // with single-pole low-pass filter to reduce aliasing
     const activeDuty = useGbProgram ? programDuty : duty;
+    pulseCache = getPulseFourierCache(activeDuty, 200, pulseCache);
     let sample = 0;
-    if (effFreq > 0 && effFreq < sampleRate / 2) {
-      // Advance phase accumulator
-      phase += effFreq / sampleRate;
-      phase = phase % 1.0; // Keep phase in [0, 1)
-
-      // Generate square wave based on duty cycle
-      sample = (phase < activeDuty) ? 1.0 : -1.0;
+    let synthesized = false;
+    const oscFreq = i < chromeDefaultHzSamples ? OSCILLATOR_DEFAULT_HZ : effFreq;
+    if (oscFreq > 0 && oscFreq < sampleRate / 2) {
+      synthesized = true;
+      // OscillatorNode outputs phase 0 on the first sample, then advances.
+      // Advancing first skipped that zero crossing and shifted every pulse note.
+      sample = bandLimitedPulseSample(phase, pulseCache, oscFreq, sampleRate);
+      phase += oscFreq / sampleRate;
+      phase = phase % 1.0;
     }
 
-    // Apply envelope (sustain at previous level for legato notes, otherwise compute normally).
-    // When vol_env drives the tick program, volume is baked via programVolScale.
-    const envVal = useGbProgramVolume
-      ? programVolScale
-      : ((envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(t, envelope, durSec));
-    sample = sample * envVal;
-
-    // Apply note cut if enabled (fade out quickly after cut time)
-    if (cutEnabled && typeof tickSeconds === 'number') {
-      const cutTimeSec = cutTicks * tickSeconds;
-      if (t >= cutTimeSec) {
-        // Apply very fast exponential fade (5ms) to match WebAudio behavior
-        const fadeDuration = 0.005; // 5ms fade to match browser
-        const fadeTime = t - cutTimeSec;
-        if (fadeTime < fadeDuration) {
-          // Exponential fade: start at 1.0, ramp to 0.0001 over fadeDuration
-          const fadeProgress = fadeTime / fadeDuration;
-          const cutGain = Math.pow(0.0001, fadeProgress); // Exponential curve
-          sample = sample * cutGain;
-        } else {
-          // After fade completes, full silence
-          sample = 0;
-        }
-      }
+    const envT = Math.min(t, durSec);
+    // A held or joined portamento voice stays at the opening envelope level.
+    // Desktop cancels the per-note curve and does not fade until the run ends.
+    const portFlat = portHold || portJoin;
+    const envVal = portFlat
+      ? ((envelope && envelope.mode === 'gb' && typeof envelope.initial === 'number')
+        ? Math.max(0, Math.min(1, envelope.initial / 15))
+        : 1)
+      : (useGbProgramVolume
+        ? programVolScale
+        : ((envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(envT, envelope, durSec)));
+    const release = portHold ? 1 : linearReleaseGain(t, durSec, GB_NOTE_RELEASE_SEC);
+    // Desktop tremolo sits on the oscillator only. The pulse DC constant
+    // reaches the envelope gain directly, so a 25% duty keeps its offset
+    // while the AC dips.
+    const trem = tremoloGain(
+      t,
+      noteFx.tremDepth,
+      noteFx.tremRate,
+      noteFx.tremWaveform,
+      noteFx.tremDurationSec,
+      noteFx.tremDelaySec,
+      durSec,
+    );
+    if (synthesized && trem !== 1) {
+      const dc = pulseCache.dc;
+      sample = (sample - dc) * trem + dc;
     }
+    const slideBaseline = (envelope && envelope.mode === 'gb' && typeof envelope.initial === 'number')
+      ? Math.max(0, Math.min(1, envelope.initial / 15))
+      : 1;
+    const level = noteFx.volDelta !== 0
+      ? volSlideEnvelopeScale(
+        envVal,
+        slideBaseline,
+        noteFx.volDelta,
+        volSlideProgress(Math.min(t, durSec), durSec, noteFx.volSteps),
+      )
+      : envVal;
+    sample *= level * release;
 
-    // Apply tremolo if enabled (amplitude modulation)
-    if (tremDepth > 0 && tremRate > 0) {
-      const afterDelay = (typeof tremDelaySec === 'undefined' || t >= tremDelaySec);
-      if (afterDelay && (typeof tremDurationSec === 'undefined' || t < tremDurationSec)) {
-        // Tremolo depth: 0-15 maps to 0-50% amplitude modulation
-        const modulationDepth = (tremDepth / 15) * 0.5; // 0 to 0.5 (±50% max)
-
-        // Generate LFO waveform
-        let lfo = 0;
-        const tremPhase = (t * tremRate * 2 * Math.PI);
-        switch (tremWaveform) {
-          case 'square':
-            lfo = Math.sin(tremPhase) >= 0 ? 1 : -1;
-            break;
-          case 'sawtooth':
-          case 'saw':
-            lfo = 2 * ((tremPhase / (2 * Math.PI)) % 1) - 1;
-            break;
-          case 'triangle':
-            const sawLfo = 2 * ((tremPhase / (2 * Math.PI)) % 1) - 1;
-            lfo = 2 * Math.abs(sawLfo) - 1;
-            break;
-          case 'sine':
-          default:
-            lfo = Math.sin(tremPhase);
-            break;
-        }
-
-        // Apply tremolo: modulate amplitude around baseline
-        // lfo ranges from -1 to +1, modulationDepth is fraction of baseline
-        const tremGain = 1.0 + (lfo * modulationDepth);
-        sample = sample * tremGain;
-      }
-    }
-
-    // Apply volume slide if enabled
-    if (volDelta !== 0) {
-      // Extract baseline from instrument envelope initial volume (0-15 on GB, normalized to 0-1)
-      let baseline = 1.0;
-      let volSlideGain: number;
-      if (envelope && envelope.mode === 'gb' && typeof envelope.initial === 'number') {
-        baseline = Math.max(0, Math.min(1, envelope.initial / 15));
-      }
-
-      if (volSteps !== undefined && typeof tickSeconds === 'number') {
-        // Stepped volume slide: divide note duration into discrete steps
-        const stepDuration = durSec / volSteps;
-        const currentStep = Math.min(volSteps, Math.floor(t / stepDuration));
-        // Scale delta across steps: ±1 = ±20% gain change per note
-        volSlideGain = Math.max(0, Math.min(1.5, baseline + (volDelta * currentStep / volSteps / 5)));
-      } else {
-        // Smooth volume slide: linear ramp over note duration
-        const progress = Math.min(1, t / durSec);
-        // Scale delta: ±1 = ±20% gain change per note, starting from envelope initial volume
-        volSlideGain = Math.max(0, Math.min(1.5, baseline + (volDelta * progress / 5)));
-      }
-      sample = sample * volSlideGain;
+    if (noteFx.cutEnabled && typeof tickSeconds === 'number') {
+      sample *= noteCutGain(t, noteFx.cutTicks, tickSeconds, level * release * PULSE_OUTPUT_GAIN, durSec);
     }
 
     sample *= PULSE_OUTPUT_GAIN;
+
+    if (i === duration - 1) {
+      phaseAtNominalEnd = phase;
+      vibratoPhaseAtNominalEnd = vibratoPhase;
+    }
 
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
@@ -1151,15 +1156,20 @@ function renderPulse(
         if (bufferIdx < buffer.length) buffer[bufferIdx] += sample * gains.left;
         if (bufferIdx + 1 < buffer.length) buffer[bufferIdx + 1] += sample * gains.right;
       } else {
-        buffer[bufferIdx] += sample; // mono
+        buffer[bufferIdx] += sample;
       }
     }
   }
 
+  // Echo / delay post-process for this note region (spec 112 / #42)
+  if (noteFx.echo) {
+    applyPcmEcho(buffer, start, duration, sampleRate, channels, noteFx.echo, tickSeconds);
+  }
+
   // Save phase and vibrato state for next note on this channel
   if (typeof channelId === 'number') {
-    channelPhaseState.set(channelId, phase);
-    channelVibratoPhase.set(channelId, vibratoPhase);
+    channelPhaseState.set(channelId, phaseAtNominalEnd);
+    channelVibratoPhase.set(channelId, vibratoPhaseAtNominalEnd);
 
     // Save envelope state for potential legato continuation
     // Use sustained value if this was a legato note, otherwise compute final value
@@ -1175,15 +1185,7 @@ function renderPulse(
 /**
  * Renders a Game Boy wave channel.
  * Uses a 32-nibble 4-bit wavetable matching GB Wave RAM.
- * 16-value inputs are automatically tiled to fill all 32 slots.
- *
- * @param buffer The target PCM buffer.
- * @param start The starting sample index.
- * @param duration The duration in samples.
- * @param freq The frequency of the note.
- * @param inst The instrument definition containing the wavetable.
- * @param sampleRate The sample rate.
- * @param channels Number of audio channels.
+ * 16-value inputs are tiled to 32 via shared parseWaveTable (spec 112).
  */
 function renderWave(
   buffer: Float32Array,
@@ -1201,161 +1203,41 @@ function renderWave(
   regPerTrackerBaseFactor?: number,
   regPerTrackerUnit?: number,
   channelId?: number,
-  legato?: boolean
+  legato?: boolean,
+  /** Pitch remembered for the next portamento. WebAudio stores midiToFreq, not the register-aligned frequency. */
+  portOriginHz?: number
 ) {
   const _parsedWave = inst.wave ? parseWaveTable(inst.wave) : null;
-  // Guard: if parseWaveTable returns an empty array (e.g. wave="[]"), fall back to the
-  // default sine-like table so waveMean / the sample loop never see NaN or Infinity.
   const DEFAULT_WAVE = [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15, 0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
   const waveTable: number[] = (_parsedWave && _parsedWave.length > 0) ? _parsedWave : DEFAULT_WAVE;
-  // AC-coupling mean: computed once, used in the sample loop below.
   const waveMean = waveTable.reduce((a: number, b: number) => a + b, 0) / waveTable.length;
-
-  // Resolve volume multiplier (NR32 output level — same helper as WebAudio playWavetable)
   const volMul = resolveWaveVolumeMultiplier(inst as { volume?: unknown; vol?: unknown });
-
-  // Vibrato params
-  let vibDepth = 0;
-  let vibRate = 0;
-  let vibDurationSec: number | undefined = undefined;
-  // Tremolo params
-  let tremDepth = 0;
-  let tremRate = 0;
-  let tremWaveform: string | undefined = undefined;
-  let tremDurationSec: number | undefined = undefined;
-  let tremDelaySec: number | undefined = undefined;
-  // Portamento params
-  let portSpeed = 0;
-  let portDurationSec: number | undefined = undefined;
-  // Pitch bend params
-  let bendSemitones = 0;
-  let bendCurve = 'linear';
-  let bendDelay = 0;
-  let bendTime = 0;
-  // Pitch sweep params (GB NR10)
-  let sweepTime = 0;
-  let sweepDirection: 'up' | 'down' = 'down';
-  let sweepShift = 0;
-  // Volume slide params
-  let volDelta = 0;
-  let volSteps: number | undefined = undefined;
-
-  // Calculate duration in seconds (needed for bend time calculation)
   const durSec = duration / sampleRate;
 
-  if (Array.isArray(effects)) {
-    for (const fx of effects) {
-      try {
-        if (fx && fx.type === 'vib') {
-          const p = fx.params || [];
-          vibDepth = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
-          vibRate = Number(typeof p[1] !== 'undefined' ? p[1] : 0);
-          if (typeof fx.durationSec === 'number') vibDurationSec = Number(fx.durationSec);
-          else if (typeof p[3] !== 'undefined' && typeof tickSeconds === 'number') {
-            const durRows = Number(p[3]);
-            if (!Number.isNaN(durRows)) vibDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
-          }
-        } else if (fx && fx.type === 'port') {
-          const p = fx.params || [];
-          portSpeed = Number(typeof p[0] !== 'undefined' ? p[0] : 16);
-          if (typeof fx.durationSec === 'number') {
-            portDurationSec = Number(fx.durationSec);
-          } else {
-            const durRows = typeof p[1] !== 'undefined' ? Number(p[1]) : undefined;
-            if (typeof durRows === 'number' && !Number.isNaN(durRows) && typeof tickSeconds === 'number') {
-              portDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
-            }
-          }
-        } else if (fx && fx.type === 'trem') {
-          const p = fx.params || [];
-          tremDepth = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
-          tremRate = Number(typeof p[1] !== 'undefined' ? p[1] : 6);
-          tremWaveform = typeof p[2] !== 'undefined' ? String(p[2]).toLowerCase() : 'sine';
-          if (typeof fx.durationSec === 'number') tremDurationSec = Number(fx.durationSec);
-          else if (typeof p[3] !== 'undefined' && typeof tickSeconds === 'number') {
-            const durRows = Number(p[3]);
-            if (!Number.isNaN(durRows) && durRows > 0) tremDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
-          }
-          if (typeof fx.delaySec === 'number' && fx.delaySec > 0) {
-            tremDelaySec = fx.delaySec;
-          } else {
-            const delayRows = typeof p[4] !== 'undefined' ? Number(p[4]) : undefined;
-            if (typeof delayRows === 'number' && !Number.isNaN(delayRows) && delayRows > 0 && typeof tickSeconds === 'number') {
-              tremDelaySec = delayRows * tickSeconds; // rows → seconds
-            }
-          }
-        } else if (fx && fx.type === 'bend') {
-          const p = fx.params || [];
-          bendSemitones = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
-          if (Number.isFinite(bendSemitones)) {
-            bendCurve = typeof p[1] !== 'undefined' ? String(p[1]).toLowerCase() : 'linear';
-            // params[2] = delay (default 50% of note duration = hold base pitch first)
-            // params[3] = time (default remaining duration for bend)
-            const defaultDelay = durSec * 0.5;
-            bendDelay = typeof p[2] !== 'undefined' ? Number(p[2]) : defaultDelay;
-            if (!Number.isFinite(bendDelay) || bendDelay < 0) bendDelay = defaultDelay;
-            bendDelay = Math.min(bendDelay, durSec);
-
-            const remainingTime = durSec - bendDelay;
-            bendTime = typeof p[3] !== 'undefined' ? Number(p[3]) : remainingTime;
-            if (!Number.isFinite(bendTime) || bendTime <= 0) bendTime = remainingTime;
-            bendTime = Math.min(bendTime, durSec - bendDelay); // Cap at remaining duration
-          } else {
-            bendSemitones = 0;
-          }
-        } else if (fx && fx.type === 'sweep') {
-          const p = fx.params || [];
-          const timeVal = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
-          if (Number.isFinite(timeVal) && timeVal >= 0 && timeVal <= 7) {
-            sweepTime = Math.round(timeVal);
-
-            // Parse direction
-            const dirRaw = typeof p[1] !== 'undefined' ? p[1] : 'down';
-            if (typeof dirRaw === 'number') {
-              sweepDirection = dirRaw > 0 ? 'up' : 'down';
-            } else if (typeof dirRaw === 'string') {
-              const dirStr = String(dirRaw).toLowerCase().trim();
-              sweepDirection = (dirStr === 'up' || dirStr === '+' || dirStr === '1') ? 'up' : 'down';
-            }
-
-            // Parse shift
-            const shiftVal = Number(typeof p[2] !== 'undefined' ? p[2] : 0);
-            if (Number.isFinite(shiftVal) && shiftVal >= 0 && shiftVal <= 7) {
-              sweepShift = Math.round(shiftVal);
-            }
-          }
-        } else if (fx && fx.type === 'volSlide') {
-          const p = fx.params || [];
-          volDelta = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
-          volSteps = typeof p[1] !== 'undefined' ? Number(p[1]) : undefined;
-          if (!Number.isFinite(volDelta)) volDelta = 0;
-          if (volSteps !== undefined && !Number.isFinite(volSteps)) volSteps = undefined;
-        }
-      } catch (e) {}
-    }
+  const noteFx: ParsedNoteEffects = parseNoteEffects(effects, durSec, tickSeconds);
+  if (noteFx.portSpeed > 0 && !(typeof noteFx.portDurationSec === 'number' && noteFx.portDurationSec > 0)) {
+    noteFx.portDurationSec = portamentoDurationSec(noteFx.portSpeed, durSec);
   }
 
-  // Get or initialize phase accumulator for this channel
-  let phase = (typeof channelId === 'number') ? (channelPhaseState.get(channelId) ?? 0) : 0;
+  // WebAudio starts a new BufferSource (phase 0) on every wave note, including
+  // portamento. The resolver marks port notes legato so the pulse envelope does
+  // not re-attack; that flag must not keep the wave phase.
+  const continueWavePhase = !!legato;
+  let phase = (continueWavePhase && typeof channelId === 'number')
+    ? (channelPhaseState.get(channelId) ?? 0)
+    : 0;
+  let vibratoPhase = (continueWavePhase && typeof channelId === 'number')
+    ? (channelVibratoPhase.get(channelId) ?? 0)
+    : 0;
 
-  // Get or initialize vibrato LFO phase for this channel
-  let vibratoPhase = (typeof channelId === 'number') ? (channelVibratoPhase.get(channelId) ?? 0) : 0;
-
-  // For legato notes, retrieve envelope state to sustain at previous level
-  // (Wave channel uses fixed volume, but we track for consistency)
   let volumeSustainValue: number | undefined = undefined;
   if (legato && typeof channelId === 'number') {
     const envState = channelEnvelopeState.get(channelId);
-    if (envState) {
-      volumeSustainValue = envState.lastValue;
-    }
+    if (envState) volumeSustainValue = envState.lastValue;
   }
 
-  // Game Boy instrument tick program (pitch_env / vol_env / subpat) — same IR as UGE export
   const instRec = inst as Record<string, unknown>;
-  const gbProgram = (isGameBoy)
-    ? lowerGameBoyInstrumentProgram(instRec)
-    : null;
+  const gbProgram = (isGameBoy) ? lowerGameBoyInstrumentProgram(instRec) : null;
   const useGbProgram = !!(gbProgram && gbProgram.enabled);
   const useGbProgramVolume = useGbProgram && gbProgram!.rows.some((r) => tickRowVolume(r) !== null);
   let programOffset: number | null = 0;
@@ -1373,11 +1255,36 @@ function renderWave(
     }
   }
 
-  for (let i = 0; i < duration; i++) {
+  const waveEnv = parsePulseEnvelope((inst as { env?: unknown }).env);
+  const gbCurve = !!(waveEnv && waveEnv.mode === 'gb' && (waveEnv.period ?? 0) > 0);
+  const linearWaveRelease = useGbProgramVolume || gbCurve;
+  const waveTailSec = linearWaveRelease ? GB_NOTE_RELEASE_SEC : WAVE_TAIL_SEC;
+  const renderLength = duration + Math.round(waveTailSec * sampleRate);
+  const waveBaseGain = Math.max(
+    1e-8,
+    WAVE_PLAYBACK_GAIN * ((volumeSustainValue !== undefined) ? volumeSustainValue : volMul)
+  );
+  let phaseAtNominalEnd = phase;
+  let vibratoPhaseAtNominalEnd = vibratoPhase;
+
+  // One-cycle zero-order-hold buffer, same construction as playWavetable.
+  // playbackRate scales with the gliding frequency; linear interpolation matches
+  // AudioBufferSourceNode.
+  const cycleLen = waveTable.length;
+  const bufLen = Math.max(cycleLen, Math.round(sampleRate / Math.max(freq, 1)));
+  const baseRate = (freq * bufLen) / sampleRate;
+  const waveBuf = new Float32Array(bufLen);
+  for (let s = 0; s < bufLen; s++) {
+    const step = Math.floor((s * cycleLen) / bufLen) % cycleLen;
+    waveBuf[s] = ((waveTable[step] - waveMean) / 15.0) * WAVE_OUTPUT_SCALE;
+  }
+  let readPos = phase * bufLen;
+
+  for (let i = 0; i < renderLength; i++) {
     const t = i / sampleRate;
 
     if (gbCursor) {
-      const tick = Math.floor(t * 60);
+      const tick = Math.floor(Math.min(t, durSec) * 60);
       if (tick !== lastProgramTick) {
         lastProgramTick = tick;
         const row = gbCursor.rowAt(tick);
@@ -1391,172 +1298,115 @@ function renderWave(
       }
     }
 
-    let effFreq = useGbProgram
+    const baseForMod = useGbProgram
       ? applyTickOffsetToFreq(freq, programOffset)
       : freq;
 
-    // Apply portamento if enabled
-    if (portSpeed > 0 && typeof channelId === 'number') {
-      const lastFreq = channelPortamentoState.get(channelId) ?? freq;
+    const lastFreq = (typeof channelId === 'number')
+      ? (channelPortamentoState.get(channelId) ?? baseForMod)
+      : baseForMod;
 
-      const portDur = typeof portDurationSec === 'number' && portDurationSec > 0
-        ? portDurationSec
-        : Math.max(0.001, (256 - Math.min(portSpeed, 255)) / 256 * durSec * 0.6);
-
-      if (portDur > 0 && t <= portDur && Math.abs(freq - lastFreq) > 1) {
-        const progress = Math.min(1, t / portDur);
-        const easedProgress = progress * progress * (3 - 2 * progress); // smoothstep
-        const portBase = useGbProgram
-          ? applyTickOffsetToFreq(freq, programOffset)
-          : freq;
-        effFreq = lastFreq + (portBase - lastFreq) * easedProgress;
-      }
+    // Chromium holds AudioBufferSourceNode playbackRate for the 128-frame
+    // quantum and reads it at the quantum start. A per-sample ramp runs ahead.
+    const quantum = 128;
+    const absSample = start + i;
+    const quantumStart = absSample - ((absSample % quantum) + quantum) % quantum;
+    const portAtSec = Math.max(0, (quantumStart - start) / sampleRate);
+    const pitched = modulatePitchHz({
+      t,
+      noteDurSec: durSec,
+      baseFreq: baseForMod,
+      lastFreq: noteFx.portSpeed > 0 ? lastFreq : undefined,
+      fx: noteFx,
+      chipType: isGameBoy ? 'gameboy' : undefined,
+      vibDepthScale: vibDepthScale ?? VIB_DEPTH_SCALE,
+      vibratoPhase,
+      portCurve: 'linear',
+      portAtSec,
+    });
+    let effFreq = pitched.freq;
+    const waveVibActive =
+      noteFx.vibDepth !== 0 &&
+      noteFx.vibRate > 0 &&
+      (typeof noteFx.vibDelaySec !== 'number' || t >= noteFx.vibDelaySec) &&
+      (typeof noteFx.vibDurationSec === 'undefined' || t < noteFx.vibDurationSec);
+    if (waveVibActive) {
+      vibratoPhase = advanceVibratoPhase(vibratoPhase, noteFx.vibRate, sampleRate);
     }
 
-    // Save current frequency for next note's portamento (do this for ALL notes, not just portamento notes)
     if (typeof channelId === 'number' && i === duration - 1) {
-      channelPortamentoState.set(channelId, freq);
+      channelPortamentoState.set(channelId, portOriginHz ?? freq);
     }
 
-    // Apply pitch sweep (GB NR10) - hardware-accurate frequency sweep
-    effFreq = applySweepToFrequency(freq, effFreq, t, sweepTime, sweepShift, sweepDirection);
+    effFreq = applySweepToFrequency(
+      freq,
+      effFreq,
+      t,
+      noteFx.sweepTime,
+      noteFx.sweepShift,
+      noteFx.sweepDirection
+    );
 
-    // Apply pitch bend - smooth pitch bend over time with curve shaping (after delay)
-    if (bendSemitones !== 0 && bendTime > 0 && t >= bendDelay && t <= (bendDelay + bendTime) && effFreq > 0) {
-      const bendT = t - bendDelay;
-      let bendProgress = Math.min(1, bendT / bendTime);
-
-      // Apply curve shaping
-      if (bendCurve === 'exp' || bendCurve === 'exponential') {
-        // Exponential: slow start, fast end (y = x^2)
-        bendProgress = bendProgress * bendProgress;
-      } else if (bendCurve === 'log' || bendCurve === 'logarithmic') {
-        // Logarithmic: fast start, slow end (y = 1 - (1 - x)^2)
-        bendProgress = 1 - Math.pow(1 - bendProgress, 2);
-      } else if (bendCurve === 'sine' || bendCurve === 'sin') {
-        // Sine: smooth S-curve (y = (1 - cos(π * x)) / 2)
-        bendProgress = (1 - Math.cos(Math.PI * bendProgress)) / 2;
-      }
-      // else: linear (default) - no transformation
-
-      // Calculate bend frequency: freq * 2^(semitones * progress / 12)
-      const bendMultiplier = Math.pow(2, (bendSemitones * bendProgress) / 12);
-      effFreq = effFreq * bendMultiplier;
+    let v = 0;
+    if (effFreq > 0 && effFreq < sampleRate / 2 && freq > 0) {
+      const rate = (effFreq / freq) * baseRate;
+      const wrapped = readPos % bufLen;
+      const i0 = Math.floor(wrapped) % bufLen;
+      const frac = wrapped - Math.floor(wrapped);
+      const i1 = (i0 + 1) % bufLen;
+      v = waveBuf[i0] * (1 - frac) + waveBuf[i1] * frac;
+      readPos += rate;
+      phase = (readPos % bufLen) / bufLen;
     }
-
-    if (vibDepth !== 0 && vibRate > 0 && freq > 0) {
-      if ((renderWave as any).__vibState === undefined) (renderWave as any).__vibState = {};
-      const noteKey = String(start);
-      let state = (renderWave as any).__vibState[noteKey];
-      if (!state) {
-        state = { counter: 0, lastTick: -1, currentOffset: 0 } as any;
-        (renderWave as any).__vibState[noteKey] = state;
-      }
-
-      const globalTime = (start + i) / sampleRate;
-      const tickSec = typeof tickSeconds === 'number' ? tickSeconds : (60 / 128) / 4;
-      const tickIndex = Math.floor(globalTime / tickSec);
-
-      if (typeof vibDurationSec === 'undefined' || t < vibDurationSec) {
-        if (tickIndex !== state.lastTick) {
-          state.lastTick = tickIndex;
-          state.counter++;
-          if (isGameBoy) {
-            const speedNibble = Math.max(0, Math.min(15, Math.round(vibRate || 0)));
-            const depthNibble = Math.max(0, Math.min(15, Math.round((vibDepth || 0) * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
-            const mask = speedNibble & 0x0f;
-            if (mask === 0 || (state.counter & mask) === 0) state.currentOffset = depthNibble;
-            else state.currentOffset = 0;
-
-            const baseReg = registerFromFreq(freq);
-            const effReg = applyHugeDriverOffset(baseReg, state.currentOffset || 0);
-            effFreq = freqFromRegister(effReg);
-          } else {
-            if (state.phase === undefined) state.phase = 0;
-            state.phase += vibRate;
-            const lfo = Math.sin(state.phase || 0);
-            const baseReg = registerFromFreq(freq);
-            const trackerDepth = Math.max(0, Math.min(15, Math.round(vibDepth * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
-            // Direct register-unit offset (GB-accurate): ± trackerDepth period-register steps
-            const effReg = Math.max(0, Math.round(baseReg + lfo * trackerDepth));
-            effFreq = freqFromRegister(effReg);
-          }
-        } else {
-          if (isGameBoy) {
-            const baseReg = registerFromFreq(freq);
-            const effReg = applyHugeDriverOffset(baseReg, state.currentOffset || 0);
-            effFreq = freqFromRegister(effReg);
-          } else {
-            if (state.phase === undefined) state.phase = 0;
-            const lfo = Math.sin(state.phase || 0);
-            const baseReg = registerFromFreq(freq);
-            const trackerDepth = Math.max(0, Math.min(15, Math.round(vibDepth * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
-            // Direct register-unit offset (GB-accurate): ± trackerDepth period-register steps
-            const effReg = Math.max(0, Math.round(baseReg + lfo * trackerDepth));
-            effFreq = freqFromRegister(effReg);
-          }
-        }
-      }
-    }
-
-    const phase = (t * effFreq) % 1.0;
-    const tablePos = phase * waveTable.length;
-    const i0 = Math.floor(tablePos) % waveTable.length;
-    // ZOH + AC-coupling: use floor index only (no interpolation), subtract mean
-    // to match real GB wave DAC behaviour (AC-coupled, staircase output).
-    // Scale by /15 (4-bit max) to preserve relative amplitude like pulse channels.
-    const v = (waveTable[i0] - waveMean) / 15.0;
-    // Use sustained volume for legato notes, otherwise use instrument volume
     const effectiveVolMul = (volumeSustainValue !== undefined) ? volumeSustainValue : volMul;
-    let sample = v * effectiveVolMul * (useGbProgramVolume ? programVolScale : 1);
-
-    // Apply tremolo if enabled (amplitude modulation)
-    if (tremDepth > 0 && tremRate > 0) {
-      const afterDelayW = (typeof tremDelaySec === 'undefined' || t >= tremDelaySec);
-      if (afterDelayW && (typeof tremDurationSec === 'undefined' || t < tremDurationSec)) {
-        const modulationDepth = (tremDepth / 15) * 0.5;
-        let lfo = 0;
-        const tremPhase = (t * tremRate * 2 * Math.PI);
-        switch (tremWaveform) {
-          case 'square':
-            lfo = Math.sin(tremPhase) >= 0 ? 1 : -1;
-            break;
-          case 'sawtooth':
-          case 'saw':
-            lfo = 2 * ((tremPhase / (2 * Math.PI)) % 1) - 1;
-            break;
-          case 'triangle':
-            const sawLfo = 2 * ((tremPhase / (2 * Math.PI)) % 1) - 1;
-            lfo = 2 * Math.abs(sawLfo) - 1;
-            break;
-          case 'sine':
-          default:
-            lfo = Math.sin(tremPhase);
-            break;
-        }
-        const tremGain = 1.0 + (lfo * modulationDepth);
-        sample = sample * tremGain;
+    const programScale = useGbProgramVolume ? programVolScale : 1;
+    // WebAudio: buffer (*0.9) × gain (WAVE_PLAYBACK_GAIN × volMul), unless a
+    // moving GB envelope is already on the gain node as (env/15) × 0.9 × volMul.
+    // volSlide scales that voice in the 0–1 level and leaves the chip gain in place.
+    let sample: number;
+    if (noteFx.volDelta !== 0) {
+      const baseline = gbCurve
+        ? Math.max(0, Math.min(1, (waveEnv!.initial ?? 0) / 15))
+        : effectiveVolMul;
+      const progress = volSlideProgress(Math.min(t, durSec), durSec, noteFx.volSteps);
+      const level = volSlideLevel01(baseline, noteFx.volDelta, progress);
+      if (gbCurve && baseline > 1e-4) {
+        const envNow = getEnvelopeValue(Math.min(t, durSec), waveEnv, durSec);
+        sample = v * envNow * WAVE_OUTPUT_SCALE * effectiveVolMul * (level / baseline) * programScale;
+      } else {
+        sample = v * WAVE_PLAYBACK_GAIN * level * programScale;
       }
+    } else {
+      sample = v * effectiveVolMul * WAVE_PLAYBACK_GAIN * programScale;
     }
 
-    // Apply volume slide if enabled
-    if (volDelta !== 0) {
-      // Use wave instrument volume as baseline (already normalized to 0-1 in volMul)
-      const baseline = effectiveVolMul;
-      let volSlideGain: number;
-      if (volSteps !== undefined && typeof tickSeconds === 'number') {
-        // Stepped volume slide: divide note duration into discrete steps
-        const stepDuration = durSec / volSteps;
-        const currentStep = Math.min(volSteps, Math.floor(t / stepDuration));
-        // Scale delta across steps: ±1 = ±20% gain change per note
-        volSlideGain = Math.max(0, Math.min(1.5, baseline + (volDelta * currentStep / volSteps / 5)));
-      } else {
-        // Smooth volume slide
-        const progress = Math.min(1, t / durSec);
-        // Scale delta: ±1 = ±20% gain change per note, starting from wave instrument volume
-        volSlideGain = Math.max(0, Math.min(1.5, baseline + (volDelta * progress / 5)));
-      }
-      sample = sample * volSlideGain;
+    sample *= tremoloGain(
+      t,
+      noteFx.tremDepth,
+      noteFx.tremRate,
+      noteFx.tremWaveform,
+      noteFx.tremDurationSec,
+      noteFx.tremDelaySec,
+      durSec,
+    );
+
+    if (noteFx.cutEnabled && typeof tickSeconds === 'number') {
+      sample *= noteCutGain(
+        t,
+        noteFx.cutTicks,
+        tickSeconds,
+        WAVE_PLAYBACK_GAIN * effectiveVolMul * programScale,
+        durSec,
+      );
+    }
+
+    sample *= linearWaveRelease
+      ? linearReleaseGain(t, durSec, GB_NOTE_RELEASE_SEC)
+      : waveExponentialReleaseGain(t, durSec, waveBaseGain);
+
+    if (i === duration - 1) {
+      phaseAtNominalEnd = phase;
+      vibratoPhaseAtNominalEnd = vibratoPhase;
     }
 
     const bufferIdx = (start + i) * channels;
@@ -1565,17 +1415,18 @@ function renderWave(
         if (bufferIdx < buffer.length) buffer[bufferIdx] += sample * gains.left;
         if (bufferIdx + 1 < buffer.length) buffer[bufferIdx + 1] += sample * gains.right;
       } else {
-        buffer[bufferIdx] += sample; // mono
+        buffer[bufferIdx] += sample;
       }
     }
   }
 
-  // Save phase and vibrato state for next note on this channel
-  if (typeof channelId === 'number') {
-    channelPhaseState.set(channelId, phase);
-    channelVibratoPhase.set(channelId, vibratoPhase);
+  if (noteFx.echo) {
+    applyPcmEcho(buffer, start, duration, sampleRate, channels, noteFx.echo, tickSeconds);
+  }
 
-    // Save volume state (use sustained value if legato, otherwise current volMul)
+  if (typeof channelId === 'number') {
+    channelPhaseState.set(channelId, phaseAtNominalEnd);
+    channelVibratoPhase.set(channelId, vibratoPhaseAtNominalEnd);
     const finalVol = (volumeSustainValue !== undefined) ? volumeSustainValue : volMul;
     channelEnvelopeState.set(channelId, {
       time: durSec,
@@ -1629,11 +1480,12 @@ function renderNoise(
   let phase = 0;
   let lfsr = triggerGameBoyLfsr(width7);
 
-  for (let i = 0; i < duration; i++) {
+  const renderLength = duration + Math.round(GB_NOTE_RELEASE_SEC * sampleRate);
+  for (let i = 0; i < renderLength; i++) {
     const t = i / sampleRate;
 
     if (cursor) {
-      const tick = Math.floor(t * 60);
+      const tick = Math.floor(Math.min(t, durSec) * 60);
       if (tick !== lastTick) {
         lastTick = tick;
         const row = cursor.rowAt(tick);
@@ -1662,8 +1514,9 @@ function renderNoise(
     }
 
     const noise = gameBoyNoiseSample(lfsr) * NOISE_OUTPUT_GAIN;
-    const envVal = useProgramVolume ? volScale : getEnvelopeValue(t, envelope, durSec);
-    const sample = noise * envVal;
+    const envT = Math.min(t, durSec);
+    const envVal = useProgramVolume ? volScale : getEnvelopeValue(envT, envelope, durSec);
+    const sample = noise * envVal * linearReleaseGain(t, durSec, GB_NOTE_RELEASE_SEC);
 
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
@@ -1675,48 +1528,6 @@ function renderNoise(
       }
     }
   }
-}
-
-/**
- * Parses a wavetable definition into an array of 32 4-bit values (0-15).
- * Matches the canonical parseWaveTable in chips/gameboy/wave.ts:
- * - 32-value arrays are used directly.
- * - Shorter arrays are tiled to fill all 32 slots.
- * - 32-nibble hex strings (e.g. "0478ABBB...") are parsed directly.
- *
- * @param wave The wavetable definition (string or array).
- * @returns An array of 32 numbers representing the wavetable.
- */
-function parseWaveTable(wave: any): number[] {
-  const GB_WAVE_LEN = 32;
-  const DEFAULT_WAVE = [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15, 0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
-  if (typeof wave === 'string') {
-    try {
-      const s = wave.replace(/^["']|["']$/g, '').trim(); // strip optional surrounding quotes
-      // hUGETracker hex format: 32 hex nibbles, e.g. "0478ABBB986202467776420146777631"
-      if (/^[0-9A-Fa-f]{32}$/.test(s)) {
-        return s.split('').map(c => parseInt(c, 16));
-      }
-      // Parse array string like "[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]"
-      const parsed = JSON.parse(s);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const mapped = parsed.map(v => Math.max(0, Math.min(15, v)));
-        const tiled: number[] = [];
-        for (let i = 0; i < GB_WAVE_LEN; i++) tiled.push(mapped[i % mapped.length]);
-        return tiled;
-      }
-    } catch (e) {
-      // Fall through to default
-    }
-  } else if (Array.isArray(wave) && wave.length > 0) {
-    const mapped = wave.map(v => Math.max(0, Math.min(15, v)));
-    const tiled: number[] = [];
-    for (let i = 0; i < GB_WAVE_LEN; i++) tiled.push(mapped[i % mapped.length]);
-    return tiled;
-  }
-
-  // Default sine-like wave (also handles empty array inputs)
-  return DEFAULT_WAVE;
 }
 
 /**
@@ -1735,9 +1546,31 @@ function getEnvelopeValue(t: number, envObj: any, dur?: number): number {
     const initial = envObj.initial ?? envObj.level ?? 15;
     const period = envObj.period ?? envObj.step ?? 1;
     if (period === 0) return Math.max(0, Math.min(1, (initial / 15)));
-    const stepDuration = period * (1 / 64); // same as WebAudio path
-    const currentStep = Math.floor(t / stepDuration);
-    let volume = envObj.direction === 'up' ? Math.min(15, (initial + currentStep)) : Math.max(0, (initial - currentStep));
+    // Match WebAudio setValueCurveAtTime: linear between GB steps for
+    // (steps × stepPeriod), then hold the last step until the note ends.
+    // Continuing the ramp past the curve made the last frames ~1 dB quiet.
+    const stepDuration = period * (65536 / 4194304);
+    const noteDur = typeof dur === 'number' && dur > 0 ? dur : t;
+    const maxSteps = Math.max(1, Math.floor(noteDur / stepDuration));
+    const levels: number[] = [initial];
+    let cur = initial;
+    for (let s = 1; s <= maxSteps; s++) {
+      if (envObj.direction === 'up') cur = Math.min(15, cur + 1);
+      else cur = Math.max(0, cur - 1);
+      levels.push(cur);
+      if (cur === 0 || cur === 15) break;
+    }
+    const curveDuration = (levels.length - 1) * stepDuration;
+    const te = Math.min(Math.max(t, 0), noteDur);
+    let volume: number;
+    if (te >= curveDuration || levels.length < 2) {
+      volume = levels[levels.length - 1];
+    } else {
+      const stepF = te / stepDuration;
+      const i0 = Math.min(levels.length - 2, Math.floor(stepF));
+      const frac = stepF - i0;
+      volume = levels[i0] + (levels[i0 + 1] - levels[i0]) * frac;
+    }
     return Math.max(0, Math.min(1, volume / 15));
   }
 

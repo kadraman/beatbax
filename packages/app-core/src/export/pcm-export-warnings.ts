@@ -5,8 +5,11 @@
 
 import { chipRegistry } from '@beatbax/engine/chips';
 
-/** Effects that only exist in the Web Audio playback graph. */
-const WEB_AUDIO_ONLY_EFFECTS = new Set(['echo', 'retrig']);
+/**
+ * Effects formerly WebAudio-only; PCM implements echo/retrig as of spec 112.
+ * Keep empty (or add new gaps) so Desktop WAV warnings stay accurate.
+ */
+const WEB_AUDIO_ONLY_EFFECTS = new Set<string>();
 
 /**
  * Per-note effects not applied on plugin-chip PCM paths (NES, etc.).
@@ -74,14 +77,11 @@ export function collectPcmWavExportWarnings(song: any): string[] {
   const found = collectEffectTypes(song);
   const warnings: string[] = [];
 
-  if (found.has('echo')) {
+  for (const type of WEB_AUDIO_ONLY_EFFECTS) {
+    if (!found.has(type)) continue;
+    const label = EFFECT_LABELS[type] ?? type;
     warnings.push(
-      'Echo/delay effects are not supported in WAV export (PCM renderer) — they will be omitted.',
-    );
-  }
-  if (found.has('retrig')) {
-    warnings.push(
-      'Retrigger effects are not supported in WAV export (PCM renderer) — they will be omitted.',
+      `${label} effects are not supported in WAV export (PCM renderer) — they will be omitted.`,
     );
   }
 
