@@ -38,6 +38,9 @@ jobs:
         if: runner.os == 'Linux'
         run: bash .github/scripts/install-linux-electron-deps.sh
 
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
       - name: Run package tests
         if: runner.os != 'Linux'
         run: npm test

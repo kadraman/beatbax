@@ -122,6 +122,11 @@ export interface CompareOptions {
   /** Max lag to search (±), default ~50 ms at 44100. */
   maxLagMs?: number;
   sampleRate?: number;
+  /**
+   * Channel layout of both buffers. `2` downmixes interleaved stereo to mono.
+   * Omitted or `1` leaves samples as-is (do not infer stereo from even length).
+   */
+  channels?: 1 | 2;
   /** Apply DC-block + mild low-pass before compare. */
   preprocess?: boolean;
   lagStep?: number;
@@ -176,10 +181,8 @@ export function compareParity(
   const maxLag = Math.round((maxLagMs / 1000) * sampleRate);
   const step = opts.lagStep ?? Math.max(1, Math.floor(sampleRate / 1000)); // ~1 ms
 
-  // Interleaved stereo has even length and is the common capture shape. Odd
-  // length ⇒ already mono. (Do not use length>=2 — that mis-handles mono.)
   const toMono = (x: Float32Array) =>
-    (x.length >= 2 && x.length % 2 === 0) ? stereoToMono(x) : x;
+    (opts.channels === 2 ? stereoToMono(x) : x);
   let a = toMono(aInterleaved);
   let b = toMono(bInterleaved);
   if (opts.preprocess !== false) {

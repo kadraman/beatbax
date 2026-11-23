@@ -660,11 +660,13 @@ function renderNoteEvent(
     // more slice in the last few samples, with a fresh envelope.
     const intervalSec = parsedFx.retrig.interval * tickSeconds;
     const durSec = durationSamples / sampleRate;
+    // Spec 033: newLevel = baseLevel × (1 + cumulative_delta/15), then clamp 0–15.
+    // Do not cap the multiplier at 1 or positive deltas never raise a sub-max env.
     let volMul = 1;
     let tSec = intervalSec;
     while (tSec < durSec - 0.5 / sampleRate) {
       if (parsedFx.retrig.volumeDelta !== 0) {
-        volMul = Math.max(0, Math.min(1, volMul + (parsedFx.retrig.volumeDelta / 15)));
+        volMul = Math.max(0, volMul + (parsedFx.retrig.volumeDelta / 15));
       }
       const offsetSamples = Math.round(tSec * sampleRate);
       if (offsetSamples <= 0 || offsetSamples >= durationSamples) break;
@@ -1389,7 +1391,13 @@ function renderWave(
     );
 
     if (noteFx.cutEnabled && typeof tickSeconds === 'number') {
-      sample *= noteCutGain(t, noteFx.cutTicks, tickSeconds);
+      sample *= noteCutGain(
+        t,
+        noteFx.cutTicks,
+        tickSeconds,
+        WAVE_PLAYBACK_GAIN * effectiveVolMul * programScale,
+        durSec,
+      );
     }
 
     sample *= linearWaveRelease

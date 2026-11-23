@@ -19,10 +19,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const engineRoot = resolve(__dirname, '../..');
 const repoRoot = resolve(engineRoot, '../..');
 
+const CHROMIUM_BINARIES = new Set([
+  'chrome',
+  'chrome.exe',
+  'chrome-headless-shell',
+  'chrome-headless-shell.exe',
+  'Chromium',
+  'Google Chrome for Testing',
+]);
+
 function hasChromium(root, depth = 0) {
   if (!root || depth > 5 || !existsSync(root)) return false;
   for (const name of readdirSync(root)) {
-    if (name === 'chrome.exe' || name === 'chrome-headless-shell.exe') return true;
+    if (CHROMIUM_BINARIES.has(name)) return true;
     const p = join(root, name);
     try {
       if (statSync(p).isDirectory() && hasChromium(p, depth + 1)) return true;

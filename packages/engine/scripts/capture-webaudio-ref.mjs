@@ -184,7 +184,7 @@ async function main() {
     const pcmPath = join(outDir, `${stem}-pcm-${label}.wav`);
     writeFileSync(pcmPath, await buildWav(pcm, sampleRate));
 
-    const stats = compareParity(wa, pcm, { sampleRate, maxLagMs: 50, preprocess: true });
+    const stats = compareParity(wa, pcm, { sampleRate, channels: 2, maxLagMs: 50, preprocess: true });
     report.push({ label, ...stats, ms: Date.now() - t0 });
     console.log(
       `${label}: winCorr=${stats.windowedCorrelation.toFixed(4)} bestCorr=${stats.bestCorrelation.toFixed(4)} ` +

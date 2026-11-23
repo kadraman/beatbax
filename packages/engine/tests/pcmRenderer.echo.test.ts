@@ -38,4 +38,35 @@ play
     for (let i = 0; i < samples.length; i++) energy += samples[i] * samples[i];
     expect(energy).toBeGreaterThan(0);
   });
+
+  test('positive retrig volume delta raises a sub-maximum flat envelope', () => {
+    const rising = resolveSong(parse(`
+chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=gb:4,flat
+pat p = C4<retrig:2,+4>:8
+channel 1 => inst lead pat p
+`));
+    const flat = resolveSong(parse(`
+chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env=gb:4,flat
+pat p = C4:8
+channel 1 => inst lead pat p
+`));
+    const sr = 22050;
+    const opts = { sampleRate: sr, duration: 1.0, channels: 1 as const, bpm: 120 };
+    const riseBuf = renderSongToPCM(rising, opts);
+    const flatBuf = renderSongToPCM(flat, opts);
+    // First retrig at 2 ticks (0.25s): env 4 × (1+4/15) ≈ 5.07 → louder than baseline.
+    const mid = Math.floor(0.35 * sr);
+    const end = Math.floor(0.45 * sr);
+    const peak = (buf: Float32Array) => {
+      let p = 0;
+      for (let i = mid; i < end; i++) p = Math.max(p, Math.abs(buf[i]));
+      return p;
+    };
+    expect(peak(riseBuf)).toBeGreaterThan(peak(flatBuf) * 1.15);
+    expect(peak(riseBuf)).toBeLessThan(0.3);
+  });
 });

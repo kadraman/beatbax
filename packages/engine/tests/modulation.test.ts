@@ -12,6 +12,7 @@ import {
   parseNoteEffects,
   resolveEchoDelaySec,
   chipFrameRate,
+  volSlideSaturationProgress,
 } from '../src/effects/modulation.js';
 import { arpCycleOffsets } from '../src/util/arpOffsets.js';
 
@@ -102,6 +103,13 @@ describe('modulation kernel (112)', () => {
     expect(noteCutGain(0.2 + 0.0025, 2, tick, g)).toBeCloseTo(Math.sqrt(0.0001 / g), 4);
     expect(noteCutGain(0.2 + 0.005, 2, tick, g)).toBe(0);
     expect(noteCutGain(0.4, 8, tick, g, 0.4)).toBe(1);
+  });
+
+  test('volSlideSaturationProgress hits 0/1 before note end', () => {
+    expect(volSlideSaturationProgress(4 / 15, 12)).toBeCloseTo((1 - 4 / 15) / 1.2, 6);
+    expect(volSlideSaturationProgress(8 / 15, -15)).toBeCloseTo((8 / 15) / 1.5, 6);
+    expect(volSlideSaturationProgress(0, 5)).toBeNull();
+    expect(volSlideSaturationProgress(1, 5)).toBeNull();
   });
 
   test('resolveEchoDelaySec treats values under 10 as beat fractions', () => {

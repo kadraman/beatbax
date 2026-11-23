@@ -97,7 +97,7 @@ export function bandLimitedPulseSample(
 ): number {
   let nMax = cache.maxHarmonic;
   if (typeof freqHz === 'number' && freqHz > 0 && typeof sampleRate === 'number' && sampleRate > 0) {
-    nMax = Math.min(nMax, Math.max(1, Math.floor((sampleRate * 0.5) / freqHz) - 1));
+    nMax = Math.min(nMax, Math.max(0, Math.ceil((sampleRate * 0.5) / freqHz) - 1));
   }
   let x = cache.dc;
   const twoPi = 2 * Math.PI;

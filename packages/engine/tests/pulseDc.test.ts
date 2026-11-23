@@ -1,8 +1,10 @@
 import {
   attachBipolarPulseDc,
+  bandLimitedPulseSample,
   bipolarPulseDcOffset,
   createBipolarPulsePeriodicWave,
   fillBipolarPulseFourierCoeffs,
+  getPulseFourierCache,
   setBipolarPulseDcOffset,
   synthesizeBipolarPulseWave,
 } from '../src/chips/pulseDc.js';
@@ -88,6 +90,26 @@ describe('bipolar pulse Fourier coeffs (#271)', () => {
     const call = createPeriodicWave.mock.calls[0] as unknown as [Float32Array, Float32Array, object];
     expect(call[0][1]).not.toBe(0);
     expect(call[1][1]).not.toBe(0);
+  });
+});
+
+describe('bandLimitedPulseSample Nyquist cap', () => {
+  test('44.1 kHz / 8 kHz retains the 16 kHz second harmonic', () => {
+    // 25% duty has a non-zero even harmonic; 50% does not.
+    const cache = getPulseFourierCache(0.25, 200);
+    expect(Math.max(0, Math.ceil((44100 * 0.5) / 8000) - 1)).toBe(2);
+    const phase = 0.125;
+    const withCap = bandLimitedPulseSample(phase, cache, 8000, 44100);
+    const onlyOne = bandLimitedPulseSample(phase, { ...cache, maxHarmonic: 1 }, undefined, undefined);
+    const withTwo = bandLimitedPulseSample(phase, { ...cache, maxHarmonic: 2 }, undefined, undefined);
+    expect(withCap).toBeCloseTo(withTwo, 10);
+    expect(Math.abs(withCap - onlyOne)).toBeGreaterThan(0.05);
+  });
+
+  test('frequencies at or above Nyquist contribute only DC', () => {
+    const cache = getPulseFourierCache(0.25, 200);
+    expect(bandLimitedPulseSample(0.25, cache, 22050, 44100)).toBeCloseTo(cache.dc, 10);
+    expect(bandLimitedPulseSample(0.25, cache, 24000, 44100)).toBeCloseTo(cache.dc, 10);
   });
 });
 

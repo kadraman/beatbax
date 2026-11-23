@@ -9,6 +9,7 @@ import {
   VIB_DEPTH_SCALE,
   chipFrameRate,
   volSlideLevel01,
+  volSlideSaturationProgress,
 } from './modulation.js';
 
 const registry = new Map<string, EffectHandler>();
@@ -591,7 +592,14 @@ register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur:
           param.setValueAtTime(valueAt(i / steps), stepTime);
         }
       } else if (typeof param.linearRampToValueAtTime === 'function') {
-        param.linearRampToValueAtTime(valueAt(1), start + dur);
+        const sat = volSlideSaturationProgress(baseline, delta);
+        if (sat !== null) {
+          const boundary = valueAt(sat);
+          param.linearRampToValueAtTime(boundary, start + dur * sat);
+          param.setValueAtTime(boundary, start + dur * sat);
+        } else {
+          param.linearRampToValueAtTime(valueAt(1), start + dur);
+        }
       }
       if (!ratio && !(gain as any).__portamento_hold__ && typeof param.linearRampToValueAtTime === 'function') {
         param.setValueAtTime(valueAt(1), start + dur);

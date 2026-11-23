@@ -65,6 +65,24 @@ export function volSlideLevel01(baseline01: number, delta: number, progress: num
   return clampUnitInterval(base + d * VOL_SLIDE_UNIT * p);
 }
 
+/**
+ * Progress (0–1) at which an unclamped continuous slide first hits 0 or 1.
+ * Null when the slide never saturates before note end.
+ */
+export function volSlideSaturationProgress(baseline01: number, delta: number): number | null {
+  const base = clampUnitInterval(baseline01);
+  const d = (Number.isFinite(delta) ? delta : 0) * VOL_SLIDE_UNIT;
+  if (d > 0 && base < 1) {
+    const p = (1 - base) / d;
+    return p > 0 && p < 1 ? p : null;
+  }
+  if (d < 0 && base > 0) {
+    const p = (0 - base) / d;
+    return p > 0 && p < 1 ? p : null;
+  }
+  return null;
+}
+
 export function portamentoDurationSec(speed: number, noteDurSec: number, durationSecOverride?: number): number {
   if (typeof durationSecOverride === 'number' && durationSecOverride > 0) {
     return durationSecOverride;

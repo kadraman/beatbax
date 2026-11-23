@@ -83,11 +83,9 @@ export class TickScheduler {
   flushAll() {
     let guard = 0;
     while (this.queue.length > 0 && guard++ < 100000) {
-      const pending = this.queue.slice().sort((a, b) => a.time - b.time);
-      this.queue = [];
-      for (const ev of pending) {
-        try { ev.fn(); } catch (e) { error('scheduler', 'Scheduled function error: ' + (e && (e as any).message ? (e as any).message : String(e))); }
-      }
+      this.queue.sort((a, b) => a.time - b.time);
+      const ev = this.queue.shift()!;
+      try { ev.fn(); } catch (e) { error('scheduler', 'Scheduled function error: ' + (e && (e as any).message ? (e as any).message : String(e))); }
     }
     if (this.queue.length > 0) {
       error('scheduler', `flushAll aborted with ${this.queue.length} events still queued`);

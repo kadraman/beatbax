@@ -39,9 +39,53 @@ describe('volSlide gain stage', () => {
     expect(voiceWrites).toBe(0);
     expect((nodes as any).__tail).toBe(slide);
     const ramp = slideCalls.find((c) => c.method === 'linearRampToValueAtTime');
-    // env 4/15 + 1.2 clamps to 1, so the stage ends at 1 / (4/15).
+    // env 4/15 + 12×0.1 saturates at progress (1 - 4/15) / 1.2 ≈ 0.611, then holds.
+    const sat = (1 - 4 / 15) / 1.2;
     expect(ramp?.value).toBeCloseTo(15 / 4, 5);
-    expect(ramp?.time).toBeCloseTo(1, 5);
+    expect(ramp?.time).toBeCloseTo(sat, 5);
+    const hold = slideCalls.find(
+      (c) => c.method === 'setValueAtTime' && Math.abs(c.time - sat) < 1e-9,
+    );
+    expect(hold?.value).toBeCloseTo(15 / 4, 5);
+  });
+
+  it('holds a negative continuous slide at silence once it saturates', () => {
+    const handler = get('volSlide');
+    if (!handler) throw new Error('volSlide handler not found');
+
+    const slideCalls: Array<{ method: string; value: number; time: number }> = [];
+    const slide = {
+      gain: {
+        setValueAtTime: (value: number, time: number) => {
+          slideCalls.push({ method: 'setValueAtTime', value, time });
+        },
+        linearRampToValueAtTime: (value: number, time: number) => {
+          slideCalls.push({ method: 'linearRampToValueAtTime', value, time });
+        },
+      },
+      connect: () => {},
+    };
+    const dest = { name: 'dest' };
+    const voice = {
+      __beatbaxDest: dest,
+      disconnect: () => {},
+      connect: () => {},
+      gain: {
+        setValueAtTime: () => {},
+        cancelScheduledValues: () => {},
+        linearRampToValueAtTime: () => {},
+      },
+    };
+    handler({ createGain: () => slide }, [{}, voice], [-15], 0, 1, 1, 0.125, {
+      type: 'pulse1',
+      env: 'gb:8,flat',
+    });
+
+    // 8/15 − 1.5 × progress hits 0 at progress (8/15) / 1.5 ≈ 0.356.
+    const sat = (8 / 15) / 1.5;
+    const ramp = slideCalls.find((c) => c.method === 'linearRampToValueAtTime');
+    expect(ramp?.value).toBeCloseTo(0, 5);
+    expect(ramp?.time).toBeCloseTo(sat, 5);
   });
 
   it('writes chip gain times the level when the envelope starts at zero', () => {

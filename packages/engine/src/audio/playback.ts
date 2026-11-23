@@ -1125,8 +1125,10 @@ export class Player {
       // volumeDelta is in Game Boy envelope units (-15 to +15, typically -2 to -5 for fadeout)
       // Normalized to 0-1 range by dividing by 15, so -2 = -0.133 per retrigger
       // Example: -2 delta over 8 retrigs = 8 × -0.133 = -1.064 total (full fadeout)
+      // Spec 033: newLevel = baseLevel × (1 + cumulative_delta/15), then clamp 0–15.
+      // Do not cap the multiplier at 1 or positive deltas never raise a sub-max env.
       if (volumeDelta !== 0) {
-        volMultiplier = Math.max(0, Math.min(1, volMultiplier + (volumeDelta / 15)));
+        volMultiplier = Math.max(0, volMultiplier + (volumeDelta / 15));
       }
 
       // Create modified instrument with adjusted envelope/volume
