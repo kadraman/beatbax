@@ -92,14 +92,17 @@ function armTaps(player: any, rec: AudioWorkletNode, onLoopStart: (t: number) =>
   };
 }
 
-export async function captureRealtime(playable: any, opts: { sampleRate: number; durationSec: number }): Promise<{ buffers: string[]; gaps: number; loopStart: number }> {
+export async function captureRealtime(playable: any, opts: { sampleRate: number; durationSec: number }): Promise<{ buffers: string[]; gaps: number; gapAt: number[]; loopStart: number; sampleRate: number }> {
   const ctx = new AudioContext({ sampleRate: opts.sampleRate, latencyHint: 'playback' });
+  // macOS (and some Linux hosts) may ignore the requested rate and run at 48000.
+  // Frame math must use the context rate or the self-check timeline drifts.
+  const sampleRate = ctx.sampleRate;
   const url = URL.createObjectURL(new Blob([RECORDER_SRC], { type: 'application/javascript' }));
   await ctx.audioWorklet.addModule(url);
   await ctx.resume();
   const player: any = new Player(ctx);
-  const total = Math.ceil(opts.durationSec * opts.sampleRate);
-  const cap = total + opts.sampleRate;
+  const total = Math.ceil(opts.durationSec * sampleRate);
+  const cap = total + sampleRate;
   const { rec, store, marks } = makeRecorder(ctx, cap);
   const sink = ctx.createGain();
   sink.gain.value = 0;
@@ -110,7 +113,7 @@ export async function captureRealtime(playable: any, opts: { sampleRate: number;
   let loopStart = Number.NaN;
   armTaps(player, rec, (t) => { if (Number.isNaN(loopStart)) loopStart = t; });
   await player.playAST(playable, { bypassMasterLimiter: true });
-  const startFrame = Math.round(loopStart * opts.sampleRate);
+  const startFrame = Math.round(loopStart * sampleRate);
   const endBlock = Math.min(marks.length - 1, Math.floor((startFrame + total) / 128));
   await new Promise<void>((resolve) => {
     const iv = setInterval(() => {
@@ -132,7 +135,7 @@ export async function captureRealtime(playable: any, opts: { sampleRate: number;
   const buffers = Array.from({ length: 5 }, (_, c) => store.slice(c * cap + startFrame, c * cap + startFrame + total));
   try { player.stop(); } catch { /* ignore */ }
   await ctx.close();
-  return { buffers: buffers.map(b64), gaps, gapAt, loopStart };
+  return { buffers: buffers.map(b64), gaps, gapAt, loopStart, sampleRate };
 }
 
 export async function captureOffline(playable: any, opts: { sampleRate: number; durationSec: number }): Promise<{ buffers: string[] }> {

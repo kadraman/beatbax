@@ -189,6 +189,7 @@ if (process.argv.includes('--limiter-check')) {
 const offlineOnly = process.argv.includes('--offline-only');
 const pcmGate = process.argv.includes('--pcm-gate');
 let rt = null;
+let selfRate = sampleRate;
 if (!offlineOnly) {
   console.log('Warming up the audio thread…');
   await page.evaluate(({ song, opts }) => globalThis.BeatBaxParityGates.captureRealtime(song, { ...opts, durationSec: 1 }), { song, opts });
@@ -201,7 +202,22 @@ if (!offlineOnly) {
 } else {
   console.log(`Capturing offline @ ${sampleRate} Hz, ${durationSec.toFixed(2)}s…`);
 }
-const off = await page.evaluate(({ song, opts }) => globalThis.BeatBaxParityGates.captureOffline(song, opts), { song, opts });
+if (rt && typeof rt.sampleRate === 'number' && rt.sampleRate > 0) {
+  selfRate = rt.sampleRate;
+  if (Math.abs(selfRate - sampleRate) > 1) {
+    console.warn(`Real-time AudioContext ran at ${selfRate} Hz (requested ${sampleRate}); self-check offline will match`);
+  }
+}
+const offSelfOpts = { sampleRate: selfRate, durationSec };
+const off = await page.evaluate(
+  ({ song, opts }) => globalThis.BeatBaxParityGates.captureOffline(song, opts),
+  { song, opts: Math.abs(selfRate - sampleRate) > 1 ? offSelfOpts : opts },
+);
+// PCM compare stays on the requested rate. Recapture offline at 44100 when self-check used another rate.
+let offPcm = off;
+if (Math.abs(selfRate - sampleRate) > 1) {
+  offPcm = await page.evaluate(({ song, opts }) => globalThis.BeatBaxParityGates.captureOffline(song, opts), { song, opts });
+}
 await browser.close();
 if (errs.length) console.warn('page errors:', errs.slice(0, 8));
 if (rt && rt.gaps > 0) {
@@ -215,23 +231,90 @@ function peakOf(buf) {
   return p;
 }
 
+/** Lag L maximizing Σ off[i]·rt[i+L]. Positive ⇒ real-time is late vs offline. */
+function correlateLag(offBuf, rtBuf, maxLag, step = 8) {
+  let bestLag = 0;
+  let best = -Infinity;
+  const n = Math.min(offBuf.length, rtBuf.length);
+  for (let lag = -maxLag; lag <= maxLag; lag += step) {
+    let c = 0;
+    const i0 = Math.max(0, -lag);
+    const i1 = Math.min(n, n - lag);
+    for (let i = i0; i < i1; i += 16) c += offBuf[i] * rtBuf[i + lag];
+    if (c > best) {
+      best = c;
+      bestLag = lag;
+    }
+  }
+  return bestLag;
+}
+
+/** Place real-time onto the offline timeline using lag from {@link correlateLag}. */
+function alignRtToOffline(rtBuf, offLen, lag) {
+  const aligned = new Float32Array(offLen);
+  if (lag >= 0) {
+    const m = Math.min(offLen, Math.max(0, rtBuf.length - lag));
+    if (m > 0) aligned.set(rtBuf.subarray(lag, lag + m));
+  } else {
+    const L = -lag;
+    const m = Math.min(offLen - L, rtBuf.length);
+    if (m > 0) aligned.set(rtBuf.subarray(0, m), L);
+  }
+  return aligned;
+}
+
 const labels = ['full', 'ch1', 'ch2', 'ch3', 'ch4'];
-const report = { song: songPath, sampleRate, durationSec, songEndSec, self: {}, pcm: {} };
+const report = {
+  song: songPath,
+  sampleRate,
+  selfSampleRate: selfRate,
+  durationSec,
+  songEndSec,
+  rtLagSamples: 0,
+  self: {},
+  pcm: {},
+};
 let selfPass = true;
 let pcmPass = true;
+let rtAligned = null;
+if (rt) {
+  const offFull = fromB64(off.buffers[0]);
+  const rtFull = fromB64(rt.buffers[0]);
+  // Hosts can still land a few milliseconds off after rate matching.
+  const maxLag = Math.round(0.05 * selfRate);
+  const coarse = correlateLag(offFull, rtFull, maxLag, 8);
+  const refinePad = 8;
+  let best = -Infinity;
+  let rtLag = coarse;
+  for (let lag = Math.max(-maxLag, coarse - refinePad); lag <= Math.min(maxLag, coarse + refinePad); lag++) {
+    let c = 0;
+    const n = Math.min(offFull.length, rtFull.length);
+    const i0 = Math.max(0, -lag);
+    const i1 = Math.min(n, n - lag);
+    for (let i = i0; i < i1; i += 16) c += offFull[i] * rtFull[i + lag];
+    if (c > best) {
+      best = c;
+      rtLag = lag;
+    }
+  }
+  report.rtLagSamples = rtLag;
+  rtAligned = labels.map((_, i) => alignRtToOffline(fromB64(rt.buffers[i]), fromB64(off.buffers[i]).length, rtLag));
+  console.log(`Real-time/offline lag ${rtLag} samples (${((rtLag / selfRate) * 1000).toFixed(2)} ms) @ ${selfRate} Hz`);
+}
 for (let i = 0; i < labels.length; i++) {
   const label = labels[i];
-  const offBuf = fromB64(off.buffers[i]);
+  const offSelfBuf = fromB64(off.buffers[i]);
+  const offPcmBuf = fromB64(offPcm.buffers[i]);
   const notes = label === 'full' ? [] : noteWindows(i);
-  if (rt) {
-    const rtBuf = fromB64(rt.buffers[i]);
-    console.log(`${label} peak rt ${peakOf(rtBuf).toFixed(4)} offline ${peakOf(offBuf).toFixed(4)}`);
-    const self = compareSc001(rtBuf, offBuf, sampleRate, notes, songEndSec, label === 'full');
+  if (rt && rtAligned) {
+    const rtBuf = rtAligned[i];
+    console.log(`${label} peak rt ${peakOf(rtBuf).toFixed(4)} offline ${peakOf(offSelfBuf).toFixed(4)}`);
+    const self = compareSc001(rtBuf, offSelfBuf, selfRate, notes, songEndSec, label === 'full');
     report.self[label] = self;
     selfPass &&= self.pass;
     console.log(`WA self ${label}: ${self.pass ? 'pass' : 'FAIL'} ${self.failures.slice(0, 6).join(' | ')}`);
   } else {
-    console.log(`${label} peak offline ${peakOf(offBuf).toFixed(4)}`);
+    console.log(`${label} peak offline ${peakOf(offPcmBuf).toFixed(4)}`);
   }
 
   const renderChannels = label === 'full' ? undefined : [i];
@@ -240,16 +323,15 @@ for (let i = 0; i < labels.length; i++) {
   // PCM center pan is dual-mono, so the average matches the left channel there.
   const pcmMono = new Float32Array(pcm.length / 2);
   for (let s = 0; s < pcmMono.length; s++) pcmMono[s] = 0.5 * (pcm[s * 2] + (pcm[s * 2 + 1] || 0));
-  const pcmReport = compareSc001(offBuf, pcmMono, sampleRate, notes, songEndSec, label === 'full');
+  const pcmReport = compareSc001(offPcmBuf, pcmMono, sampleRate, notes, songEndSec, label === 'full');
   report.pcm[label] = { pass: pcmReport.pass, failures: pcmReport.failures.slice(0, 12), mixRmsDb: pcmReport.mixRmsDb };
   pcmPass &&= pcmReport.pass;
   console.log(`PCM ${label}: ${pcmReport.pass ? 'pass' : 'not yet'} (${pcmReport.failures.length} failures, T055)`);
   if (!pcmReport.pass) {
     console.log(`  pcm: ${pcmReport.failures.slice(0, 8).join(' | ')}`);
   }
-  if (rt) {
-    const rtBuf = fromB64(rt.buffers[i]);
-    const rtPcm = compareSc001(rtBuf, pcmMono, sampleRate, notes, songEndSec, label === 'full');
+  if (rt && rtAligned && Math.abs(selfRate - sampleRate) <= 1) {
+    const rtPcm = compareSc001(rtAligned[i], pcmMono, sampleRate, notes, songEndSec, label === 'full');
     if (!rtPcm.pass) {
       console.log(`  real-time differs: ${rtPcm.failures.slice(0, 4).join(' | ')}`);
     }
