@@ -103,7 +103,7 @@ None.
 - Chromium capture (real-time WebAudio and OfflineAudioContext) vs `renderSongToPCM` for:
   - `songs/gameboy/tutorial_groove.bax` full + channels 1–4
   - portamento demos from 110
-  - `songs/effects/echo.bax`, `songs/effects/retrigger.bax`, vib/arp fixtures
+  - `songs/gameboy/effects/` vib, arp, port, trem, cut, echo, and retrig demos
 - Gates are SC-001 / SC-002 (per-note level, pitch track, envelope including 25 ms after the nominal end, band energy through 16 kHz, full-mix RMS). The same gates must pass for WebAudio real-time vs WebAudio offline.
 - Noise note effects stay on https://github.com/kadraman/beatbax/issues/277. Spec edge case and T040 allow PCM to warn instead of rendering them. For the seven `songs/gameboy/effects/` demos, SC-002 applies to pulse and wave channels at the SC-001 numbers (0.5 dB note RMS, 3 / 10 cents, 1 dB envelope, 1 dB band energy). A noise-channel miss, and a full-mix miss that is only that noise channel, is recorded here and does not fail T057. Songs whose pulse and wave channels carry the mix, including portamento, still pass full-mix RMS and band energy.
 - Echo is not a hUGETracker effect, so a remaining PCM vs WebAudio band or pitch gap on `gb_echo_demo.bax` does not block T057. That gap is https://github.com/kadraman/beatbax/issues/279. Implementation stays with #42.
@@ -119,7 +119,7 @@ None.
 ## Migration and compatibility
 
 - Audible change for CLI/WAV is intentional (toward Desktop).
-- Spec 110’s “PCM stays as they are” is superseded by FR-004. The STATUS entry and the completed 110 summary note that (T901, 2026-11-22). Moving this folder to `specs/complete/` waits for T903.
+- Spec 110’s “PCM stays as they are” is superseded by FR-004. The STATUS entry and the completed 110 summary note that (T901, 2026-11-22). This folder moved to `specs/complete/` on 2026-11-23 (T903).
 - UGE export mappings unchanged.
 
 ## Open implementation questions

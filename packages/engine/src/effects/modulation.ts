@@ -3,7 +3,7 @@
  * Pure math only — no AudioContext. Used by pcmRenderer and asserted against
  * WebAudio schedules in effects/index.ts.
  *
- * Spec: specs/features/112-webaudio-pcm-effect-parity/
+ * Spec: specs/complete/112-webaudio-pcm-effect-parity/
  */
 
 import { arpCycleOffsets } from '../util/arpOffsets.js';

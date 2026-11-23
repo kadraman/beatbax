@@ -10,7 +10,7 @@
 ## Phase 0: Foundation (blocks stories)
 
 - [x] T001 Spike Offline WebAudio capture in Node (`node-web-audio-api` + `offlineWebAudioRender.ts`) vs `renderSongToPCM` for a 1-bar pulse note; simple pulse ~0.97 after lag alignment; full `tutorial_groove` still low on PCM. That Node spike path was removed; CLI play and WAV stay on PCM.
-- [x] T002 [P] Inventory effect coverage matrix (WebAudio vs pulse/wave/noise PCM) into `specs/features/112-webaudio-pcm-effect-parity/research.md`.
+- [x] T002 [P] Inventory effect coverage matrix (WebAudio vs pulse/wave/noise PCM) into `specs/complete/112-webaudio-pcm-effect-parity/research.md`.
 - [x] T003 Add shared modulation module `packages/engine/src/effects/modulation.ts` with types + APIs for vib/arp/port/trem/bend/sweep/volSlide/cut; export from `packages/engine/src/effects/` as needed.
 - [x] T004 Unit tests in `packages/engine/tests/modulation.test.ts` for arp frame steps, vib Δf formula, and port duration formula matching `packages/engine/src/effects/index.ts`.
 
@@ -66,6 +66,6 @@
 ## Polish
 
 - [x] T900 [P] Update dual-rendering section in `docs/contributing/creating-plugins.md` (PCM effects ≠ “None”).
-- [x] T901 [P] Note in `specs/STATUS.md` and the completed 110 entry that FR-004 supersedes the PCM carve-out. Recorded 2026-11-22 with T057. The folder stays under `specs/features/` until T903.
+- [x] T901 [P] Note in `specs/STATUS.md` and the completed 110 entry that FR-004 supersedes the PCM carve-out. Recorded 2026-11-22 with T057.
 - [x] T902 Regenerate `songs/gameboy/tutorial_groove.wav` and `songs/gameboy/tutorial_groove-channel-*.wav` from the PCM renderer after this checkpoint. The files on disk predate the effect-parity path and are not the sign-off fixtures.
-- [ ] T903 Move this folder to `specs/complete/112-webaudio-pcm-effect-parity/` and update `specs/STATUS.md` when the remaining polish ships. Comment completion on https://github.com/kadraman/beatbax/issues/276. Leave https://github.com/kadraman/beatbax/issues/42 open: echo's remaining measured gap is https://github.com/kadraman/beatbax/issues/279, and the retrigger channel-2 frame is an accepted residual in plan.md.
+- [x] T903 Move this folder to `specs/complete/112-webaudio-pcm-effect-parity/` and update `specs/STATUS.md`. Done 2026-11-23. Completion commented on https://github.com/kadraman/beatbax/issues/276. https://github.com/kadraman/beatbax/issues/42 stays open: echo's remaining measured gap is https://github.com/kadraman/beatbax/issues/279, and the retrigger channel-2 frame is an accepted residual in plan.md.

@@ -490,7 +490,7 @@ pat vib_demo = C4<vib:3,6> D4<vib:4,8,sine,4> E4<vib:2,5,triangle,8>
     - This single normalization point keeps scheduling deterministic and avoids duplicate row→time conversions in audio code and exporters.
 
   - Backend usage:
-    - WebAudio path: `src/effects/index.ts` implements vibrato by modulating `OscillatorNode.frequency` (or equivalent frequency target) using an LFO; it uses `fx.durationSec` to stop/decay the LFO at the correct end-of-note time. Amended by [spec 112](../../features/112-webaudio-pcm-effect-parity/spec.md): depth is Δf = depth × f² / 131072 where f is that note's frequency when the LFO starts, and the LFO starts at phase 0. A depth computed from a fixed 440 Hz is a defect. The historical `vibDepthScale=4.0` calibration note below is not the live formula.
+    - WebAudio path: `src/effects/index.ts` implements vibrato by modulating `OscillatorNode.frequency` (or equivalent frequency target) using an LFO; it uses `fx.durationSec` to stop/decay the LFO at the correct end-of-note time. Amended by [spec 112](../112-webaudio-pcm-effect-parity/spec.md): depth is Δf = depth × f² / 131072 where f is that note's frequency when the LFO starts, and the LFO starts at phase 0. A depth computed from a fixed 440 Hz is a defect. The historical `vibDepthScale=4.0` calibration note below is not the live formula.
     - Headless/PCM renderer: `src/audio/pcmRenderer.ts` applies the same `fx.durationSec` window when synthesizing per-sample frequency modulation so rendered WAVs match live playback.
 
   - UGE/hUGETracker export behavior:
@@ -539,7 +539,7 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
   - Runtime/Resolver semantics:
     - WebAudio path: `src/effects/index.ts` implements portamento by scheduling exponential frequency ramps on `OscillatorNode.frequency` (or equivalent). State is tracked per-channel (Map<channelId, lastFreq>) to support slides across rests.
     - State management: `clearEffectState()` is called on playback stop to prevent frequency state from persisting across playback sessions.
-    - Headless/PCM renderer: `src/audio/pcmRenderer.ts` tracks per-channel state for slides across rests. Amended by [spec 112](../../features/112-webaudio-pcm-effect-parity/spec.md): both paths glide from the previous note on the channel, including a note that did not use `port`. The cubic-smoothstep PCM curve is superseded by the WebAudio ramp (exponential on pulse, linear on wave).
+    - Headless/PCM renderer: `src/audio/pcmRenderer.ts` tracks per-channel state for slides across rests. Amended by [spec 112](../112-webaudio-pcm-effect-parity/spec.md): both paths glide from the previous note on the channel, including a note that did not use `port`. The cubic-smoothstep PCM curve is superseded by the WebAudio ramp (exponential on pulse, linear on wave).
 
   - UGE/hUGETracker export behavior:
     - BeatBax maps `speed` directly to the tracker's `xx` parameter (0-255) and emits `3xx` on note rows.

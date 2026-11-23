@@ -2,11 +2,11 @@
 title: "WebAudio ↔ PCM effect parity"
 id: 112
 slug: "webaudio-pcm-effect-parity"
-status: "in-progress"
+status: "complete"
 authors:
   - "kadraman"
 created: "2026-11-21"
-updated: "2026-11-22"
+updated: "2026-11-23"
 issue: "https://github.com/kadraman/beatbax/issues/276"
 area: "engine"
 related:
@@ -76,7 +76,7 @@ Songs that use `echo` / `retrig` no longer warn-and-drop those effects on PCM pa
 
 **Why this priority**: Tracked by [#42](https://github.com/kadraman/beatbax/issues/42); not used by `tutorial_groove` but required for full effect-system parity.
 
-**Independent test**: Play and export `songs/effects/echo.bax` and `songs/effects/retrigger.bax` via CLI; effects are audible; no “unsupported in PCM” warning; Offline WebAudio vs PCM gates pass.
+**Independent test**: Play and export `songs/gameboy/effects/gb_echo_demo.bax` and `songs/gameboy/effects/gb_retrigger_demo.bax` via CLI; effects are audible; no “unsupported in PCM” warning; Offline WebAudio vs PCM gates pass. There is no `songs/effects/` directory.
 
 **Acceptance scenarios**:
 
@@ -143,7 +143,7 @@ PCM uses the same wave-table parsing and output level conventions as WebAudio/UG
   - Envelope within 1 dB on 5 ms frames across the note and the 25 ms after the nominal end.
   - Band energy within 1 dB in each band from 20 Hz through 16 kHz, per channel and for the full mix.
   - Full-mix RMS within 0.3 dB, compared at master gain 1.0 against the pre-limiter WebAudio signal (post-limiter once FR-013 holds).
-- **SC-002**: Effect fixture songs under `songs/effects/` that use vib/arp/port/trem/cut/echo/retrig pass the same feature gates (or a documented per-fixture threshold no looser than these, with justification in `plan.md`).
+- **SC-002**: Effect fixture songs under `songs/gameboy/effects/` that use vib/arp/port/trem/cut/echo/retrig pass the same feature gates (or a documented per-fixture threshold no looser than these, with justification in `plan.md`).
 - **SC-003**: `beatbax play` and `beatbax export wav` for `tutorial_groove.bax` produce audio authors accept as matching Desktop live (manual QA sign-off).
 - **SC-004**: Export/CLI no longer list `echo`/`retrig` as WebAudio-only after those land.
 - **SC-005**: Contributing dual-render docs and the instruments wave-table discrepancy note are updated.

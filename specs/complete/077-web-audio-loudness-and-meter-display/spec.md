@@ -69,7 +69,7 @@ flowchart TB
 
 ### Amendment (spec 112, 2026-11-22)
 
-The threshold of −6 dB below is not transparent. Chromium's dynamics compressor adds make-up gain at that setting (about +2.13 dB on `tutorial_groove.bax`) and ducks peaks. [Spec 112](../../features/112-webaudio-pcm-effect-parity/spec.md) FR-013 supersedes that setting:
+The threshold of −6 dB below is not transparent. Chromium's dynamics compressor adds make-up gain at that setting (about +2.13 dB on `tutorial_groove.bax`) and ducks peaks. [Spec 112](../112-webaudio-pcm-effect-parity/spec.md) FR-013 supersedes that setting:
 
 - At and below full scale the limiter MUST NOT change level. On `tutorial_groove.bax` at master gain 1.0, post-limiter RMS and active 50 ms windows stay within 0.2 dB of the pre-limiter signal.
 - The limiter MAY reduce gain only while the signal would exceed full scale, and MUST return to unity when the signal falls back.

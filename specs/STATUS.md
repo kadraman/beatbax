@@ -4,7 +4,6 @@ Assign the next feature id as **113** (one past the highest id below). Process: 
 
 ## Active (`specs/features/`)
 
-- **112** `webaudio-pcm-effect-parity` (PCM CLI play / WAV export match Desktop on the effect demos within the residuals in plan.md; Desktop vibrato, portamento, note-start gain, and the spec 077 limiter follow that contract; noise note effects stay #277; echo’s remaining gap is #279) — in-progress — engine — issue: https://github.com/kadraman/beatbax/issues/276 — [specs/features/112-webaudio-pcm-effect-parity/](specs/features/112-webaudio-pcm-effect-parity/)
 - **106** `cli-standalone-executable` (no-Node cross-platform CLI executables; stable assets on `desktop-v*`; rolling `cli-dev`) — planned — cli — issue: https://github.com/kadraman/beatbax/issues/244 — [specs/features/106-cli-standalone-executable/](specs/features/106-cli-standalone-executable/)
 - **105** `tracker-pattern-editor` (Desktop tracker for one `pat` + Pattern Grid arrangement grips; flatten-on-edit; `.bax` text remains source of truth) — planned — desktop — issue: https://github.com/kadraman/beatbax/issues/239 — [specs/features/105-tracker-pattern-editor/](specs/features/105-tracker-pattern-editor/)
 - **001** `hot-reload` — specified — engine — issue: https://github.com/kadraman/beatbax/issues/6 — [specs/features/001-hot-reload/](specs/features/001-hot-reload/)
@@ -30,6 +29,7 @@ Assign the next feature id as **113** (one past the highest id below). Process: 
 
 Shipped behavior. Spec-only folders (no plan/tasks required). Do not load this entire tree into every agent turn.
 
+- **112** `webaudio-pcm-effect-parity` (PCM CLI play / WAV export match Desktop on the effect demos within the residuals in plan.md; Desktop vibrato, portamento, note-start gain, and the spec 077 limiter follow that contract; noise note effects stay #277; echo’s remaining gap is #279) — complete — engine — issue: https://github.com/kadraman/beatbax/issues/276 — [specs/complete/112-webaudio-pcm-effect-parity/](specs/complete/112-webaudio-pcm-effect-parity/)
 - **111** `desktop-user-chip-plugins` (Desktop Install from package archive `.zip`/`.tgz` for standalone chip plugins under userData; no Desktop registry install; web-lite stays pre-bundled; CLI discovery unchanged) — complete — desktop — issue: https://github.com/kadraman/beatbax/issues/270 — [specs/complete/111-desktop-user-chip-plugins/](specs/complete/111-desktop-user-chip-plugins/)
 - **005** `plugin-starter-template` (public GitHub chip-plugin template repo) — complete — plugin — issue: https://github.com/kadraman/beatbax/issues/86 — [specs/complete/005-plugin-starter-template/](specs/complete/005-plugin-starter-template/)
 - **103** `instrument-editor-workspace` (Instrument Editor Settings-style modal + toolbar picker; Game Boy `subpat` rows; NES DMC Browse/Check; absorbs 101/102) — complete (shipped in #266) — desktop — issue: https://github.com/kadraman/beatbax/issues/236 — [specs/complete/103-instrument-editor-workspace/](specs/complete/103-instrument-editor-workspace/)
