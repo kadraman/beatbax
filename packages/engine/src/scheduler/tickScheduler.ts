@@ -26,8 +26,17 @@ export class TickScheduler {
   }
 
   schedule(time: number, fn: () => void) {
-    this.queue.push({ time, fn });
-    this.queue.sort((a, b) => a.time - b.time);
+    const ev = { time, fn };
+    // Keep the queue ordered so flushAll/tick can shift without re-sorting.
+    // Equal times stay FIFO (insert after existing entries at `time`).
+    let lo = 0;
+    let hi = this.queue.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (this.queue[mid].time <= time) lo = mid + 1;
+      else hi = mid;
+    }
+    this.queue.splice(lo, 0, ev);
   }
 
   scheduleAligned(time: number, fn: () => void, frameHz = 512) {
@@ -77,19 +86,24 @@ export class TickScheduler {
    * timeline; OfflineAudioContext.currentTime stays 0 until startRendering(),
    * so the normal lookahead tick would never drain the queue.
    *
-   * Loops until empty so nested `schedule()` calls (retrig, echo cleanup, …)
-   * are drained too.
+   * Drains earliest-first from the ordered queue so nested `schedule()` calls
+   * (retrig, echo cleanup, …) participate in chronological order. The runaway
+   * guard limits nested extras beyond the initial queue size; it does not cap
+   * how many events may already be queued when flush starts.
    */
   flushAll() {
-    let guard = 0;
-    while (this.queue.length > 0 && guard++ < 100000) {
-      this.queue.sort((a, b) => a.time - b.time);
+    const maxNestedExtra = 100000;
+    const initial = this.queue.length;
+    let processed = 0;
+    while (this.queue.length > 0) {
+      if (processed >= initial + maxNestedExtra) {
+        error('scheduler', `flushAll aborted with ${this.queue.length} events still queued`);
+        this.queue = [];
+        return;
+      }
       const ev = this.queue.shift()!;
       try { ev.fn(); } catch (e) { error('scheduler', 'Scheduled function error: ' + (e && (e as any).message ? (e as any).message : String(e))); }
-    }
-    if (this.queue.length > 0) {
-      error('scheduler', `flushAll aborted with ${this.queue.length} events still queued`);
-      this.queue = [];
+      processed++;
     }
   }
 
