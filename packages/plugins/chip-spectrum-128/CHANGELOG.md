@@ -1,5 +1,12 @@
 # @beatbax/plugin-chip-spectrum-128
 
+## 0.2.7
+
+### Patch Changes
+
+- 2c61760: Instrument editor type/preset schemas can include optional `description` and audible `blankContent` for New-instrument tiles.
+- 07df910: Restore ZX Spectrum 128 Instrument Editor preview pitch. Tone A and tone B open on octave 4, and tone C opens on octave 2. Playback is unchanged.
+
 ## 0.2.6
 
 ### Patch Changes

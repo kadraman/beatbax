@@ -1,5 +1,21 @@
 # @beatbax/engine
 
+## 0.28.0
+
+### Minor Changes
+
+- c2863c3: Expand the NES DMC sample kit (CC0/original hits, 808/909, bass, speech) and hide non-applicable DMC instrument macros in the editor schema.
+- 7ca600f: CLI play and WAV export follow Desktop for Game Boy vibrato, arpeggio, portamento, tremolo, note cut, echo, and retrigger. Desktop vibrato depth, portamento, note-start gain, and the limiter follow the same contract. A few measured frames stay outside the parity gates; they are recorded in `specs/complete/112-webaudio-pcm-effect-parity/plan.md`.
+
+### Patch Changes
+
+- bd57ae7: Keep a Game Boy pulse portamento run on one oscillator. Contiguous `port` notes no longer fade out and restart at every step, and the glide uses the same pulse level as a normal note. A note without `port` still attacks on its own.
+- 2ad30a5: Instrument audition can schedule its first step a few milliseconds ahead of the audio clock. Song playback still arms 100 ms ahead when that lead is omitted.
+- 2c61760: Instrument editor type/preset schemas can include optional `description` and audible `blankContent` for New-instrument tiles.
+- 2c61760: Reject unknown `@nes/` DMC sample names, omit a blank noise width when serializing, and list real bundled sample names in NES editor help.
+- 2c61760: Instrument editor schemas can tag a field or macro with an optional `nav` page id. Unset `nav` keeps the existing grouping.
+- 12a8fcf: Restore Game Boy and NES pulse Web Audio parity with bipolar PCM: correct ±1 Fourier coefficients with disableNormalization, and ConstantSourceNode DC (`2d − 1`) for non-50% duties.
+
 ## 0.27.0
 
 ### Minor Changes

@@ -1,2 +1,2 @@
 /** Auto-kept in sync with packages/engine/package.json. */
-export const version = '0.27.0';
+export const version = '0.28.0';

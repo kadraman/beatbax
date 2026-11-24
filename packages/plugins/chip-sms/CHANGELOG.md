@@ -1,5 +1,12 @@
 # @beatbax/plugin-chip-sms
 
+## 0.3.7
+
+### Patch Changes
+
+- 2c61760: Instrument editor type/preset schemas can include optional `description` and audible `blankContent` for New-instrument tiles.
+- 07df910: Restore SMS Instrument Editor preview pitch. Tone 1 and tone 2 open on octave 4, tone 3 opens on octave 3 so the SN76489 period floor does not collapse the low keys, and noise uses Trigger instead of a chromatic keyboard. Playback is unchanged.
+
 ## 0.3.6
 
 ### Patch Changes

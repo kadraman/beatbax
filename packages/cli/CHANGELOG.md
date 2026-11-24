@@ -1,5 +1,21 @@
 # @beatbax/cli
 
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [bd57ae7]
+- Updated dependencies [2ad30a5]
+- Updated dependencies [2c61760]
+- Updated dependencies [2c61760]
+- Updated dependencies [2c61760]
+- Updated dependencies [c2863c3]
+- Updated dependencies [12a8fcf]
+- Updated dependencies [07df910]
+- Updated dependencies [7ca600f]
+  - @beatbax/engine@0.28.0
+  - @beatbax/plugin-chip-sms@0.3.7
+
 ## 0.6.1
 
 ### Patch Changes
