@@ -875,25 +875,38 @@ function locForChannelSeqModifier(
   };
 }
 
+/** True when a bare modifier name matches a defined `effect name = …` preset (spec 033). */
+function isNamedEffectPresetModifier(
+  raw: string | undefined,
+  effectPresets: Record<string, string> | undefined,
+): boolean {
+  if (!raw || !effectPresets) return false;
+  // Parametric forms like `wobble(1)` are not preset application syntax.
+  if (raw.includes('(')) return false;
+  return Object.prototype.hasOwnProperty.call(effectPresets, raw);
+}
+
 function validateUnknownSequenceTransforms(
   diagFn: DiagFn,
   sequenceItems: SequenceItemMap | undefined,
   channels: ChannelNode[],
+  effectPresets?: Record<string, string>,
 ) {
   for (const [seqName, items] of Object.entries(sequenceItems ?? {})) {
     for (const item of items) {
       for (const tr of item.transforms ?? []) {
-        if (tr.kind === 'unknown') {
-          const loc =
-            tr.loc ?? locForSequenceItemModifier(item, tr.raw ?? '');
-          reportUnknownTransform(
-            diagFn,
-            ` in sequence '${seqName}'`,
-            item.name,
-            tr,
-            loc,
-          );
-        }
+        if (tr.kind !== 'unknown') continue;
+        // Named effect presets are applied by the expander; they are not unknown transforms.
+        if (isNamedEffectPresetModifier(tr.raw, effectPresets)) continue;
+        const loc =
+          tr.loc ?? locForSequenceItemModifier(item, tr.raw ?? '');
+        reportUnknownTransform(
+          diagFn,
+          ` in sequence '${seqName}'`,
+          item.name,
+          tr,
+          loc,
+        );
       }
     }
   }
@@ -910,15 +923,15 @@ function validateUnknownSequenceTransforms(
         const modLoc = locForChannelSeqModifier(chExt, tok, modRaw);
         const transforms = parseSeqTransforms([{ raw: modRaw, loc: modLoc ?? ch.loc }]);
         for (const tr of transforms) {
-          if (tr.kind === 'unknown') {
-            reportUnknownTransform(
-              diagFn,
-              ` on channel ${ch.id}`,
-              itemName,
-              tr,
-              modLoc ?? ch.loc,
-            );
-          }
+          if (tr.kind !== 'unknown') continue;
+          if (isNamedEffectPresetModifier(tr.raw, effectPresets)) continue;
+          reportUnknownTransform(
+            diagFn,
+            ` on channel ${ch.id}`,
+            itemName,
+            tr,
+            modLoc ?? ch.loc,
+          );
         }
       }
     }
@@ -1616,7 +1629,7 @@ export function parseWithPeggy(source: string): ParseResult {
     }
   }
 
-  validateUnknownSequenceTransforms(diag, sequenceItems, channels);
+  validateUnknownSequenceTransforms(diag, sequenceItems, channels, effects);
   if (scaleDirective) {
     diagnostics.push(...validateScaleLocks({
       pats,

@@ -55,6 +55,35 @@ channel 1 => inst lead seq main
     expect(unknown).toEqual([]);
   });
 
+  test('named effect presets are not reported as unknown transforms', () => {
+    const src = `
+chip gameboy
+inst lead type=pulse1
+effect wobble = vib:8,4
+pat core = C4 D4
+seq main = core:wobble
+channel 1 => inst lead seq main:wobble
+`;
+    const { ast } = parseWithPeggy(src);
+    const unknown = ast.diagnostics?.filter((d) => d.message.includes('Unknown transform')) ?? [];
+    expect(unknown).toEqual([]);
+  });
+
+  test('typo transforms still warn when an effect preset is also defined', () => {
+    const src = `
+chip gameboy
+inst lead type=pulse1
+effect wobble = vib:8,4
+pat core = C4
+seq main = core:wobblee
+channel 1 => inst lead seq main
+`;
+    const { ast } = parseWithPeggy(src);
+    const unknown = ast.diagnostics?.find((d) => d.message.includes("Unknown transform 'wobblee'"));
+    expect(unknown).toBeDefined();
+    expect(unknown?.level).toBe('warning');
+  });
+
   test('every(2,oct(+1)) captures nested inner modifier args', () => {
     const src = `
 chip gameboy
