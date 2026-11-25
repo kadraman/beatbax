@@ -18,3 +18,5 @@ node scripts/parity/capture.mjs ..\..\songs\gameboy\effects\<song>.bax --offline
 ```
 
 Exit 1 when PCM misses the offline render. A noise-channel warning is expected and is not a gate failure.
+
+CI Jest (`parity.tutorial_groove.test.ts`) uses that same offline + `--pcm-gate` path. Real-time WebAudio vs offline is a load-sensitive self-check only; run it locally with `BEATBAX_PARITY_REALTIME=1 npm test -- tests/parity.tutorial_groove.test.ts` (or `npm run parity:capture` without `--offline-only`). Do not rely on it under parallel Jest on shared CI runners.

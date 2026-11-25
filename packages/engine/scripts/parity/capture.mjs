@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
- * SC-001 capture (spec 112 T050).
- * WebAudio real-time vs WebAudio offline, limiter bypassed, must pass the feature gates.
- * PCM vs offline WebAudio is the T055 report. Real-time is the self-check
- * reference only: its note onsets can sit a fraction of a dB off the offline render.
+ * SC-001 capture (spec 112 T050 / T055).
+ * Product gate: PCM vs Chromium OfflineAudioContext (`--offline-only --pcm-gate`).
+ * Real-time WebAudio vs offline is an optional self-check that the gates are reachable;
+ * note onsets can sit a fraction of a dB off offline, and under CI load (especially
+ * macOS + parallel Jest) onsets can go silent while gap detection still reports 0.
+ * Default Jest CI therefore uses --offline-only --pcm-gate; opt into real-time with
+ * BEATBAX_PARITY_REALTIME=1 or by running this script without --offline-only.
  *
  *   node packages/engine/scripts/parity/capture.mjs [song.bax] [--offline-only] [--pcm-gate]
  *
